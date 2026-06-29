@@ -105,7 +105,7 @@ export default function DashboardScreen() {
           {/* 🔴 CIRCLE 4: INSIGHTS CARD DIV */}
           <TouchableOpacity
             style={[styles.halfCard, { marginRight: 8 }]}
-            onPress={() => router.push("/insights")}
+            onPress={() => router.push("/analytics")}
             activeOpacity={0.9}
           >
             <View style={styles.cardHeaderRow}>
