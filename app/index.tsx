@@ -212,7 +212,7 @@ export default function DashboardScreen() {
                 {
                   label: "Bills & Utilities",
                   pct: "15%",
-                  amt: "$EF4444",
+                  amt: "$322.20",
                   color: "#EF4444",
                 },
                 {
