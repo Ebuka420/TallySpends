@@ -5,8 +5,10 @@ import {
   Octicons,
 } from "@expo/vector-icons";
 import { usePathname, useRouter } from "expo-router";
-import React, { useState } from "react";
+import React, { useRef, useState } from "react";
 import {
+  Animated,
+  PanResponder,
   Platform,
   SafeAreaView,
   ScrollView,
@@ -22,6 +24,30 @@ export default function ExpensesScreen() {
   const router = useRouter();
   const pathname = usePathname();
   const [activeTab, setActiveTab] = useState<TimePeriod>("month");
+
+  // --- PAN RESPONDER SETUP FOR THE DRAGGABLE BUTTON ---
+  const pan = useRef(new Animated.ValueXY()).current;
+
+  const panResponder = useRef(
+    PanResponder.create({
+      onStartShouldSetPanResponder: () => true,
+      onMoveShouldSetPanResponder: () => true,
+      onPanResponderGrant: () => {
+        pan.setOffset({
+          x: (pan.x as any)._value,
+          y: (pan.y as any)._value,
+        });
+        pan.setValue({ x: 0, y: 0 });
+      },
+      onPanResponderMove: Animated.event(
+        [null, { dx: pan.x, dy: pan.y }],
+        { useNativeDriver: false }, // Layout transformations require JS thread evaluation
+      ),
+      onPanResponderRelease: () => {
+        pan.flattenOffset();
+      },
+    }),
+  ).current;
 
   // Helper component for filter dropdowns
   const FilterBadge = ({ label }: { label: string }) => (
@@ -40,11 +66,8 @@ export default function ExpensesScreen() {
     <SafeAreaView style={styles.container}>
       {/* --- TOP NAVIGATION BAR --- */}
       <View style={styles.header}>
-        {/* Left side empty or layout spacer to keep title centered since hamburger is removed */}
         <View style={styles.headerSpacer} />
-
         <Text style={styles.headerTitle}>Expenses</Text>
-
         <View style={styles.headerRightIcons}>
           <TouchableOpacity style={styles.iconButton}>
             <Ionicons name="search-outline" size={22} color="#1A1A1A" />
@@ -106,7 +129,7 @@ export default function ExpensesScreen() {
               <Text style={styles.summaryLabel}>Total Expenses</Text>
               <Text style={styles.summaryAmount}>$2,158.30</Text>
               <Text style={styles.summaryTrend}>
-                📉 12% less than last month
+                &#128313; 12% less than last month
               </Text>
             </View>
             <TouchableOpacity style={styles.monthDropdown}>
@@ -120,7 +143,6 @@ export default function ExpensesScreen() {
             </TouchableOpacity>
           </View>
 
-          {/* Sparkline mini-graph approximation */}
           <View style={styles.sparklinePlaceholder}>
             <View style={styles.sparklineCurve} />
           </View>
@@ -159,7 +181,6 @@ export default function ExpensesScreen() {
           showsHorizontalScrollIndicator={false}
           style={styles.categoriesRow}
         >
-          {/* Card 1: Food & Dining */}
           <View style={styles.categoryCard}>
             <View style={[styles.iconFrame, { backgroundColor: "#FDF2E9" }]}>
               <Ionicons name="fast-food-outline" size={18} color="#E67E22" />
@@ -177,7 +198,6 @@ export default function ExpensesScreen() {
             </View>
           </View>
 
-          {/* Card 2: Transport */}
           <View style={styles.categoryCard}>
             <View style={[styles.iconFrame, { backgroundColor: "#F4ECF7" }]}>
               <Ionicons name="car-outline" size={18} color="#8E44AD" />
@@ -195,7 +215,6 @@ export default function ExpensesScreen() {
             </View>
           </View>
 
-          {/* Card 3: Shopping */}
           <View style={styles.categoryCard}>
             <View style={[styles.iconFrame, { backgroundColor: "#FDEDEC" }]}>
               <Ionicons name="bag-handle-outline" size={18} color="#E74C3C" />
@@ -228,7 +247,6 @@ export default function ExpensesScreen() {
           </TouchableOpacity>
         </View>
 
-        {/* Today Group */}
         <Text style={styles.dateGroupHeader}>Today</Text>
         <View style={styles.txRow}>
           <View style={[styles.txIconBox, { backgroundColor: "#E8F8F5" }]}>
@@ -270,7 +288,6 @@ export default function ExpensesScreen() {
           />
         </View>
 
-        {/* Swipe Context Guide Banner */}
         <View style={styles.swipeBanner}>
           <View style={styles.swipeBannerLeft}>
             <MaterialCommunityIcons
@@ -294,15 +311,19 @@ export default function ExpensesScreen() {
         </View>
       </ScrollView>
 
-      {/* --- FLOATING ACTION BUTTON --- */}
-      <TouchableOpacity
-        style={styles.fabButton}
-        // To this:
-        onPress={() => router.push("/add-expense" as any)}
+      {/* --- DRAGGABLE PURPLE ACTION BUTTON (FAB) --- */}
+      <Animated.View
+        style={[styles.fabWrapper, { transform: pan.getTranslateTransform() }]}
+        {...panResponder.panHandlers}
       >
-        <Ionicons name="add" size={24} color="#FFF" />
-        <Text style={styles.fabText}>Add Expense</Text>
-      </TouchableOpacity>
+        <TouchableOpacity
+          style={styles.fabButton}
+          onPress={() => router.push("/add-expense" as any)}
+          activeOpacity={0.8}
+        >
+          <Ionicons name="add" size={28} color="#FFF" />
+        </TouchableOpacity>
+      </Animated.View>
 
       {/* --- STICKY FOOTER NAVIGATION --- */}
       <View style={styles.footerNav}>
@@ -358,9 +379,8 @@ const styles = StyleSheet.create({
     backgroundColor: "#FAFAFA",
   },
   scrollContent: {
-    paddingBottom: 140, // Space for FAB + structural footer balance
+    paddingBottom: 140,
   },
-  /* Top Nav Styling */
   header: {
     height: 56,
     flexDirection: "row",
@@ -386,7 +406,6 @@ const styles = StyleSheet.create({
   iconButton: {
     marginLeft: 14,
   },
-  /* Tab Switching Container */
   tabContainer: {
     flexDirection: "row",
     backgroundColor: "#FFF",
@@ -416,7 +435,6 @@ const styles = StyleSheet.create({
     color: "#FFFFFF",
     fontWeight: "600",
   },
-  /* Horizontal Filter Row */
   filterRow: {
     flexDirection: "row",
     paddingLeft: 16,
@@ -449,7 +467,6 @@ const styles = StyleSheet.create({
     color: "#E74C3C",
     fontWeight: "600",
   },
-  /* Total Expense Aggregations Card Layout */
   summaryCard: {
     backgroundColor: "#FFF",
     marginHorizontal: 16,
@@ -502,7 +519,7 @@ const styles = StyleSheet.create({
   sparklineCurve: {
     height: 2,
     backgroundColor: "#4B2C40",
-    opacity: 0.2, // Visual structural background path asset placeholder
+    opacity: 0.2,
   },
   metricsRow: {
     flexDirection: "row",
@@ -533,7 +550,6 @@ const styles = StyleSheet.create({
     backgroundColor: "#EAEAEA",
     marginHorizontal: 6,
   },
-  /* Category Section Architecture */
   sectionHeader: {
     flexDirection: "row",
     justifyContent: "space-between",
@@ -598,7 +614,6 @@ const styles = StyleSheet.create({
     height: "100%",
     borderRadius: 2,
   },
-  /* Transaction Feeds Layout */
   sortDropdown: {
     flexDirection: "row",
     alignItems: "center",
@@ -661,7 +676,6 @@ const styles = StyleSheet.create({
     color: "#AAA",
     marginTop: 2,
   },
-  /* Mock Interactive Swipe Elements */
   swipeBanner: {
     flexDirection: "row",
     backgroundColor: "#FDF6F0",
@@ -705,30 +719,32 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
-  /* Floating Action Button Design Override */
-  fabButton: {
+  /* --- RECONFIGURED FAB AND WRAPPER FOR DRAGGING --- */
+  fabWrapper: {
     position: "absolute",
     bottom: 90,
     right: 16,
-    backgroundColor: "#4B2C40",
-    flexDirection: "row",
+    zIndex: 999, // Floating absolute layout hierarchy layer
+  },
+  fabButton: {
+    backgroundColor: "#4B2C40", // Preserved your designated deep purple signature tone
+    width: 56,
+    height: 56,
+    borderRadius: 28,
     alignItems: "center",
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    borderRadius: 24,
-    elevation: 4,
-    shadowColor: "#000",
-    shadowOpacity: 0.15,
-    shadowRadius: 4,
-    shadowOffset: { width: 0, height: 2 },
+    justifyContent: "center",
+    ...Platform.select({
+      ios: {
+        shadowColor: "#000",
+        shadowOpacity: 0.15,
+        shadowRadius: 4,
+        shadowOffset: { width: 0, height: 2 },
+      },
+      android: {
+        elevation: 4,
+      },
+    }),
   },
-  fabText: {
-    color: "#FFF",
-    fontSize: 13,
-    fontWeight: "600",
-    marginLeft: 6,
-  },
-  /* Standard Project Shared Navigation Footer Base */
   footerNav: {
     position: "absolute",
     bottom: 0,

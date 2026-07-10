@@ -1,4 +1,4 @@
-import { Ionicons } from "@expo/vector-icons";
+import { FontAwesome, Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import React, { useState } from "react";
 import {
@@ -10,21 +10,22 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
+import Svg, { Circle, Path } from "react-native-svg";
 
 export default function DashboardScreen() {
   const router = useRouter();
 
-  // State hook to handle toggling privacy mask for account balances
+  // State hooks
   const [isBalanceVisible, setIsBalanceVisible] = useState<boolean>(true);
+  const [isSortLatest, setIsSortLatest] = useState<boolean>(true);
 
-  // Clean data alignment matching your exact categorical distributions
   const spendingData = [
     {
       color: "#2D232E",
       label: "Food & Dining",
       percent: "26%",
       amount: "$602.10",
-    }, // Shadow Grey from image_7.png
+    },
     { color: "#5DADE2", label: "Transport", percent: "20%", amount: "$430.00" },
     { color: "#F5B041", label: "Shopping", percent: "18%", amount: "$387.50" },
     {
@@ -47,23 +48,43 @@ export default function DashboardScreen() {
       {/* --- HEADER --- */}
       <View style={styles.header}>
         <View style={styles.headerLeft}>
-          <View style={styles.avatarPlaceholder}>
+          {/* 1. Custom User Icon -> Profile */}
+          <TouchableOpacity
+            style={styles.avatarPlaceholder}
+            onPress={() => router.push("/profile" as any)}
+            activeOpacity={0.7}
+          >
             <Ionicons name="person-outline" size={20} color="#534B52" />
-          </View>
+          </TouchableOpacity>
           <View style={styles.headerGreetingLayout}>
-            <Text style={styles.userGreetingText}>Hi user</Text>
-            <Text style={styles.subGreetingText}>
+            <Text style={styles.userGreetingText} numberOfLines={1}>
+              Hi user
+            </Text>
+            <Text style={styles.subGreetingText} numberOfLines={1}>
               Where did your money go today?
             </Text>
           </View>
         </View>
+
+        {/* Layer forced above everything to make icons interactive */}
         <View style={styles.headerRightActions}>
-          <TouchableOpacity style={styles.iconNotificationButton}>
+          {/* 2. Bell Icon -> Navigates to /notifications */}
+          <TouchableOpacity
+            style={styles.iconNotificationButton}
+            onPress={() => router.push("/notifications" as any)}
+            activeOpacity={0.7}
+          >
             <Ionicons name="notifications-outline" size={22} color="#2D232E" />
             <View style={styles.notificationAlertDotIndicator} />
           </TouchableOpacity>
-          <TouchableOpacity style={styles.iconNotificationButton}>
-            <Ionicons name="headset-outline" size={22} color="#2D232E" />
+
+          {/* 3. Customer Service Icon -> Customer Service */}
+          <TouchableOpacity
+            style={styles.iconNotificationButton}
+            onPress={() => router.push("/customerservice" as any)}
+            activeOpacity={0.7}
+          >
+            <FontAwesome name="headphones" size={22} color="#2D232E" />
           </TouchableOpacity>
         </View>
       </View>
@@ -72,13 +93,11 @@ export default function DashboardScreen() {
         contentContainerStyle={styles.scrollContainer}
         showsVerticalScrollIndicator={false}
       >
-        {/* --- TOTAL BALANCE CARD WITH ACCESSIBLE VISIBILITY EYE TOGGLE --- */}
+        {/* --- TOTAL BALANCE CARD --- */}
         <View style={styles.card}>
           <View style={styles.balanceHeaderFlexRow}>
             <View style={styles.balanceTitleWithIconRow}>
               <Text style={styles.balanceSectionLabel}>Total Balance</Text>
-
-              {/* The interactive eye switch widget */}
               <TouchableOpacity
                 style={styles.eyeVisibilityToggleButton}
                 onPress={() => setIsBalanceVisible(!isBalanceVisible)}
@@ -91,16 +110,29 @@ export default function DashboardScreen() {
                 />
               </TouchableOpacity>
             </View>
-
             <View style={styles.miniTrendGraphIconBox}>
-              <Ionicons name="trending-up-outline" size={14} color="#2D232E" />
+              <Ionicons name="trending-up-outline" size={14} color="#6442E5" />
             </View>
           </View>
 
-          {/* Dynamic mask application layer */}
-          <Text style={styles.massiveBalanceDisplayAmount}>
-            {isBalanceVisible ? "$2,842.50" : "•••••"}
-          </Text>
+          <View style={styles.balanceMainContentContainerRow}>
+            <Text style={styles.massiveBalanceDisplayAmount}>
+              {isBalanceVisible ? "$2,842.50" : "•••••"}
+            </Text>
+            <View style={styles.sparklineGraphContainer}>
+              <Svg width="110" height="40" viewBox="0 0 110 40">
+                <Path
+                  d="M 5,30 L 32,23 L 53,13 L 73,18 L 88,14 L 102,10"
+                  fill="none"
+                  stroke="#6442E5"
+                  strokeWidth={2}
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                />
+                <Circle cx="102" cy="10" r="3" fill="#6442E5" />
+              </Svg>
+            </View>
+          </View>
 
           <View style={styles.balanceDeltaMetricRow}>
             <Ionicons
@@ -116,9 +148,9 @@ export default function DashboardScreen() {
           </View>
         </View>
 
-        {/* --- INSIGHTS & GOALS SPLIT ROW --- */}
+        {/* --- INSIGHTS & GOALS ROW --- */}
         <View style={styles.splitCardsGridRow}>
-          {/* Insights Block */}
+          {/* Insights Card */}
           <View style={[styles.gridCardItem, { marginRight: 6 }]}>
             <View style={styles.gridCardHeaderFlex}>
               <View
@@ -129,7 +161,13 @@ export default function DashboardScreen() {
               >
                 <Ionicons name="trending-up" size={14} color="#2ECC71" />
               </View>
-              <Ionicons name="chevron-forward" size={14} color="#534B52" />
+              {/* 4. Arrow Icon -> Insights */}
+              <TouchableOpacity
+                style={{ padding: 4 }}
+                onPress={() => router.push("/insights" as any)}
+              >
+                <Ionicons name="chevron-forward" size={14} color="#534B52" />
+              </TouchableOpacity>
             </View>
             <Text style={styles.gridCardBodyBriefBlurb} numberOfLines={3}>
               You spent 12% less on shopping this month
@@ -139,17 +177,22 @@ export default function DashboardScreen() {
             </Text>
           </View>
 
-          {/* Goals Progress Block */}
+          {/* Goals Progress Card */}
           <View style={[styles.gridCardItem, { marginLeft: 6 }]}>
             <View style={styles.gridCardHeaderFlex}>
               <Text style={styles.gridCardHeadingTitle}>Goals Progress</Text>
-              <Ionicons name="ellipsis-vertical" size={14} color="#534B52" />
+              {/* 5. Turned 3 dots into Arrow -> Budget */}
+              <TouchableOpacity
+                style={{ padding: 4 }}
+                onPress={() => router.push("/budget" as any)}
+              >
+                <Ionicons name="chevron-forward" size={14} color="#534B52" />
+              </TouchableOpacity>
             </View>
             <Text style={styles.massivePercentageGoalDisplayNumber}>60%</Text>
             <Text style={styles.goalCompletionFractionStatusLabel}>
               2 of 3 goals completed
             </Text>
-
             <View style={styles.progressBarTrackBackground}>
               <View
                 style={[styles.progressBarFilledActiveFill, { width: "60%" }]}
@@ -158,17 +201,21 @@ export default function DashboardScreen() {
           </View>
         </View>
 
-        {/* --- SPENDING OVERVIEW (6-SEGMENT DONUT + TRUNCATION-SAFE TABULAR ROW LEGEND) --- */}
+        {/* --- SPENDING OVERVIEW --- */}
         <View style={styles.card}>
-          <View style={styles.sectionHeaderRowLinkToggle}>
+          {/* 6. Spending Overview header action -> Link to /analytics */}
+          <TouchableOpacity
+            style={styles.sectionHeaderRowLinkToggle}
+            onPress={() => router.push("/analytics" as any)}
+            activeOpacity={0.7}
+          >
             <Text style={styles.cardBlockHeadingTitleText}>
               Spending Overview
             </Text>
             <Ionicons name="chevron-forward" size={16} color="#534B52" />
-          </View>
+          </TouchableOpacity>
 
           <View style={styles.spendingOverviewVisualLayoutContentRow}>
-            {/* Multi-layered CSS border wheel segments */}
             <View style={styles.donutFrameContainer}>
               <View style={styles.donutBaseCircle}>
                 <View
@@ -227,8 +274,6 @@ export default function DashboardScreen() {
                     },
                   ]}
                 />
-
-                {/* Opaque center knockout circle */}
                 <View style={styles.donutInnerHoleMask}>
                   <Text style={styles.donutCoreMetricValue}>$2,158</Text>
                   <Text style={styles.donutCoreMetricSubLabel}>Total</Text>
@@ -236,11 +281,9 @@ export default function DashboardScreen() {
               </View>
             </View>
 
-            {/* Stable layout tracking text info as rigid tabular columns to fix image_9.png overlap */}
             <View style={styles.legendVerticalListStack}>
               {spendingData.map((item, index) => (
                 <View style={styles.legendRowItem} key={index}>
-                  {/* Left Column: Fixed space fraction for Dot + Label */}
                   <View style={styles.legendLabelContainer}>
                     <View
                       style={[
@@ -256,8 +299,6 @@ export default function DashboardScreen() {
                       {item.label}
                     </Text>
                   </View>
-
-                  {/* Middle Column: Fixed percentage column width boundary */}
                   <View style={styles.legendPercentContainer}>
                     <Text
                       style={styles.legendCategoryPercentValueText}
@@ -266,8 +307,6 @@ export default function DashboardScreen() {
                       {item.percent}
                     </Text>
                   </View>
-
-                  {/* Right Column: Fixed financial amount column width boundary */}
                   <View style={styles.legendAmountContainer}>
                     <Text
                       style={styles.legendCategoryDollarAmountText}
@@ -284,12 +323,23 @@ export default function DashboardScreen() {
 
         {/* --- RECENT TRANSACTIONS --- */}
         <View style={styles.card}>
-          <View style={styles.sectionHeaderRowLinkToggle}>
-            <Text style={styles.cardBlockHeadingTitleText}>
-              Recent Transactions
+          <View style={styles.transactionHeaderCenteredContainer}>
+            <View style={styles.placeholderSideBox} />
+            <Text style={styles.cardBlockHeadingTitleTextCentered}>
+              Transaction History
             </Text>
-            <TouchableOpacity>
-              <Text style={styles.viewAllActionTextLinkButton}>View all</Text>
+            <TouchableOpacity
+              style={styles.sortActionRowButton}
+              onPress={() => setIsSortLatest(!isSortLatest)}
+              activeOpacity={0.7}
+            >
+              <Text style={styles.sortActionButtonLabelText}>Latest</Text>
+              <Ionicons
+                name={isSortLatest ? "arrow-down" : "arrow-up"}
+                size={12}
+                color="#534B52"
+                style={{ marginLeft: 2 }}
+              />
             </TouchableOpacity>
           </View>
 
@@ -350,7 +400,7 @@ export default function DashboardScreen() {
         </View>
       </ScrollView>
 
-      {/* --- FOOTER MAIN ROUTING BAR --- */}
+      {/* --- FOOTER NAV BAR --- */}
       <View style={styles.footerNav}>
         <TouchableOpacity
           style={styles.footerItem}
@@ -359,7 +409,6 @@ export default function DashboardScreen() {
           <Ionicons name="home" size={22} color="#2D232E" />
           <Text style={[styles.footerText, styles.activeFooterText]}>Home</Text>
         </TouchableOpacity>
-
         <TouchableOpacity
           style={styles.footerItem}
           onPress={() => router.push("/expenses")}
@@ -367,7 +416,6 @@ export default function DashboardScreen() {
           <Ionicons name="document-text-outline" size={22} color="#534B52" />
           <Text style={styles.footerText}>Expenses</Text>
         </TouchableOpacity>
-
         <TouchableOpacity
           style={styles.footerItem}
           onPress={() => router.push("/budget")}
@@ -375,7 +423,6 @@ export default function DashboardScreen() {
           <Ionicons name="wallet-outline" size={22} color="#534B52" />
           <Text style={styles.footerText}>Budget</Text>
         </TouchableOpacity>
-
         <TouchableOpacity
           style={styles.footerItem}
           onPress={() => router.push("/analytics")}
@@ -383,7 +430,6 @@ export default function DashboardScreen() {
           <Ionicons name="bar-chart-outline" size={22} color="#534B52" />
           <Text style={styles.footerText}>Analytics</Text>
         </TouchableOpacity>
-
         <TouchableOpacity
           style={styles.footerItem}
           onPress={() => router.push("/more")}
@@ -397,13 +443,8 @@ export default function DashboardScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: "#F1F0EA", // Parchment Background from image_7.png
-  },
-  scrollContainer: {
-    paddingBottom: 110,
-  },
+  container: { flex: 1, backgroundColor: "#F8F9FA" },
+  scrollContainer: { paddingBottom: 110 },
   header: {
     height: 70,
     flexDirection: "row",
@@ -412,38 +453,31 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     backgroundColor: "#FFFFFF",
     borderBottomWidth: 1,
-    borderColor: "#E0DDCF", // Bone color divider from image_7.png
+    borderColor: "#EFEFEF",
+    zIndex: 10,
   },
   headerLeft: {
     flexDirection: "row",
     alignItems: "center",
     flex: 1,
+    marginRight: 10,
   },
   avatarPlaceholder: {
     width: 40,
     height: 40,
     borderRadius: 20,
-    backgroundColor: "#E0DDCF", // Bone color background
+    backgroundColor: "#F0F0F0",
     alignItems: "center",
     justifyContent: "center",
     marginRight: 12,
   },
-  headerGreetingLayout: {
-    flex: 1,
-  },
-  userGreetingText: {
-    fontSize: 20,
-    fontWeight: "800",
-    color: "#2D232E", // Shadow Grey from image_7.png
-  },
-  subGreetingText: {
-    fontSize: 12,
-    color: "#534B52", // Taupe Grey from image_7.png
-    marginTop: 2,
-  },
+  headerGreetingLayout: { flex: 1 },
+  userGreetingText: { fontSize: 20, fontWeight: "800", color: "#2D232E" },
+  subGreetingText: { fontSize: 12, color: "#534B52", marginTop: 2 },
   headerRightActions: {
     flexDirection: "row",
     alignItems: "center",
+    zIndex: 20,
   },
   iconNotificationButton: {
     width: 36,
@@ -469,22 +503,15 @@ const styles = StyleSheet.create({
     borderRadius: 16,
     padding: 16,
     borderWidth: 1,
-    borderColor: "#E0DDCF", // Bone container frames
+    borderColor: "#EAEAEA",
   },
   balanceHeaderFlexRow: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
   },
-  balanceTitleWithIconRow: {
-    flexDirection: "row",
-    alignItems: "center",
-  },
-  balanceSectionLabel: {
-    fontSize: 13,
-    fontWeight: "600",
-    color: "#534B52", // Taupe Grey
-  },
+  balanceTitleWithIconRow: { flexDirection: "row", alignItems: "center" },
+  balanceSectionLabel: { fontSize: 13, fontWeight: "600", color: "#534B52" },
   eyeVisibilityToggleButton: {
     paddingLeft: 8,
     paddingRight: 14,
@@ -496,32 +523,37 @@ const styles = StyleSheet.create({
     width: 24,
     height: 24,
     borderRadius: 6,
-    backgroundColor: "#E0DDCF", // Bone back-fill
+    backgroundColor: "#F0E6FF",
     alignItems: "center",
     justifyContent: "center",
+  },
+  balanceMainContentContainerRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginVertical: 6,
+    minHeight: 42,
   },
   massiveBalanceDisplayAmount: {
     fontSize: 34,
     fontWeight: "800",
-    color: "#2D232E", // Shadow Grey
-    marginVertical: 6,
+    color: "#2D232E",
     letterSpacing: -0.5,
-    minHeight: 42,
   },
-  balanceDeltaMetricRow: {
-    flexDirection: "row",
-    alignItems: "center",
+  sparklineGraphContainer: {
+    width: 110,
+    height: 40,
+    justifyContent: "center",
+    alignItems: "flex-end",
   },
+  balanceDeltaMetricRow: { flexDirection: "row", alignItems: "center" },
   balanceDeltaPercentLabel: {
     fontSize: 12,
     fontWeight: "700",
     color: "#2ECC71",
     marginRight: 4,
   },
-  balanceDeltaContextPeriodText: {
-    fontSize: 11,
-    color: "#534B52",
-  },
+  balanceDeltaContextPeriodText: { fontSize: 11, color: "#534B52" },
   splitCardsGridRow: {
     flexDirection: "row",
     paddingHorizontal: 16,
@@ -532,7 +564,7 @@ const styles = StyleSheet.create({
     backgroundColor: "#FFFFFF",
     borderRadius: 16,
     borderWidth: 1,
-    borderColor: "#E0DDCF",
+    borderColor: "#EAEAEA",
     padding: 14,
     justifyContent: "space-between",
     minHeight: 125,
@@ -562,11 +594,7 @@ const styles = StyleSheet.create({
     color: "#2ECC71",
     marginTop: 6,
   },
-  gridCardHeadingTitle: {
-    fontSize: 12,
-    fontWeight: "700",
-    color: "#534B52",
-  },
+  gridCardHeadingTitle: { fontSize: 12, fontWeight: "700", color: "#534B52" },
   massivePercentageGoalDisplayNumber: {
     fontSize: 26,
     fontWeight: "800",
@@ -579,7 +607,7 @@ const styles = StyleSheet.create({
   },
   progressBarTrackBackground: {
     height: 5,
-    backgroundColor: "#E0DDCF",
+    backgroundColor: "#EAEAEA",
     borderRadius: 3,
     marginTop: 6,
     overflow: "hidden",
@@ -599,11 +627,6 @@ const styles = StyleSheet.create({
     fontSize: 15,
     fontWeight: "700",
     color: "#2D232E",
-  },
-  viewAllActionTextLinkButton: {
-    fontSize: 12,
-    color: "#2D232E",
-    fontWeight: "700",
   },
   spendingOverviewVisualLayoutContentRow: {
     flexDirection: "row",
@@ -644,19 +667,11 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     zIndex: 20,
   },
-  donutCoreMetricValue: {
-    fontSize: 15,
-    fontWeight: "800",
-    color: "#2D232E",
-  },
-  donutCoreMetricSubLabel: {
-    fontSize: 9,
-    color: "#534B52",
-    marginTop: 1,
-  },
+  donutCoreMetricValue: { fontSize: 15, fontWeight: "800", color: "#2D232E" },
+  donutCoreMetricSubLabel: { fontSize: 9, color: "#534B52", marginTop: 1 },
   legendVerticalListStack: {
-    width: "60%", // Static outer constraint box width limits total line horizontal travel
-    paddingLeft: 8,
+    flex: 1,
+    paddingLeft: 12,
     justifyContent: "center",
   },
   legendRowItem: {
@@ -664,12 +679,13 @@ const styles = StyleSheet.create({
     alignItems: "center",
     marginVertical: 5,
     width: "100%",
+    justifyContent: "space-between",
   },
   legendLabelContainer: {
     flexDirection: "row",
     alignItems: "center",
-    width: "50%", // Rigidly locks the text to half the block area maximum, forcing truncation text cutoffs
-    paddingRight: 4,
+    flex: 1,
+    paddingRight: 6,
   },
   indicatorColorDot: {
     width: 8,
@@ -684,31 +700,55 @@ const styles = StyleSheet.create({
     fontWeight: "500",
     flex: 1,
   },
-  legendPercentContainer: {
-    width: "20%", // Locks percentages inside a distinct column window
-    alignItems: "flex-end",
-  },
+  legendPercentContainer: { width: 40, alignItems: "flex-end", flexShrink: 0 },
   legendCategoryPercentValueText: {
     fontSize: 12,
     color: "#534B52",
     fontWeight: "500",
   },
-  legendAmountContainer: {
-    width: "30%", // Locks amounts on the far right tracking margin securely
-    alignItems: "flex-end",
-  },
+  legendAmountContainer: { width: 65, alignItems: "flex-end", flexShrink: 0 },
   legendCategoryDollarAmountText: {
     fontSize: 12,
     fontWeight: "700",
     color: "#2D232E",
   },
+  transactionHeaderCenteredContainer: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    marginBottom: 14,
+    width: "100%",
+  },
+  cardBlockHeadingTitleTextCentered: {
+    fontSize: 15,
+    fontWeight: "700",
+    color: "#2D232E",
+    textAlign: "center",
+    flex: 1,
+  },
+  sortActionRowButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#F0F0F2",
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 6,
+    minWidth: 65,
+    justifyContent: "center",
+  },
+  sortActionButtonLabelText: {
+    fontSize: 11,
+    fontWeight: "700",
+    color: "#534B52",
+  },
+  placeholderSideBox: { width: 65 },
   transactionRowItemContainer: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
     paddingVertical: 12,
     borderBottomWidth: 1,
-    borderBottomColor: "#E0DDCF",
+    borderBottomColor: "#EAEAEA",
   },
   transactionLeftMetadataWrapper: {
     flexDirection: "row",
@@ -722,19 +762,9 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     marginRight: 12,
   },
-  merchantMainNameText: {
-    fontSize: 13,
-    fontWeight: "700",
-    color: "#2D232E",
-  },
-  merchantCategorySubText: {
-    fontSize: 11,
-    color: "#534B52",
-    marginTop: 1,
-  },
-  transactionRightFinancialWrapper: {
-    alignItems: "flex-end",
-  },
+  merchantMainNameText: { fontSize: 13, fontWeight: "700", color: "#2D232E" },
+  merchantCategorySubText: { fontSize: 11, color: "#534B52", marginTop: 1 },
+  transactionRightFinancialWrapper: { alignItems: "flex-end" },
   transactionDebitNegativeAmountValue: {
     fontSize: 13,
     fontWeight: "700",
@@ -756,7 +786,7 @@ const styles = StyleSheet.create({
     justifyContent: "space-around",
     alignItems: "center",
     borderTopWidth: 1,
-    borderTopColor: "#E0DDCF",
+    borderTopColor: "#EFEFEF",
     paddingBottom: Platform.OS === "ios" ? 15 : 0,
   },
   footerItem: {
@@ -771,8 +801,5 @@ const styles = StyleSheet.create({
     marginTop: 4,
     fontWeight: "500",
   },
-  activeFooterText: {
-    color: "#2D232E",
-    fontWeight: "600",
-  },
+  activeFooterText: { color: "#2D232E", fontWeight: "600" },
 });

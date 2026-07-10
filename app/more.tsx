@@ -27,7 +27,7 @@ const MENU_ITEMS = [
     icon: "headset-outline",
     iconColor: "#3A3A3C",
     bgColor: "#F2F2F7",
-    route: "/support",
+    route: "/customerservice",
   },
   {
     id: "premium",
