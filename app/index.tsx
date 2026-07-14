@@ -12,6 +12,8 @@ import {
 } from "react-native";
 import Svg, { Circle, G, Path } from "react-native-svg";
 
+const API_URL = process.env.EXPO_PUBLIC_API_URL;
+
 export default function DashboardScreen() {
   const router = useRouter();
 

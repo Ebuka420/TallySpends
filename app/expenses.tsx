@@ -23,6 +23,8 @@ import {
   View,
 } from "react-native";
 
+const API_URL = process.env.EXPO_PUBLIC_API_URL;
+
 type TimePeriod = "today" | "week" | "month" | "custom";
 
 interface Transaction {
