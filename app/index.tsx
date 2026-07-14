@@ -1,5 +1,5 @@
 import { FontAwesome, Ionicons } from "@expo/vector-icons";
-import { useRouter } from "expo-router";
+import { Stack, useRouter } from "expo-router";
 import React, { useState } from "react";
 import {
   Platform,
@@ -10,7 +10,7 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
-import Svg, { Circle, Path } from "react-native-svg";
+import Svg, { Circle, G, Path } from "react-native-svg";
 
 export default function DashboardScreen() {
   const router = useRouter();
@@ -43,12 +43,19 @@ export default function DashboardScreen() {
     { color: "#D5D8DC", label: "Other", percent: "9%", amount: "$200.90" },
   ];
 
+  // SVG Donut Configurations (Radius: 40, Circumference: ~251.3)
+  const radius = 40;
+  const circumference = 2 * Math.PI * radius;
+  let accumulatedPercent = 0;
+
   return (
     <SafeAreaView style={styles.container}>
+      {/* --- HIDE EXPO ROUTER NATIVE HEADER BAR --- */}
+      <Stack.Screen options={{ headerShown: false }} />
+
       {/* --- HEADER --- */}
       <View style={styles.header}>
         <View style={styles.headerLeft}>
-          {/* 1. Custom User Icon -> Profile */}
           <TouchableOpacity
             style={styles.avatarPlaceholder}
             onPress={() => router.push("/profile" as any)}
@@ -58,7 +65,7 @@ export default function DashboardScreen() {
           </TouchableOpacity>
           <View style={styles.headerGreetingLayout}>
             <Text style={styles.userGreetingText} numberOfLines={1}>
-              Hi user
+              Boss How far
             </Text>
             <Text style={styles.subGreetingText} numberOfLines={1}>
               Where did your money go today?
@@ -66,9 +73,7 @@ export default function DashboardScreen() {
           </View>
         </View>
 
-        {/* Layer forced above everything to make icons interactive */}
         <View style={styles.headerRightActions}>
-          {/* 2. Bell Icon -> Navigates to /notifications */}
           <TouchableOpacity
             style={styles.iconNotificationButton}
             onPress={() => router.push("/notifications" as any)}
@@ -78,7 +83,6 @@ export default function DashboardScreen() {
             <View style={styles.notificationAlertDotIndicator} />
           </TouchableOpacity>
 
-          {/* 3. Customer Service Icon -> Customer Service */}
           <TouchableOpacity
             style={styles.iconNotificationButton}
             onPress={() => router.push("/customerservice" as any)}
@@ -150,18 +154,9 @@ export default function DashboardScreen() {
 
         {/* --- INSIGHTS & GOALS ROW --- */}
         <View style={styles.splitCardsGridRow}>
-          {/* Insights Card */}
           <View style={[styles.gridCardItem, { marginRight: 6 }]}>
             <View style={styles.gridCardHeaderFlex}>
-              <View
-                style={[
-                  styles.gridIconCircleWrapper,
-                  { backgroundColor: "#E8F8F5" },
-                ]}
-              >
-                <Ionicons name="trending-up" size={14} color="#2ECC71" />
-              </View>
-              {/* 4. Arrow Icon -> Insights */}
+              <Text style={styles.gridCardHeadingTitle}>Insights</Text>
               <TouchableOpacity
                 style={{ padding: 4 }}
                 onPress={() => router.push("/insights" as any)}
@@ -177,14 +172,12 @@ export default function DashboardScreen() {
             </Text>
           </View>
 
-          {/* Goals Progress Card */}
           <View style={[styles.gridCardItem, { marginLeft: 6 }]}>
             <View style={styles.gridCardHeaderFlex}>
               <Text style={styles.gridCardHeadingTitle}>Goals Progress</Text>
-              {/* 5. Turned 3 dots into Arrow -> Budget */}
               <TouchableOpacity
                 style={{ padding: 4 }}
-                onPress={() => router.push("/budget" as any)}
+                onPress={() => router.replace("/budget" as any)}
               >
                 <Ionicons name="chevron-forward" size={14} color="#534B52" />
               </TouchableOpacity>
@@ -203,7 +196,6 @@ export default function DashboardScreen() {
 
         {/* --- SPENDING OVERVIEW --- */}
         <View style={styles.card}>
-          {/* 6. Spending Overview header action -> Link to /analytics */}
           <TouchableOpacity
             style={styles.sectionHeaderRowLinkToggle}
             onPress={() => router.push("/analytics" as any)}
@@ -216,68 +208,39 @@ export default function DashboardScreen() {
           </TouchableOpacity>
 
           <View style={styles.spendingOverviewVisualLayoutContentRow}>
+            {/* Native Clean SVG Donut Implementation */}
             <View style={styles.donutFrameContainer}>
-              <View style={styles.donutBaseCircle}>
-                <View
-                  style={[
-                    styles.donutSegment,
-                    { borderColor: "#2D232E", zIndex: 6 },
-                  ]}
-                />
-                <View
-                  style={[
-                    styles.donutSegment,
-                    {
-                      borderColor: "#5DADE2",
-                      transform: [{ rotate: "93deg" }],
-                      zIndex: 5,
-                    },
-                  ]}
-                />
-                <View
-                  style={[
-                    styles.donutSegment,
-                    {
-                      borderColor: "#F5B041",
-                      transform: [{ rotate: "165deg" }],
-                      zIndex: 4,
-                    },
-                  ]}
-                />
-                <View
-                  style={[
-                    styles.donutSegment,
-                    {
-                      borderColor: "#EC7063",
-                      transform: [{ rotate: "230deg" }],
-                      zIndex: 3,
-                    },
-                  ]}
-                />
-                <View
-                  style={[
-                    styles.donutSegment,
-                    {
-                      borderColor: "#A6ACAF",
-                      transform: [{ rotate: "284deg" }],
-                      zIndex: 2,
-                    },
-                  ]}
-                />
-                <View
-                  style={[
-                    styles.donutSegment,
-                    {
-                      borderColor: "#D5D8DC",
-                      transform: [{ rotate: "320deg" }],
-                      zIndex: 1,
-                    },
-                  ]}
-                />
-                <View style={styles.donutInnerHoleMask}>
-                  <Text style={styles.donutCoreMetricValue}>$2,158</Text>
-                  <Text style={styles.donutCoreMetricSubLabel}>Total</Text>
-                </View>
+              <Svg width="110" height="110" viewBox="0 0 100 100">
+                {/* Fixed native rotation container via native SVG Group component */}
+                <G rotation="-90" origin="50, 50">
+                  {spendingData.map((item, index) => {
+                    const percentageValue = parseFloat(item.percent) / 100;
+                    const strokeOffset = circumference * (1 - percentageValue);
+                    const strokeRotation = accumulatedPercent * 360;
+                    accumulatedPercent += percentageValue;
+
+                    return (
+                      <Circle
+                        key={index}
+                        cx="50"
+                        cy="50"
+                        r={radius}
+                        fill="transparent"
+                        stroke={item.color}
+                        strokeWidth="11"
+                        strokeDasharray={circumference}
+                        strokeDashoffset={strokeOffset}
+                        originX="50"
+                        originY="50"
+                        rotation={strokeRotation}
+                      />
+                    );
+                  })}
+                </G>
+              </Svg>
+              <View style={styles.donutInnerHoleMask}>
+                <Text style={styles.donutCoreMetricValue}>$2,158</Text>
+                <Text style={styles.donutCoreMetricSubLabel}>Total</Text>
               </View>
             </View>
 
@@ -351,9 +314,7 @@ export default function DashboardScreen() {
                   styles.brandMerchantLogoAvatarBox,
                   { backgroundColor: "#E8F5E9" },
                 ]}
-              >
-                <Ionicons name="cafe-outline" size={16} color="#2E7D32" />
-              </View>
+              />
               <View>
                 <Text style={styles.merchantMainNameText}>Starbucks</Text>
                 <Text style={styles.merchantCategorySubText}>
@@ -382,9 +343,7 @@ export default function DashboardScreen() {
                   styles.brandMerchantLogoAvatarBox,
                   { backgroundColor: "#F5F5F5" },
                 ]}
-              >
-                <Ionicons name="car-outline" size={16} color="#2D232E" />
-              </View>
+              />
               <View>
                 <Text style={styles.merchantMainNameText}>Uber</Text>
                 <Text style={styles.merchantCategorySubText}>Transport</Text>
@@ -404,28 +363,28 @@ export default function DashboardScreen() {
       <View style={styles.footerNav}>
         <TouchableOpacity
           style={styles.footerItem}
-          onPress={() => router.push("/")}
+          onPress={() => router.replace("/")}
         >
           <Ionicons name="home" size={22} color="#2D232E" />
           <Text style={[styles.footerText, styles.activeFooterText]}>Home</Text>
         </TouchableOpacity>
         <TouchableOpacity
           style={styles.footerItem}
-          onPress={() => router.push("/expenses")}
+          onPress={() => router.replace("/expenses")}
         >
           <Ionicons name="document-text-outline" size={22} color="#534B52" />
           <Text style={styles.footerText}>Expenses</Text>
         </TouchableOpacity>
         <TouchableOpacity
           style={styles.footerItem}
-          onPress={() => router.push("/budget")}
+          onPress={() => router.replace("/budget")}
         >
           <Ionicons name="wallet-outline" size={22} color="#534B52" />
           <Text style={styles.footerText}>Budget</Text>
         </TouchableOpacity>
         <TouchableOpacity
           style={styles.footerItem}
-          onPress={() => router.push("/analytics")}
+          onPress={() => router.replace("/analytics")}
         >
           <Ionicons name="bar-chart-outline" size={22} color="#534B52" />
           <Text style={styles.footerText}>Analytics</Text>
@@ -454,13 +413,12 @@ const styles = StyleSheet.create({
     backgroundColor: "#FFFFFF",
     borderBottomWidth: 1,
     borderColor: "#EFEFEF",
-    zIndex: 10,
   },
   headerLeft: {
     flexDirection: "row",
     alignItems: "center",
     flex: 1,
-    marginRight: 10,
+    marginRight: 16,
   },
   avatarPlaceholder: {
     width: 40,
@@ -472,12 +430,11 @@ const styles = StyleSheet.create({
     marginRight: 12,
   },
   headerGreetingLayout: { flex: 1 },
-  userGreetingText: { fontSize: 20, fontWeight: "800", color: "#2D232E" },
-  subGreetingText: { fontSize: 12, color: "#534B52", marginTop: 2 },
+  userGreetingText: { fontSize: 16, fontWeight: "800", color: "#2D232E" },
+  subGreetingText: { fontSize: 10, color: "#534B52", marginTop: 2 },
   headerRightActions: {
     flexDirection: "row",
     alignItems: "center",
-    zIndex: 20,
   },
   iconNotificationButton: {
     width: 36,
@@ -575,18 +532,12 @@ const styles = StyleSheet.create({
     alignItems: "center",
     marginBottom: 6,
   },
-  gridIconCircleWrapper: {
-    width: 26,
-    height: 26,
-    borderRadius: 13,
-    alignItems: "center",
-    justifyContent: "center",
-  },
   gridCardBodyBriefBlurb: {
     fontSize: 12,
     fontWeight: "600",
     color: "#2D232E",
     lineHeight: 16,
+    marginTop: 4,
   },
   gridCardBottomGreenAccentLabel: {
     fontSize: 10,
@@ -639,23 +590,7 @@ const styles = StyleSheet.create({
     height: 110,
     alignItems: "center",
     justifyContent: "center",
-  },
-  donutBaseCircle: {
-    width: 100,
-    height: 100,
-    borderRadius: 50,
     position: "relative",
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  donutSegment: {
-    position: "absolute",
-    width: 100,
-    height: 100,
-    borderRadius: 50,
-    borderWidth: 11,
-    borderLeftColor: "transparent",
-    borderBottomColor: "transparent",
   },
   donutInnerHoleMask: {
     position: "absolute",
@@ -665,7 +600,6 @@ const styles = StyleSheet.create({
     backgroundColor: "#FFFFFF",
     alignItems: "center",
     justifyContent: "center",
-    zIndex: 20,
   },
   donutCoreMetricValue: { fontSize: 15, fontWeight: "800", color: "#2D232E" },
   donutCoreMetricSubLabel: { fontSize: 9, color: "#534B52", marginTop: 1 },
@@ -773,7 +707,7 @@ const styles = StyleSheet.create({
   transactionTimestampValueText: {
     fontSize: 11,
     color: "#A6ACAF",
-    marginTop: 2,
+    marginVertical: 2,
   },
   footerNav: {
     position: "absolute",

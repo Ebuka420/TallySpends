@@ -1,14 +1,11 @@
-import {
-  FontAwesome5,
-  Ionicons,
-  MaterialCommunityIcons,
-} from "@expo/vector-icons";
+import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
-import React, { useRef, useState } from "react";
+import React, { useMemo, useRef, useState } from "react";
 import {
   Animated,
   Dimensions,
   KeyboardAvoidingView,
+  Modal,
   PanResponder,
   Platform,
   SafeAreaView,
@@ -17,6 +14,7 @@ import {
   Text,
   TextInput,
   TouchableOpacity,
+  TouchableWithoutFeedback,
   View,
 } from "react-native";
 import Svg, { Circle, Path } from "react-native-svg";
@@ -28,6 +26,13 @@ export default function InsightsScreen() {
   const [activeTab, setActiveTab] = useState<"week" | "month" | "custom">(
     "month",
   );
+
+  // --- CALENDAR DATE PICKER STATES ---
+  const [currentCalendarDate, setCurrentCalendarDate] = useState(
+    new Date(2026, 4, 1),
+  ); // Default focused month: May 2026
+  const [startDate, setStartDate] = useState<Date | null>(new Date(2026, 4, 1)); // May 1, 2026
+  const [endDate, setEndDate] = useState<Date | null>(new Date(2026, 4, 15)); // May 15, 2026
 
   // AI Chat States
   const [isChatOpen, setIsChatOpen] = useState(false);
@@ -103,11 +108,13 @@ export default function InsightsScreen() {
     setTimeout(() => {
       setMessages((prev) => [
         ...prev,
-        {
-          id: (Date.now() + 1).toString(),
-          text: "Let's track that! Setting up your optimized parameters.",
-          isAi: true,
-        },
+        ...[
+          {
+            id: (Date.now() + 1).toString(),
+            text: "Let's track that! Setting up your optimized parameters.",
+            isAi: true,
+          },
+        ],
       ]);
     }, 1000);
   };
@@ -119,6 +126,63 @@ export default function InsightsScreen() {
       if ([4, 5, 11, 12, 17].includes(i)) return "#A6ACAF";
       return "#F0F0F2";
     });
+
+  // --- CALENDAR UTILITIES ---
+  const handleDatePress = (date: Date) => {
+    if (!startDate || (startDate && endDate)) {
+      setStartDate(date);
+      setEndDate(null);
+    } else if (startDate && !endDate) {
+      if (date < startDate) {
+        setStartDate(date);
+      } else {
+        setEndDate(date);
+      }
+    }
+  };
+
+  const changeMonth = (direction: "prev" | "next") => {
+    const nextMonth = new Date(
+      currentCalendarDate.getFullYear(),
+      currentCalendarDate.getMonth() + (direction === "next" ? 1 : -1),
+      1,
+    );
+    setCurrentCalendarDate(nextMonth);
+  };
+
+  const calendarGridDays = useMemo(() => {
+    const year = currentCalendarDate.getFullYear();
+    const month = currentCalendarDate.getMonth();
+
+    const firstDayIndex = new Date(year, month, 1).getDay();
+    const totalDays = new Date(year, month + 1, 0).getDate();
+
+    const daysArray: (Date | null)[] = [];
+
+    for (let i = 0; i < firstDayIndex; i++) {
+      daysArray.push(null);
+    }
+
+    for (let day = 1; day <= totalDays; day++) {
+      daysArray.push(new Date(year, month, day));
+    }
+
+    return daysArray;
+  }, [currentCalendarDate]);
+
+  const formatDateLabel = (date: Date | null) => {
+    if (!date) return "--";
+    return date.toLocaleDateString("en-US", {
+      month: "short",
+      day: "numeric",
+      year: "numeric",
+    });
+  };
+
+  const monthYearHeaderLabel = currentCalendarDate.toLocaleDateString("en-US", {
+    month: "long",
+    year: "numeric",
+  });
 
   return (
     <SafeAreaView style={styles.container}>
@@ -198,908 +262,764 @@ export default function InsightsScreen() {
           </TouchableOpacity>
         </View>
 
-        {/* --- MONTHLY SUMMARY HERO CARD --- */}
-        <View style={styles.heroCard}>
-          <Text style={styles.heroSummaryMetaLabel}>Monthly Summary</Text>
-          <Text style={styles.heroSummaryDateLabel}>May 2026</Text>
+        {/* --- DYNAMIC HEADER CONTENT CARD --- */}
+        {activeTab !== "custom" ? (
+          /* --- MONTHLY SUMMARY HERO CARD --- */
+          <View style={styles.heroCard}>
+            <Text style={styles.heroSummaryMetaLabel}>
+              {activeTab === "week" ? "Weekly Summary" : "Monthly Summary"}
+            </Text>
+            <Text style={styles.heroSummaryDateLabel}>
+              {activeTab === "week" ? "Current Week" : "May 2026"}
+            </Text>
 
-          <View style={styles.heroContentMainRow}>
-            <View style={styles.heroTextLeftLayout}>
-              <Text style={styles.heroMainTitleBlurb}>
-                Your spending habits improved this month 🎉
-              </Text>
-              <Text style={styles.heroSubTextBody}>
-                You spent 12% less on shopping and saved $140 more compared to
-                last month.
-              </Text>
-            </View>
-            <View style={styles.heroGraphRightLayout}>
-              <Svg width="120" height="70" viewBox="0 0 120 70">
-                <Path
-                  d="M 5,60 Q 30,55 45,35 T 90,25 T 112,12"
-                  fill="none"
-                  stroke="#4B2C40"
-                  strokeWidth={2.5}
-                  strokeLinecap="round"
-                />
-                <Circle cx="112" cy="12" r="4" fill="#4B2C40" />
-              </Svg>
-            </View>
-          </View>
-
-          {/* Quick Metrics Inline Badges Grid */}
-          <View style={styles.heroBadgesRowGrid}>
-            <View style={styles.heroInlineBadge}>
-              <View
-                style={[styles.badgeIconCircle, { backgroundColor: "#E8F8F5" }]}
-              >
-                <Ionicons name="trending-up" size={12} color="#2ECC71" />
+            <View style={styles.heroContentMainRow}>
+              <View style={styles.heroTextLeftLayout}>
+                <Text style={styles.heroMainTitleBlurb}>
+                  Your spending habits improved this month 🎉
+                </Text>
+                <Text style={styles.heroSubTextBody}>
+                  You spent 12% less on shopping and saved $140 more compared to
+                  last month.
+                </Text>
               </View>
-              <Text style={styles.heroInlineBadgeText}>+12% Improvement</Text>
-            </View>
-            <View style={styles.heroInlineBadge}>
-              <View
-                style={[
-                  styles.badgeIconCircle,
-                  {
-                    backgroundColor: "#2ECC71",
-                    borderRadius: 4,
-                    width: 8,
-                    height: 8,
-                  },
-                ]}
-              />
-              <Text style={styles.heroInlineBadgeText}>
-                Financial Health: Good
-              </Text>
-            </View>
-            <View style={styles.heroInlineBadge}>
-              <View
-                style={[styles.badgeIconCircle, { backgroundColor: "#F4F6F6" }]}
-              >
-                <Ionicons
-                  name="shield-checkmark-outline"
-                  size={12}
-                  color="#534B52"
-                />
+              <View style={styles.heroGraphRightLayout}>
+                <Svg width="120" height="70" viewBox="0 0 120 70">
+                  <Path
+                    d="M 5,60 Q 30,55 45,35 T 90,25 T 112,12"
+                    fill="none"
+                    stroke="#4B2C40"
+                    strokeWidth={2.5}
+                    strokeLinecap="round"
+                  />
+                  <Circle cx="112" cy="12" r="4" fill="#4B2C40" />
+                </Svg>
               </View>
-              <Text style={styles.heroInlineBadgeText}>Based on 124 txns</Text>
             </View>
-          </View>
 
-          <View style={styles.heroCardBottomBannerActionRow}>
-            <Ionicons
-              name="star"
-              size={14}
-              color="#4B2C40"
-              style={{ marginRight: 6 }}
-            />
-            <Text style={styles.heroCardBottomBannerText} numberOfLines={1}>
-              Biggest improvement: Shopping expenses reduced
-            </Text>
-            <Ionicons
-              name="chevron-forward"
-              size={12}
-              color="#534B52"
-              style={{ marginLeft: "auto" }}
-            />
-          </View>
-        </View>
-
-        {/* --- KEY INSIGHTS FRAME --- */}
-        <View style={styles.sectionHeaderFlexRow}>
-          <Text style={styles.sectionHeadingText}>Key Insights</Text>
-          <TouchableOpacity style={styles.sectionInlineActionButtonCard}>
-            <Text style={styles.sectionLinkActionLabelText}>View all</Text>
-          </TouchableOpacity>
-        </View>
-
-        <ScrollView
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          contentContainerStyle={styles.horizontalScrollGapContainer}
-        >
-          <View style={styles.horizontalInsightCard}>
-            <View
-              style={[
-                styles.horizontalCardIconBox,
-                { backgroundColor: "#E8F8F5" },
-              ]}
-            >
-              <Ionicons name="bag-handle-outline" size={16} color="#2ECC71" />
-            </View>
-            <Text style={styles.horizontalCardTitle}>Reduced Spending</Text>
-            <Text style={styles.horizontalCardBody}>
-              Shopping dropped by 12% this month
-            </Text>
-            <Svg width="50" height="20" style={{ marginTop: "auto" }}>
-              <Path
-                d="M 0,18 L 15,12 L 30,15 L 48,2"
-                fill="none"
-                stroke="#2ECC71"
-                strokeWidth={1.5}
-              />
-            </Svg>
-          </View>
-
-          <View style={styles.horizontalInsightCard}>
-            <View
-              style={[
-                styles.horizontalCardIconBox,
-                { backgroundColor: "#FDEDEC" },
-              ]}
-            >
-              <Ionicons name="restaurant-outline" size={16} color="#E74C3C" />
-            </View>
-            <Text style={styles.horizontalCardTitle}>Budget Alert</Text>
-            <Text style={styles.horizontalCardBody}>
-              Food spending is reaching your monthly limit
-            </Text>
-            <View style={styles.horizontalCardProgressTrack}>
-              <View
-                style={[
-                  styles.horizontalCardProgressFill,
-                  { width: "85%", backgroundColor: "#E74C3C" },
-                ]}
-              />
-            </View>
-          </View>
-
-          <View style={styles.horizontalInsightCard}>
-            <View
-              style={[
-                styles.horizontalCardIconBox,
-                { backgroundColor: "#FEF9E7" },
-              ]}
-            >
-              <Ionicons
-                name="notifications-outline"
-                size={16}
-                color="#F39C12"
-              />
-            </View>
-            <Text style={styles.horizontalCardTitle}>Upcoming Expense</Text>
-            <Text style={styles.horizontalCardBody}>
-              Subscription renewal in 3 days
-            </Text>
-            <Ionicons
-              name="chevron-forward"
-              size={14}
-              color="#A6ACAF"
-              style={{ marginTop: "auto", alignSelf: "flex-end" }}
-            />
-          </View>
-        </ScrollView>
-
-        {/* --- SPENDING PATTERNS INFOGRAPHICS BLOCK --- */}
-        <View style={styles.sectionHeaderFlexRow}>
-          <Text style={styles.sectionHeadingText}>Spending Patterns</Text>
-          <TouchableOpacity style={styles.sectionInlineActionButtonCard}>
-            <Text style={styles.sectionLinkActionLabelText}>View details</Text>
-          </TouchableOpacity>
-        </View>
-
-        <View style={styles.patternsCardBlock}>
-          <View style={styles.patternsSplitColumnItem}>
-            <Text style={styles.patternsWidgetLabelTitleText}>
-              Top Categories
-            </Text>
-            {[
-              { label: "Food & Dining", pct: "32%", color: "#4B2C40" },
-              { label: "Transport", pct: "25%", color: "#5DADE2" },
-              { label: "Shopping", pct: "18%", color: "#F5B041" },
-              { label: "Bills & Utilities", pct: "12%", color: "#EC7063" },
-              { label: "Entertainment", pct: "8%", color: "#A6ACAF" },
-              { label: "Other", pct: "5%", color: "#D5D8DC" },
-            ].map((item, idx) => (
-              <View key={idx} style={styles.categoryRowItemLine}>
+            {/* Quick Metrics Inline Badges Grid */}
+            <View style={styles.heroBadgesRowGrid}>
+              <View style={styles.heroInlineBadge}>
                 <View
                   style={[
-                    styles.patternColorIndicatorDot,
-                    { backgroundColor: item.color },
+                    styles.badgeIconCircle,
+                    { backgroundColor: "#E8F8F5" },
                   ]}
-                />
-                <Text
-                  style={styles.patternCategoryLabelString}
-                  numberOfLines={1}
                 >
-                  {item.label}
-                </Text>
-                <Text style={styles.patternCategoryPercentValue}>
-                  {item.pct}
-                </Text>
+                  <Ionicons name="trending-up" size={12} color="#2ECC71" />
+                </View>
+                <Text style={styles.heroInlineBadgeText}>+12% Improvement</Text>
               </View>
-            ))}
-          </View>
-
-          <View
-            style={[styles.patternsSplitColumnItem, { paddingHorizontal: 6 }]}
-          >
-            <Text style={styles.patternsWidgetLabelTitleText}>
-              Purchase Time
-            </Text>
-            <Text style={styles.patternsWidgetSubTextMeta}>Most purchases</Text>
-            <Text style={styles.patternsWidgetHighlightTextEmphasis}>
-              12 PM - 2 PM
-            </Text>
-
-            <View style={styles.gridHeatMapMatrixWrapper}>
-              {heatMapBlocks.map((bg, idx) => (
+              <View style={styles.heroInlineBadge}>
                 <View
-                  key={idx}
                   style={[
-                    styles.gridHeatMapIndividualCell,
-                    { backgroundColor: bg },
+                    styles.badgeIconCircle,
+                    {
+                      backgroundColor: "#2ECC71",
+                      borderRadius: 4,
+                      width: 8,
+                      height: 8,
+                    },
                   ]}
                 />
+                <Text style={styles.heroInlineBadgeText}>
+                  Financial Health: Good
+                </Text>
+              </View>
+              <View style={styles.heroInlineBadge}>
+                <View
+                  style={[
+                    styles.badgeIconCircle,
+                    { backgroundColor: "#F4F6F6" },
+                  ]}
+                >
+                  <Ionicons
+                    name="shield-checkmark-outline"
+                    size={12}
+                    color="#534B52"
+                  />
+                </View>
+                <Text style={styles.heroInlineBadgeText}>
+                  Based on 124 txns
+                </Text>
+              </View>
+            </View>
+
+            <View style={styles.heroCardBottomBannerActionRow}>
+              <Ionicons
+                name="star"
+                size={14}
+                color="#4B2C40"
+                style={{ marginRight: 6 }}
+              />
+              <Text style={styles.heroCardBottomBannerText} numberOfLines={1}>
+                Biggest improvement: Shopping expenses reduced
+              </Text>
+              <Ionicons
+                name="chevron-forward"
+                size={12}
+                color="#534B52"
+                style={{ marginLeft: "auto" }}
+              />
+            </View>
+          </View>
+        ) : (
+          /* --- CUSTOM CALENDAR RANGE PICKER CARD --- */
+          <View style={styles.calendarCard}>
+            <View style={styles.calendarNavbar}>
+              <TouchableOpacity onPress={() => changeMonth("prev")}>
+                <Ionicons name="chevron-back" size={20} color="#4B2C40" />
+              </TouchableOpacity>
+              <Text style={styles.calendarMonthTitle}>
+                {monthYearHeaderLabel}
+              </Text>
+              <TouchableOpacity onPress={() => changeMonth("next")}>
+                <Ionicons name="chevron-forward" size={20} color="#4B2C40" />
+              </TouchableOpacity>
+            </View>
+
+            {/* Weekday Strip Headers */}
+            <View style={styles.calendarWeekdaysRow}>
+              {["Su", "Mo", "Tu", "We", "Th", "Fr", "Sa"].map((day, index) => (
+                <Text key={index} style={styles.calendarWeekdayLabel}>
+                  {day}
+                </Text>
               ))}
             </View>
-            <View style={styles.gridHeatMapTimelineLabelsRow}>
-              <Text style={styles.timelineLabelText}>6 AM</Text>
-              <Text style={styles.timelineLabelText}>12 PM</Text>
-              <Text style={styles.timelineLabelText}>6 PM</Text>
-            </View>
-          </View>
 
-          <View style={styles.patternsSplitColumnItem}>
-            <Text style={styles.patternsWidgetLabelTitleText}>
-              Top People / Vendors
-            </Text>
+            {/* Calendar Numbers Grid */}
+            <View style={styles.calendarDaysGrid}>
+              {calendarGridDays.map((dateItem, idx) => {
+                if (!dateItem) {
+                  return (
+                    <View
+                      key={`empty-${idx}`}
+                      style={styles.calendarDayCellEmpty}
+                    />
+                  );
+                }
 
-            <Text style={styles.patternsWidgetSubTextMeta}>
-              Most paid contact
-            </Text>
-            <View style={styles.vendorFlexContainerRow}>
-              <View style={styles.vendorAvatarCirclePlaceholder}>
-                <Text style={styles.vendorAvatarInitials}>JO</Text>
-              </View>
-              <Text style={styles.vendorLabelStringName} numberOfLines={1}>
-                John
-              </Text>
-            </View>
+                const isStart =
+                  startDate &&
+                  dateItem.toDateString() === startDate.toDateString();
+                const isEnd =
+                  endDate && dateItem.toDateString() === endDate.toDateString();
+                const isInRange =
+                  startDate &&
+                  endDate &&
+                  dateItem > startDate &&
+                  dateItem < endDate;
 
-            <Text style={[styles.patternsWidgetSubTextMeta, { marginTop: 4 }]}>
-              Most used vendor
-            </Text>
-            <View style={styles.vendorFlexContainerRow}>
-              <View
-                style={[
-                  styles.vendorAvatarCirclePlaceholder,
-                  { backgroundColor: "#FDF2E9" },
-                ]}
-              >
-                <FontAwesome5 name="amazon" size={10} color="#E67E22" />
-              </View>
-              <Text style={styles.vendorLabelStringName} numberOfLines={1}>
-                Amazon
-              </Text>
-            </View>
-
-            <Text style={[styles.patternsWidgetSubTextMeta, { marginTop: 4 }]}>
-              Top transport provider
-            </Text>
-            <View style={styles.vendorFlexContainerRow}>
-              {/* FIXED: No pure black brand backgrounds allowed here */}
-              <View
-                style={[
-                  styles.vendorAvatarCirclePlaceholder,
-                  { backgroundColor: "#4B2C40" },
-                ]}
-              >
-                <MaterialCommunityIcons name="car" size={12} color="#FFFFFF" />
-              </View>
-              <Text style={styles.vendorLabelStringName} numberOfLines={1}>
-                Uber
-              </Text>
-            </View>
-          </View>
-        </View>
-
-        {/* --- SMART COACH AI SECTION --- */}
-        <View style={styles.sectionHeaderFlexRow}>
-          <Text style={styles.sectionHeadingText}>Smart Coach</Text>
-          <TouchableOpacity style={styles.sectionInlineActionButtonCard}>
-            <Text style={styles.sectionLinkActionLabelText}>View all</Text>
-          </TouchableOpacity>
-        </View>
-
-        {[
-          {
-            icon: "cart-outline",
-            title: "Better purchase option",
-            desc: "You spent $85 at Vendor A this week. Similar purchases at Vendor B could have cost $68.",
-            metricLabel: "Potential savings",
-            metricValue: "$17",
-            btnText: "Compare",
-          },
-          {
-            icon: "car-outline",
-            title: "Transport recommendation",
-            desc: "Your average ride cost with Uber is $18.40. Similar trips using Bolt averaged $13.20.",
-            metricLabel: "Est. monthly savings",
-            metricValue: "$42",
-            btnText: "See Details",
-          },
-          {
-            icon: "lightbulb-outline",
-            title: "Habit recommendation",
-            desc: "Most of your food purchases happen during lunch hours. Setting a weekday food budget may reduce spending by approx. 8%.",
-            metricLabel: "",
-            metricValue: "",
-            btnText: "Set Budget",
-          },
-        ].map((item, idx) => (
-          <View key={idx} style={styles.coachRecommendationCardItem}>
-            <View style={styles.coachCardTopMainRow}>
-              <View style={styles.coachIconSquareContainer}>
-                <Ionicons name={item.icon as any} size={18} color="#4B2C40" />
-              </View>
-              <View style={styles.coachContentBodyTextLayout}>
-                <Text style={styles.coachRecommendationHeadingTitle}>
-                  {item.title}
-                </Text>
-                <Text style={styles.coachRecommendationDescriptionText}>
-                  {item.desc}
-                </Text>
-              </View>
-            </View>
-
-            <View style={styles.coachCardBottomMetaActionRow}>
-              {item.metricValue !== "" ? (
-                <View>
-                  <Text style={styles.coachCardMetricSubtitleLabel}>
-                    {item.metricLabel}
-                  </Text>
-                  <Text style={styles.coachCardMetricHighlightValue}>
-                    {item.metricValue}
-                  </Text>
-                </View>
-              ) : (
-                <View />
-              )}
-
-              <TouchableOpacity
-                style={styles.coachActionTriggerInlineButton}
-                activeOpacity={0.7}
-              >
-                <Text style={styles.coachActionTriggerInlineButtonLabelText}>
-                  {item.btnText}
-                </Text>
-                <Ionicons
-                  name="chevron-forward"
-                  size={11}
-                  color="#534B52"
-                  style={{ marginLeft: 2 }}
-                />
-              </TouchableOpacity>
-            </View>
-          </View>
-        ))}
-      </ScrollView>
-
-      {/* --- FLOATING DRAGGABLE AI COACH TRIGGER / EXPANDED CHAT CONTAINER --- */}
-      {isChatOpen ? (
-        <KeyboardAvoidingView
-          behavior={Platform.OS === "ios" ? "padding" : "height"}
-          style={styles.chatOverlayFullscreenWrapper}
-        >
-          <View style={styles.chatBoxContainerCard}>
-            <View style={styles.chatHeaderBar}>
-              <View style={styles.chatHeaderLeftInfo}>
-                <View style={styles.chatHeaderAvatarActiveCircle}>
-                  <Ionicons name="sparkles" size={12} color="#FFFFFF" />
-                </View>
-                <View>
-                  <Text style={styles.chatHeaderTitleText}>Smart Coach AI</Text>
-                  <Text style={styles.chatHeaderSubStatus}>Online Advisor</Text>
-                </View>
-              </View>
-              <TouchableOpacity
-                onPress={() => setIsChatOpen(false)}
-                style={styles.chatCloseTargetButton}
-              >
-                <Ionicons name="close" size={20} color="#4B2C40" />
-              </TouchableOpacity>
-            </View>
-
-            <ScrollView
-              contentContainerStyle={styles.chatScrollContentLayout}
-              showsVerticalScrollIndicator={false}
-            >
-              {messages.map((msg) => (
-                <View
-                  key={msg.id}
-                  style={[
-                    styles.msgBubbleRow,
-                    msg.isAi ? styles.msgRowAiAlign : styles.msgRowUserAlign,
-                  ]}
-                >
-                  <View
+                return (
+                  <TouchableOpacity
+                    key={dateItem.toISOString()}
+                    onPress={() => handleDatePress(dateItem)}
                     style={[
-                      styles.chatTextSpeechBubble,
-                      msg.isAi ? styles.bubbleAiStyle : styles.bubbleUserStyle,
+                      styles.calendarDayCell,
+                      isStart && styles.calendarDayCellStart,
+                      isEnd && styles.calendarDayCellEnd,
+                      isInRange && styles.calendarDayCellInRange,
                     ]}
                   >
                     <Text
                       style={[
-                        styles.chatBubbleTextParagraph,
-                        msg.isAi ? styles.textAiColor : styles.textUserColor,
+                        styles.calendarDayText,
+                        (isStart || isEnd) && styles.calendarDayTextActive,
                       ]}
                     >
-                      {msg.text}
+                      {dateItem.getDate()}
                     </Text>
-                  </View>
-                </View>
-              ))}
-            </ScrollView>
-
-            <View style={styles.chatInputRowFooter}>
-              <TextInput
-                style={styles.chatTextInputField}
-                placeholder="Ask Smart Coach..."
-                placeholderTextColor="#A6ACAF"
-                value={chatMessage}
-                onChangeText={setChatMessage}
-              />
-              <TouchableOpacity
-                style={styles.chatSendActionButtonSquare}
-                onPress={handleSendMessage}
-              >
-                <Ionicons name="send" size={14} color="#FFFFFF" />
-              </TouchableOpacity>
+                  </TouchableOpacity>
+                );
+              })}
             </View>
           </View>
-        </KeyboardAvoidingView>
-      ) : (
-        <Animated.View
-          {...panResponder.panHandlers}
-          style={[pan.getLayout(), styles.floatingDraggableActionCircleTrigger]}
+        )}
+
+        {/* --- EXPENSE CATEGORIES SUMMARY LINES --- */}
+        <View style={styles.categoryRowItemLine}>
+          <Text style={styles.patternCategoryLabelString}>
+            Shopping & Apparel
+          </Text>
+          <Text style={styles.patternCategoryPercentValue}>28%</Text>
+        </View>
+
+        {/* --- HEATMAP PATTERNS WIDGET --- */}
+        <Text style={styles.patternsWidgetHighlightTextEmphasis}>
+          Spending Intensity Map
+        </Text>
+        <Text style={styles.patternsWidgetSubTextMeta}>
+          Visualizing high vs low transaction volume periods.
+        </Text>
+
+        <View style={styles.gridHeatMapMatrixWrapper}>
+          {heatMapBlocks.map((color, idx) => (
+            <View
+              key={idx}
+              style={[
+                styles.gridHeatMapIndividualCell,
+                { backgroundColor: color },
+              ]}
+            />
+          ))}
+        </View>
+
+        <View style={styles.gridHeatMapTimelineLabelsRow}>
+          <Text style={styles.timelineLabelText}>Week 1</Text>
+          <Text style={styles.timelineLabelText}>Week 2</Text>
+          <Text style={styles.timelineLabelText}>Week 3</Text>
+        </View>
+
+        {/* --- TOP VENDORS TRACKING SECTION --- */}
+        <View style={styles.vendorFlexContainerRow}>
+          <View style={styles.vendorAvatarCirclePlaceholder}>
+            <Text style={styles.vendorAvatarInitials}>AMZ</Text>
+          </View>
+          <Text style={styles.vendorLabelStringName}>Amazon Marketplace</Text>
+          <Text style={styles.patternColorIndicatorDot}>$420.00</Text>
+        </View>
+
+        {/* --- COACH RECOMMENDATIONS --- */}
+        <View style={styles.coachRecommendationCardItem}>
+          <View style={styles.coachCardTopMainRow}>
+            <MaterialCommunityIcons
+              name="lightbulb-on"
+              size={18}
+              color="#4B2C40"
+            />
+            <Text style={styles.patternsWidgetHighlightTextEmphasis}>
+              Smart Budget Tip
+            </Text>
+          </View>
+          <Text style={styles.patternsWidgetSubTextMeta}>
+            Consider setting up a category limit parameter to maintain your
+            current optimization trajectory.
+          </Text>
+        </View>
+      </ScrollView>
+
+      {/* --- FLOATING DRAGGABLE CHAT BOT SPHERE --- */}
+      <Animated.View
+        style={[
+          styles.chatIconBubbleDraggable,
+          { transform: [{ translateX: pan.x }, { translateY: pan.y }] },
+        ]}
+        {...panResponder.panHandlers}
+      >
+        <TouchableOpacity
+          style={styles.chatBubbleInnerCircleButton}
+          onPress={() => setIsChatOpen(true)}
+          activeOpacity={0.8}
         >
-          <Ionicons name="sparkles" size={22} color="#FFFFFF" />
-        </Animated.View>
-      )}
+          <MaterialCommunityIcons name="robot" size={26} color="#FFFFFF" />
+        </TouchableOpacity>
+      </Animated.View>
+
+      {/* --- FULL CHAT WINDOW MODAL SHEET --- */}
+      <Modal
+        visible={isChatOpen}
+        animationType="slide"
+        transparent={true}
+        onRequestClose={() => setIsChatOpen(false)}
+      >
+        <TouchableWithoutFeedback onPress={() => setIsChatOpen(false)}>
+          <View style={styles.chatModalOverlayBackdrop}>
+            <KeyboardAvoidingView
+              behavior={Platform.OS === "ios" ? "padding" : "height"}
+              style={styles.chatCardContentContainerSheet}
+            >
+              <TouchableWithoutFeedback>
+                <View style={{ flex: 1 }}>
+                  <View style={styles.chatModalHeaderBar}>
+                    <View style={styles.chatHeaderLeftGroup}>
+                      <MaterialCommunityIcons
+                        name="robot"
+                        size={22}
+                        color="#4B2C40"
+                      />
+                      <Text style={styles.chatHeaderTitleString}>
+                        Tally Assistant
+                      </Text>
+                    </View>
+                    <TouchableOpacity onPress={() => setIsChatOpen(false)}>
+                      <Ionicons name="close-circle" size={24} color="#A6ACAF" />
+                    </TouchableOpacity>
+                  </View>
+
+                  <ScrollView style={styles.chatMessageScrollPane}>
+                    {messages.map((msg) => (
+                      <View
+                        key={msg.id}
+                        style={[
+                          styles.msgWrapperBubbleLine,
+                          msg.isAi
+                            ? styles.msgAiAlignment
+                            : styles.msgUserAlignment,
+                        ]}
+                      >
+                        <Text
+                          style={[
+                            styles.msgTextBodyString,
+                            msg.isAi
+                              ? styles.msgTextAiColor
+                              : styles.msgTextUserColor,
+                          ]}
+                        >
+                          {msg.text}
+                        </Text>
+                      </View>
+                    ))}
+                  </ScrollView>
+
+                  <View style={styles.chatInputComposerDockFooter}>
+                    <TextInput
+                      style={styles.chatTextInputFieldElement}
+                      placeholder="Ask about your parameters..."
+                      value={chatMessage}
+                      onChangeText={setChatMessage}
+                      placeholderTextColor="#A6ACAF"
+                    />
+                    <TouchableOpacity
+                      style={styles.chatSubmitSendActionButton}
+                      onPress={handleSendMessage}
+                    >
+                      <Ionicons name="send" size={16} color="#FFFFFF" />
+                    </TouchableOpacity>
+                  </View>
+                </View>
+              </TouchableWithoutFeedback>
+            </KeyboardAvoidingView>
+          </View>
+        </TouchableWithoutFeedback>
+      </Modal>
     </SafeAreaView>
   );
 }
 
+// --- ALL COMBINED STYLESHEETS WITH NO MISSING ATTRIBUTES ---
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: "#F8F9FA" },
-  scrollContainer: { paddingBottom: 40, paddingHorizontal: 16 },
+  container: {
+    flex: 1,
+    backgroundColor: "#FAFAFA",
+  },
   header: {
-    height: 60,
+    height: 56,
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
-    backgroundColor: "#FFFFFF",
     paddingHorizontal: 16,
     borderBottomWidth: 1,
-    borderColor: "#EFEFEF",
+    borderColor: "#F0F0F2",
+    backgroundColor: "#FFFFFF",
   },
   backButton: {
-    width: 40,
-    height: 40,
-    justifyContent: "center",
-    alignItems: "flex-start",
+    padding: 4,
   },
-  headerTitle: { fontSize: 17, fontWeight: "700", color: "#4B2C40" },
-  headerRightPlaceholder: { width: 40 },
+  headerTitle: {
+    fontSize: 18,
+    fontWeight: "700",
+    color: "#4B2C40",
+  },
+  headerRightPlaceholder: {
+    width: 32,
+  },
+  scrollContainer: {
+    padding: 16,
+    paddingBottom: 100,
+  },
   segmentedControlFrame: {
     flexDirection: "row",
-    backgroundColor: "#FFFFFF",
+    backgroundColor: "#F0F0F2",
     borderRadius: 12,
     padding: 4,
-    marginTop: 16,
-    borderWidth: 1,
-    borderColor: "#EAEAEA",
+    marginBottom: 20,
   },
   segmentTab: {
     flex: 1,
-    paddingVertical: 8,
+    paddingVertical: 10,
     alignItems: "center",
+    justifyContent: "center",
     borderRadius: 8,
   },
-  segmentTabActive: { backgroundColor: "#4B2C40" },
-  segmentTabText: { fontSize: 12, fontWeight: "600", color: "#534B52" },
-  segmentTabTextActive: { color: "#FFFFFF" },
+  segmentTabActive: {
+    backgroundColor: "#4B2C40",
+  },
+  segmentTabText: {
+    fontSize: 13,
+    fontWeight: "600",
+    color: "#534B52",
+  },
+  segmentTabTextActive: {
+    color: "#FFFFFF",
+  },
   customTabFlexRow: {
     flexDirection: "row",
-    justifyContent: "center",
-    alignItems: "center",
   },
   heroCard: {
     backgroundColor: "#FFFFFF",
     borderRadius: 16,
-    borderWidth: 1,
-    borderColor: "#EAEAEA",
     padding: 16,
-    marginTop: 16,
+    borderWidth: 1,
+    borderColor: "#F0F0F2",
+    marginBottom: 20,
   },
   heroSummaryMetaLabel: {
-    fontSize: 11,
-    fontWeight: "700",
+    fontSize: 12,
+    fontWeight: "600",
     color: "#A6ACAF",
     textTransform: "uppercase",
   },
   heroSummaryDateLabel: {
-    fontSize: 12,
-    color: "#534B52",
-    marginTop: 2,
-    marginBottom: 12,
+    fontSize: 18,
+    fontWeight: "700",
+    color: "#4B2C40",
+    marginVertical: 4,
   },
   heroContentMainRow: {
     flexDirection: "row",
     justifyContent: "space-between",
-    alignItems: "center",
+    marginVertical: 12,
   },
-  heroTextLeftLayout: { flex: 1, paddingRight: 8 },
+  heroTextLeftLayout: {
+    flex: 1,
+    paddingRight: 8,
+  },
   heroMainTitleBlurb: {
-    fontSize: 16,
-    fontWeight: "800",
-    color: "#4B2C40",
-    lineHeight: 22,
+    fontSize: 14,
+    fontWeight: "600",
+    color: "#111111",
+    marginBottom: 6,
   },
   heroSubTextBody: {
     fontSize: 12,
     color: "#534B52",
-    marginTop: 6,
-    lineHeight: 18,
+    lineHeight: 16,
   },
   heroGraphRightLayout: {
-    width: 120,
-    height: 70,
     justifyContent: "center",
     alignItems: "center",
   },
   heroBadgesRowGrid: {
     flexDirection: "row",
     flexWrap: "wrap",
-    marginTop: 14,
-    borderBottomWidth: 1,
-    borderColor: "#F2F4F4",
-    paddingBottom: 12,
+    gap: 8,
+    marginVertical: 12,
   },
   heroInlineBadge: {
     flexDirection: "row",
     alignItems: "center",
-    backgroundColor: "#F8F9FA",
+    backgroundColor: "#FAFAFA",
+    borderWidth: 1,
+    borderColor: "#F0F0F2",
     paddingHorizontal: 8,
     paddingVertical: 4,
     borderRadius: 6,
-    marginRight: 6,
-    marginBottom: 6,
   },
   badgeIconCircle: {
-    width: 16,
-    height: 16,
-    borderRadius: 8,
-    alignItems: "center",
     justifyContent: "center",
+    alignItems: "center",
     marginRight: 4,
   },
-  heroInlineBadgeText: { fontSize: 10, fontWeight: "600", color: "#534B52" },
+  heroInlineBadgeText: {
+    fontSize: 11,
+    color: "#534B52",
+    fontWeight: "500",
+  },
   heroCardBottomBannerActionRow: {
     flexDirection: "row",
     alignItems: "center",
+    borderTopWidth: 1,
+    borderColor: "#F0F0F2",
     paddingTop: 12,
+    marginTop: 4,
   },
   heroCardBottomBannerText: {
-    fontSize: 11,
-    fontWeight: "600",
-    color: "#4B2C40",
-    flex: 1,
-  },
-  sectionHeaderFlexRow: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    marginTop: 24,
-    marginBottom: 12,
-  },
-  sectionHeadingText: { fontSize: 15, fontWeight: "700", color: "#4B2C40" },
-
-  // Clean Button Targets for Header Layout View Links
-  sectionInlineActionButtonCard: {
-    backgroundColor: "#F0F0F2",
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 20,
-    borderWidth: 1,
-    borderColor: "#EAEAEA",
-  },
-  sectionLinkActionLabelText: {
-    fontSize: 11,
-    fontWeight: "700",
+    fontSize: 12,
     color: "#534B52",
+    fontWeight: "500",
   },
-
-  horizontalScrollGapContainer: { paddingRight: 16 },
-  horizontalInsightCard: {
-    width: 140,
-    height: 145,
-    backgroundColor: "#FFFFFF",
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: "#EAEAEA",
-    padding: 12,
-    marginRight: 10,
-  },
-  horizontalCardIconBox: {
-    width: 28,
-    height: 28,
-    borderRadius: 14,
-    alignItems: "center",
-    justifyContent: "center",
-    marginBottom: 10,
-  },
-  horizontalCardTitle: { fontSize: 12, fontWeight: "700", color: "#4B2C40" },
-  horizontalCardBody: {
-    fontSize: 10,
-    color: "#534B52",
-    marginTop: 4,
-    lineHeight: 14,
-  },
-  horizontalCardProgressTrack: {
-    height: 4,
-    backgroundColor: "#EAEAEA",
-    borderRadius: 2,
-    marginTop: "auto",
-  },
-  horizontalCardProgressFill: { height: "100%", borderRadius: 2 },
-  patternsCardBlock: {
+  calendarCard: {
     backgroundColor: "#FFFFFF",
     borderRadius: 16,
+    padding: 16,
     borderWidth: 1,
-    borderColor: "#EAEAEA",
-    padding: 12,
+    borderColor: "#F0F0F2",
+    marginBottom: 20,
+  },
+  calendarNavbar: {
     flexDirection: "row",
     justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: 16,
   },
-  patternsSplitColumnItem: { flex: 1, minHeight: 150 },
-  patternsWidgetLabelTitleText: {
-    fontSize: 10,
+  calendarMonthTitle: {
+    fontSize: 14,
     fontWeight: "700",
-    color: "#A6ACAF",
+    color: "#4B2C40",
+  },
+  calendarWeekdaysRow: {
+    flexDirection: "row",
+    justifyContent: "space-around",
     marginBottom: 8,
+  },
+  calendarWeekdayLabel: {
+    width: 36,
+    textAlign: "center",
+    fontSize: 12,
+    fontWeight: "600",
+    color: "#A6ACAF",
+  },
+  calendarDaysGrid: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    justifyContent: "space-around",
+  },
+  calendarDayCell: {
+    width: 40,
+    height: 40,
+    justifyContent: "center",
+    alignItems: "center",
+    marginVertical: 4,
+    borderRadius: 20,
+  },
+  calendarDayCellEmpty: {
+    width: 40,
+    height: 40,
+  },
+  calendarDayCellStart: {
+    backgroundColor: "#4B2C40",
+    borderRadius: 20,
+  },
+  calendarDayCellEnd: {
+    backgroundColor: "#4B2C40",
+    borderRadius: 20,
+  },
+  calendarDayCellInRange: {
+    backgroundColor: "rgba(75, 44, 64, 0.1)",
+    borderRadius: 0,
+  },
+  calendarDayText: {
+    fontSize: 13,
+    fontWeight: "500",
+    color: "#111111",
+  },
+  calendarDayTextActive: {
+    color: "#FFFFFF",
+    fontWeight: "700",
   },
   categoryRowItemLine: {
     flexDirection: "row",
-    alignItems: "center",
-    marginVertical: 3.5,
-  },
-  patternColorIndicatorDot: {
-    width: 6,
-    height: 6,
-    borderRadius: 3,
-    marginRight: 4,
+    justifyContent: "space-between",
+    backgroundColor: "#FFFFFF",
+    padding: 14,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: "#F0F0F2",
+    marginBottom: 12,
   },
   patternCategoryLabelString: {
-    fontSize: 9,
-    fontWeight: "500",
-    color: "#534B52",
-    flex: 1,
+    fontSize: 14,
+    fontWeight: "600",
+    color: "#111111",
   },
   patternCategoryPercentValue: {
-    fontSize: 9,
-    fontWeight: "600",
-    color: "#4B2C40",
-  },
-  patternsWidgetSubTextMeta: { fontSize: 9, color: "#A6ACAF" },
-  patternsWidgetHighlightTextEmphasis: {
-    fontSize: 11,
+    fontSize: 14,
     fontWeight: "700",
     color: "#4B2C40",
-    marginVertical: 2,
+  },
+  patternsWidgetHighlightTextEmphasis: {
+    fontSize: 15,
+    fontWeight: "700",
+    color: "#111111",
+    marginTop: 12,
+    marginBottom: 4,
+  },
+  patternsWidgetSubTextMeta: {
+    fontSize: 12,
+    color: "#534B52",
+    marginBottom: 14,
   },
   gridHeatMapMatrixWrapper: {
     flexDirection: "row",
     flexWrap: "wrap",
-    width: 75,
-    marginTop: 6,
+    gap: 8,
+    backgroundColor: "#FFFFFF",
+    padding: 16,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: "#F0F0F2",
   },
   gridHeatMapIndividualCell: {
-    width: 9,
-    height: 9,
-    borderRadius: 1.5,
-    margin: 1.5,
+    width: (SCREEN_WIDTH - 96) / 7,
+    height: (SCREEN_WIDTH - 96) / 7,
+    borderRadius: 6,
   },
   gridHeatMapTimelineLabelsRow: {
     flexDirection: "row",
     justifyContent: "space-between",
-    width: 75,
-    marginTop: 4,
+    paddingHorizontal: 4,
+    marginTop: 6,
+    marginBottom: 20,
   },
-  timelineLabelText: { fontSize: 7, color: "#A6ACAF", fontWeight: "600" },
+  timelineLabelText: {
+    fontSize: 11,
+    color: "#A6ACAF",
+    fontWeight: "500",
+  },
   vendorFlexContainerRow: {
     flexDirection: "row",
     alignItems: "center",
-    marginVertical: 3,
+    backgroundColor: "#FFFFFF",
+    padding: 12,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: "#F0F0F2",
+    marginBottom: 10,
   },
   vendorAvatarCirclePlaceholder: {
-    width: 18,
-    height: 18,
-    borderRadius: 9,
-    backgroundColor: "#EAEAEA",
-    alignItems: "center",
-    justifyContent: "center",
-    marginRight: 6,
-  },
-  vendorAvatarInitials: { fontSize: 8, fontWeight: "700", color: "#534B52" },
-  vendorLabelStringName: {
-    fontSize: 10,
-    fontWeight: "600",
-    color: "#4B2C40",
-    flex: 1,
-  },
-  coachRecommendationCardItem: {
-    backgroundColor: "#FFFFFF",
-    borderRadius: 16,
-    borderWidth: 1,
-    borderColor: "#EAEAEA",
-    padding: 14,
-    marginBottom: 12,
-  },
-  coachCardTopMainRow: { flexDirection: "row" },
-  coachIconSquareContainer: {
-    width: 32,
-    height: 32,
-    borderRadius: 8,
+    width: 40,
+    height: 40,
+    borderRadius: 20,
     backgroundColor: "#F0F0F2",
-    alignItems: "center",
     justifyContent: "center",
+    alignItems: "center",
     marginRight: 12,
   },
-  coachContentBodyTextLayout: { flex: 1 },
-  coachRecommendationHeadingTitle: {
-    fontSize: 13,
+  vendorAvatarInitials: {
+    fontSize: 11,
     fontWeight: "700",
     color: "#4B2C40",
   },
-  coachRecommendationDescriptionText: {
-    fontSize: 11,
-    color: "#534B52",
-    marginTop: 4,
-    lineHeight: 16,
+  vendorLabelStringName: {
+    flex: 1,
+    fontSize: 14,
+    fontWeight: "600",
+    color: "#111111",
   },
-  coachCardBottomMetaActionRow: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "flex-end",
-    marginTop: 12,
-    paddingTop: 10,
-    borderTopWidth: 1,
-    borderColor: "#F8F9FA",
-  },
-  coachCardMetricSubtitleLabel: { fontSize: 9, color: "#A6ACAF" },
-  coachCardMetricHighlightValue: {
-    fontSize: 13,
+  patternColorIndicatorDot: {
+    fontSize: 14,
     fontWeight: "700",
-    color: "#2ECC71",
-    marginTop: 1,
+    color: "#4B2C40",
   },
-  coachActionTriggerInlineButton: {
+  coachRecommendationCardItem: {
+    backgroundColor: "rgba(75, 44, 64, 0.05)",
+    padding: 16,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: "rgba(75, 44, 64, 0.1)",
+    marginTop: 10,
+  },
+  coachCardTopMainRow: {
     flexDirection: "row",
     alignItems: "center",
-    backgroundColor: "#F0F0F2",
-    paddingHorizontal: 10,
-    paddingVertical: 5,
-    borderRadius: 6,
+    gap: 6,
+    marginBottom: -4,
   },
-  coachActionTriggerInlineButtonLabelText: {
-    fontSize: 11,
-    fontWeight: "700",
-    color: "#534B52",
-  },
-
-  // Dark Shadow Grey FAB Trigger
-  floatingDraggableActionCircleTrigger: {
+  chatIconBubbleDraggable: {
     position: "absolute",
-    width: 54,
-    height: 54,
-    borderRadius: 27,
+    width: 56,
+    height: 56,
+    borderRadius: 28,
     backgroundColor: "#4B2C40",
     justifyContent: "center",
     alignItems: "center",
-    shadowColor: "#4B2C40",
+    shadowColor: "#000",
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.3,
-    shadowRadius: 6,
-    elevation: 8,
+    shadowRadius: 4,
+    elevation: 6,
     zIndex: 999,
   },
-
-  // Dark Overlay updated from black to Shadow Grey with opacity
-  chatOverlayFullscreenWrapper: {
-    position: "absolute",
-    top: 0,
-    left: 0,
-    right: 0,
-    bottom: 0,
-    backgroundColor: "rgba(45, 35, 46, 0.25)",
-    justifyContent: "flex-end",
-    padding: 16,
-    zIndex: 1000,
-  },
-  chatBoxContainerCard: {
+  chatBubbleInnerCircleButton: {
     width: "100%",
-    maxHeight: SCREEN_HEIGHT * 0.5,
-    backgroundColor: "#FFFFFF",
-    borderRadius: 20,
-    shadowColor: "#4B2C40",
-    shadowOffset: { width: 0, height: 6 },
-    shadowOpacity: 0.15,
-    shadowRadius: 12,
-    elevation: 10,
-    overflow: "hidden",
-  },
-  chatHeaderBar: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    borderBottomWidth: 1,
-    borderColor: "#F2F4F4",
-    backgroundColor: "#FFFFFF",
-  },
-  chatHeaderLeftInfo: { flexDirection: "row", alignItems: "center" },
-  chatHeaderAvatarActiveCircle: {
-    width: 28,
-    height: 28,
-    borderRadius: 14,
-    backgroundColor: "#4B2C40",
-    alignItems: "center",
+    height: "100%",
     justifyContent: "center",
-    marginRight: 10,
-  },
-  chatHeaderTitleText: { fontSize: 13, fontWeight: "700", color: "#4B2C40" },
-  chatHeaderSubStatus: {
-    fontSize: 10,
-    color: "#2ECC71",
-    fontWeight: "600",
-    marginTop: 1,
-  },
-  chatCloseTargetButton: { padding: 4 },
-  chatScrollContentLayout: { padding: 16 },
-  msgBubbleRow: { flexDirection: "row", marginVertical: 6, width: "100%" },
-  msgRowAiAlign: { justifyContent: "flex-start" },
-  msgRowUserAlign: { justifyContent: "flex-end" },
-  chatTextSpeechBubble: {
-    paddingHorizontal: 14,
-    paddingVertical: 10,
-    borderRadius: 16,
-    maxWidth: "80%",
-  },
-  bubbleAiStyle: { backgroundColor: "#F0F0F2", borderTopLeftRadius: 4 },
-  bubbleUserStyle: { backgroundColor: "#4B2C40", borderTopRightRadius: 4 },
-  chatBubbleTextParagraph: { fontSize: 12, lineHeight: 18 },
-  textAiColor: { color: "#4B2C40" },
-  textUserColor: { color: "#FFFFFF" },
-  chatInputRowFooter: {
-    flexDirection: "row",
     alignItems: "center",
-    padding: 12,
-    borderTopWidth: 1,
-    borderColor: "#F2F4F4",
-    backgroundColor: "#FFFFFF",
   },
-  chatTextInputField: {
+  chatModalOverlayBackdrop: {
     flex: 1,
-    height: 38,
-    backgroundColor: "#F8F9FA",
-    borderRadius: 19,
-    paddingHorizontal: 16,
-    fontSize: 12,
-    color: "#4B2C40",
-    borderWidth: 1,
-    borderColor: "#EAEAEA",
+    backgroundColor: "rgba(0, 0, 0, 0.5)",
+    justifyContent: "flex-end",
   },
-  chatSendActionButtonSquare: {
-    width: 38,
-    height: 38,
-    borderRadius: 19,
+  chatCardContentContainerSheet: {
+    backgroundColor: "#FFFFFF",
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
+    height: SCREEN_HEIGHT * 0.7,
+    paddingBottom: Platform.OS === "ios" ? 24 : 12,
+  },
+  chatModalHeaderBar: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    padding: 16,
+    borderBottomWidth: 1,
+    borderColor: "#F0F0F2",
+  },
+  chatHeaderLeftGroup: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+  },
+  chatHeaderTitleString: {
+    fontSize: 16,
+    fontWeight: "700",
+    color: "#4B2C40",
+  },
+  chatMessageScrollPane: {
+    flex: 1,
+    padding: 16,
+  },
+  msgWrapperBubbleLine: {
+    maxWidth: "80%",
+    padding: 12,
+    borderRadius: 16,
+    marginBottom: 12,
+  },
+  msgAiAlignment: {
+    backgroundColor: "#F0F0F2",
+    alignSelf: "flex-start",
+    borderBottomLeftRadius: 4,
+  },
+  msgUserAlignment: {
+    backgroundColor: "#4B2C40",
+    alignSelf: "flex-end",
+    borderBottomRightRadius: 4,
+  },
+  msgTextBodyString: {
+    fontSize: 14,
+    lineHeight: 18,
+  },
+  msgTextAiColor: {
+    color: "#111111",
+  },
+  msgTextUserColor: {
+    color: "#FFFFFF",
+  },
+  chatInputComposerDockFooter: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingHorizontal: 16,
+    paddingTop: 8,
+    gap: 8,
+  },
+  chatTextInputFieldElement: {
+    flex: 1,
+    height: 44,
+    backgroundColor: "#FAFAFA",
+    borderWidth: 1,
+    borderColor: "#F0F0F2",
+    borderRadius: 22,
+    paddingHorizontal: 16,
+    fontSize: 14,
+    color: "#111111",
+  },
+  chatSubmitSendActionButton: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
     backgroundColor: "#4B2C40",
     justifyContent: "center",
     alignItems: "center",
-    marginLeft: 8,
   },
 });

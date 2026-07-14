@@ -4,10 +4,14 @@ import {
   MaterialCommunityIcons,
   Octicons,
 } from "@expo/vector-icons";
+import DateTimePicker, {
+  DateTimePickerEvent,
+} from "@react-native-community/datetimepicker";
 import { usePathname, useRouter } from "expo-router";
-import React, { useRef, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import {
   Animated,
+  Modal,
   PanResponder,
   Platform,
   SafeAreaView,
@@ -15,41 +19,114 @@ import {
   StyleSheet,
   Text,
   TouchableOpacity,
+  TouchableWithoutFeedback,
   View,
 } from "react-native";
 
 type TimePeriod = "today" | "week" | "month" | "custom";
+
+interface Transaction {
+  id: string;
+  title: string;
+  category: string;
+  time: string;
+  amount: number;
+  method: string;
+  icon: string;
+  iconType: "ionicons" | "fontawesome";
+  bgColor: string;
+  iconColor: string;
+}
+
+const MOCK_TRANSACTIONS: Transaction[] = [
+  {
+    id: "1",
+    title: "Starbucks",
+    category: "Food & Dining",
+    time: "Today, 9:21 AM",
+    amount: -5.2,
+    method: "Card",
+    icon: "logo-buffer",
+    iconType: "ionicons",
+    bgColor: "#E8F8F5",
+    iconColor: "#1ABC9C",
+  },
+  {
+    id: "2",
+    title: "Uber",
+    category: "Transport",
+    time: "Today, 8:15 AM",
+    amount: -18.4,
+    method: "Card",
+    icon: "uber",
+    iconType: "fontawesome",
+    bgColor: "#F4F6F7",
+    iconColor: "#1A1A1A",
+  },
+];
 
 export default function ExpensesScreen() {
   const router = useRouter();
   const pathname = usePathname();
   const [activeTab, setActiveTab] = useState<TimePeriod>("month");
 
-  // --- PAN RESPONDER SETUP FOR THE DRAGGABLE BUTTON ---
+  // --- NATIVE CALENDAR STATES ---
+  const [selectedDate, setSelectedDate] = useState<Date>(new Date(2024, 4, 1)); // Default baseline: May 2024
+  const [showPicker, setShowPicker] = useState<boolean>(false);
+
+  // Helper to format the native date object for your text layouts
+  const formatMonthYear = (date: Date): string => {
+    return date.toLocaleDateString("en-US", {
+      month: "short",
+      year: "numeric",
+    });
+  };
+
+  const onDateChange = (event: DateTimePickerEvent, date?: Date) => {
+    if (Platform.OS === "android") {
+      setShowPicker(false);
+    }
+    if (date) {
+      setSelectedDate(date);
+    }
+  };
+
+  // --- PAN RESPONDER TRACKING FOR DRAGGABLE FAB ---
   const pan = useRef(new Animated.ValueXY()).current;
+  const offsetRef = useRef({ x: 0, y: 0 });
+
+  useEffect(() => {
+    const listenerId = pan.addListener((value) => {
+      offsetRef.current = value;
+    });
+    return () => pan.removeListener(listenerId);
+  }, [pan]);
 
   const panResponder = useRef(
     PanResponder.create({
       onStartShouldSetPanResponder: () => true,
-      onMoveShouldSetPanResponder: () => true,
+      onMoveShouldSetPanResponder: (_, gestureState) => {
+        return Math.abs(gestureState.dx) > 2 || Math.abs(gestureState.dy) > 2;
+      },
       onPanResponderGrant: () => {
         pan.setOffset({
-          x: (pan.x as any)._value,
-          y: (pan.y as any)._value,
+          x: offsetRef.current.x,
+          y: offsetRef.current.y,
         });
         pan.setValue({ x: 0, y: 0 });
       },
-      onPanResponderMove: Animated.event(
-        [null, { dx: pan.x, dy: pan.y }],
-        { useNativeDriver: false }, // Layout transformations require JS thread evaluation
-      ),
-      onPanResponderRelease: () => {
+      onPanResponderMove: Animated.event([null, { dx: pan.x, dy: pan.y }], {
+        useNativeDriver: false,
+      }),
+      onPanResponderRelease: (_, gestureState) => {
         pan.flattenOffset();
+        if (Math.abs(gestureState.dx) < 5 && Math.abs(gestureState.dy) < 5) {
+          router.push("/add-expense" as any);
+        }
       },
     }),
   ).current;
 
-  // Helper component for filter dropdowns
   const FilterBadge = ({ label }: { label: string }) => (
     <TouchableOpacity style={styles.filterBadge}>
       <Text style={styles.filterBadgeText}>{label}</Text>
@@ -84,27 +161,51 @@ export default function ExpensesScreen() {
       >
         {/* --- TIME PERIOD TABS --- */}
         <View style={styles.tabContainer}>
-          {["today", "week", "month", "custom"].map((period) => (
-            <TouchableOpacity
-              key={period}
-              style={[
-                styles.tabButton,
-                activeTab === period && styles.activeTabButton,
-              ]}
-              onPress={() => setActiveTab(period as TimePeriod)}
-            >
-              <Text
+          {(["today", "week", "month", "custom"] as TimePeriod[]).map(
+            (period) => (
+              <TouchableOpacity
+                key={period}
                 style={[
-                  styles.tabText,
-                  activeTab === period && styles.activeTabText,
+                  styles.tabButton,
+                  activeTab === period && styles.activeTabButton,
                 ]}
+                onPress={() => {
+                  setActiveTab(period);
+                  if (period === "custom") {
+                    setShowPicker(true); // Open calendar picker instantly when Custom tab is pressed
+                  }
+                }}
               >
-                {period === "custom"
-                  ? "Custom 📅"
-                  : period.charAt(0).toUpperCase() + period.slice(1)}
-              </Text>
-            </TouchableOpacity>
-          ))}
+                {period === "custom" ? (
+                  <View style={styles.customTabContent}>
+                    <Text
+                      style={[
+                        styles.tabText,
+                        activeTab === period && styles.activeTabText,
+                        { marginRight: 4 },
+                      ]}
+                    >
+                      Custom
+                    </Text>
+                    <Ionicons
+                      name="calendar-outline"
+                      size={14}
+                      color={activeTab === period ? "#FFFFFF" : "#666666"}
+                    />
+                  </View>
+                ) : (
+                  <Text
+                    style={[
+                      styles.tabText,
+                      activeTab === period && styles.activeTabText,
+                    ]}
+                  >
+                    {period.charAt(0).toUpperCase() + period.slice(1)}
+                  </Text>
+                )}
+              </TouchableOpacity>
+            ),
+          )}
         </View>
 
         {/* --- FILTER ROW --- */}
@@ -112,6 +213,7 @@ export default function ExpensesScreen() {
           horizontal
           showsHorizontalScrollIndicator={false}
           style={styles.filterRow}
+          contentContainerStyle={{ paddingRight: 24 }}
         >
           <FilterBadge label="Category" />
           <FilterBadge label="Vendor" />
@@ -129,11 +231,16 @@ export default function ExpensesScreen() {
               <Text style={styles.summaryLabel}>Total Expenses</Text>
               <Text style={styles.summaryAmount}>$2,158.30</Text>
               <Text style={styles.summaryTrend}>
-                &#128313; 12% less than last month
+                🔹 12% less than last month
               </Text>
             </View>
-            <TouchableOpacity style={styles.monthDropdown}>
-              <Text style={styles.monthDropdownText}>May 2024</Text>
+            <TouchableOpacity
+              style={styles.monthDropdown}
+              onPress={() => setShowPicker(true)} // Open picker on dropdown header context touch
+            >
+              <Text style={styles.monthDropdownText}>
+                {formatMonthYear(selectedDate)}
+              </Text>
               <Ionicons
                 name="chevron-down"
                 size={12}
@@ -163,7 +270,9 @@ export default function ExpensesScreen() {
             <View style={styles.metricItem}>
               <Text style={styles.metricLabel}>Highest Expense</Text>
               <Text style={styles.metricValue}>$420.00</Text>
-              <Text style={styles.metricSubText}>On May 12, 2024</Text>
+              <Text style={styles.metricSubText}>
+                On {formatMonthYear(selectedDate)}
+              </Text>
             </View>
           </View>
         </View>
@@ -180,6 +289,7 @@ export default function ExpensesScreen() {
           horizontal
           showsHorizontalScrollIndicator={false}
           style={styles.categoriesRow}
+          contentContainerStyle={{ paddingRight: 16 }}
         >
           <View style={styles.categoryCard}>
             <View style={[styles.iconFrame, { backgroundColor: "#FDF2E9" }]}>
@@ -248,45 +358,46 @@ export default function ExpensesScreen() {
         </View>
 
         <Text style={styles.dateGroupHeader}>Today</Text>
-        <View style={styles.txRow}>
-          <View style={[styles.txIconBox, { backgroundColor: "#E8F8F5" }]}>
-            <Ionicons name="logo-buffer" size={18} color="#1ABC9C" />
-          </View>
-          <View style={styles.txDetails}>
-            <Text style={styles.txTitle}>Starbucks</Text>
-            <Text style={styles.txSub}>Food & Dining • Today, 9:21 AM</Text>
-          </View>
-          <View style={styles.txAmountBox}>
-            <Text style={styles.txAmount}>-$5.20</Text>
-            <Text style={styles.txMethod}>Card</Text>
-          </View>
-          <Ionicons
-            name="ellipsis-vertical"
-            size={14}
-            color="#BBB"
-            style={{ marginLeft: 8 }}
-          />
-        </View>
 
-        <View style={styles.txRow}>
-          <View style={[styles.txIconBox, { backgroundColor: "#F4F6F7" }]}>
-            <FontAwesome6 name="uber" size={16} color="#1A1A1A" />
+        {MOCK_TRANSACTIONS.map((tx) => (
+          <View key={tx.id} style={styles.txRow}>
+            <View style={[styles.txIconBox, { backgroundColor: tx.bgColor }]}>
+              {tx.iconType === "ionicons" ? (
+                <Ionicons
+                  name={tx.icon as any}
+                  size={18}
+                  color={tx.iconColor}
+                />
+              ) : (
+                <FontAwesome6
+                  name={tx.icon as any}
+                  size={16}
+                  color={tx.iconColor}
+                />
+              )}
+            </View>
+            <View style={styles.txDetails}>
+              <Text style={styles.txTitle}>{tx.title}</Text>
+              <Text style={styles.txSub}>
+                {tx.category} • {tx.time}
+              </Text>
+            </View>
+            <View style={styles.txAmountBox}>
+              <Text style={styles.txAmount}>
+                {tx.amount < 0
+                  ? `-$${Math.abs(tx.amount).toFixed(2)}`
+                  : `$${tx.amount.toFixed(2)}`}
+              </Text>
+              <Text style={styles.txMethod}>{tx.method}</Text>
+            </View>
+            <Ionicons
+              name="ellipsis-vertical"
+              size={14}
+              color="#BBB"
+              style={{ marginLeft: 8 }}
+            />
           </View>
-          <View style={styles.txDetails}>
-            <Text style={styles.txTitle}>Uber</Text>
-            <Text style={styles.txSub}>Transport • Today, 8:15 AM</Text>
-          </View>
-          <View style={styles.txAmountBox}>
-            <Text style={styles.txAmount}>-$18.40</Text>
-            <Text style={styles.txMethod}>Card</Text>
-          </View>
-          <Ionicons
-            name="ellipsis-vertical"
-            size={14}
-            color="#BBB"
-            style={{ marginLeft: 8 }}
-          />
-        </View>
+        ))}
 
         <View style={styles.swipeBanner}>
           <View style={styles.swipeBannerLeft}>
@@ -311,25 +422,69 @@ export default function ExpensesScreen() {
         </View>
       </ScrollView>
 
-      {/* --- DRAGGABLE PURPLE ACTION BUTTON (FAB) --- */}
+      {/* --- CROSS-PLATFORM OVERLAY DATE PICKER --- */}
+      {showPicker &&
+        (Platform.OS === "ios" ? (
+          <Modal
+            transparent
+            animationType="slide"
+            visible={showPicker}
+            onRequestClose={() => setShowPicker(false)}
+          >
+            <TouchableWithoutFeedback onPress={() => setShowPicker(false)}>
+              <View style={styles.modalBackdrop}>
+                <TouchableWithoutFeedback>
+                  <View style={styles.pickerModalSheet}>
+                    <View style={styles.pickerHeader}>
+                      <TouchableOpacity onPress={() => setShowPicker(false)}>
+                        <Text style={styles.pickerCancelText}>Cancel</Text>
+                      </TouchableOpacity>
+                      <TouchableOpacity onPress={() => setShowPicker(false)}>
+                        <Text style={styles.pickerDoneText}>Done</Text>
+                      </TouchableOpacity>
+                    </View>
+
+                    <DateTimePicker
+                      value={selectedDate}
+                      mode="date"
+                      display="spinner"
+                      onChange={onDateChange}
+                      maximumDate={new Date()}
+                      textColor="#1A1A1A"
+                      style={styles.iosPicker}
+                    />
+                  </View>
+                </TouchableWithoutFeedback>
+              </View>
+            </TouchableWithoutFeedback>
+          </Modal>
+        ) : (
+          <DateTimePicker
+            value={selectedDate}
+            mode="date"
+            display="default"
+            onChange={onDateChange}
+            maximumDate={new Date()}
+          />
+        ))}
+
+      {/* --- DRAGGABLE PURPLE FAB --- */}
       <Animated.View
-        style={[styles.fabWrapper, { transform: pan.getTranslateTransform() }]}
+        style={[
+          styles.fabWrapper,
+          styles.fabButton,
+          { transform: pan.getTranslateTransform() },
+        ]}
         {...panResponder.panHandlers}
       >
-        <TouchableOpacity
-          style={styles.fabButton}
-          onPress={() => router.push("/add-expense" as any)}
-          activeOpacity={0.8}
-        >
-          <Ionicons name="add" size={28} color="#FFF" />
-        </TouchableOpacity>
+        <Ionicons name="add" size={28} color="#FFF" />
       </Animated.View>
 
       {/* --- STICKY FOOTER NAVIGATION --- */}
       <View style={styles.footerNav}>
         <TouchableOpacity
           style={styles.footerItem}
-          onPress={() => router.push("/")}
+          onPress={() => router.replace("/")}
         >
           <Ionicons name="home-outline" size={22} color="#666666" />
           <Text style={styles.footerText}>Home</Text>
@@ -337,7 +492,7 @@ export default function ExpensesScreen() {
 
         <TouchableOpacity
           style={styles.footerItem}
-          onPress={() => router.push("/expenses")}
+          onPress={() => router.replace("/expenses")}
         >
           <Ionicons name="document-text-sharp" size={22} color="#4B2C40" />
           <Text style={[styles.footerText, styles.activeFooterText]}>
@@ -347,7 +502,7 @@ export default function ExpensesScreen() {
 
         <TouchableOpacity
           style={styles.footerItem}
-          onPress={() => router.push("/budget")}
+          onPress={() => router.replace("/budget")}
         >
           <Ionicons name="wallet-outline" size={22} color="#666666" />
           <Text style={styles.footerText}>Budget</Text>
@@ -355,7 +510,7 @@ export default function ExpensesScreen() {
 
         <TouchableOpacity
           style={styles.footerItem}
-          onPress={() => router.push("/analytics")}
+          onPress={() => router.replace("/analytics")}
         >
           <Ionicons name="bar-chart-outline" size={22} color="#666666" />
           <Text style={styles.footerText}>Analytics</Text>
@@ -435,8 +590,12 @@ const styles = StyleSheet.create({
     color: "#FFFFFF",
     fontWeight: "600",
   },
-  filterRow: {
+  customTabContent: {
     flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  filterRow: {
     paddingLeft: 16,
     marginTop: 14,
     marginBottom: 6,
@@ -460,7 +619,6 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
     paddingVertical: 6,
     justifyContent: "center",
-    marginRight: 24,
   },
   resetButtonText: {
     fontSize: 12,
@@ -569,7 +727,6 @@ const styles = StyleSheet.create({
   },
   categoriesRow: {
     paddingLeft: 16,
-    flexDirection: "row",
   },
   categoryCard: {
     width: 110,
@@ -640,7 +797,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
     marginBottom: 8,
     borderWidth: 1,
-    borderColor: "#FAFADA",
+    borderColor: "#F0F0F0",
   },
   txIconBox: {
     width: 38,
@@ -719,15 +876,53 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
-  /* --- RECONFIGURED FAB AND WRAPPER FOR DRAGGING --- */
+  modalBackdrop: {
+    flex: 1,
+    backgroundColor: "rgba(0, 0, 0, 0.4)",
+    justifyContent: "flex-end",
+  },
+  pickerModalSheet: {
+    backgroundColor: "#FFFFFF",
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
+    paddingBottom: Platform.OS === "ios" ? 30 : 20,
+    shadowColor: "#000",
+    shadowOpacity: 0.1,
+    shadowRadius: 10,
+    shadowOffset: { width: 0, height: -4 },
+    elevation: 5,
+  },
+  pickerHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    paddingHorizontal: 20,
+    paddingVertical: 14,
+    borderBottomWidth: 1,
+    borderBottomColor: "#F0F0F0",
+  },
+  pickerCancelText: {
+    fontSize: 15,
+    color: "#666666",
+    fontWeight: "500",
+  },
+  pickerDoneText: {
+    fontSize: 15,
+    color: "#4B2C40",
+    fontWeight: "600",
+  },
+  iosPicker: {
+    height: 200,
+    width: "100%",
+  },
   fabWrapper: {
     position: "absolute",
     bottom: 90,
     right: 16,
-    zIndex: 999, // Floating absolute layout hierarchy layer
+    zIndex: 999,
   },
   fabButton: {
-    backgroundColor: "#4B2C40", // Preserved your designated deep purple signature tone
+    backgroundColor: "#4B2C40",
     width: 56,
     height: 56,
     borderRadius: 28,

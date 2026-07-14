@@ -332,7 +332,7 @@ export default function BudgetScreen() {
 
         <TouchableOpacity
           style={styles.footerItem}
-          onPress={() => router.push("/expenses")}
+          onPress={() => router.replace("/expenses")}
         >
           <Ionicons name="document-text-outline" size={22} color="#666666" />
           <Text style={styles.footerText}>Expenses</Text>
@@ -340,7 +340,7 @@ export default function BudgetScreen() {
 
         <TouchableOpacity
           style={styles.footerItem}
-          onPress={() => router.push("/budget")}
+          onPress={() => router.replace("/budget")}
         >
           <Ionicons name="wallet-sharp" size={22} color="#4B2C40" />
           <Text style={[styles.footerText, styles.activeFooterText]}>
@@ -350,7 +350,7 @@ export default function BudgetScreen() {
 
         <TouchableOpacity
           style={styles.footerItem}
-          onPress={() => router.push("/analytics")}
+          onPress={() => router.replace("/analytics")}
         >
           <Ionicons name="bar-chart-outline" size={22} color="#666666" />
           <Text style={styles.footerText}>Analytics</Text>

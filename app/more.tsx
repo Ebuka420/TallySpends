@@ -1,5 +1,5 @@
 import { Ionicons } from "@expo/vector-icons";
-import { useRouter } from "expo-router";
+import { Stack, useRouter } from "expo-router";
 import React from "react";
 import {
   SafeAreaView,
@@ -12,13 +12,14 @@ import {
 
 const MENU_ITEMS = [
   {
-    id: "security",
-    title: "Security Center",
-    subtitle: "Manage your PIN, biometric login, and account security.",
-    icon: "shield-checkmark-outline",
-    iconColor: "#5B4E91",
-    bgColor: "#F0EEFA",
-    route: "/profile",
+    id: "link-bank",
+    title: "Link Bank Account",
+    subtitle:
+      "Connect your accounts to automatically sync and track your transactions.",
+    icon: "card-outline",
+    iconColor: "#2980B9",
+    bgColor: "#EBF5FB",
+    route: "/linkbank", // Pointing to your future link bank screen
   },
   {
     id: "customer-service",
@@ -36,7 +37,7 @@ const MENU_ITEMS = [
     icon: "crown-outline",
     iconColor: "#6B58A6",
     bgColor: "#F1EFF8",
-    route: "/more", // Dynamic catch placeholders
+    route: "/membership",
   },
   {
     id: "youngins",
@@ -45,7 +46,7 @@ const MENU_ITEMS = [
     icon: "people-outline",
     iconColor: "#34A853",
     bgColor: "#EEF7F1",
-    route: "/more",
+    route: "/youngins",
   },
   {
     id: "invitation",
@@ -72,6 +73,9 @@ export default function MoreScreen() {
 
   return (
     <SafeAreaView style={styles.container}>
+      {/* Hides the default native Expo navigation headers globally */}
+      <Stack.Screen options={{ headerShown: false }} />
+
       {/* 1. Header Profile Segment */}
       <View style={styles.headerContainer}>
         {/* Tapping here takes the user to profile.tsx */}
@@ -137,6 +141,51 @@ export default function MoreScreen() {
           </TouchableOpacity>
         ))}
       </ScrollView>
+
+      {/* 3. Global Unstacked Bottom Navigation Footer */}
+      <View style={styles.footerContainer}>
+        <TouchableOpacity
+          style={styles.footerTab}
+          onPress={() => router.replace("/")}
+        >
+          <Ionicons name="home-outline" size={24} color="#8E8E93" />
+          <Text style={styles.footerTabText}>Home</Text>
+        </TouchableOpacity>
+
+        <TouchableOpacity
+          style={styles.footerTab}
+          onPress={() => router.replace("/expenses" as any)}
+        >
+          <Ionicons name="document-text-outline" size={24} color="#8E8E93" />
+          <Text style={styles.footerTabText}>Expenses</Text>
+        </TouchableOpacity>
+
+        <TouchableOpacity
+          style={styles.footerTab}
+          onPress={() => router.replace("/budget" as any)}
+        >
+          <Ionicons name="wallet-outline" size={24} color="#8E8E93" />
+          <Text style={styles.footerTabText}>Budget</Text>
+        </TouchableOpacity>
+
+        <TouchableOpacity
+          style={styles.footerTab}
+          onPress={() => router.replace("/analytics" as any)}
+        >
+          <Ionicons name="bar-chart-outline" size={24} color="#8E8E93" />
+          <Text style={styles.footerTabText}>Analytics</Text>
+        </TouchableOpacity>
+
+        <TouchableOpacity
+          style={styles.footerTab}
+          onPress={() => router.replace("/more" as any)}
+        >
+          <Ionicons name="ellipsis-horizontal" size={24} color="#5B4E91" />
+          <Text style={[styles.footerTabText, styles.activeFooterTabText]}>
+            More
+          </Text>
+        </TouchableOpacity>
+      </View>
     </SafeAreaView>
   );
 }
@@ -177,7 +226,7 @@ const styles = StyleSheet.create({
   },
   scrollListContainer: {
     paddingHorizontal: 20,
-    paddingBottom: 40,
+    paddingBottom: 100, // Extra padding so elements clear the footer bar space safely
   },
   menuCardRow: {
     flexDirection: "row",
@@ -213,5 +262,35 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: "#8E8E93",
     lineHeight: 16,
+  },
+  /* Footer Custom UI Layout Styles */
+  footerContainer: {
+    position: "absolute",
+    bottom: 0,
+    left: 0,
+    right: 0,
+    height: 72,
+    backgroundColor: "#FFFFFF",
+    flexDirection: "row",
+    justifyContent: "space-around",
+    alignItems: "center",
+    borderTopWidth: 1,
+    borderTopColor: "#F2F2F7",
+    paddingBottom: 12,
+  },
+  footerTab: {
+    alignItems: "center",
+    justifyContent: "center",
+    flex: 1,
+  },
+  footerTabText: {
+    fontSize: 10,
+    fontWeight: "500",
+    color: "#8E8E93",
+    marginTop: 4,
+  },
+  activeFooterTabText: {
+    color: "#5B4E91",
+    fontWeight: "600",
   },
 });
