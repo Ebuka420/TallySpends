@@ -210,7 +210,7 @@ export default function YounginsScreen() {
           />
           <Text style={styles.securityText}>
             Youngins accounts follow strict security and privacy standards to
-            keep your child's money safe.
+            keep your child&apos;s money safe.
           </Text>
         </View>
       </ScrollView>

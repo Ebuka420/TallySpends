@@ -207,7 +207,7 @@ export default function AnalyticsScreen() {
                 />
                 <Text style={styles.gaugeStatusText}>Good</Text>
                 <Text style={styles.gaugeSubTextText}>
-                  You're on the right track!
+                  You&apos;re on the right track!
                 </Text>
               </View>
             </View>

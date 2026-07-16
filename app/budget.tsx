@@ -34,7 +34,7 @@ export default function BudgetScreen() {
       >
         {/* --- BUDGET OVERVIEW CARD --- */}
         <View style={styles.overviewCard}>
-          <Text style={styles.usageLabel}>You've used</Text>
+          <Text style={styles.usageLabel}>You&apos;ve used</Text>
           <View style={styles.usageRow}>
             <Text style={styles.usageMainAmount}>
               $2,158{" "}
@@ -229,7 +229,7 @@ export default function BudgetScreen() {
               <Ionicons name="gift-outline" size={18} color="#8E44AD" />
             </View>
             <View style={styles.goalMainInfo}>
-              <Text style={styles.goalTitle}>Tim's Birthday</Text>
+              <Text style={styles.goalTitle}>Tim&apos;s Birthday</Text>
               <Text style={styles.goalSub}>Saved $120 of $300</Text>
             </View>
             <View style={styles.goalProgressContainer}>
