@@ -55,7 +55,7 @@ const MENU_ITEMS = [
     icon: "gift-outline",
     iconColor: "#C47C49",
     bgColor: "#FAF2EC",
-    route: "/more",
+    route: "/invitation",
   },
   {
     id: "rate-us",
@@ -64,7 +64,7 @@ const MENU_ITEMS = [
     icon: "star-outline",
     iconColor: "#D9537E",
     bgColor: "#FDF0F3",
-    route: "/more",
+    route: "/rateus",
   },
 ];
 
