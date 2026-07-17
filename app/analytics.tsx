@@ -4,7 +4,7 @@ import {
   MaterialCommunityIcons,
 } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
-import React, { useState } from "react";
+import React, { useState, useMemo } from "react";
 import {
   Modal,
   Platform,
@@ -17,8 +17,22 @@ import {
   View,
 } from "react-native";
 
+// Import custom chart components
+import GaugeChart from "../src/components/GaugeChart";
+import TrendsChart from "../src/components/TrendsChart";
+import BreakdownChart from "../src/components/BreakdownChart";
+import BarChart from "../src/components/BarChart";
+import HeatMap from "../src/components/HeatMap";
+
+// Import store and mockData
+import { useAppStore } from "../src/store";
+import { mockData } from "../src/mockData";
+
 export default function AnalyticsScreen() {
   const router = useRouter();
+  const { transactions: transactionsRaw, budgets: budgetsRaw } = useAppStore();
+  const transactions = (transactionsRaw || []) as any[];
+  const budgets = (budgetsRaw || {}) as any;
   const [timeframe, setTimeframe] = useState<"weekly" | "monthly" | "yearly">(
     "monthly",
   );
@@ -57,40 +71,137 @@ export default function AnalyticsScreen() {
     setIsCalendarOpen(false);
   };
 
-  // Renders the block grid for the Spending Heat Map
-  const renderHeatmapGrid = () => {
-    const days = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
-    const intensities: { [key: string]: number[] } = {
-      Mon: [0, 0, 1, 1, 1, 0, 0],
-      Tue: [0, 0, 1, 2, 1, 0, 0],
-      Wed: [0, 1, 2, 3, 2, 1, 0],
-      Thu: [0, 1, 2, 4, 2, 1, 0],
-      Fri: [1, 2, 3, 4, 3, 2, 1],
-      Sat: [1, 3, 4, 4, 4, 3, 1],
-      Sun: [0, 1, 2, 2, 2, 1, 0],
+  // Dynamic calculations similar to previous work
+  const statistics = useMemo(() => {
+    let totalIncome = 0;
+    let totalExpenses = 0;
+    const categorySpending: { [key: string]: number } = {
+      "Food & Dining": 0,
+      "Transport": 0,
+      "Shopping": 0,
+      "Bills & Utilities": 0,
+      "Entertainment": 0,
+      "Others": 0,
     };
 
-    const getColor = (val: number) => {
-      if (val === 4) return "#4B2C40";
-      if (val === 3) return "#6D4C62";
-      if (val === 2) return "#96788B";
-      if (val === 1) return "#CEBFCA";
-      return "#F4F2F4";
-    };
+    transactions.forEach((tx) => {
+      if (tx.type === "income") {
+        totalIncome += tx.amount;
+      } else {
+        totalExpenses += tx.amount;
+        if (categorySpending[tx.category] !== undefined) {
+          categorySpending[tx.category] += tx.amount;
+        } else {
+          categorySpending["Others"] += tx.amount;
+        }
+      }
+    });
 
-    return days.map((day) => (
-      <View key={day} style={styles.heatmapRow}>
-        <Text style={styles.heatmapDayLabel}>{day}</Text>
-        <View style={styles.heatmapBlocksContainer}>
-          {intensities[day].map((val, idx) => (
-            <View
-              key={idx}
-              style={[styles.heatmapBlock, { backgroundColor: getColor(val) }]}
-            />
-          ))}
-        </View>
-      </View>
-    ));
+    const totalSavings = totalIncome - totalExpenses;
+
+    // Financial health score calculation
+    let score = 75;
+    const savingsRate = totalIncome > 0 ? (totalSavings / totalIncome) * 100 : 0;
+    if (savingsRate > 20) score += 5;
+    if (savingsRate > 35) score += 5;
+
+    let budgetBreaches = 0;
+    Object.keys(budgets).forEach((cat) => {
+      if (categorySpending[cat] > budgets[cat]) {
+        budgetBreaches++;
+      }
+    });
+    score -= budgetBreaches * 3;
+    score = Math.max(40, Math.min(100, score));
+
+    let statusText = "Good";
+    let statusMessage = "You're on the right track!";
+    if (score >= 85) {
+      statusText = "Excellent";
+      statusMessage = "Superb financial discipline!";
+    } else if (score < 65) {
+      statusText = "Warning";
+      statusMessage = "Try to curb non-essential bills.";
+    }
+
+    // Category Breakdown percentages
+    const breakdown = Object.keys(categorySpending)
+      .map((cat) => {
+        const value = categorySpending[cat];
+        const percentage =
+          totalExpenses > 0 ? Math.round((value / totalExpenses) * 100) : 0;
+
+        let color = "#ece6eb";
+        if (cat === "Food & Dining") color = "#3d2e3c";
+        else if (cat === "Transport") color = "#6c536a";
+        else if (cat === "Shopping") color = "#957793";
+        else if (cat === "Bills & Utilities") color = "#c1a4bf";
+        else if (cat === "Entertainment") color = "#cab7c8";
+
+        return { name: cat, percentage, value, color };
+      })
+      .sort((a, b) => b.value - a.value);
+
+    // Update Monthly dataset details inside mock trends and graphs
+    const monthlyDataOverride = JSON.parse(JSON.stringify(mockData.Monthly));
+
+    monthlyDataOverride.totals.income.value = totalIncome;
+    monthlyDataOverride.totals.expenses.value = totalExpenses;
+    monthlyDataOverride.totals.savings.value = totalSavings;
+    monthlyDataOverride.healthScore = score;
+    monthlyDataOverride.healthScoreText =
+      score >= 75
+        ? "Spending efficiency improved this month"
+        : "Curb expenses to improve score";
+
+    const expensesDS = monthlyDataOverride.trends.datasets.find(
+      (d: any) => d.name === "Expenses",
+    );
+    const savingsDS = monthlyDataOverride.trends.datasets.find(
+      (d: any) => d.name === "Savings",
+    );
+    const incomeDS = monthlyDataOverride.trends.datasets.find(
+      (d: any) => d.name === "Income",
+    );
+
+    if (expensesDS) expensesDS.data[4] = totalExpenses;
+    if (savingsDS) savingsDS.data[4] = totalSavings;
+    if (incomeDS) incomeDS.data[4] = totalIncome;
+
+    const lastHoverIdx = monthlyDataOverride.trends.hoverDetails.length - 1;
+    if (monthlyDataOverride.trends.hoverDetails[lastHoverIdx]) {
+      monthlyDataOverride.trends.hoverDetails[lastHoverIdx].Expenses = totalExpenses;
+      monthlyDataOverride.trends.hoverDetails[lastHoverIdx].Savings = totalSavings;
+      monthlyDataOverride.trends.hoverDetails[lastHoverIdx].Income = totalIncome;
+    }
+
+    monthlyDataOverride.barChart.income[4] = totalIncome;
+    monthlyDataOverride.barChart.expenses[4] = totalExpenses;
+
+    return {
+      totalIncome,
+      totalExpenses,
+      totalSavings,
+      healthScore: score,
+      statusText,
+      statusMessage,
+      breakdown,
+      categorySpending,
+      monthlyDataOverride,
+    };
+  }, [transactions, budgets]);
+
+  const activeDashboardData = useMemo(() => {
+    if (timeframe === "weekly") return mockData.Weekly;
+    if (timeframe === "yearly") return mockData.Yearly;
+    return statistics.monthlyDataOverride;
+  }, [timeframe, statistics]);
+
+  const formatCurrency = (val: number) => {
+    return `$${val.toLocaleString(undefined, {
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
+    })}`;
   };
 
   return (
@@ -181,34 +292,37 @@ export default function AnalyticsScreen() {
           <View style={styles.healthScoreRow}>
             <View style={styles.scoreLeft}>
               <Text style={styles.scoreMainText}>
-                82<Text style={styles.scoreSubText}> /100</Text>
+                {activeDashboardData.healthScore}
+                <Text style={styles.scoreSubText}> /100</Text>
               </Text>
               <Text style={styles.scoreDesc}>
-                Spending efficiency improved this month
+                {activeDashboardData.healthScoreText}
               </Text>
-              <View style={styles.trendBadge}>
+              <View style={[
+                styles.trendBadge,
+                { backgroundColor: activeDashboardData.healthScoreDiffPositive ? "#EAFAF1" : "#FDEDEC" }
+              ]}>
                 <Ionicons
-                  name="trending-up"
+                  name={activeDashboardData.healthScoreDiffPositive ? "trending-up" : "trending-down"}
                   size={12}
-                  color="#27AE60"
+                  color={activeDashboardData.healthScoreDiffPositive ? "#27AE60" : "#E74C3C"}
                   style={{ marginRight: 2 }}
                 />
-                <Text style={styles.trendText}>+8%</Text>
+                <Text style={[
+                  styles.trendText,
+                  { color: activeDashboardData.healthScoreDiffPositive ? "#27AE60" : "#E74C3C" }
+                ]}>
+                  {activeDashboardData.healthScoreDiff.split(" ")[0]}
+                </Text>
                 <Text style={styles.trendSubText}> vs Last Period</Text>
               </View>
             </View>
 
             <View style={styles.scoreCenter}>
-              <View style={styles.gaugeMock}>
-                <MaterialCommunityIcons
-                  name="pulse"
-                  size={20}
-                  color="#4B2C40"
-                />
-                <Text style={styles.gaugeStatusText}>Good</Text>
-                <Text style={styles.gaugeSubTextText}>
-                  You&apos;re on the right track!
-                </Text>
+              <GaugeChart score={activeDashboardData.healthScore} />
+              <View style={styles.gaugeStatusLabel}>
+                <Text style={styles.gaugeStatusTitle}>{statistics.statusText}</Text>
+                <Text style={styles.gaugeStatusSub}>{statistics.statusMessage}</Text>
               </View>
             </View>
 
@@ -224,8 +338,8 @@ export default function AnalyticsScreen() {
                 </View>
                 <View>
                   <Text style={styles.indLabel}>Income</Text>
-                  <Text style={styles.indValue}>$3,450.00</Text>
-                  <Text style={styles.indSub}>+12% vs Apr</Text>
+                  <Text style={styles.indValue}>{formatCurrency(activeDashboardData.totals.income.value)}</Text>
+                  <Text style={styles.indSub}>{activeDashboardData.totals.income.change}</Text>
                 </View>
               </View>
 
@@ -240,9 +354,9 @@ export default function AnalyticsScreen() {
                 </View>
                 <View>
                   <Text style={styles.indLabel}>Expenses</Text>
-                  <Text style={styles.indValue}>$2,158.30</Text>
+                  <Text style={styles.indValue}>{formatCurrency(activeDashboardData.totals.expenses.value)}</Text>
                   <Text style={[styles.indSub, { color: "#E74C3C" }]}>
-                    -12% vs Apr
+                    {activeDashboardData.totals.expenses.change}
                   </Text>
                 </View>
               </View>
@@ -258,9 +372,9 @@ export default function AnalyticsScreen() {
                 </View>
                 <View>
                   <Text style={styles.indLabel}>Savings</Text>
-                  <Text style={styles.indValue}>$1,291.70</Text>
+                  <Text style={styles.indValue}>{formatCurrency(activeDashboardData.totals.savings.value)}</Text>
                   <Text style={[styles.indSub, { color: "#1ABC9C" }]}>
-                    +28% vs Apr
+                    {activeDashboardData.totals.savings.change}
                   </Text>
                 </View>
               </View>
@@ -283,84 +397,17 @@ export default function AnalyticsScreen() {
             </TouchableOpacity>
           </View>
 
-          <View style={styles.chartContainerMock}>
-            <View style={styles.yAxisLabels}>
-              <Text style={styles.axisLabel}>$4k</Text>
-              <Text style={styles.axisLabel}>$3k</Text>
-              <Text style={styles.axisLabel}>$2k</Text>
-              <Text style={styles.axisLabel}>$1k</Text>
-              <Text style={styles.axisLabel}>$0</Text>
-            </View>
-
-            <View style={styles.chartCanvas}>
-              <View style={styles.gridLine} />
-              <View style={styles.gridLine} />
-              <View style={styles.gridLine} />
-              <View style={styles.gridLine} />
-
-              <View style={styles.chartTooltipPointerLine}>
-                <View
-                  style={[
-                    styles.pointerDot,
-                    { top: "30%", backgroundColor: "#4B2C40" },
-                  ]}
-                />
-                <View
-                  style={[
-                    styles.pointerDot,
-                    { top: "50%", backgroundColor: "#27AE60" },
-                  ]}
-                />
-                <View
-                  style={[
-                    styles.pointerDot,
-                    { top: "65%", backgroundColor: "#E0E0E0" },
-                  ]}
-                />
-
-                <View style={styles.chartTooltipCard}>
-                  <Text style={styles.tooltipDate}>Selected Period</Text>
-                  <Text style={styles.tooltipRowText}>
-                    • Expenses <Text style={{ fontWeight: "700" }}>$2,120</Text>
-                  </Text>
-                  <Text style={styles.tooltipRowText}>
-                    • Savings <Text style={{ fontWeight: "700" }}>$1,200</Text>
-                  </Text>
-                  <Text style={styles.tooltipRowText}>
-                    • Income <Text style={{ fontWeight: "700" }}>$3,320</Text>
-                  </Text>
-                </View>
-              </View>
-            </View>
-          </View>
-
-          <View style={styles.xAxisLabels}>
-            <Text style={styles.axisLabel}>P1</Text>
-            <Text style={styles.axisLabel}>P2</Text>
-            <Text style={styles.axisLabel}>P3</Text>
-            <Text style={styles.axisLabel}>P4</Text>
-            <Text style={styles.axisLabel}>P5</Text>
-          </View>
+          <TrendsChart data={activeDashboardData.trends} />
 
           <View style={styles.chartLegendRow}>
-            <View style={styles.legendItem}>
-              <View
-                style={[styles.legendDot, { backgroundColor: "#4B2C40" }]}
-              />
-              <Text style={styles.legendText}>Expenses</Text>
-            </View>
-            <View style={styles.legendItem}>
-              <View
-                style={[styles.legendDot, { backgroundColor: "#27AE60" }]}
-              />
-              <Text style={styles.legendText}>Savings</Text>
-            </View>
-            <View style={styles.legendItem}>
-              <View
-                style={[styles.legendDot, { backgroundColor: "#E0E0E0" }]}
-              />
-              <Text style={styles.legendText}>Income</Text>
-            </View>
+            {activeDashboardData.trends.datasets.map((ds: any) => (
+              <View key={ds.name} style={styles.legendItem}>
+                <View
+                  style={[styles.legendDot, { backgroundColor: ds.color }]}
+                />
+                <Text style={styles.legendText}>{ds.name}</Text>
+              </View>
+            ))}
           </View>
         </View>
 
@@ -368,36 +415,10 @@ export default function AnalyticsScreen() {
         <View style={styles.splitCardsRow}>
           <View style={[styles.analyticsCard, styles.splitCard]}>
             <Text style={styles.cardLabelBold}>Category Breakdown</Text>
-            <View style={styles.donutChartContainer}>
-              <View style={styles.donutMockCircle}>
-                <Text style={styles.donutInnerValue}>$2,158.30</Text>
-                <Text style={styles.donutInnerLabel}>Total Expenses</Text>
-              </View>
-            </View>
-
-            <View style={styles.categoryListBreakdown}>
-              <View style={styles.catBreakdownRow}>
-                <View
-                  style={[styles.legendDot, { backgroundColor: "#4B2C40" }]}
-                />
-                <Text style={styles.catBreakdownName}>Food & Dining</Text>
-                <Text style={styles.catBreakdownPercent}>32%</Text>
-              </View>
-              <View style={styles.catBreakdownRow}>
-                <View
-                  style={[styles.legendDot, { backgroundColor: "#8E44AD" }]}
-                />
-                <Text style={styles.catBreakdownName}>Transport</Text>
-                <Text style={styles.catBreakdownPercent}>25%</Text>
-              </View>
-              <View style={styles.catBreakdownRow}>
-                <View
-                  style={[styles.legendDot, { backgroundColor: "#E74C3C" }]}
-                />
-                <Text style={styles.catBreakdownName}>Shopping</Text>
-                <Text style={styles.catBreakdownPercent}>18%</Text>
-              </View>
-            </View>
+            <BreakdownChart
+              breakdown={timeframe === "monthly" ? statistics.breakdown : activeDashboardData.breakdown}
+              totalExpenses={activeDashboardData.totals.expenses.value}
+            />
           </View>
 
           <View style={[styles.analyticsCard, styles.splitCard]}>
@@ -405,41 +426,11 @@ export default function AnalyticsScreen() {
               <Text style={styles.cardLabelBold}>Income vs Expenses</Text>
             </View>
 
-            <View style={styles.barChartContainerMock}>
-              <View style={styles.yAxisLabelsMini}>
-                <Text style={styles.axisLabelMini}>$4k</Text>
-                <Text style={styles.axisLabelMini}>$2k</Text>
-                <Text style={styles.axisLabelMini}>$0</Text>
-              </View>
-
-              <View style={styles.barCanvasMini}>
-                {[1, 2, 3, 4, 5].map((item, idx) => (
-                  <View key={idx} style={styles.barGroupColumn}>
-                    <View style={styles.doubleBarFrame}>
-                      <View
-                        style={[
-                          styles.verticalBarUnit,
-                          {
-                            height: idx === 4 ? "70%" : "85%",
-                            backgroundColor: "#2ECC71",
-                          },
-                        ]}
-                      />
-                      <View
-                        style={[
-                          styles.verticalBarUnit,
-                          {
-                            height: idx === 4 ? "55%" : "60%",
-                            backgroundColor: "#4B2C40",
-                          },
-                        ]}
-                      />
-                    </View>
-                    <Text style={styles.miniMonthLabel}>P{item}</Text>
-                  </View>
-                ))}
-              </View>
-            </View>
+            <BarChart
+              labels={activeDashboardData.barChart.labels}
+              income={activeDashboardData.barChart.income}
+              expenses={activeDashboardData.barChart.expenses}
+            />
           </View>
         </View>
 
@@ -448,14 +439,7 @@ export default function AnalyticsScreen() {
           <View style={[styles.analyticsCard, styles.splitCard]}>
             <Text style={styles.cardLabelBold}>Spending Heat Map</Text>
             <Text style={styles.cardLabelSub}>When you spend the most</Text>
-            <View style={styles.heatmapWrapper}>
-              {renderHeatmapGrid()}
-              <View style={styles.heatmapXAxisTimeline}>
-                <Text style={styles.heatmapTimeText}>6 AM</Text>
-                <Text style={styles.heatmapTimeText}>12 PM</Text>
-                <Text style={styles.heatmapTimeText}>6 PM</Text>
-              </View>
-            </View>
+            <HeatMap heatmapData={activeDashboardData.heatmap} />
           </View>
 
           <View style={[styles.analyticsCard, styles.splitCard]}>
@@ -1153,5 +1137,20 @@ const styles = StyleSheet.create({
   modalItemTextSelected: {
     color: "#4B2C40",
     fontWeight: "700",
+  },
+  gaugeStatusLabel: {
+    alignItems: "center",
+    marginTop: 8,
+  },
+  gaugeStatusTitle: {
+    fontSize: 14,
+    fontWeight: "700",
+    color: "#2D232E",
+  },
+  gaugeStatusSub: {
+    fontSize: 10,
+    color: "#888",
+    marginTop: 2,
+    textAlign: "center",
   },
 });

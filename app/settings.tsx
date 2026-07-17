@@ -8,7 +8,9 @@ import {
     Text,
     TouchableOpacity,
     View,
+    Alert,
 } from "react-native";
+import { useAppStore } from "../src/store";
 
 const SETTINGS_ITEMS = [
   {
@@ -80,6 +82,7 @@ const SETTINGS_ITEMS = [
 
 export default function SettingsScreen() {
   const router = useRouter();
+  const { resetData } = useAppStore();
 
   return (
     <SafeAreaView style={styles.container}>
@@ -137,7 +140,31 @@ export default function SettingsScreen() {
           </TouchableOpacity>
         ))}
 
-        {/* Bottom Danger Action Card */}
+        {/* Bottom Danger Action Cards */}
+        <TouchableOpacity
+          style={[styles.logOutButtonCard, { marginBottom: 12 }]}
+          activeOpacity={0.8}
+          onPress={() => {
+            Alert.alert(
+              "Reset App Data",
+              "Are you sure you want to delete all transactions, budgets, and savings goals and restore defaults?",
+              [
+                { text: "Cancel", style: "cancel" },
+                {
+                  text: "Reset",
+                  style: "destructive",
+                  onPress: async () => {
+                    await resetData();
+                    Alert.alert("Success", "All app data has been reset to defaults.");
+                  },
+                },
+              ]
+            );
+          }}
+        >
+          <Text style={[styles.logOutText, { color: "#C0392B" }]}>Reset App Data</Text>
+        </TouchableOpacity>
+
         <TouchableOpacity style={styles.logOutButtonCard} activeOpacity={0.8}>
           <Text style={styles.logOutText}>Log Out</Text>
         </TouchableOpacity>

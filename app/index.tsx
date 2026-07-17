@@ -11,44 +11,83 @@ import {
   View,
 } from "react-native";
 import Svg, { Circle, G, Path } from "react-native-svg";
+import { useAppStore } from "../src/store";
 
 const API_URL = process.env.EXPO_PUBLIC_API_URL;
 
 export default function DashboardScreen() {
   const router = useRouter();
+  const { transactions: transactionsRaw, savingsGoals: savingsGoalsRaw } = useAppStore();
+  const transactions = (transactionsRaw || []) as any[];
+  const savingsGoals = (savingsGoalsRaw || []) as any[];
 
   // State hooks
   const [isBalanceVisible, setIsBalanceVisible] = useState<boolean>(true);
   const [isSortLatest, setIsSortLatest] = useState<boolean>(true);
 
-  const spendingData = [
-    {
-      color: "#2D232E",
-      label: "Food & Dining",
-      percent: "26%",
-      amount: "$602.10",
-    },
-    { color: "#5DADE2", label: "Transport", percent: "20%", amount: "$430.00" },
-    { color: "#F5B041", label: "Shopping", percent: "18%", amount: "$387.50" },
-    {
-      color: "#EC7063",
-      label: "Bills & Utilities",
-      percent: "15%",
-      amount: "$322.00",
-    },
-    {
-      color: "#A6ACAF",
-      label: "Entertainment",
-      percent: "10%",
-      amount: "$215.80",
-    },
-    { color: "#D5D8DC", label: "Other", percent: "9%", amount: "$200.90" },
-  ];
+  // Compute balance
+  const totalIncome = transactions.filter(t => t.type === 'income').reduce((sum, t) => sum + t.amount, 0);
+  const totalExpense = transactions.filter(t => t.type === 'expense').reduce((sum, t) => sum + t.amount, 0);
+  const currentBalance = totalIncome - totalExpense;
+
+  // Compute spending data
+  const categoriesMap: { [key: string]: { color: string; amount: number } } = {
+    "Food & Dining": { color: "#2D232E", amount: 0 },
+    "Transport": { color: "#5DADE2", amount: 0 },
+    "Shopping": { color: "#F5B041", amount: 0 },
+    "Bills & Utilities": { color: "#EC7063", amount: 0 },
+    "Entertainment": { color: "#A6ACAF", amount: 0 },
+    "Others": { color: "#D5D8DC", amount: 0 },
+  };
+
+  transactions.forEach((t) => {
+    if (t.type === "expense") {
+      if (categoriesMap[t.category]) {
+        categoriesMap[t.category].amount += t.amount;
+      } else {
+        categoriesMap["Others"].amount += t.amount;
+      }
+    }
+  });
+
+  const spendingData = Object.keys(categoriesMap)
+    .map((label) => {
+      const amt = categoriesMap[label].amount;
+      const pctVal = totalExpense > 0 ? (amt / totalExpense) * 100 : 0;
+      return {
+        label,
+        color: categoriesMap[label].color,
+        amount: `$${amt.toLocaleString(undefined, {
+          minimumFractionDigits: 2,
+          maximumFractionDigits: 2,
+        })}`,
+        percent: `${Math.round(pctVal)}%`,
+        percentNum: pctVal,
+        amountNum: amt,
+      };
+    })
+    .filter((item) => item.amountNum > 0)
+    .sort((a, b) => b.amountNum - a.amountNum);
 
   // SVG Donut Configurations (Radius: 40, Circumference: ~251.3)
   const radius = 40;
   const circumference = 2 * Math.PI * radius;
   let accumulatedPercent = 0;
+
+  // Goals progress calculations
+  const totalGoals = savingsGoals.length;
+  const completedGoals = savingsGoals.filter(g => g.saved >= g.target).length;
+  const completionPercentage = totalGoals > 0 ? Math.round((completedGoals / totalGoals) * 100) : 0;
+
+  // Recent transactions (latest 3)
+  const sortedTransactions = [...transactions].sort((a, b) => {
+    if (isSortLatest) {
+      return new Date(b.date).getTime() - new Date(a.date).getTime();
+    } else {
+      return new Date(a.date).getTime() - new Date(b.date).getTime();
+    }
+  });
+  const recentTransactions = sortedTransactions.slice(0, 3);
 
   return (
     <SafeAreaView style={styles.container}>

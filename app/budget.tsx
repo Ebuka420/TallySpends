@@ -1,6 +1,6 @@
 import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
-import React from "react";
+import React, { useState, useMemo } from "react";
 import {
   Platform,
   SafeAreaView,
@@ -9,10 +9,182 @@ import {
   Text,
   TouchableOpacity,
   View,
+  Modal,
+  Pressable,
+  TextInput,
+  Alert,
 } from "react-native";
+import { useAppStore } from "../src/store";
 
 export default function BudgetScreen() {
   const router = useRouter();
+  const {
+    transactions: transactionsRaw,
+    budgets: budgetsRaw,
+    savingsGoals: savingsGoalsRaw,
+    updateBudget,
+    deleteBudget,
+    addSavingsGoal,
+    deleteSavingsGoal,
+    updateSavingsGoal,
+  } = useAppStore();
+
+  const transactions = (transactionsRaw || []) as any[];
+  const savingsGoals = (savingsGoalsRaw || []) as any[];
+  const budgets = (budgetsRaw || {}) as any;
+
+  // Add budget state
+  const [isAddBudgetOpen, setIsAddBudgetOpen] = useState(false);
+  const [addBudgetCateg, setAddBudgetCateg] = useState("Food & Dining");
+  const [addBudgetLimit, setAddBudgetLimit] = useState("");
+
+  // Add savings goal state
+  const [isAddGoalOpen, setIsAddGoalOpen] = useState(false);
+  const [goalTitle, setGoalTitle] = useState("");
+  const [goalSaved, setGoalSaved] = useState("");
+  const [goalTarget, setGoalTarget] = useState("");
+  const [goalCategory, setGoalCategory] = useState("gift"); // gift, party, health, other
+
+  // Edit / Action modal states
+  const [selectedBudgetCategory, setSelectedBudgetCategory] = useState<string | null>(null);
+  const [isBudgetOptionsOpen, setIsBudgetOptionsOpen] = useState(false);
+  const [isEditBudgetOpen, setIsEditBudgetOpen] = useState(false);
+  const [editBudgetLimit, setEditBudgetLimit] = useState("");
+
+  // Goal options
+  const [selectedGoal, setSelectedGoal] = useState<any>(null);
+  const [isGoalOptionsOpen, setIsGoalOptionsOpen] = useState(false);
+  const [isEditGoalOpen, setIsEditGoalOpen] = useState(false);
+  const [editGoalSaved, setEditGoalSaved] = useState("");
+  const [editGoalTarget, setEditGoalTarget] = useState("");
+
+  // View All Goals list state
+  const [isViewAllGoalsOpen, setIsViewAllGoalsOpen] = useState(false);
+
+  // Dynamic calculations
+  const categorySpending = useMemo(() => {
+    const spending: { [key: string]: number } = {
+      "Food & Dining": 0,
+      "Transport": 0,
+      "Shopping": 0,
+      "Bills & Utilities": 0,
+      "Entertainment": 0,
+      "Others": 0,
+    };
+    transactions.forEach((t) => {
+      if (t.type === "expense") {
+        if (spending[t.category] !== undefined) {
+          spending[t.category] += t.amount;
+        } else {
+          spending["Others"] += t.amount;
+        }
+      }
+    });
+    return spending;
+  }, [transactions]);
+
+  const totalSpent = useMemo(() => {
+    return Object.values(categorySpending).reduce((sum: number, v: any) => sum + (v || 0), 0);
+  }, [categorySpending]);
+
+  const totalBudgetLimit = useMemo(() => {
+    return Object.values(budgets).reduce((sum: number, v: any) => sum + (v || 0), 0);
+  }, [budgets]);
+
+  const remainingBudget = Math.max(0, totalBudgetLimit - totalSpent);
+  const usedPercentage = totalBudgetLimit > 0 ? Math.min(100, Math.round((totalSpent / totalBudgetLimit) * 100)) : 0;
+  const remainingPercentage = 100 - usedPercentage;
+
+  const formatCurrency = (val: number) => {
+    return `$${val.toLocaleString(undefined, {
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
+    })}`;
+  };
+
+  const getCategoryDetails = (cat: string) => {
+    switch (cat) {
+      case "Food & Dining":
+        return { icon: "fast-food-outline" as any, color: "#E67E22", bg: "#FEF5ED" };
+      case "Transport":
+        return { icon: "car-outline" as any, color: "#8E44AD", bg: "#F5EEF8" };
+      case "Shopping":
+        return { icon: "bag-handle-outline" as any, color: "#E74C3C", bg: "#FDEDEC" };
+      case "Bills & Utilities":
+        return { icon: "document-text-outline" as any, color: "#2ECC71", bg: "#EAF6EC" };
+      case "Entertainment":
+        return { icon: "film-outline" as any, color: "#7F8C8D", bg: "#F4F6F7" };
+      default:
+        return { icon: "ellipsis-horizontal-outline" as any, color: "#5DADE2", bg: "#EBF5FB" };
+    }
+  };
+
+  const getGoalIconDetails = (cat: string) => {
+    switch (cat) {
+      case "gift":
+        return { icon: "gift-outline" as any, color: "#8E44AD", bg: "#F4ECF7" };
+      case "party":
+        return { icon: "wine-outline" as any, color: "#E74C3C", bg: "#FDEDEC" };
+      case "health":
+        return { icon: "heart-outline" as any, color: "#27AE60", bg: "#E8F8F5" };
+      default:
+        return { icon: "wallet-outline" as any, color: "#34495E", bg: "#EAECEE" };
+    }
+  };
+
+  const handleAddBudgetSubmit = () => {
+    const limit = parseFloat(addBudgetLimit);
+    if (isNaN(limit) || limit < 0) {
+      Alert.alert("Error", "Please enter a valid budget limit.");
+      return;
+    }
+    updateBudget(addBudgetCateg, limit);
+    setIsAddBudgetOpen(false);
+    setAddBudgetLimit("");
+  };
+
+  const handleEditBudgetSubmit = () => {
+    const limit = parseFloat(editBudgetLimit);
+    if (isNaN(limit) || limit < 0 || !selectedBudgetCategory) {
+      Alert.alert("Error", "Please enter a valid budget limit.");
+      return;
+    }
+    updateBudget(selectedBudgetCategory, limit);
+    setIsEditBudgetOpen(false);
+    setSelectedBudgetCategory(null);
+  };
+
+  const handleAddGoalSubmit = () => {
+    const saved = parseFloat(goalSaved);
+    const target = parseFloat(goalTarget);
+    if (!goalTitle.trim() || isNaN(saved) || isNaN(target) || target <= 0) {
+      Alert.alert("Error", "Please fill in all goal fields correctly.");
+      return;
+    }
+    addSavingsGoal({
+      title: goalTitle.trim(),
+      saved,
+      target,
+      category: goalCategory,
+    });
+    setIsAddGoalOpen(false);
+    setGoalTitle("");
+    setGoalSaved("");
+    setGoalTarget("");
+    setGoalCategory("gift");
+  };
+
+  const handleEditGoalSubmit = () => {
+    const saved = parseFloat(editGoalSaved);
+    const target = parseFloat(editGoalTarget);
+    if (isNaN(saved) || isNaN(target) || target <= 0 || !selectedGoal) {
+      Alert.alert("Error", "Please enter valid amounts.");
+      return;
+    }
+    updateSavingsGoal(selectedGoal.id, saved, target);
+    setIsEditGoalOpen(false);
+    setSelectedGoal(null);
+  };
 
   return (
     <SafeAreaView style={styles.container}>
@@ -37,18 +209,18 @@ export default function BudgetScreen() {
           <Text style={styles.usageLabel}>You&apos;ve used</Text>
           <View style={styles.usageRow}>
             <Text style={styles.usageMainAmount}>
-              $2,158{" "}
-              <Text style={styles.usageSubAmount}>of your $5,000 budget</Text>
+              {formatCurrency(totalSpent)}{" "}
+              <Text style={styles.usageSubAmount}>of your {formatCurrency(totalBudgetLimit)} budget</Text>
             </Text>
             <View style={styles.percentageBadge}>
-              <Text style={styles.percentageText}>43%</Text>
+              <Text style={styles.percentageText}>{remainingPercentage}%</Text>
               <Text style={styles.percentageSub}>remaining</Text>
             </View>
           </View>
 
           {/* Master Progress Bar */}
           <View style={styles.masterProgressBg}>
-            <View style={[styles.masterProgressBar, { width: "43%" }]} />
+            <View style={[styles.masterProgressBar, { width: `${usedPercentage}%` }]} />
           </View>
 
           {/* Metrics Breakdowns */}
@@ -61,7 +233,7 @@ export default function BudgetScreen() {
               </View>
               <View>
                 <Text style={styles.metricItemLabel}>Total Budget</Text>
-                <Text style={styles.metricItemValue}>$5,000</Text>
+                <Text style={styles.metricItemValue}>{formatCurrency(totalBudgetLimit)}</Text>
               </View>
             </View>
 
@@ -77,7 +249,7 @@ export default function BudgetScreen() {
               </View>
               <View>
                 <Text style={styles.metricItemLabel}>Spent</Text>
-                <Text style={styles.metricItemValue}>$2,158</Text>
+                <Text style={styles.metricItemValue}>{formatCurrency(totalSpent)}</Text>
               </View>
             </View>
 
@@ -90,7 +262,7 @@ export default function BudgetScreen() {
               <View>
                 <Text style={styles.metricItemLabel}>Remaining</Text>
                 <Text style={[styles.metricItemValue, { color: "#27AE60" }]}>
-                  $2,842
+                  {formatCurrency(remainingBudget)}
                 </Text>
               </View>
             </View>
@@ -100,7 +272,10 @@ export default function BudgetScreen() {
         {/* --- BUDGET CATEGORIES SECTION --- */}
         <View style={styles.sectionHeader}>
           <Text style={styles.sectionTitle}>Budget Categories</Text>
-          <TouchableOpacity style={styles.addSectionButton}>
+          <TouchableOpacity
+            style={styles.addSectionButton}
+            onPress={() => setIsAddBudgetOpen(true)}
+          >
             <Ionicons name="add-circle" size={16} color="#4B2C40" />
             <Text style={styles.addSectionText}>Add Budget</Text>
           </TouchableOpacity>
@@ -111,176 +286,128 @@ export default function BudgetScreen() {
           showsHorizontalScrollIndicator={false}
           style={styles.horizontalRow}
         >
-          {/* Food & Dining */}
-          <View style={styles.categoryCard}>
-            <View style={styles.cardTopRow}>
-              <View
-                style={[styles.catIconFrame, { backgroundColor: "#FEF5ED" }]}
-              >
-                <Ionicons name="fast-food-outline" size={16} color="#E67E22" />
-              </View>
-              <Ionicons name="ellipsis-vertical" size={14} color="#BBB" />
-            </View>
-            <Text style={styles.catName}>Food & Dining</Text>
-            <Text style={styles.catSplit}>
-              $602 <Text style={styles.catTotal}>/ $800</Text>
-            </Text>
-            <View style={styles.catProgressBg}>
-              <View
-                style={[
-                  styles.catProgressBar,
-                  { width: "75%", backgroundColor: "#E67E22" },
-                ]}
-              />
-            </View>
-            <View style={styles.cardStatusRow}>
-              <Text style={styles.cardStatusPercent}>75%</Text>
-              <View style={styles.statusDotRow}>
-                <View
-                  style={[styles.statusDot, { backgroundColor: "#F39C12" }]}
-                />
-                <Text style={styles.statusDotText}>Near limit</Text>
-              </View>
-            </View>
-          </View>
+          {Object.keys(budgets).map((cat) => {
+            const limit = budgets[cat] || 0;
+            const spent = categorySpending[cat] || 0;
+            const percentage = limit > 0 ? Math.min(100, Math.round((spent / limit) * 100)) : 0;
+            const statusLabel = percentage >= 100 ? "Exceeded" : percentage >= 75 ? "Near limit" : "On track";
+            const statusColor = percentage >= 100 ? "#E74C3C" : percentage >= 75 ? "#F39C12" : "#2ECC71";
+            const details = getCategoryDetails(cat);
 
-          {/* Transport */}
-          <View style={styles.categoryCard}>
-            <View style={styles.cardTopRow}>
-              <View
-                style={[styles.catIconFrame, { backgroundColor: "#F5EEF8" }]}
-              >
-                <Ionicons name="car-outline" size={16} color="#8E44AD" />
-              </View>
-              <Ionicons name="ellipsis-vertical" size={14} color="#BBB" />
-            </View>
-            <Text style={styles.catName}>Transport</Text>
-            <Text style={styles.catSplit}>
-              $430 <Text style={styles.catTotal}>/ $700</Text>
-            </Text>
-            <View style={styles.catProgressBg}>
-              <View
-                style={[
-                  styles.catProgressBar,
-                  { width: "61%", backgroundColor: "#8E44AD" },
-                ]}
-              />
-            </View>
-            <View style={styles.cardStatusRow}>
-              <Text style={styles.cardStatusPercent}>61%</Text>
-              <View style={styles.statusDotRow}>
-                <View
-                  style={[styles.statusDot, { backgroundColor: "#2ECC71" }]}
-                />
-                <Text style={styles.statusDotText}>On track</Text>
-              </View>
-            </View>
-          </View>
-
-          {/* Shopping */}
-          <View style={styles.categoryCard}>
-            <View style={styles.cardTopRow}>
-              <View
-                style={[styles.catIconFrame, { backgroundColor: "#FDEDEC" }]}
-              >
-                <Ionicons name="bag-handle-outline" size={16} color="#E74C3C" />
-              </View>
-              <Ionicons name="ellipsis-vertical" size={14} color="#BBB" />
-            </View>
-            <Text style={styles.catName}>Shopping</Text>
-            <Text style={styles.catSplit}>
-              $387 <Text style={styles.catTotal}>/ $300</Text>
-            </Text>
-            <View style={styles.catProgressBg}>
-              <View
-                style={[
-                  styles.catProgressBar,
-                  { width: "100%", backgroundColor: "#E74C3C" },
-                ]}
-              />
-            </View>
-            <View style={styles.cardStatusRow}>
-              <Text style={styles.cardStatusPercent}>129%</Text>
-              <View style={styles.statusDotRow}>
-                <View
-                  style={[styles.statusDot, { backgroundColor: "#E74C3C" }]}
-                />
-                <Text style={[styles.statusDotText, { color: "#E74C3C" }]}>
-                  Exceeded
+            return (
+              <View key={cat} style={styles.categoryCard}>
+                <View style={styles.cardTopRow}>
+                  <View style={[styles.catIconFrame, { backgroundColor: details.bg }]}>
+                    <Ionicons name={details.icon} size={16} color={details.color} />
+                  </View>
+                  <TouchableOpacity
+                    onPress={() => {
+                      setSelectedBudgetCategory(cat);
+                      setEditBudgetLimit(String(limit));
+                      setIsBudgetOptionsOpen(true);
+                    }}
+                  >
+                    <Ionicons name="ellipsis-vertical" size={14} color="#BBB" />
+                  </TouchableOpacity>
+                </View>
+                <Text style={styles.catName} numberOfLines={1}>
+                  {cat}
                 </Text>
+                <Text style={styles.catSplit}>
+                  {formatCurrency(spent)}{" "}
+                  <Text style={styles.catTotal}>/ {formatCurrency(limit)}</Text>
+                </Text>
+                <View style={styles.catProgressBg}>
+                  <View
+                    style={[
+                      styles.catProgressBar,
+                      { width: `${percentage}%`, backgroundColor: details.color },
+                    ]}
+                  />
+                </View>
+                <View style={styles.cardStatusRow}>
+                  <Text style={styles.cardStatusPercent}>{percentage}%</Text>
+                  <View style={styles.statusDotRow}>
+                    <View style={[styles.statusDot, { backgroundColor: statusColor }]} />
+                    <Text style={[styles.statusDotText, percentage >= 100 && { color: "#E74C3C" }]}>
+                      {statusLabel}
+                    </Text>
+                  </View>
+                </View>
               </View>
-            </View>
-          </View>
+            );
+          })}
         </ScrollView>
 
         {/* --- SAVINGS GOALS SECTION --- */}
         <View style={styles.sectionHeader}>
           <Text style={styles.sectionTitle}>Savings Goals</Text>
-          <TouchableOpacity style={styles.addSectionButton}>
+          <TouchableOpacity
+            style={styles.addSectionButton}
+            onPress={() => setIsAddGoalOpen(true)}
+          >
             <Ionicons name="add-circle" size={16} color="#4B2C40" />
             <Text style={styles.addSectionText}>Add Goal</Text>
           </TouchableOpacity>
         </View>
 
         <View style={styles.goalsContainer}>
-          {/* Goal 1 */}
-          <View style={styles.goalRow}>
-            <View style={[styles.goalIconBox, { backgroundColor: "#F4ECF7" }]}>
-              <Ionicons name="gift-outline" size={18} color="#8E44AD" />
-            </View>
-            <View style={styles.goalMainInfo}>
-              <Text style={styles.goalTitle}>Tim&apos;s Birthday</Text>
-              <Text style={styles.goalSub}>Saved $120 of $300</Text>
-            </View>
-            <View style={styles.goalProgressContainer}>
-              <View style={styles.goalProgressBg}>
-                <View
-                  style={[
-                    styles.goalProgressBar,
-                    { width: "40%", backgroundColor: "#4B2C40" },
-                  ]}
-                />
+          {savingsGoals.map((goal) => {
+            const details = getGoalIconDetails(goal.category);
+            return (
+              <View key={goal.id} style={styles.goalRow}>
+                <View style={[styles.goalIconBox, { backgroundColor: details.bg }]}>
+                  <Ionicons name={details.icon} size={18} color={details.color} />
+                </View>
+                <View style={styles.goalMainInfo}>
+                  <Text style={styles.goalTitle}>{goal.title}</Text>
+                  <Text style={styles.goalSub}>Saved {formatCurrency(goal.saved)} of {formatCurrency(goal.target)}</Text>
+                </View>
+                <View style={styles.goalProgressContainer}>
+                  <View style={styles.goalProgressBg}>
+                    <View
+                      style={[
+                        styles.goalProgressBar,
+                        { width: `${goal.percentage}%`, backgroundColor: "#4B2C40" },
+                      ]}
+                    />
+                  </View>
+                  <Text style={styles.goalPercentText}>{goal.percentage}%</Text>
+                </View>
+                <TouchableOpacity
+                  onPress={() => {
+                    setSelectedGoal(goal);
+                    setEditGoalSaved(String(goal.saved));
+                    setEditGoalTarget(String(goal.target));
+                    setIsGoalOptionsOpen(true);
+                  }}
+                  style={{ marginLeft: 8 }}
+                >
+                  <Ionicons name="ellipsis-vertical" size={14} color="#BBB" />
+                </TouchableOpacity>
               </View>
-              <Text style={styles.goalPercentText}>40%</Text>
-            </View>
-            <Ionicons
-              name="ellipsis-vertical"
-              size={14}
-              color="#BBB"
-              style={{ marginLeft: 8 }}
-            />
-          </View>
-
-          {/* Goal 2 */}
-          <View style={styles.goalRow}>
-            <View style={[styles.goalIconBox, { backgroundColor: "#FDEDEC" }]}>
-              <Ionicons name="wine-outline" size={18} color="#E74C3C" />
-            </View>
-            <View style={styles.goalMainInfo}>
-              <Text style={styles.goalTitle}>December Party</Text>
-              <Text style={styles.goalSub}>Saved $450 of $800</Text>
-            </View>
-            <View style={styles.goalProgressContainer}>
-              <View style={styles.goalProgressBg}>
-                <View
-                  style={[
-                    styles.goalProgressBar,
-                    { width: "56%", backgroundColor: "#4B2C40" },
-                  ]}
-                />
-              </View>
-              <Text style={styles.goalPercentText}>56%</Text>
-            </View>
-            <Ionicons
-              name="ellipsis-vertical"
-              size={14}
-              color="#BBB"
-              style={{ marginLeft: 8 }}
-            />
-          </View>
+            );
+          })}
+          {savingsGoals.length === 0 && (
+            <Text style={{ textAlign: "center", color: "#888", paddingVertical: 20 }}>
+              No savings goals set yet.
+            </Text>
+          )}
         </View>
 
-        <TouchableOpacity style={styles.viewAllGoalsButton}>
+        <TouchableOpacity
+          style={styles.viewAllGoalsButton}
+          onPress={() => {
+            if (savingsGoals.length > 3) {
+              setIsViewAllGoalsOpen(true);
+            } else {
+              Alert.alert(
+                "Savings Goals",
+                "You currently have 3 or fewer savings goals. Add more goals to enable this view."
+              );
+            }
+          }}
+        >
           <Text style={styles.viewAllGoalsText}>View all savings goals</Text>
           <Ionicons
             name="chevron-forward"
@@ -319,6 +446,323 @@ export default function BudgetScreen() {
           </View>
         </View>
       </ScrollView>
+
+      {/* --- ADD BUDGET MODAL --- */}
+      <Modal visible={isAddBudgetOpen} transparent animationType="slide">
+        <Pressable style={styles.modalBackdrop} onPress={() => setIsAddBudgetOpen(false)}>
+          <View style={styles.modalSheet}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>Add Category Budget</Text>
+              <TouchableOpacity onPress={() => setIsAddBudgetOpen(false)}>
+                <Text style={styles.cancelText}>Cancel</Text>
+              </TouchableOpacity>
+            </View>
+
+            <View style={styles.inputGroup}>
+              <Text style={styles.inputLabel}>Select Category</Text>
+              <View style={styles.tagsContainer}>
+                {["Food & Dining", "Transport", "Shopping", "Bills & Utilities", "Entertainment", "Others"].map((cat) => (
+                  <TouchableOpacity
+                    key={cat}
+                    onPress={() => setAddBudgetCateg(cat)}
+                    style={[
+                      styles.tagBtn,
+                      addBudgetCateg === cat && styles.tagBtnActive,
+                    ]}
+                  >
+                    <Text style={[styles.tagText, addBudgetCateg === cat && styles.tagTextActive]}>
+                      {cat}
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+            </View>
+
+            <View style={styles.inputGroup}>
+              <Text style={styles.inputLabel}>Monthly Limit ($)</Text>
+              <TextInput
+                placeholder="0.00"
+                value={addBudgetLimit}
+                onChangeText={setAddBudgetLimit}
+                keyboardType="numeric"
+                style={styles.textInput}
+                placeholderTextColor="#888"
+              />
+            </View>
+
+            <TouchableOpacity onPress={handleAddBudgetSubmit} style={styles.saveBtn}>
+              <Text style={styles.saveBtnText}>Save Budget</Text>
+            </TouchableOpacity>
+          </View>
+        </Pressable>
+      </Modal>
+
+      {/* --- BUDGET OPTIONS MODAL --- */}
+      <Modal visible={isBudgetOptionsOpen} transparent animationType="fade">
+        <Pressable style={styles.modalBackdrop} onPress={() => setIsBudgetOptionsOpen(false)}>
+          <View style={styles.alertBox}>
+            <Text style={styles.alertTitle}>{selectedBudgetCategory}</Text>
+            <Text style={styles.alertSub}>Choose what you want to do with this budget category.</Text>
+            <View style={{ gap: 8, marginTop: 12 }}>
+              <TouchableOpacity
+                onPress={() => {
+                  setIsBudgetOptionsOpen(false);
+                  setIsEditBudgetOpen(true);
+                }}
+                style={styles.optionMenuBtn}
+              >
+                <Text style={styles.optionMenuBtnText}>✏️ Edit Limit</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                onPress={() => {
+                  if (selectedBudgetCategory) {
+                    deleteBudget(selectedBudgetCategory);
+                  }
+                  setIsBudgetOptionsOpen(false);
+                  setSelectedBudgetCategory(null);
+                }}
+                style={[styles.optionMenuBtn, { borderColor: "#E74C3C" }]}
+              >
+                <Text style={[styles.optionMenuBtnText, { color: "#E74C3C" }]}>🗑️ Delete Budget</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                onPress={() => setIsBudgetOptionsOpen(false)}
+                style={styles.optionMenuBtn}
+              >
+                <Text style={styles.optionMenuBtnText}>Cancel</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </Pressable>
+      </Modal>
+
+      {/* --- EDIT BUDGET MODAL --- */}
+      <Modal visible={isEditBudgetOpen} transparent animationType="fade">
+        <Pressable style={styles.modalBackdrop} onPress={() => setIsEditBudgetOpen(false)}>
+          <View style={styles.alertBox}>
+            <Text style={styles.alertTitle}>Set Budget Limit</Text>
+            <Text style={styles.alertSub}>Enter the new cap for {selectedBudgetCategory}.</Text>
+            <TextInput
+              value={editBudgetLimit}
+              onChangeText={setEditBudgetLimit}
+              keyboardType="numeric"
+              style={styles.alertInput}
+              autoFocus
+            />
+            <View style={styles.alertActions}>
+              <TouchableOpacity onPress={() => setIsEditBudgetOpen(false)}>
+                <Text style={styles.alertCancel}>Cancel</Text>
+              </TouchableOpacity>
+              <TouchableOpacity onPress={handleEditBudgetSubmit} style={styles.alertSaveBtn}>
+                <Text style={styles.alertSaveText}>Save</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </Pressable>
+      </Modal>
+
+      {/* --- ADD SAVINGS GOAL MODAL --- */}
+      <Modal visible={isAddGoalOpen} transparent animationType="slide">
+        <Pressable style={styles.modalBackdrop} onPress={() => setIsAddGoalOpen(false)}>
+          <View style={styles.modalSheet}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>Create Savings Goal</Text>
+              <TouchableOpacity onPress={() => setIsAddGoalOpen(false)}>
+                <Text style={styles.cancelText}>Cancel</Text>
+              </TouchableOpacity>
+            </View>
+
+            <View style={styles.inputGroup}>
+              <Text style={styles.inputLabel}>Goal Name</Text>
+              <TextInput
+                placeholder="e.g. Tim's Birthday, New Laptop..."
+                value={goalTitle}
+                onChangeText={setGoalTitle}
+                style={styles.textInput}
+                placeholderTextColor="#888"
+              />
+            </View>
+
+            <View style={{ flexDirection: "row", gap: 12 }}>
+              <View style={{ flex: 1, gap: 6 }}>
+                <Text style={styles.inputLabel}>Already Saved ($)</Text>
+                <TextInput
+                  placeholder="0.00"
+                  value={goalSaved}
+                  onChangeText={setGoalSaved}
+                  keyboardType="numeric"
+                  style={styles.textInput}
+                  placeholderTextColor="#888"
+                />
+              </View>
+              <View style={{ flex: 1, gap: 6 }}>
+                <Text style={styles.inputLabel}>Target Amount ($)</Text>
+                <TextInput
+                  placeholder="0.00"
+                  value={goalTarget}
+                  onChangeText={setGoalTarget}
+                  keyboardType="numeric"
+                  style={styles.textInput}
+                  placeholderTextColor="#888"
+                />
+              </View>
+            </View>
+
+            <View style={styles.inputGroup}>
+              <Text style={styles.inputLabel}>Goal Theme / Icon</Text>
+              <View style={styles.tagsContainer}>
+                {[
+                  { id: "gift", label: "🎁 Gift" },
+                  { id: "party", label: "🎉 Party" },
+                  { id: "health", label: "💚 Health" },
+                  { id: "other", label: "🐷 Piggy" },
+                ].map((theme) => (
+                  <TouchableOpacity
+                    key={theme.id}
+                    onPress={() => setGoalCategory(theme.id)}
+                    style={[
+                      styles.tagBtn,
+                      goalCategory === theme.id && styles.tagBtnActive,
+                    ]}
+                  >
+                    <Text style={[styles.tagText, goalCategory === theme.id && styles.tagTextActive]}>
+                      {theme.label}
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+            </View>
+
+            <TouchableOpacity onPress={handleAddGoalSubmit} style={styles.saveBtn}>
+              <Text style={styles.saveBtnText}>Save Goal</Text>
+            </TouchableOpacity>
+          </View>
+        </Pressable>
+      </Modal>
+
+      {/* --- GOAL OPTIONS MODAL --- */}
+      <Modal visible={isGoalOptionsOpen} transparent animationType="fade">
+        <Pressable style={styles.modalBackdrop} onPress={() => setIsGoalOptionsOpen(false)}>
+          <View style={styles.alertBox}>
+            <Text style={styles.alertTitle}>Goal: {selectedGoal?.title}</Text>
+            <Text style={styles.alertSub}>Select an action to perform.</Text>
+            <View style={{ gap: 8, marginTop: 12 }}>
+              <TouchableOpacity
+                onPress={() => {
+                  setIsGoalOptionsOpen(false);
+                  setIsEditGoalOpen(true);
+                }}
+                style={styles.optionMenuBtn}
+              >
+                <Text style={styles.optionMenuBtnText}>✏️ Edit Progress</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                onPress={() => {
+                  if (selectedGoal) {
+                    deleteSavingsGoal(selectedGoal.id);
+                  }
+                  setIsGoalOptionsOpen(false);
+                  setSelectedGoal(null);
+                }}
+                style={[styles.optionMenuBtn, { borderColor: "#E74C3C" }]}
+              >
+                <Text style={[styles.optionMenuBtnText, { color: "#E74C3C" }]}>🗑️ Delete Goal</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                onPress={() => setIsGoalOptionsOpen(false)}
+                style={styles.optionMenuBtn}
+              >
+                <Text style={styles.optionMenuBtnText}>Cancel</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </Pressable>
+      </Modal>
+
+      {/* --- EDIT GOAL PROGRESS MODAL --- */}
+      <Modal visible={isEditGoalOpen} transparent animationType="fade">
+        <Pressable style={styles.modalBackdrop} onPress={() => setIsEditGoalOpen(false)}>
+          <View style={styles.alertBox}>
+            <Text style={styles.alertTitle}>Edit Savings Goal</Text>
+            <Text style={styles.alertSub}>Update values for {selectedGoal?.title}</Text>
+
+            <View style={{ gap: 8, marginVertical: 10 }}>
+              <Text style={styles.inputLabel}>Saved Amount ($)</Text>
+              <TextInput
+                value={editGoalSaved}
+                onChangeText={setEditGoalSaved}
+                keyboardType="numeric"
+                style={styles.alertInput}
+              />
+              <Text style={styles.inputLabel}>Target Goal ($)</Text>
+              <TextInput
+                value={editGoalTarget}
+                onChangeText={setEditGoalTarget}
+                keyboardType="numeric"
+                style={styles.alertInput}
+              />
+            </View>
+
+            <View style={styles.alertActions}>
+              <TouchableOpacity onPress={() => setIsEditGoalOpen(false)}>
+                <Text style={styles.alertCancel}>Cancel</Text>
+              </TouchableOpacity>
+              <TouchableOpacity onPress={handleEditGoalSubmit} style={styles.alertSaveBtn}>
+                <Text style={styles.alertSaveText}>Save</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </Pressable>
+      </Modal>
+
+      {/* --- VIEW ALL GOALS MODAL --- */}
+      <Modal visible={isViewAllGoalsOpen} transparent animationType="slide">
+        <Pressable style={styles.modalBackdrop} onPress={() => setIsViewAllGoalsOpen(false)}>
+          <View style={styles.modalSheet}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>All Savings Goals</Text>
+              <TouchableOpacity onPress={() => setIsViewAllGoalsOpen(false)}>
+                <Text style={styles.cancelText}>Close</Text>
+              </TouchableOpacity>
+            </View>
+
+            <ScrollView style={{ maxHeight: 350 }} showsVerticalScrollIndicator={false}>
+              <View style={{ gap: 12 }}>
+                {savingsGoals.map((goal) => {
+                  const details = getGoalIconDetails(goal.category);
+                  return (
+                    <View key={goal.id} style={{
+                      backgroundColor: "#FAFAFA",
+                      borderRadius: 12,
+                      padding: 12,
+                      borderWidth: 1,
+                      borderColor: "#F0F0F0"
+                    }}>
+                      <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center" }}>
+                        <Text style={{ fontSize: 14, fontWeight: "700" }}>{goal.title}</Text>
+                        <Text style={{ fontSize: 10, color: "#888", fontWeight: "600" }}>{goal.category.toUpperCase()}</Text>
+                      </View>
+                      <View style={{
+                        height: 4,
+                        backgroundColor: "#F0F0F0",
+                        borderRadius: 2,
+                        marginTop: 10,
+                        overflow: "hidden"
+                      }}>
+                        <View style={{ height: "100%", width: `${goal.percentage}%`, backgroundColor: "#4B2C40" }} />
+                      </View>
+                      <View style={{ flexDirection: "row", justifyContent: "space-between", marginTop: 8 }}>
+                        <Text style={{ fontSize: 11, color: "#666" }}>Saved: {formatCurrency(goal.saved)}</Text>
+                        <Text style={{ fontSize: 11, color: "#666" }}>Target: {formatCurrency(goal.target)} ({goal.percentage}%)</Text>
+                      </View>
+                    </View>
+                  );
+                })}
+              </View>
+            </ScrollView>
+          </View>
+        </Pressable>
+      </Modal>
 
       {/* --- GLOBAL RESPONSIVE FOOTER NAVIGATION --- */}
       <View style={styles.footerNav}>
@@ -749,5 +1193,169 @@ const styles = StyleSheet.create({
   activeFooterText: {
     color: "#4B2C40",
     fontWeight: "600",
+  },
+  /* Modal backdrop & sheets styles */
+  modalBackdrop: {
+    flex: 1,
+    backgroundColor: "rgba(0,0,0,0.4)",
+    justifyContent: "flex-end",
+  },
+  modalSheet: {
+    backgroundColor: "#FFF",
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    padding: 20,
+    paddingBottom: Platform.OS === "ios" ? 40 : 24,
+  },
+  modalHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: 20,
+  },
+  modalTitle: {
+    fontSize: 18,
+    fontWeight: "700",
+    color: "#1A1A1A",
+  },
+  cancelText: {
+    fontSize: 14,
+    color: "#888",
+    fontWeight: "500",
+  },
+  inputGroup: {
+    gap: 6,
+    marginBottom: 16,
+  },
+  inputLabel: {
+    fontSize: 13,
+    fontWeight: "600",
+    color: "#666",
+  },
+  textInput: {
+    borderWidth: 1,
+    borderColor: "#EBEBEB",
+    borderRadius: 10,
+    paddingHorizontal: 12,
+    height: 48,
+    fontSize: 14,
+    color: "#1A1A1A",
+    backgroundColor: "#FAFAFA",
+    marginTop: 4,
+  },
+  tagsContainer: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 6,
+    marginTop: 4,
+  },
+  tagBtn: {
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: "#EBEBEB",
+    backgroundColor: "#FFF",
+  },
+  tagBtnActive: {
+    borderColor: "#4B2C40",
+    backgroundColor: "#F6F3F5",
+  },
+  tagText: {
+    fontSize: 12,
+    color: "#666",
+  },
+  tagTextActive: {
+    color: "#4B2C40",
+    fontWeight: "600",
+  },
+  saveBtn: {
+    backgroundColor: "#4B2C40",
+    borderRadius: 12,
+    height: 50,
+    justifyContent: "center",
+    alignItems: "center",
+    marginTop: 12,
+  },
+  saveBtnText: {
+    color: "#FFF",
+    fontSize: 16,
+    fontWeight: "700",
+  },
+  /* Alert options menu style */
+  alertBox: {
+    backgroundColor: "#FFF",
+    borderRadius: 16,
+    padding: 20,
+    width: "80%",
+    alignSelf: "center",
+    justifyContent: "center",
+    borderWidth: 1,
+    borderColor: "#F0F0F0",
+    shadowColor: "#000",
+    shadowOpacity: 0.1,
+    shadowRadius: 10,
+    shadowOffset: { width: 0, height: 4 },
+    elevation: 5,
+  },
+  alertTitle: {
+    fontSize: 16,
+    fontWeight: "700",
+    color: "#1A1A1A",
+    textAlign: "center",
+  },
+  alertSub: {
+    fontSize: 12,
+    color: "#666",
+    textAlign: "center",
+    marginTop: 4,
+    marginBottom: 12,
+  },
+  optionMenuBtn: {
+    borderWidth: 1,
+    borderColor: "#EBEBEB",
+    borderRadius: 10,
+    height: 44,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  optionMenuBtnText: {
+    fontSize: 14,
+    color: "#1A1A1A",
+    fontWeight: "600",
+  },
+  alertInput: {
+    borderWidth: 1,
+    borderColor: "#EBEBEB",
+    borderRadius: 10,
+    paddingHorizontal: 12,
+    height: 44,
+    fontSize: 14,
+    color: "#1A1A1A",
+    backgroundColor: "#FAFAFA",
+    textAlign: "center",
+    marginVertical: 10,
+  },
+  alertActions: {
+    flexDirection: "row",
+    justifyContent: "space-around",
+    alignItems: "center",
+    marginTop: 12,
+  },
+  alertCancel: {
+    fontSize: 14,
+    color: "#666",
+    fontWeight: "600",
+  },
+  alertSaveBtn: {
+    backgroundColor: "#4B2C40",
+    borderRadius: 10,
+    paddingHorizontal: 20,
+    paddingVertical: 8,
+  },
+  alertSaveText: {
+    color: "#FFF",
+    fontSize: 14,
+    fontWeight: "700",
   },
 });
