@@ -11,83 +11,44 @@ import {
   View,
 } from "react-native";
 import Svg, { Circle, G, Path } from "react-native-svg";
-import { useAppStore } from "../src/store";
 
 const API_URL = process.env.EXPO_PUBLIC_API_URL;
 
 export default function DashboardScreen() {
   const router = useRouter();
-  const { transactions: transactionsRaw, savingsGoals: savingsGoalsRaw } = useAppStore();
-  const transactions = (transactionsRaw || []) as any[];
-  const savingsGoals = (savingsGoalsRaw || []) as any[];
 
   // State hooks
   const [isBalanceVisible, setIsBalanceVisible] = useState<boolean>(true);
   const [isSortLatest, setIsSortLatest] = useState<boolean>(true);
 
-  // Compute balance
-  const totalIncome = transactions.filter(t => t.type === 'income').reduce((sum, t) => sum + t.amount, 0);
-  const totalExpense = transactions.filter(t => t.type === 'expense').reduce((sum, t) => sum + t.amount, 0);
-  const currentBalance = totalIncome - totalExpense;
-
-  // Compute spending data
-  const categoriesMap: { [key: string]: { color: string; amount: number } } = {
-    "Food & Dining": { color: "#2D232E", amount: 0 },
-    "Transport": { color: "#5DADE2", amount: 0 },
-    "Shopping": { color: "#F5B041", amount: 0 },
-    "Bills & Utilities": { color: "#EC7063", amount: 0 },
-    "Entertainment": { color: "#A6ACAF", amount: 0 },
-    "Others": { color: "#D5D8DC", amount: 0 },
-  };
-
-  transactions.forEach((t) => {
-    if (t.type === "expense") {
-      if (categoriesMap[t.category]) {
-        categoriesMap[t.category].amount += t.amount;
-      } else {
-        categoriesMap["Others"].amount += t.amount;
-      }
-    }
-  });
-
-  const spendingData = Object.keys(categoriesMap)
-    .map((label) => {
-      const amt = categoriesMap[label].amount;
-      const pctVal = totalExpense > 0 ? (amt / totalExpense) * 100 : 0;
-      return {
-        label,
-        color: categoriesMap[label].color,
-        amount: `$${amt.toLocaleString(undefined, {
-          minimumFractionDigits: 2,
-          maximumFractionDigits: 2,
-        })}`,
-        percent: `${Math.round(pctVal)}%`,
-        percentNum: pctVal,
-        amountNum: amt,
-      };
-    })
-    .filter((item) => item.amountNum > 0)
-    .sort((a, b) => b.amountNum - a.amountNum);
+  const spendingData = [
+    {
+      color: "#2D232E",
+      label: "Food & Dining",
+      percent: "26%",
+      amount: "$602.10",
+    },
+    { color: "#5DADE2", label: "Transport", percent: "20%", amount: "$430.00" },
+    { color: "#F5B041", label: "Shopping", percent: "18%", amount: "$387.50" },
+    {
+      color: "#EC7063",
+      label: "Bills & Utilities",
+      percent: "15%",
+      amount: "$322.00",
+    },
+    {
+      color: "#A6ACAF",
+      label: "Entertainment",
+      percent: "10%",
+      amount: "$215.80",
+    },
+    { color: "#D5D8DC", label: "Other", percent: "9%", amount: "$200.90" },
+  ];
 
   // SVG Donut Configurations (Radius: 40, Circumference: ~251.3)
   const radius = 40;
   const circumference = 2 * Math.PI * radius;
   let accumulatedPercent = 0;
-
-  // Goals progress calculations
-  const totalGoals = savingsGoals.length;
-  const completedGoals = savingsGoals.filter(g => g.saved >= g.target).length;
-  const completionPercentage = totalGoals > 0 ? Math.round((completedGoals / totalGoals) * 100) : 0;
-
-  // Recent transactions (latest 3)
-  const sortedTransactions = [...transactions].sort((a, b) => {
-    if (isSortLatest) {
-      return new Date(b.date).getTime() - new Date(a.date).getTime();
-    } else {
-      return new Date(a.date).getTime() - new Date(b.date).getTime();
-    }
-  });
-  const recentTransactions = sortedTransactions.slice(0, 3);
 
   return (
     <SafeAreaView style={styles.container}>
@@ -334,54 +295,69 @@ export default function DashboardScreen() {
             </Text>
             <TouchableOpacity
               style={styles.sortActionRowButton}
-              onPress={() => router.push('/transaction-history' as any)}
+              onPress={() => setIsSortLatest(!isSortLatest)}
               activeOpacity={0.7}
             >
-              <Text style={styles.sortActionButtonLabelText}>View all</Text>
+              <Text style={styles.sortActionButtonLabelText}>Latest</Text>
+              <Ionicons
+                name={isSortLatest ? "arrow-down" : "arrow-up"}
+                size={12}
+                color="#534B52"
+                style={{ marginLeft: 2 }}
+              />
             </TouchableOpacity>
           </View>
 
-          {recentTransactions.map((tx, index) => {
-            const isExpense = tx.type === 'expense';
-            const pillColor = isExpense ? '#FDEDEC' : '#EAF6EC';
-            const pillText = isExpense ? '#E74C3C' : '#2ECC71';
-            return (
-              <TouchableOpacity
-                key={tx.id}
+          {/* Item 1 */}
+          <View style={styles.transactionRowItemContainer}>
+            <View style={styles.transactionLeftMetadataWrapper}>
+              <View
                 style={[
-                  styles.transactionRowItemContainer,
-                  index === recentTransactions.length - 1 && { borderBottomWidth: 0, paddingBottom: 0 },
+                  styles.brandMerchantLogoAvatarBox,
+                  { backgroundColor: "#E8F5E9" },
                 ]}
-                onPress={() => router.push('/transaction-history' as any)}
-              >
-                <View style={styles.transactionLeftMetadataWrapper}>
-                  <View
-                    style={[
-                      styles.brandMerchantLogoAvatarBox,
-                      { backgroundColor: pillColor },
-                    ]}
-                  />
-                  <View style={{ flex: 1 }}>
-                    <Text style={styles.merchantMainNameText}>{tx.title}</Text>
-                    <Text style={styles.merchantCategorySubText}>{tx.category}</Text>
-                  </View>
-                </View>
-                <View style={styles.transactionRightFinancialWrapper}>
-                  <Text
-                    style={[styles.transactionDebitNegativeAmountValue, isExpense ? styles.expenseAmount : styles.incomeAmount]}
-                    numberOfLines={1}
-                    adjustsFontSizeToFit
-                    minimumFontScale={0.7}
-                  >
-                    {isExpense ? `-$${tx.amount.toFixed(2)}` : `+$${tx.amount.toFixed(2)}`}
-                  </Text>
-                  <Text style={styles.transactionTimestampValueText} numberOfLines={1}>
-                    {new Date(tx.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
-                  </Text>
-                </View>
-              </TouchableOpacity>
-            );
-          })}
+              />
+              <View>
+                <Text style={styles.merchantMainNameText}>Starbucks</Text>
+                <Text style={styles.merchantCategorySubText}>
+                  Food & Dining
+                </Text>
+              </View>
+            </View>
+            <View style={styles.transactionRightFinancialWrapper}>
+              <Text style={styles.transactionDebitNegativeAmountValue}>
+                -$5.20
+              </Text>
+              <Text style={styles.transactionTimestampValueText}>May 20</Text>
+            </View>
+          </View>
+
+          {/* Item 2 */}
+          <View
+            style={[
+              styles.transactionRowItemContainer,
+              { borderBottomWidth: 0, paddingBottom: 0 },
+            ]}
+          >
+            <View style={styles.transactionLeftMetadataWrapper}>
+              <View
+                style={[
+                  styles.brandMerchantLogoAvatarBox,
+                  { backgroundColor: "#F5F5F5" },
+                ]}
+              />
+              <View>
+                <Text style={styles.merchantMainNameText}>Uber</Text>
+                <Text style={styles.merchantCategorySubText}>Transport</Text>
+              </View>
+            </View>
+            <View style={styles.transactionRightFinancialWrapper}>
+              <Text style={styles.transactionDebitNegativeAmountValue}>
+                -$18.40
+              </Text>
+              <Text style={styles.transactionTimestampValueText}>May 19</Text>
+            </View>
+          </View>
         </View>
       </ScrollView>
 
@@ -707,16 +683,12 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
     alignItems: "center",
     paddingVertical: 12,
-    paddingRight: 4,
     borderBottomWidth: 1,
     borderBottomColor: "#EAEAEA",
-    overflow: "hidden",
   },
   transactionLeftMetadataWrapper: {
     flexDirection: "row",
     alignItems: "center",
-    flex: 1,
-    minWidth: 0,
   },
   brandMerchantLogoAvatarBox: {
     width: 32,
@@ -728,26 +700,11 @@ const styles = StyleSheet.create({
   },
   merchantMainNameText: { fontSize: 13, fontWeight: "700", color: "#2D232E" },
   merchantCategorySubText: { fontSize: 11, color: "#534B52", marginTop: 1 },
-  transactionRightFinancialWrapper: {
-    alignItems: "flex-end",
-    width: 82,
-    flexShrink: 0,
-    marginLeft: 8,
-  },
+  transactionRightFinancialWrapper: { alignItems: "flex-end" },
   transactionDebitNegativeAmountValue: {
-    fontSize: 11,
+    fontSize: 13,
     fontWeight: "700",
     color: "#2D232E",
-    textAlign: "right",
-    maxWidth: "100%",
-    flexShrink: 1,
-    includeFontPadding: false,
-  },
-  expenseAmount: {
-    color: "#E74C3C",
-  },
-  incomeAmount: {
-    color: "#2ECC71",
   },
   transactionTimestampValueText: {
     fontSize: 10,

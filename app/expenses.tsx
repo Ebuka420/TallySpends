@@ -7,12 +7,11 @@ import {
 import DateTimePicker, {
   DateTimePickerEvent,
 } from "@react-native-community/datetimepicker";
-import { usePathname, useRouter } from "expo-router";
-import React, { useEffect, useRef, useState } from "react";
+import { useRouter } from "expo-router";
+import React, { useEffect, useRef, useState, useMemo } from "react";
 import {
   Animated,
   Modal,
-  PanResponder,
   Platform,
   SafeAreaView,
   ScrollView,
@@ -21,9 +20,12 @@ import {
   TouchableOpacity,
   TouchableWithoutFeedback,
   View,
+  TextInput,
+  PanResponder,
+  Alert,
+  Pressable,
 } from "react-native";
-
-const API_URL = process.env.EXPO_PUBLIC_API_URL;
+import { useAppStore } from "../src/store";
 
 type TimePeriod = "today" | "week" | "month" | "custom";
 
@@ -31,52 +33,129 @@ interface Transaction {
   id: string;
   title: string;
   category: string;
-  time: string;
+  date: string;
   amount: number;
-  method: string;
-  icon: string;
-  iconType: "ionicons" | "fontawesome";
-  bgColor: string;
-  iconColor: string;
+  type: "income" | "expense";
 }
 
-const MOCK_TRANSACTIONS: Transaction[] = [
-  {
-    id: "1",
-    title: "Starbucks",
-    category: "Food & Dining",
-    time: "Today, 9:21 AM",
-    amount: -5.2,
-    method: "Card",
-    icon: "logo-buffer",
-    iconType: "ionicons",
-    bgColor: "#E8F8F5",
-    iconColor: "#1ABC9C",
-  },
-  {
-    id: "2",
-    title: "Uber",
-    category: "Transport",
-    time: "Today, 8:15 AM",
-    amount: -18.4,
-    method: "Card",
-    icon: "uber",
-    iconType: "fontawesome",
-    bgColor: "#F4F6F7",
-    iconColor: "#1A1A1A",
-  },
-];
+// SwipeableRow Component using PanResponder and Animated
+const SwipeableRow = ({
+  children,
+  onEdit,
+  onDelete,
+}: {
+  children: React.ReactNode;
+  onEdit: () => void;
+  onDelete: () => void;
+}) => {
+  const translateX = useRef(new Animated.Value(0)).current;
+
+  const panResponder = useRef(
+    PanResponder.create({
+      onStartShouldSetPanResponder: () => false,
+      onMoveShouldSetPanResponder: (_, gestureState) => {
+        return Math.abs(gestureState.dx) > 10 && Math.abs(gestureState.dy) < 10;
+      },
+      onPanResponderMove: (_, gestureState) => {
+        const newX = gestureState.dx;
+        if (newX < 0) {
+          translateX.setValue(Math.max(-120, newX));
+        } else {
+          translateX.setValue(Math.min(0, newX));
+        }
+      },
+      onPanResponderRelease: (_, gestureState) => {
+        if (gestureState.dx < -60) {
+          Animated.spring(translateX, {
+            toValue: -120,
+            useNativeDriver: true,
+            bounciness: 4,
+          }).start();
+        } else {
+          Animated.spring(translateX, {
+            toValue: 0,
+            useNativeDriver: true,
+            bounciness: 4,
+          }).start();
+        }
+      },
+    })
+  ).current;
+
+  const closeRow = () => {
+    Animated.spring(translateX, {
+      toValue: 0,
+      useNativeDriver: true,
+    }).start();
+  };
+
+  return (
+    <View style={styles.swipeContainer}>
+      <View style={styles.swipeActionsBackground}>
+        <TouchableOpacity
+          style={[styles.swipeActionBtn, { backgroundColor: "#F5EBDF" }]}
+          onPress={() => {
+            closeRow();
+            onEdit();
+          }}
+        >
+          <Ionicons name="pencil" size={16} color="#A04000" />
+        </TouchableOpacity>
+        <TouchableOpacity
+          style={[styles.swipeActionBtn, { backgroundColor: "#FADBD8" }]}
+          onPress={() => {
+            closeRow();
+            onDelete();
+          }}
+        >
+          <Ionicons name="trash-outline" size={16} color="#C0392B" />
+        </TouchableOpacity>
+      </View>
+      <Animated.View
+        style={{ transform: [{ translateX }], backgroundColor: "#FFF" }}
+        {...panResponder.panHandlers}
+      >
+        {children}
+      </Animated.View>
+    </View>
+  );
+};
 
 export default function ExpensesScreen() {
   const router = useRouter();
-  const pathname = usePathname();
+  const { transactions: transactionsRaw, addTransaction, deleteTransaction, updateTransaction } = useAppStore();
+  const transactions = (transactionsRaw || []) as any[];
+
   const [activeTab, setActiveTab] = useState<TimePeriod>("month");
+  const [selectedDate, setSelectedDate] = useState<Date>(new Date(2024, 4, 1)); // May 2024 baseline
+  const [showDatePicker, setShowDatePicker] = useState<boolean>(false);
 
-  // --- NATIVE CALENDAR STATES ---
-  const [selectedDate, setSelectedDate] = useState<Date>(new Date(2024, 4, 1)); // Default baseline: May 2024
-  const [showPicker, setShowPicker] = useState<boolean>(false);
+  // Filter/Sort States
+  const [searchQuery, setSearchQuery] = useState("");
+  const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
+  const [sortBy, setSortBy] = useState<"latest" | "oldest" | "highest" | "lowest">("latest");
+  const [isSortOpen, setIsSortOpen] = useState(false);
 
-  // Helper to format the native date object for your text layouts
+  // Add / Edit transaction modals
+  const [isAddModalOpen, setIsAddModalOpen] = useState(false);
+  const [isEditModalOpen, setIsEditModalOpen] = useState(false);
+  const [selectedTx, setSelectedTx] = useState<any>(null);
+
+  // Modal Form States
+  const [txTitle, setTxTitle] = useState("");
+  const [txAmount, setTxAmount] = useState("");
+  const [txType, setTxType] = useState<"income" | "expense">("expense");
+  const [txCategory, setTxCategory] = useState("Food & Dining");
+
+  const categories = [
+    "Food & Dining",
+    "Transport",
+    "Shopping",
+    "Bills & Utilities",
+    "Entertainment",
+    "Others",
+  ];
+
   const formatMonthYear = (date: Date): string => {
     return date.toLocaleDateString("en-US", {
       month: "short",
@@ -86,14 +165,14 @@ export default function ExpensesScreen() {
 
   const onDateChange = (event: DateTimePickerEvent, date?: Date) => {
     if (Platform.OS === "android") {
-      setShowPicker(false);
+      setShowDatePicker(false);
     }
     if (date) {
       setSelectedDate(date);
     }
   };
 
-  // --- PAN RESPONDER TRACKING FOR DRAGGABLE FAB ---
+  // --- DRAGGABLE FAB PAN RESPONDER ---
   const pan = useRef(new Animated.ValueXY()).current;
   const offsetRef = useRef({ x: 0, y: 0 });
 
@@ -123,23 +202,167 @@ export default function ExpensesScreen() {
       onPanResponderRelease: (_, gestureState) => {
         pan.flattenOffset();
         if (Math.abs(gestureState.dx) < 5 && Math.abs(gestureState.dy) < 5) {
-          router.push("/add-expense" as any);
+          setIsAddModalOpen(true);
         }
       },
-    }),
+    })
   ).current;
 
-  const FilterBadge = ({ label }: { label: string }) => (
-    <TouchableOpacity style={styles.filterBadge}>
-      <Text style={styles.filterBadgeText}>{label}</Text>
-      <Ionicons
-        name="chevron-down"
-        size={12}
-        color="#666"
-        style={{ marginLeft: 4 }}
-      />
-    </TouchableOpacity>
-  );
+  // Filter transactions by activeTime period and category and search query
+  const filteredTransactions = useMemo(() => {
+    return transactions
+      .filter((tx) => {
+        // Search query filter
+        const matchesSearch =
+          tx.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
+          tx.category.toLowerCase().includes(searchQuery.toLowerCase());
+        if (!matchesSearch) return false;
+
+        // Category filter
+        if (selectedCategory && tx.category !== selectedCategory) return false;
+
+        // Date-based filter
+        const txDate = new Date(tx.date);
+        const today = new Date();
+
+        if (activeTab === "today") {
+          return (
+            txDate.getDate() === today.getDate() &&
+            txDate.getMonth() === today.getMonth() &&
+            txDate.getFullYear() === today.getFullYear()
+          );
+        }
+
+        if (activeTab === "week") {
+          const oneWeekAgo = new Date();
+          oneWeekAgo.setDate(today.getDate() - 7);
+          return txDate >= oneWeekAgo && txDate <= today;
+        }
+
+        if (activeTab === "month") {
+          const baselineMonth = selectedDate.getMonth();
+          const baselineYear = selectedDate.getFullYear();
+          return txDate.getMonth() === baselineMonth && txDate.getFullYear() === baselineYear;
+        }
+
+        if (activeTab === "custom") {
+          // Filter by selected baseline date (month)
+          const targetMonth = selectedDate.getMonth();
+          const targetYear = selectedDate.getFullYear();
+          return txDate.getMonth() === targetMonth && txDate.getFullYear() === targetYear;
+        }
+
+        return true;
+      })
+      .sort((a, b) => {
+        if (sortBy === "latest") {
+          return new Date(b.date).getTime() - new Date(a.date).getTime();
+        } else if (sortBy === "oldest") {
+          return new Date(a.date).getTime() - new Date(b.date).getTime();
+        } else if (sortBy === "highest") {
+          return b.amount - a.amount;
+        } else {
+          return a.amount - b.amount;
+        }
+      });
+  }, [transactions, activeTab, selectedDate, searchQuery, selectedCategory, sortBy]);
+
+  // Compute category breakdown totals for the active month
+  const categorySummary = useMemo(() => {
+    const summary: { [key: string]: number } = {
+      "Food & Dining": 0,
+      "Transport": 0,
+      "Shopping": 0,
+      "Bills & Utilities": 0,
+      "Entertainment": 0,
+      "Others": 0,
+    };
+
+    let total = 0;
+    transactions.forEach((tx) => {
+      // Limit category breakdown to transactions in current filtered range/baseline
+      const txDate = new Date(tx.date);
+      if (tx.type === "expense" && txDate.getMonth() === selectedDate.getMonth() && txDate.getFullYear() === selectedDate.getFullYear()) {
+        total += tx.amount;
+        if (summary[tx.category] !== undefined) {
+          summary[tx.category] += tx.amount;
+        } else {
+          summary["Others"] += tx.amount;
+        }
+      }
+    });
+
+    return { summary, total };
+  }, [transactions, selectedDate]);
+
+  const getCategoryDetails = (cat: string) => {
+    switch (cat) {
+      case "Food & Dining":
+        return { icon: "fast-food-outline" as any, color: "#E67E22", bg: "#FDF2E9" };
+      case "Transport":
+        return { icon: "car-outline" as any, color: "#8E44AD", bg: "#F4ECF7" };
+      case "Shopping":
+        return { icon: "bag-handle-outline" as any, color: "#E74C3C", bg: "#FDEDEC" };
+      case "Bills & Utilities":
+        return { icon: "document-text-outline" as any, color: "#2ECC71", bg: "#EAF6EC" };
+      case "Entertainment":
+        return { icon: "film-outline" as any, color: "#7F8C8D", bg: "#F4F6F7" };
+      default:
+        return { icon: "ellipsis-horizontal-outline" as any, color: "#5DADE2", bg: "#EBF5FB" };
+    }
+  };
+
+  const handleAddSubmit = () => {
+    const amountVal = parseFloat(txAmount);
+    if (!txTitle.trim() || isNaN(amountVal) || amountVal <= 0) {
+      Alert.alert("Error", "Please fill in all transaction fields correctly.");
+      return;
+    }
+
+    addTransaction({
+      title: txTitle.trim(),
+      amount: amountVal,
+      category: txType === "income" ? "Income" : txCategory,
+      type: txType,
+      date: new Date().toISOString().slice(0, 10),
+    });
+
+    setIsAddModalOpen(false);
+    setTxTitle("");
+    setTxAmount("");
+    setTxType("expense");
+    setTxCategory("Food & Dining");
+  };
+
+  const handleEditSubmit = () => {
+    const amountVal = parseFloat(txAmount);
+    if (!txTitle.trim() || isNaN(amountVal) || amountVal <= 0 || !selectedTx) {
+      Alert.alert("Error", "Please fill in all transaction fields correctly.");
+      return;
+    }
+
+    updateTransaction({
+      ...selectedTx,
+      title: txTitle.trim(),
+      amount: amountVal,
+      category: txType === "income" ? "Income" : txCategory,
+      type: txType,
+    });
+
+    setIsEditModalOpen(false);
+    setSelectedTx(null);
+    setTxTitle("");
+    setTxAmount("");
+  };
+
+  const openEditTx = (tx: any) => {
+    setSelectedTx(tx);
+    setTxTitle(tx.title);
+    setTxAmount(String(tx.amount));
+    setTxType(tx.type);
+    setTxCategory(tx.category === "Income" ? "Food & Dining" : tx.category);
+    setIsEditModalOpen(true);
+  };
 
   return (
     <SafeAreaView style={styles.container}>
@@ -148,10 +371,10 @@ export default function ExpensesScreen() {
         <View style={styles.headerSpacer} />
         <Text style={styles.headerTitle}>Expenses</Text>
         <View style={styles.headerRightIcons}>
-          <TouchableOpacity style={styles.iconButton}>
-            <Ionicons name="search-outline" size={22} color="#1A1A1A" />
-          </TouchableOpacity>
-          <TouchableOpacity style={styles.iconButton}>
+          <TouchableOpacity
+            style={styles.iconButton}
+            onPress={() => setIsSortOpen(true)}
+          >
             <Octicons name="sliders" size={20} color="#1A1A1A" />
           </TouchableOpacity>
         </View>
@@ -163,82 +386,66 @@ export default function ExpensesScreen() {
       >
         {/* --- TIME PERIOD TABS --- */}
         <View style={styles.tabContainer}>
-          {(["today", "week", "month", "custom"] as TimePeriod[]).map(
-            (period) => (
-              <TouchableOpacity
-                key={period}
+          {(["today", "week", "month", "custom"] as TimePeriod[]).map((period) => (
+            <TouchableOpacity
+              key={period}
+              style={[
+                styles.tabButton,
+                activeTab === period && styles.activeTabButton,
+              ]}
+              onPress={() => {
+                setActiveTab(period);
+                if (period === "custom" || period === "month") {
+                  setShowDatePicker(true);
+                }
+              }}
+            >
+              <Text
                 style={[
-                  styles.tabButton,
-                  activeTab === period && styles.activeTabButton,
+                  styles.tabText,
+                  activeTab === period && styles.activeTabText,
                 ]}
-                onPress={() => {
-                  setActiveTab(period);
-                  if (period === "custom") {
-                    setShowPicker(true); // Open calendar picker instantly when Custom tab is pressed
-                  }
-                }}
               >
-                {period === "custom" ? (
-                  <View style={styles.customTabContent}>
-                    <Text
-                      style={[
-                        styles.tabText,
-                        activeTab === period && styles.activeTabText,
-                        { marginRight: 4 },
-                      ]}
-                    >
-                      Custom
-                    </Text>
-                    <Ionicons
-                      name="calendar-outline"
-                      size={14}
-                      color={activeTab === period ? "#FFFFFF" : "#666666"}
-                    />
-                  </View>
-                ) : (
-                  <Text
-                    style={[
-                      styles.tabText,
-                      activeTab === period && styles.activeTabText,
-                    ]}
-                  >
-                    {period.charAt(0).toUpperCase() + period.slice(1)}
-                  </Text>
-                )}
-              </TouchableOpacity>
-            ),
-          )}
+                {period.charAt(0).toUpperCase() + period.slice(1)}
+              </Text>
+            </TouchableOpacity>
+          ))}
         </View>
 
-        {/* --- FILTER ROW --- */}
-        <ScrollView
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          style={styles.filterRow}
-          contentContainerStyle={{ paddingRight: 24 }}
-        >
-          <FilterBadge label="Category" />
-          <FilterBadge label="Vendor" />
-          <FilterBadge label="Amount" />
-          <FilterBadge label="Payment Method" />
-          <TouchableOpacity style={styles.resetButton}>
-            <Text style={styles.resetButtonText}>Reset</Text>
-          </TouchableOpacity>
-        </ScrollView>
+        {/* --- SEARCH BAR --- */}
+        <View style={styles.searchContainer}>
+          <View style={styles.searchBox}>
+            <Ionicons name="search-outline" size={18} color="#888" style={{ marginRight: 8 }} />
+            <TextInput
+              value={searchQuery}
+              onChangeText={setSearchQuery}
+              placeholder="Search items, categories..."
+              placeholderTextColor="#888"
+              style={styles.searchInput}
+            />
+            {searchQuery !== "" && (
+              <TouchableOpacity onPress={() => setSearchQuery("")}>
+                <Ionicons name="close-circle" size={16} color="#BBB" />
+              </TouchableOpacity>
+            )}
+          </View>
+        </View>
 
         {/* --- TOTAL EXPENSES CARD --- */}
         <View style={styles.summaryCard}>
           <View style={styles.cardHeaderRow}>
             <View>
               <Text style={styles.summaryLabel}>Total Expenses</Text>
-              <Text style={styles.summaryAmount}>$2,158.30</Text>
+              <Text style={styles.summaryAmount}>
+                ${categorySummary.total.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+              </Text>
               <Text style={styles.summaryTrend}>
-                🔹 12% less than last month
+                🔹 Current Baseline
               </Text>
             </View>
             <TouchableOpacity
               style={styles.monthDropdown}
-              onPress={() => setShowPicker(true)} // Open picker on dropdown header context touch
+              onPress={() => setShowDatePicker(true)}
             >
               <Text style={styles.monthDropdownText}>
                 {formatMonthYear(selectedDate)}
@@ -252,29 +459,21 @@ export default function ExpensesScreen() {
             </TouchableOpacity>
           </View>
 
-          <View style={styles.sparklinePlaceholder}>
-            <View style={styles.sparklineCurve} />
-          </View>
-
           <View style={styles.metricsRow}>
             <View style={styles.metricItem}>
               <Text style={styles.metricLabel}>Transactions</Text>
-              <Text style={styles.metricValue}>84</Text>
-              <Text style={styles.metricSubText}>Total transactions</Text>
+              <Text style={styles.metricValue}>{filteredTransactions.length}</Text>
+              <Text style={styles.metricSubText}>Total matching logs</Text>
             </View>
             <View style={styles.metricDivider} />
             <View style={styles.metricItem}>
               <Text style={styles.metricLabel}>Average Purchase</Text>
-              <Text style={styles.metricValue}>$25.70</Text>
-              <Text style={styles.metricSubText}>Per transaction</Text>
-            </View>
-            <View style={styles.metricDivider} />
-            <View style={styles.metricItem}>
-              <Text style={styles.metricLabel}>Highest Expense</Text>
-              <Text style={styles.metricValue}>$420.00</Text>
-              <Text style={styles.metricSubText}>
-                On {formatMonthYear(selectedDate)}
+              <Text style={styles.metricValue}>
+                ${filteredTransactions.length > 0
+                  ? (filteredTransactions.reduce((sum, tx) => sum + tx.amount, 0) / filteredTransactions.length).toFixed(2)
+                  : "0.00"}
               </Text>
+              <Text style={styles.metricSubText}>Per transaction</Text>
             </View>
           </View>
         </View>
@@ -282,9 +481,11 @@ export default function ExpensesScreen() {
         {/* --- EXPENSE CATEGORIES SECTION --- */}
         <View style={styles.sectionHeader}>
           <Text style={styles.sectionTitle}>Expense Categories</Text>
-          <TouchableOpacity>
-            <Text style={styles.viewAllText}>View all</Text>
-          </TouchableOpacity>
+          {selectedCategory && (
+            <TouchableOpacity onPress={() => setSelectedCategory(null)}>
+              <Text style={{ fontSize: 12, color: "#E74C3C", fontWeight: "600" }}>Clear Filter</Text>
+            </TouchableOpacity>
+          )}
         </View>
 
         <ScrollView
@@ -293,184 +494,290 @@ export default function ExpensesScreen() {
           style={styles.categoriesRow}
           contentContainerStyle={{ paddingRight: 16 }}
         >
-          <View style={styles.categoryCard}>
-            <View style={[styles.iconFrame, { backgroundColor: "#FDF2E9" }]}>
-              <Ionicons name="fast-food-outline" size={18} color="#E67E22" />
-            </View>
-            <Text style={styles.catName}>Food & Dining</Text>
-            <Text style={styles.catAmount}>$602.40</Text>
-            <Text style={styles.catPercent}>28%</Text>
-            <View style={styles.progressBg}>
-              <View
-                style={[
-                  styles.progressBar,
-                  { width: "28%", backgroundColor: "#E67E22" },
-                ]}
-              />
-            </View>
-          </View>
+          {categories.map((cat) => {
+            const amt = categorySummary.summary[cat] || 0;
+            const pctVal = categorySummary.total > 0 ? (amt / categorySummary.total) * 100 : 0;
+            const details = getCategoryDetails(cat);
+            const isSelected = selectedCategory === cat;
 
-          <View style={styles.categoryCard}>
-            <View style={[styles.iconFrame, { backgroundColor: "#F4ECF7" }]}>
-              <Ionicons name="car-outline" size={18} color="#8E44AD" />
-            </View>
-            <Text style={styles.catName}>Transport</Text>
-            <Text style={styles.catAmount}>$430.20</Text>
-            <Text style={styles.catPercent}>20%</Text>
-            <View style={styles.progressBg}>
-              <View
+            return (
+              <TouchableOpacity
+                key={cat}
+                onPress={() => setSelectedCategory(isSelected ? null : cat)}
                 style={[
-                  styles.progressBar,
-                  { width: "20%", backgroundColor: "#8E44AD" },
+                  styles.categoryCard,
+                  isSelected && { borderColor: details.color, borderWidth: 1.5 },
                 ]}
-              />
-            </View>
-          </View>
-
-          <View style={styles.categoryCard}>
-            <View style={[styles.iconFrame, { backgroundColor: "#FDEDEC" }]}>
-              <Ionicons name="bag-handle-outline" size={18} color="#E74C3C" />
-            </View>
-            <Text style={styles.catName}>Shopping</Text>
-            <Text style={styles.catAmount}>$387.60</Text>
-            <Text style={styles.catPercent}>18%</Text>
-            <View style={styles.progressBg}>
-              <View
-                style={[
-                  styles.progressBar,
-                  { width: "18%", backgroundColor: "#E74C3C" },
-                ]}
-              />
-            </View>
-          </View>
+              >
+                <View style={[styles.iconFrame, { backgroundColor: details.bg }]}>
+                  <Ionicons name={details.icon} size={18} color={details.color} />
+                </View>
+                <Text style={styles.catName} numberOfLines={1}>{cat}</Text>
+                <Text style={styles.catAmount}>${amt.toFixed(2)}</Text>
+                <Text style={styles.catPercent}>{Math.round(pctVal)}%</Text>
+                <View style={styles.progressBg}>
+                  <View
+                    style={[
+                      styles.progressBar,
+                      { width: `${pctVal}%`, backgroundColor: details.color },
+                    ]}
+                  />
+                </View>
+              </TouchableOpacity>
+            );
+          })}
         </ScrollView>
 
         {/* --- TRANSACTION HISTORY SECTION --- */}
         <View style={styles.sectionHeader}>
           <Text style={styles.sectionTitle}>Transaction History</Text>
-          <TouchableOpacity style={styles.sortDropdown}>
+          <TouchableOpacity style={styles.sortDropdown} onPress={() => setIsSortOpen(true)}>
             <Text style={styles.sortDropdownText}>
-              Sort by:{" "}
-              <Text style={{ fontWeight: "600", color: "#1A1A1A" }}>
-                Latest
-              </Text>
+              Sort: <Text style={{ fontWeight: "600", color: "#1A1A1A" }}>{sortBy.charAt(0).toUpperCase() + sortBy.slice(1)}</Text>
             </Text>
             <Ionicons name="chevron-down" size={12} color="#666" />
           </TouchableOpacity>
         </View>
 
-        <Text style={styles.dateGroupHeader}>Today</Text>
+        {filteredTransactions.map((tx) => {
+          const details = getCategoryDetails(tx.category);
+          return (
+            <SwipeableRow
+              key={tx.id}
+              onEdit={() => openEditTx(tx)}
+              onDelete={() => {
+                Alert.alert(
+                  "Delete Transaction",
+                  `Are you sure you want to delete "${tx.title}"?`,
+                  [
+                    { text: "Cancel", style: "cancel" },
+                    { text: "Delete", style: "destructive", onPress: () => deleteTransaction(tx.id) },
+                  ]
+                );
+              }}
+            >
+              <View style={styles.txRow}>
+                <View style={[styles.txIconBox, { backgroundColor: tx.type === "income" ? "#EAF6EC" : details.bg }]}>
+                  <Ionicons
+                    name={tx.type === "income" ? "arrow-up-circle-outline" : details.icon}
+                    size={18}
+                    color={tx.type === "income" ? "#2ECC71" : details.color}
+                  />
+                </View>
+                <View style={styles.txDetails}>
+                  <Text style={styles.txTitle}>{tx.title}</Text>
+                  <Text style={styles.txSub}>
+                    {tx.category} • {tx.date}
+                  </Text>
+                </View>
+                <View style={styles.txAmountBox}>
+                  <Text style={[styles.txAmount, tx.type === "income" && { color: "#2ECC71" }]}>
+                    {tx.type === "income" ? `+$${tx.amount.toFixed(2)}` : `-$${tx.amount.toFixed(2)}`}
+                  </Text>
+                  <Text style={styles.txMethod}>{tx.type.toUpperCase()}</Text>
+                </View>
+              </View>
+            </SwipeableRow>
+          );
+        })}
 
-        {MOCK_TRANSACTIONS.map((tx) => (
-          <View key={tx.id} style={styles.txRow}>
-            <View style={[styles.txIconBox, { backgroundColor: tx.bgColor }]}>
-              {tx.iconType === "ionicons" ? (
-                <Ionicons
-                  name={tx.icon as any}
-                  size={18}
-                  color={tx.iconColor}
-                />
-              ) : (
-                <FontAwesome6
-                  name={tx.icon as any}
-                  size={16}
-                  color={tx.iconColor}
-                />
-              )}
-            </View>
-            <View style={styles.txDetails}>
-              <Text style={styles.txTitle}>{tx.title}</Text>
-              <Text style={styles.txSub}>
-                {tx.category} • {tx.time}
-              </Text>
-            </View>
-            <View style={styles.txAmountBox}>
-              <Text style={styles.txAmount}>
-                {tx.amount < 0
-                  ? `-$${Math.abs(tx.amount).toFixed(2)}`
-                  : `$${tx.amount.toFixed(2)}`}
-              </Text>
-              <Text style={styles.txMethod}>{tx.method}</Text>
-            </View>
-            <Ionicons
-              name="ellipsis-vertical"
-              size={14}
-              color="#BBB"
-              style={{ marginLeft: 8 }}
-            />
-          </View>
-        ))}
-
-        <View style={styles.swipeBanner}>
-          <View style={styles.swipeBannerLeft}>
-            <MaterialCommunityIcons
-              name="gesture-swipe-left"
-              size={18}
-              color="#4A4A4A"
-            />
-            <Text style={styles.swipeBannerText}>
-              Swipe left to edit or categorize{"\n"}
-              <Text style={{ color: "#888" }}>Swipe right to delete</Text>
-            </Text>
-          </View>
-          <View style={styles.swipeBannerActions}>
-            <View style={styles.swipeEditButton}>
-              <Ionicons name="pencil" size={14} color="#A04000" />
-            </View>
-            <View style={styles.swipeDeleteButton}>
-              <Ionicons name="trash-outline" size={14} color="#C0392B" />
-            </View>
-          </View>
-        </View>
+        {filteredTransactions.length === 0 && (
+          <Text style={{ textAlign: "center", color: "#888", paddingVertical: 40 }}>
+            No matching transactions found.
+          </Text>
+        )}
       </ScrollView>
 
-      {/* --- CROSS-PLATFORM OVERLAY DATE PICKER --- */}
-      {showPicker &&
-        (Platform.OS === "ios" ? (
-          <Modal
-            transparent
-            animationType="slide"
-            visible={showPicker}
-            onRequestClose={() => setShowPicker(false)}
-          >
-            <TouchableWithoutFeedback onPress={() => setShowPicker(false)}>
-              <View style={styles.modalBackdrop}>
-                <TouchableWithoutFeedback>
-                  <View style={styles.pickerModalSheet}>
-                    <View style={styles.pickerHeader}>
-                      <TouchableOpacity onPress={() => setShowPicker(false)}>
-                        <Text style={styles.pickerCancelText}>Cancel</Text>
-                      </TouchableOpacity>
-                      <TouchableOpacity onPress={() => setShowPicker(false)}>
-                        <Text style={styles.pickerDoneText}>Done</Text>
-                      </TouchableOpacity>
-                    </View>
+      {/* --- DATE PICKER MODAL --- */}
+      {showDatePicker && (
+        <DateTimePicker
+          value={selectedDate}
+          mode="date"
+          display="default"
+          onChange={onDateChange}
+          maximumDate={new Date()}
+        />
+      )}
 
-                    <DateTimePicker
-                      value={selectedDate}
-                      mode="date"
-                      display="spinner"
-                      onChange={onDateChange}
-                      maximumDate={new Date()}
-                      textColor="#1A1A1A"
-                      style={styles.iosPicker}
-                    />
-                  </View>
-                </TouchableWithoutFeedback>
+      {/* --- ADD TRANSACTION MODAL --- */}
+      <Modal visible={isAddModalOpen} transparent animationType="slide">
+        <Pressable style={styles.modalBackdrop} onPress={() => setIsAddModalOpen(false)}>
+          <View style={styles.modalSheet}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>Add Transaction</Text>
+              <TouchableOpacity onPress={() => setIsAddModalOpen(false)}>
+                <Text style={styles.cancelText}>Cancel</Text>
+              </TouchableOpacity>
+            </View>
+
+            <View style={styles.modalBody}>
+              <View style={styles.typeTabs}>
+                <TouchableOpacity
+                  style={[styles.typeTab, txType === "expense" && styles.typeTabActive]}
+                  onPress={() => setTxType("expense")}
+                >
+                  <Text style={[styles.typeTabText, txType === "expense" && styles.typeTabTextActive]}>Expense</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[styles.typeTab, txType === "income" && styles.typeTabActive]}
+                  onPress={() => setTxType("income")}
+                >
+                  <Text style={[styles.typeTabText, txType === "income" && styles.typeTabTextActive]}>Income</Text>
+                </TouchableOpacity>
               </View>
-            </TouchableWithoutFeedback>
-          </Modal>
-        ) : (
-          <DateTimePicker
-            value={selectedDate}
-            mode="date"
-            display="default"
-            onChange={onDateChange}
-            maximumDate={new Date()}
-          />
-        ))}
 
-      {/* --- DRAGGABLE PURPLE FAB --- */}
+              <View style={styles.inputGroup}>
+                <Text style={styles.inputLabel}>Title</Text>
+                <TextInput
+                  placeholder="e.g. Starbucks, Salary..."
+                  value={txTitle}
+                  onChangeText={setTxTitle}
+                  style={styles.textInput}
+                  placeholderTextColor="#888"
+                />
+              </View>
+
+              <View style={styles.inputGroup}>
+                <Text style={styles.inputLabel}>Amount ($)</Text>
+                <TextInput
+                  placeholder="0.00"
+                  value={txAmount}
+                  onChangeText={setTxAmount}
+                  keyboardType="numeric"
+                  style={styles.textInput}
+                  placeholderTextColor="#888"
+                />
+              </View>
+
+              {txType === "expense" && (
+                <View style={styles.inputGroup}>
+                  <Text style={styles.inputLabel}>Category</Text>
+                  <View style={styles.tagsContainer}>
+                    {categories.map((cat) => (
+                      <TouchableOpacity
+                        key={cat}
+                        onPress={() => setTxCategory(cat)}
+                        style={[styles.tagBtn, txCategory === cat && styles.tagBtnActive]}
+                      >
+                        <Text style={[styles.tagText, txCategory === cat && styles.tagTextActive]}>{cat}</Text>
+                      </TouchableOpacity>
+                    ))}
+                  </View>
+                </View>
+              )}
+
+              <TouchableOpacity style={styles.saveBtn} onPress={handleAddSubmit}>
+                <Text style={styles.saveBtnText}>Save Transaction</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </Pressable>
+      </Modal>
+
+      {/* --- EDIT TRANSACTION MODAL --- */}
+      <Modal visible={isEditModalOpen} transparent animationType="slide">
+        <Pressable style={styles.modalBackdrop} onPress={() => setIsEditModalOpen(false)}>
+          <View style={styles.modalSheet}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>Edit Transaction</Text>
+              <TouchableOpacity onPress={() => setIsEditModalOpen(false)}>
+                <Text style={styles.cancelText}>Cancel</Text>
+              </TouchableOpacity>
+            </View>
+
+            <View style={styles.modalBody}>
+              <View style={styles.typeTabs}>
+                <TouchableOpacity
+                  style={[styles.typeTab, txType === "expense" && styles.typeTabActive]}
+                  onPress={() => setTxType("expense")}
+                >
+                  <Text style={[styles.typeTabText, txType === "expense" && styles.typeTabTextActive]}>Expense</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[styles.typeTab, txType === "income" && styles.typeTabActive]}
+                  onPress={() => setTxType("income")}
+                >
+                  <Text style={[styles.typeTabText, txType === "income" && styles.typeTabTextActive]}>Income</Text>
+                </TouchableOpacity>
+              </View>
+
+              <View style={styles.inputGroup}>
+                <Text style={styles.inputLabel}>Title</Text>
+                <TextInput
+                  placeholder="e.g. Starbucks, Salary..."
+                  value={txTitle}
+                  onChangeText={setTxTitle}
+                  style={styles.textInput}
+                  placeholderTextColor="#888"
+                />
+              </View>
+
+              <View style={styles.inputGroup}>
+                <Text style={styles.inputLabel}>Amount ($)</Text>
+                <TextInput
+                  placeholder="0.00"
+                  value={txAmount}
+                  onChangeText={setTxAmount}
+                  keyboardType="numeric"
+                  style={styles.textInput}
+                  placeholderTextColor="#888"
+                />
+              </View>
+
+              {txType === "expense" && (
+                <View style={styles.inputGroup}>
+                  <Text style={styles.inputLabel}>Category</Text>
+                  <View style={styles.tagsContainer}>
+                    {categories.map((cat) => (
+                      <TouchableOpacity
+                        key={cat}
+                        onPress={() => setTxCategory(cat)}
+                        style={[styles.tagBtn, txCategory === cat && styles.tagBtnActive]}
+                      >
+                        <Text style={[styles.tagText, txCategory === cat && styles.tagTextActive]}>{cat}</Text>
+                      </TouchableOpacity>
+                    ))}
+                  </View>
+                </View>
+              )}
+
+              <TouchableOpacity style={styles.saveBtn} onPress={handleEditSubmit}>
+                <Text style={styles.saveBtnText}>Save Changes</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </Pressable>
+      </Modal>
+
+      {/* --- SORT BY MODAL --- */}
+      <Modal visible={isSortOpen} transparent animationType="fade">
+        <Pressable style={styles.modalBackdrop} onPress={() => setIsSortOpen(false)}>
+          <View style={styles.alertBox}>
+            <Text style={styles.alertTitle}>Sort Transactions By</Text>
+            <View style={{ gap: 8, marginTop: 12 }}>
+              {[
+                { id: "latest", label: "📅 Latest Date" },
+                { id: "oldest", label: "📅 Oldest Date" },
+                { id: "highest", label: "💰 Highest Amount" },
+                { id: "lowest", label: "💰 Lowest Amount" },
+              ].map((opt) => (
+                <TouchableOpacity
+                  key={opt.id}
+                  onPress={() => {
+                    setSortBy(opt.id as any);
+                    setIsSortOpen(false);
+                  }}
+                  style={[styles.optionMenuBtn, sortBy === opt.id && { borderColor: "#4B2C40", backgroundColor: "#F6F3F5" }]}
+                >
+                  <Text style={[styles.optionMenuBtnText, sortBy === opt.id && { color: "#4B2C40" }]}>{opt.label}</Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+          </View>
+        </Pressable>
+      </Modal>
+
+      {/* --- DRAGGABLE FAB --- */}
       <Animated.View
         style={[
           styles.fabWrapper,
@@ -592,40 +899,26 @@ const styles = StyleSheet.create({
     color: "#FFFFFF",
     fontWeight: "600",
   },
-  customTabContent: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
+  searchContainer: {
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    marginTop: 6,
   },
-  filterRow: {
-    paddingLeft: 16,
-    marginTop: 14,
-    marginBottom: 6,
-  },
-  filterBadge: {
+  searchBox: {
     flexDirection: "row",
     alignItems: "center",
     backgroundColor: "#FFF",
+    borderRadius: 12,
     paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 20,
-    marginRight: 8,
+    height: 44,
     borderWidth: 1,
     borderColor: "#EAEAEA",
   },
-  filterBadgeText: {
-    fontSize: 12,
-    color: "#4A4A4A",
-  },
-  resetButton: {
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    justifyContent: "center",
-  },
-  resetButtonText: {
-    fontSize: 12,
-    color: "#E74C3C",
-    fontWeight: "600",
+  searchInput: {
+    flex: 1,
+    fontSize: 14,
+    color: "#1A1A1A",
+    paddingVertical: 8,
   },
   summaryCard: {
     backgroundColor: "#FFF",
@@ -671,22 +964,13 @@ const styles = StyleSheet.create({
     color: "#4A4A4A",
     fontWeight: "500",
   },
-  sparklinePlaceholder: {
-    height: 60,
-    justifyContent: "center",
-    marginVertical: 12,
-  },
-  sparklineCurve: {
-    height: 2,
-    backgroundColor: "#4B2C40",
-    opacity: 0.2,
-  },
   metricsRow: {
     flexDirection: "row",
     justifyContent: "space-between",
     borderTopWidth: 1,
     borderTopColor: "#FAFAFA",
     paddingTop: 12,
+    marginTop: 12,
   },
   metricItem: {
     flex: 1,
@@ -708,7 +992,7 @@ const styles = StyleSheet.create({
   metricDivider: {
     width: 1,
     backgroundColor: "#EAEAEA",
-    marginHorizontal: 6,
+    marginHorizontal: 12,
   },
   sectionHeader: {
     flexDirection: "row",
@@ -722,10 +1006,6 @@ const styles = StyleSheet.create({
     fontSize: 15,
     fontWeight: "700",
     color: "#1A1A1A",
-  },
-  viewAllText: {
-    fontSize: 12,
-    color: "#666",
   },
   categoriesRow: {
     paddingLeft: 16,
@@ -782,24 +1062,10 @@ const styles = StyleSheet.create({
     color: "#666",
     marginRight: 4,
   },
-  dateGroupHeader: {
-    fontSize: 12,
-    fontWeight: "600",
-    color: "#888",
-    marginHorizontal: 16,
-    marginTop: 10,
-    marginBottom: 8,
-  },
   txRow: {
     flexDirection: "row",
-    backgroundColor: "#FFF",
-    marginHorizontal: 16,
     padding: 12,
-    borderRadius: 12,
     alignItems: "center",
-    marginBottom: 8,
-    borderWidth: 1,
-    borderColor: "#F0F0F0",
   },
   txIconBox: {
     width: 38,
@@ -834,88 +1100,6 @@ const styles = StyleSheet.create({
     fontSize: 10,
     color: "#AAA",
     marginTop: 2,
-  },
-  swipeBanner: {
-    flexDirection: "row",
-    backgroundColor: "#FDF6F0",
-    marginHorizontal: 16,
-    borderRadius: 12,
-    padding: 12,
-    alignItems: "center",
-    justifyContent: "space-between",
-    marginTop: 4,
-    borderWidth: 1,
-    borderColor: "#FAEBD7",
-  },
-  swipeBannerLeft: {
-    flexDirection: "row",
-    alignItems: "center",
-  },
-  swipeBannerText: {
-    fontSize: 11,
-    fontWeight: "500",
-    color: "#4A4A4A",
-    marginLeft: 10,
-    lineHeight: 14,
-  },
-  swipeBannerActions: {
-    flexDirection: "row",
-  },
-  swipeEditButton: {
-    width: 26,
-    height: 26,
-    borderRadius: 6,
-    backgroundColor: "#F5EBDF",
-    alignItems: "center",
-    justifyContent: "center",
-    marginRight: 6,
-  },
-  swipeDeleteButton: {
-    width: 26,
-    height: 26,
-    borderRadius: 6,
-    backgroundColor: "#FADBD8",
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  modalBackdrop: {
-    flex: 1,
-    backgroundColor: "rgba(0, 0, 0, 0.4)",
-    justifyContent: "flex-end",
-  },
-  pickerModalSheet: {
-    backgroundColor: "#FFFFFF",
-    borderTopLeftRadius: 20,
-    borderTopRightRadius: 20,
-    paddingBottom: Platform.OS === "ios" ? 30 : 20,
-    shadowColor: "#000",
-    shadowOpacity: 0.1,
-    shadowRadius: 10,
-    shadowOffset: { width: 0, height: -4 },
-    elevation: 5,
-  },
-  pickerHeader: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    paddingHorizontal: 20,
-    paddingVertical: 14,
-    borderBottomWidth: 1,
-    borderBottomColor: "#F0F0F0",
-  },
-  pickerCancelText: {
-    fontSize: 15,
-    color: "#666666",
-    fontWeight: "500",
-  },
-  pickerDoneText: {
-    fontSize: 15,
-    color: "#4B2C40",
-    fontWeight: "600",
-  },
-  iosPicker: {
-    height: 200,
-    width: "100%",
   },
   fabWrapper: {
     position: "absolute",
@@ -972,4 +1156,186 @@ const styles = StyleSheet.create({
     color: "#4B2C40",
     fontWeight: "600",
   },
+  /* Custom Swipe Row Styles */
+  swipeContainer: {
+    position: "relative",
+    overflow: "hidden",
+    marginHorizontal: 16,
+    marginBottom: 8,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: "#F0F0F0",
+    backgroundColor: "#FFF",
+  },
+  swipeActionsBackground: {
+    position: "absolute",
+    right: 0,
+    top: 0,
+    bottom: 0,
+    width: 120,
+    flexDirection: "row",
+    justifyContent: "flex-end",
+    alignItems: "center",
+    zIndex: 1,
+  },
+  swipeActionBtn: {
+    width: 60,
+    height: "100%",
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  /* Modal backdrop & sheets styles */
+  modalBackdrop: {
+    flex: 1,
+    backgroundColor: "rgba(0,0,0,0.4)",
+    justifyContent: "flex-end",
+  },
+  modalSheet: {
+    backgroundColor: "#FFF",
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    padding: 20,
+    paddingBottom: Platform.OS === "ios" ? 40 : 24,
+  },
+  modalHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: 20,
+  },
+  modalTitle: {
+    fontSize: 18,
+    fontWeight: "700",
+    color: "#1A1A1A",
+  },
+  cancelText: {
+    fontSize: 14,
+    color: "#888",
+    fontWeight: "500",
+  },
+  modalBody: {
+    gap: 16,
+  },
+  typeTabs: {
+    flexDirection: "row",
+    backgroundColor: "#F2EFEF",
+    borderRadius: 10,
+    padding: 2,
+    marginBottom: 8,
+  },
+  typeTab: {
+    flex: 1,
+    paddingVertical: 10,
+    alignItems: "center",
+    borderRadius: 8,
+  },
+  typeTabActive: {
+    backgroundColor: "#FFF",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.1,
+    shadowRadius: 2,
+    elevation: 1,
+  },
+  typeTabText: {
+    fontSize: 14,
+    color: "#666",
+    fontWeight: "500",
+  },
+  typeTabTextActive: {
+    color: "#4B2C40",
+    fontWeight: "700",
+  },
+  inputGroup: {
+    gap: 6,
+  },
+  inputLabel: {
+    fontSize: 13,
+    fontWeight: "600",
+    color: "#666",
+  },
+  textInput: {
+    borderWidth: 1,
+    borderColor: "#EBEBEB",
+    borderRadius: 10,
+    paddingHorizontal: 12,
+    height: 48,
+    fontSize: 14,
+    color: "#1A1A1A",
+    backgroundColor: "#FAFAFA",
+  },
+  tagsContainer: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 6,
+    marginTop: 4,
+  },
+  tagBtn: {
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: "#EBEBEB",
+    backgroundColor: "#FFF",
+  },
+  tagBtnActive: {
+    borderColor: "#4B2C40",
+    backgroundColor: "#F6F3F5",
+  },
+  tagText: {
+    fontSize: 12,
+    color: "#666",
+  },
+  tagTextActive: {
+    color: "#4B2C40",
+    fontWeight: "600",
+  },
+  saveBtn: {
+    backgroundColor: "#4B2C40",
+    borderRadius: 12,
+    height: 50,
+    justifyContent: "center",
+    alignItems: "center",
+    marginTop: 12,
+  },
+  saveBtnText: {
+    color: "#FFF",
+    fontSize: 16,
+    fontWeight: "700",
+  },
+  alertBox: {
+    backgroundColor: "#FFF",
+    borderRadius: 16,
+    padding: 20,
+    width: "80%",
+    alignSelf: "center",
+    justifyContent: "center",
+    borderWidth: 1,
+    borderColor: "#F0F0F0",
+    shadowColor: "#000",
+    shadowOpacity: 0.1,
+    shadowRadius: 10,
+    shadowOffset: { width: 0, height: 4 },
+    elevation: 5,
+  },
+  alertTitle: {
+    fontSize: 16,
+    fontWeight: "700",
+    color: "#1A1A1A",
+    textAlign: "center",
+  },
+  optionMenuBtn: {
+    borderWidth: 1,
+    borderColor: "#EBEBEB",
+    borderRadius: 10,
+    height: 44,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  optionMenuBtnText: {
+    fontSize: 14,
+    color: "#1A1A1A",
+    fontWeight: "600",
+  },
 });
+

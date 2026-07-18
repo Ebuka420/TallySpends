@@ -93,7 +93,7 @@ export default function CustomerServiceScreen() {
         <View style={styles.introCard}>
           <Text style={styles.introTitle}>How can we help you today?</Text>
           <Text style={styles.introSubtitle}>
-            Browse our top frequently asked questions below. If your issue isn&apos;t
+            Browse our top frequently asked questions below. If your issue isn't
             covered, scroll down to connect with an agent.
           </Text>
         </View>
