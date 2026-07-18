@@ -2,17 +2,18 @@ import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import React, { useState, useMemo } from "react";
 import {
+  Alert,
+  KeyboardAvoidingView,
+  Modal,
   Platform,
+  Pressable,
   SafeAreaView,
   ScrollView,
   StyleSheet,
   Text,
+  TextInput,
   TouchableOpacity,
   View,
-  Modal,
-  Pressable,
-  TextInput,
-  Alert,
 } from "react-native";
 import { useAppStore } from "../src/store";
 
@@ -397,16 +398,7 @@ export default function BudgetScreen() {
 
         <TouchableOpacity
           style={styles.viewAllGoalsButton}
-          onPress={() => {
-            if (savingsGoals.length > 3) {
-              setIsViewAllGoalsOpen(true);
-            } else {
-              Alert.alert(
-                "Savings Goals",
-                "You currently have 3 or fewer savings goals. Add more goals to enable this view."
-              );
-            }
-          }}
+          onPress={() => setIsViewAllGoalsOpen(true)}
         >
           <Text style={styles.viewAllGoalsText}>View all savings goals</Text>
           <Ionicons
@@ -449,7 +441,12 @@ export default function BudgetScreen() {
 
       {/* --- ADD BUDGET MODAL --- */}
       <Modal visible={isAddBudgetOpen} transparent animationType="slide">
-        <Pressable style={styles.modalBackdrop} onPress={() => setIsAddBudgetOpen(false)}>
+        <KeyboardAvoidingView
+          behavior={Platform.OS === "ios" ? "padding" : "height"}
+          keyboardVerticalOffset={Platform.OS === "ios" ? 80 : 0}
+          style={styles.modalBackdrop}
+        >
+          <Pressable style={styles.modalBackdropPress} onPress={() => setIsAddBudgetOpen(false)} />
           <View style={styles.modalSheet}>
             <View style={styles.modalHeader}>
               <Text style={styles.modalTitle}>Add Category Budget</Text>
@@ -458,43 +455,45 @@ export default function BudgetScreen() {
               </TouchableOpacity>
             </View>
 
-            <View style={styles.inputGroup}>
-              <Text style={styles.inputLabel}>Select Category</Text>
-              <View style={styles.tagsContainer}>
-                {["Food & Dining", "Transport", "Shopping", "Bills & Utilities", "Entertainment", "Others"].map((cat) => (
-                  <TouchableOpacity
-                    key={cat}
-                    onPress={() => setAddBudgetCateg(cat)}
-                    style={[
-                      styles.tagBtn,
-                      addBudgetCateg === cat && styles.tagBtnActive,
-                    ]}
-                  >
-                    <Text style={[styles.tagText, addBudgetCateg === cat && styles.tagTextActive]}>
-                      {cat}
-                    </Text>
-                  </TouchableOpacity>
-                ))}
+            <ScrollView showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
+              <View style={styles.inputGroup}>
+                <Text style={styles.inputLabel}>Select Category</Text>
+                <View style={styles.tagsContainer}>
+                  {["Food & Dining", "Transport", "Shopping", "Bills & Utilities", "Entertainment", "Others"].map((cat) => (
+                    <TouchableOpacity
+                      key={cat}
+                      onPress={() => setAddBudgetCateg(cat)}
+                      style={[
+                        styles.tagBtn,
+                        addBudgetCateg === cat && styles.tagBtnActive,
+                      ]}
+                    >
+                      <Text style={[styles.tagText, addBudgetCateg === cat && styles.tagTextActive]}>
+                        {cat}
+                      </Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
               </View>
-            </View>
 
-            <View style={styles.inputGroup}>
-              <Text style={styles.inputLabel}>Monthly Limit ($)</Text>
-              <TextInput
-                placeholder="0.00"
-                value={addBudgetLimit}
-                onChangeText={setAddBudgetLimit}
-                keyboardType="numeric"
-                style={styles.textInput}
-                placeholderTextColor="#888"
-              />
-            </View>
+              <View style={styles.inputGroup}>
+                <Text style={styles.inputLabel}>Monthly Limit ($)</Text>
+                <TextInput
+                  placeholder="0.00"
+                  value={addBudgetLimit}
+                  onChangeText={setAddBudgetLimit}
+                  keyboardType="numeric"
+                  style={styles.textInput}
+                  placeholderTextColor="#888"
+                />
+              </View>
 
-            <TouchableOpacity onPress={handleAddBudgetSubmit} style={styles.saveBtn}>
-              <Text style={styles.saveBtnText}>Save Budget</Text>
-            </TouchableOpacity>
+              <TouchableOpacity onPress={handleAddBudgetSubmit} style={styles.saveBtn}>
+                <Text style={styles.saveBtnText}>Save Budget</Text>
+              </TouchableOpacity>
+            </ScrollView>
           </View>
-        </Pressable>
+        </KeyboardAvoidingView>
       </Modal>
 
       {/* --- BUDGET OPTIONS MODAL --- */}
@@ -563,81 +562,90 @@ export default function BudgetScreen() {
 
       {/* --- ADD SAVINGS GOAL MODAL --- */}
       <Modal visible={isAddGoalOpen} transparent animationType="slide">
-        <Pressable style={styles.modalBackdrop} onPress={() => setIsAddGoalOpen(false)}>
-          <View style={styles.modalSheet}>
-            <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>Create Savings Goal</Text>
-              <TouchableOpacity onPress={() => setIsAddGoalOpen(false)}>
-                <Text style={styles.cancelText}>Cancel</Text>
-              </TouchableOpacity>
-            </View>
-
-            <View style={styles.inputGroup}>
-              <Text style={styles.inputLabel}>Goal Name</Text>
-              <TextInput
-                placeholder="e.g. Tim's Birthday, New Laptop..."
-                value={goalTitle}
-                onChangeText={setGoalTitle}
-                style={styles.textInput}
-                placeholderTextColor="#888"
-              />
-            </View>
-
-            <View style={{ flexDirection: "row", gap: 12 }}>
-              <View style={{ flex: 1, gap: 6 }}>
-                <Text style={styles.inputLabel}>Already Saved ($)</Text>
-                <TextInput
-                  placeholder="0.00"
-                  value={goalSaved}
-                  onChangeText={setGoalSaved}
-                  keyboardType="numeric"
-                  style={styles.textInput}
-                  placeholderTextColor="#888"
-                />
+        <View style={styles.modalBackdrop}>
+          <Pressable style={styles.modalBackdropPress} onPress={() => setIsAddGoalOpen(false)} />
+          <KeyboardAvoidingView
+            behavior={Platform.OS === "ios" ? "padding" : "height"}
+            keyboardVerticalOffset={Platform.OS === "ios" ? 70 : 0}
+            style={styles.keyboardContainer}
+          >
+            <View style={styles.modalSheet}>
+              <View style={styles.modalHeader}>
+                <Text style={styles.modalTitle}>Create Savings Goal</Text>
+                <TouchableOpacity onPress={() => setIsAddGoalOpen(false)}>
+                  <Text style={styles.cancelText}>Cancel</Text>
+                </TouchableOpacity>
               </View>
-              <View style={{ flex: 1, gap: 6 }}>
-                <Text style={styles.inputLabel}>Target Amount ($)</Text>
-                <TextInput
-                  placeholder="0.00"
-                  value={goalTarget}
-                  onChangeText={setGoalTarget}
-                  keyboardType="numeric"
-                  style={styles.textInput}
-                  placeholderTextColor="#888"
-                />
-              </View>
-            </View>
 
-            <View style={styles.inputGroup}>
-              <Text style={styles.inputLabel}>Goal Theme / Icon</Text>
-              <View style={styles.tagsContainer}>
-                {[
-                  { id: "gift", label: "🎁 Gift" },
-                  { id: "party", label: "🎉 Party" },
-                  { id: "health", label: "💚 Health" },
-                  { id: "other", label: "🐷 Piggy" },
-                ].map((theme) => (
-                  <TouchableOpacity
-                    key={theme.id}
-                    onPress={() => setGoalCategory(theme.id)}
-                    style={[
-                      styles.tagBtn,
-                      goalCategory === theme.id && styles.tagBtnActive,
-                    ]}
-                  >
-                    <Text style={[styles.tagText, goalCategory === theme.id && styles.tagTextActive]}>
-                      {theme.label}
-                    </Text>
-                  </TouchableOpacity>
-                ))}
-              </View>
-            </View>
+              <ScrollView showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
+                <View style={styles.inputGroup}>
+                  <Text style={styles.inputLabel}>Goal Name</Text>
+                  <TextInput
+                    placeholder="e.g. Tim's Birthday, New Laptop..."
+                    value={goalTitle}
+                    onChangeText={setGoalTitle}
+                    style={styles.textInput}
+                    placeholderTextColor="#888"
+                  />
+                </View>
 
-            <TouchableOpacity onPress={handleAddGoalSubmit} style={styles.saveBtn}>
-              <Text style={styles.saveBtnText}>Save Goal</Text>
-            </TouchableOpacity>
-          </View>
-        </Pressable>
+                <View style={{ flexDirection: "row", gap: 12 }}>
+                  <View style={{ flex: 1, gap: 6 }}>
+                    <Text style={styles.inputLabel}>Already Saved ($)</Text>
+                    <TextInput
+                      placeholder="0.00"
+                      value={goalSaved}
+                      onChangeText={setGoalSaved}
+                      keyboardType="numeric"
+                      style={styles.textInput}
+                      placeholderTextColor="#888"
+                    />
+                  </View>
+                  <View style={{ flex: 1, gap: 6 }}>
+                    <Text style={styles.inputLabel}>Target Amount ($)</Text>
+                    <TextInput
+                      placeholder="0.00"
+                      value={goalTarget}
+                      onChangeText={setGoalTarget}
+                      keyboardType="numeric"
+                      style={styles.textInput}
+                      placeholderTextColor="#888"
+                    />
+                  </View>
+                </View>
+
+                <View style={styles.inputGroup}>
+                  <Text style={styles.inputLabel}>Goal Theme / Icon</Text>
+                  <View style={styles.tagsContainer}>
+                    {[
+                      { id: "gift", label: "🎁 Gift" },
+                      { id: "party", label: "🎉 Party" },
+                      { id: "health", label: "💚 Health" },
+                      { id: "other", label: "🐷 Piggy" },
+                    ].map((theme) => (
+                      <TouchableOpacity
+                        key={theme.id}
+                        onPress={() => setGoalCategory(theme.id)}
+                        style={[
+                          styles.tagBtn,
+                          goalCategory === theme.id && styles.tagBtnActive,
+                        ]}
+                      >
+                        <Text style={[styles.tagText, goalCategory === theme.id && styles.tagTextActive]}>
+                          {theme.label}
+                        </Text>
+                      </TouchableOpacity>
+                    ))}
+                  </View>
+                </View>
+
+                <TouchableOpacity onPress={handleAddGoalSubmit} style={styles.saveBtn}>
+                  <Text style={styles.saveBtnText}>Save Goal</Text>
+                </TouchableOpacity>
+              </ScrollView>
+            </View>
+          </KeyboardAvoidingView>
+        </View>
       </Modal>
 
       {/* --- GOAL OPTIONS MODAL --- */}
@@ -1199,6 +1207,10 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: "rgba(0,0,0,0.4)",
     justifyContent: "flex-end",
+  },
+  modalBackdropPress: {
+    flex: 1,
+    backgroundColor: "transparent",
   },
   modalSheet: {
     backgroundColor: "#FFF",

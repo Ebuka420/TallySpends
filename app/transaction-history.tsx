@@ -1,4 +1,4 @@
-import React, { useState, useRef } from "react";
+import React, { useState, useRef, useEffect } from "react";
 import {
   StyleSheet,
   Text,
@@ -13,8 +13,9 @@ import {
   PanResponder,
   Animated,
   Alert,
+  KeyboardAvoidingView,
 } from "react-native";
-import { Stack, useRouter } from "expo-router";
+import { Stack, useLocalSearchParams, useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { useAppStore } from "../src/store";
 
@@ -103,6 +104,7 @@ const SwipeableRow = ({
 
 export default function TransactionHistoryScreen() {
   const router = useRouter();
+  const params = useLocalSearchParams<{ category?: string }>();
   const {
     transactions: transactionsRaw,
     addTransaction,
@@ -113,6 +115,7 @@ export default function TransactionHistoryScreen() {
   const transactions = (transactionsRaw || []) as any[];
 
   const [searchQuery, setSearchQuery] = useState("");
+  const [selectedCategory, setSelectedCategory] = useState<string | null>(params.category ?? null);
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [selectedTx, setSelectedTx] = useState<any>(null);
@@ -181,9 +184,15 @@ export default function TransactionHistoryScreen() {
     setIsEditModalOpen(true);
   };
 
-  const filteredTransactions = transactions.filter((tx) =>
-    `${tx.title} ${tx.category}`.toLowerCase().includes(searchQuery.toLowerCase())
-  );
+  useEffect(() => {
+    setSelectedCategory(params.category ?? null);
+  }, [params.category]);
+
+  const filteredTransactions = transactions.filter((tx) => {
+    const matchesSearch = `${tx.title} ${tx.category}`.toLowerCase().includes(searchQuery.toLowerCase());
+    const matchesCategory = !selectedCategory || tx.category === selectedCategory;
+    return matchesSearch && matchesCategory;
+  });
 
   const formatCurrency = (val: number) => {
     return `$${val.toLocaleString(undefined, {
@@ -251,6 +260,21 @@ export default function TransactionHistoryScreen() {
         </View>
       </View>
 
+      <View style={styles.filterRow}>
+        {categories.map((cat) => {
+          const isActive = selectedCategory === cat;
+          return (
+            <TouchableOpacity
+              key={cat}
+              onPress={() => setSelectedCategory(isActive ? null : cat)}
+              style={[styles.filterChip, isActive && styles.filterChipActive]}
+            >
+              <Text style={[styles.filterChipText, isActive && styles.filterChipTextActive]}>{cat}</Text>
+            </TouchableOpacity>
+          );
+        })}
+      </View>
+
       {/* --- TRANSACTIONS LIST --- */}
       <ScrollView
         contentContainerStyle={styles.scrollContent}
@@ -290,7 +314,7 @@ export default function TransactionHistoryScreen() {
                     <Text
                       style={[
                         styles.txAmount,
-                        tx.type === "income" && styles.incomeText,
+                        tx.type === "income" ? styles.incomeText : styles.expenseText,
                       ]}
                     >
                       {tx.type === "income" ? "+" : "-"}
@@ -318,109 +342,113 @@ export default function TransactionHistoryScreen() {
           style={styles.modalBackdrop}
           onPress={() => setIsAddModalOpen(false)}
         >
-          <Pressable style={styles.modalSheet} onPress={() => {}}>
-            <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>Add Transaction</Text>
-              <TouchableOpacity onPress={() => setIsAddModalOpen(false)}>
-                <Text style={styles.cancelText}>Cancel</Text>
-              </TouchableOpacity>
-            </View>
+          <KeyboardAvoidingView
+            behavior={Platform.OS === "ios" ? "padding" : undefined}
+            keyboardVerticalOffset={Platform.OS === "ios" ? 90 : 0}
+            style={styles.modalKeyboardView}
+          >
+            <ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={styles.modalScrollContent}>
+              <View style={styles.modalSheet}>
+                <View style={styles.modalHeader}>
+                  <Text style={styles.modalTitle}>Add Transaction</Text>
+                  <TouchableOpacity onPress={() => setIsAddModalOpen(false)}>
+                    <Text style={styles.cancelText}>Cancel</Text>
+                  </TouchableOpacity>
+                </View>
 
-            <View style={styles.modalBody}>
-              {/* Type Selector Tabs */}
-              <View style={styles.typeTabs}>
-                <TouchableOpacity
-                  style={[
-                    styles.typeTab,
-                    txType === "expense" && styles.typeTabActive,
-                  ]}
-                  onPress={() => setTxType("expense")}
-                >
-                  <Text
-                    style={[
-                      styles.typeTabText,
-                      txType === "expense" && styles.typeTabTextActive,
-                    ]}
-                  >
-                    Expense
-                  </Text>
-                </TouchableOpacity>
-                <TouchableOpacity
-                  style={[
-                    styles.typeTab,
-                    txType === "income" && styles.typeTabActive,
-                  ]}
-                  onPress={() => setTxType("income")}
-                >
-                  <Text
-                    style={[
-                      styles.typeTabText,
-                      txType === "income" && styles.typeTabTextActive,
-                    ]}
-                  >
-                    Income
-                  </Text>
-                </TouchableOpacity>
-              </View>
-
-              {/* Title input */}
-              <View style={styles.inputGroup}>
-                <Text style={styles.inputLabel}>Description / Title</Text>
-                <TextInput
-                  placeholder="e.g. Starbucks, Groceries..."
-                  value={txTitle}
-                  onChangeText={setTxTitle}
-                  style={styles.textInput}
-                  placeholderTextColor="#888"
-                />
-              </View>
-
-              {/* Amount input */}
-              <View style={styles.inputGroup}>
-                <Text style={styles.inputLabel}>Amount ($)</Text>
-                <TextInput
-                  placeholder="0.00"
-                  value={txAmount}
-                  onChangeText={setTxAmount}
-                  keyboardType="numeric"
-                  style={styles.textInput}
-                  placeholderTextColor="#888"
-                />
-              </View>
-
-              {/* Category picker tags (only for Expense) */}
-              {txType === "expense" && (
-                <View style={styles.inputGroup}>
-                  <Text style={styles.inputLabel}>Category</Text>
-                  <View style={styles.tagsContainer}>
-                    {categories.map((cat) => (
-                      <TouchableOpacity
-                        key={cat}
-                        onPress={() => setTxCategory(cat)}
+                <View style={styles.modalBody}>
+                  <View style={styles.typeTabs}>
+                    <TouchableOpacity
+                      style={[
+                        styles.typeTab,
+                        txType === "expense" && styles.typeTabActive,
+                      ]}
+                      onPress={() => setTxType("expense")}
+                    >
+                      <Text
                         style={[
-                          styles.tagBtn,
-                          txCategory === cat && styles.tagBtnActive,
+                          styles.typeTabText,
+                          txType === "expense" && styles.typeTabTextActive,
                         ]}
                       >
-                        <Text
-                          style={[
-                            styles.tagText,
-                            txCategory === cat && styles.tagTextActive,
-                          ]}
-                        >
-                          {cat}
-                        </Text>
-                      </TouchableOpacity>
-                    ))}
+                        Expense
+                      </Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                      style={[
+                        styles.typeTab,
+                        txType === "income" && styles.typeTabActive,
+                      ]}
+                      onPress={() => setTxType("income")}
+                    >
+                      <Text
+                        style={[
+                          styles.typeTabText,
+                          txType === "income" && styles.typeTabTextActive,
+                        ]}
+                      >
+                        Income
+                      </Text>
+                    </TouchableOpacity>
                   </View>
-                </View>
-              )}
 
-              <TouchableOpacity style={styles.saveBtn} onPress={handleAddSubmit}>
-                <Text style={styles.saveBtnText}>Save Transaction</Text>
-              </TouchableOpacity>
-            </View>
-          </Pressable>
+                  <View style={styles.inputGroup}>
+                    <Text style={styles.inputLabel}>Description / Title</Text>
+                    <TextInput
+                      placeholder="e.g. Starbucks, Groceries..."
+                      value={txTitle}
+                      onChangeText={setTxTitle}
+                      style={styles.textInput}
+                      placeholderTextColor="#888"
+                    />
+                  </View>
+
+                  <View style={styles.inputGroup}>
+                    <Text style={styles.inputLabel}>Amount ($)</Text>
+                    <TextInput
+                      placeholder="0.00"
+                      value={txAmount}
+                      onChangeText={setTxAmount}
+                      keyboardType="numeric"
+                      style={styles.textInput}
+                      placeholderTextColor="#888"
+                    />
+                  </View>
+
+                  {txType === "expense" && (
+                    <View style={styles.inputGroup}>
+                      <Text style={styles.inputLabel}>Category</Text>
+                      <View style={styles.tagsContainer}>
+                        {categories.map((cat) => (
+                          <TouchableOpacity
+                            key={cat}
+                            onPress={() => setTxCategory(cat)}
+                            style={[
+                              styles.tagBtn,
+                              txCategory === cat && styles.tagBtnActive,
+                            ]}
+                          >
+                            <Text
+                              style={[
+                                styles.tagText,
+                                txCategory === cat && styles.tagTextActive,
+                              ]}
+                            >
+                              {cat}
+                            </Text>
+                          </TouchableOpacity>
+                        ))}
+                      </View>
+                    </View>
+                  )}
+
+                  <TouchableOpacity style={styles.saveBtn} onPress={handleAddSubmit}>
+                    <Text style={styles.saveBtnText}>Save Transaction</Text>
+                  </TouchableOpacity>
+                </View>
+              </View>
+            </ScrollView>
+          </KeyboardAvoidingView>
         </Pressable>
       </Modal>
 
@@ -430,109 +458,113 @@ export default function TransactionHistoryScreen() {
           style={styles.modalBackdrop}
           onPress={() => setIsEditModalOpen(false)}
         >
-          <Pressable style={styles.modalSheet} onPress={() => {}}>
-            <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>Edit Transaction</Text>
-              <TouchableOpacity onPress={() => setIsEditModalOpen(false)}>
-                <Text style={styles.cancelText}>Cancel</Text>
-              </TouchableOpacity>
-            </View>
+          <KeyboardAvoidingView
+            behavior={Platform.OS === "ios" ? "padding" : undefined}
+            keyboardVerticalOffset={Platform.OS === "ios" ? 90 : 0}
+            style={styles.modalKeyboardView}
+          >
+            <ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={styles.modalScrollContent}>
+              <View style={styles.modalSheet}>
+                <View style={styles.modalHeader}>
+                  <Text style={styles.modalTitle}>Edit Transaction</Text>
+                  <TouchableOpacity onPress={() => setIsEditModalOpen(false)}>
+                    <Text style={styles.cancelText}>Cancel</Text>
+                  </TouchableOpacity>
+                </View>
 
-            <View style={styles.modalBody}>
-              {/* Type Selector Tabs */}
-              <View style={styles.typeTabs}>
-                <TouchableOpacity
-                  style={[
-                    styles.typeTab,
-                    txType === "expense" && styles.typeTabActive,
-                  ]}
-                  onPress={() => setTxType("expense")}
-                >
-                  <Text
-                    style={[
-                      styles.typeTabText,
-                      txType === "expense" && styles.typeTabTextActive,
-                    ]}
-                  >
-                    Expense
-                  </Text>
-                </TouchableOpacity>
-                <TouchableOpacity
-                  style={[
-                    styles.typeTab,
-                    txType === "income" && styles.typeTabActive,
-                  ]}
-                  onPress={() => setTxType("income")}
-                >
-                  <Text
-                    style={[
-                      styles.typeTabText,
-                      txType === "income" && styles.typeTabTextActive,
-                    ]}
-                  >
-                    Income
-                  </Text>
-                </TouchableOpacity>
-              </View>
-
-              {/* Title input */}
-              <View style={styles.inputGroup}>
-                <Text style={styles.inputLabel}>Description / Title</Text>
-                <TextInput
-                  placeholder="e.g. Starbucks, Groceries..."
-                  value={txTitle}
-                  onChangeText={setTxTitle}
-                  style={styles.textInput}
-                  placeholderTextColor="#888"
-                />
-              </View>
-
-              {/* Amount input */}
-              <View style={styles.inputGroup}>
-                <Text style={styles.inputLabel}>Amount ($)</Text>
-                <TextInput
-                  placeholder="0.00"
-                  value={txAmount}
-                  onChangeText={setTxAmount}
-                  keyboardType="numeric"
-                  style={styles.textInput}
-                  placeholderTextColor="#888"
-                />
-              </View>
-
-              {/* Category picker tags (only for Expense) */}
-              {txType === "expense" && (
-                <View style={styles.inputGroup}>
-                  <Text style={styles.inputLabel}>Category</Text>
-                  <View style={styles.tagsContainer}>
-                    {categories.map((cat) => (
-                      <TouchableOpacity
-                        key={cat}
-                        onPress={() => setTxCategory(cat)}
+                <View style={styles.modalBody}>
+                  <View style={styles.typeTabs}>
+                    <TouchableOpacity
+                      style={[
+                        styles.typeTab,
+                        txType === "expense" && styles.typeTabActive,
+                      ]}
+                      onPress={() => setTxType("expense")}
+                    >
+                      <Text
                         style={[
-                          styles.tagBtn,
-                          txCategory === cat && styles.tagBtnActive,
+                          styles.typeTabText,
+                          txType === "expense" && styles.typeTabTextActive,
                         ]}
                       >
-                        <Text
-                          style={[
-                            styles.tagText,
-                            txCategory === cat && styles.tagTextActive,
-                          ]}
-                        >
-                          {cat}
-                        </Text>
-                      </TouchableOpacity>
-                    ))}
+                        Expense
+                      </Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                      style={[
+                        styles.typeTab,
+                        txType === "income" && styles.typeTabActive,
+                      ]}
+                      onPress={() => setTxType("income")}
+                    >
+                      <Text
+                        style={[
+                          styles.typeTabText,
+                          txType === "income" && styles.typeTabTextActive,
+                        ]}
+                      >
+                        Income
+                      </Text>
+                    </TouchableOpacity>
                   </View>
-                </View>
-              )}
 
-              <TouchableOpacity style={styles.saveBtn} onPress={handleEditSubmit}>
-                <Text style={styles.saveBtnText}>Save Changes</Text>
-              </TouchableOpacity>
-            </View>
-          </Pressable>
+                  <View style={styles.inputGroup}>
+                    <Text style={styles.inputLabel}>Description / Title</Text>
+                    <TextInput
+                      placeholder="e.g. Starbucks, Groceries..."
+                      value={txTitle}
+                      onChangeText={setTxTitle}
+                      style={styles.textInput}
+                      placeholderTextColor="#888"
+                    />
+                  </View>
+
+                  <View style={styles.inputGroup}>
+                    <Text style={styles.inputLabel}>Amount ($)</Text>
+                    <TextInput
+                      placeholder="0.00"
+                      value={txAmount}
+                      onChangeText={setTxAmount}
+                      keyboardType="numeric"
+                      style={styles.textInput}
+                      placeholderTextColor="#888"
+                    />
+                  </View>
+
+                  {txType === "expense" && (
+                    <View style={styles.inputGroup}>
+                      <Text style={styles.inputLabel}>Category</Text>
+                      <View style={styles.tagsContainer}>
+                        {categories.map((cat) => (
+                          <TouchableOpacity
+                            key={cat}
+                            onPress={() => setTxCategory(cat)}
+                            style={[
+                              styles.tagBtn,
+                              txCategory === cat && styles.tagBtnActive,
+                            ]}
+                          >
+                            <Text
+                              style={[
+                                styles.tagText,
+                                txCategory === cat && styles.tagTextActive,
+                              ]}
+                            >
+                              {cat}
+                            </Text>
+                          </TouchableOpacity>
+                        ))}
+                      </View>
+                    </View>
+                  )}
+
+                  <TouchableOpacity style={styles.saveBtn} onPress={handleEditSubmit}>
+                    <Text style={styles.saveBtnText}>Save Changes</Text>
+                  </TouchableOpacity>
+                </View>
+              </View>
+            </ScrollView>
+          </KeyboardAvoidingView>
         </Pressable>
       </Modal>
     </SafeAreaView>
@@ -579,6 +611,34 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
     borderBottomColor: "#F5F5F5",
   },
+  filterRow: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 8,
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    backgroundColor: "#FFF",
+  },
+  filterChip: {
+    borderWidth: 1,
+    borderColor: "#EAEAEA",
+    backgroundColor: "#FAFAFA",
+    borderRadius: 999,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+  },
+  filterChipActive: {
+    borderColor: "#4B2C40",
+    backgroundColor: "#F6F3F5",
+  },
+  filterChipText: {
+    fontSize: 12,
+    color: "#666",
+  },
+  filterChipTextActive: {
+    color: "#4B2C40",
+    fontWeight: "600",
+  },
   searchBox: {
     flexDirection: "row",
     alignItems: "center",
@@ -606,6 +666,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
     paddingHorizontal: 14,
     paddingVertical: 14,
+    paddingRight: 104,
   },
   initialBox: {
     width: 38,
@@ -645,6 +706,9 @@ const styles = StyleSheet.create({
   incomeText: {
     color: "#2ECC71",
   },
+  expenseText: {
+    color: "#E74C3C",
+  },
   emptyContainer: {
     paddingVertical: 60,
     alignItems: "center",
@@ -658,12 +722,20 @@ const styles = StyleSheet.create({
     backgroundColor: "rgba(0,0,0,0.4)",
     justifyContent: "flex-end",
   },
+  modalKeyboardView: {
+    justifyContent: "flex-end",
+  },
+  modalScrollContent: {
+    justifyContent: "flex-end",
+    paddingTop: 16,
+  },
   modalSheet: {
     backgroundColor: "#FFF",
     borderTopLeftRadius: 24,
     borderTopRightRadius: 24,
     padding: 20,
     paddingBottom: Platform.OS === "ios" ? 40 : 24,
+    maxHeight: "88%",
   },
   modalHeader: {
     flexDirection: "row",
@@ -786,17 +858,22 @@ const styles = StyleSheet.create({
     right: 0,
     top: 0,
     bottom: 0,
-    width: 120,
+    width: 94,
     flexDirection: "row",
     justifyContent: "flex-end",
     alignItems: "center",
     zIndex: 1,
+    paddingRight: 8,
   },
   swipeActionBtn: {
-    width: 60,
-    height: "100%",
+    width: 38,
+    height: 38,
     justifyContent: "center",
     alignItems: "center",
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: "#EADFD9",
+    marginLeft: 6,
   },
 });
 

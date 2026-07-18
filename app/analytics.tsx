@@ -290,92 +290,71 @@ export default function AnalyticsScreen() {
         <View style={styles.analyticsCard}>
           <Text style={styles.cardLabel}>Financial Health Score</Text>
           <View style={styles.healthScoreRow}>
-            <View style={styles.scoreLeft}>
-              <Text style={styles.scoreMainText}>
-                {activeDashboardData.healthScore}
-                <Text style={styles.scoreSubText}> /100</Text>
-              </Text>
-              <Text style={styles.scoreDesc}>
-                {activeDashboardData.healthScoreText}
-              </Text>
-              <View style={[
-                styles.trendBadge,
-                { backgroundColor: activeDashboardData.healthScoreDiffPositive ? "#EAFAF1" : "#FDEDEC" }
-              ]}>
-                <Ionicons
-                  name={activeDashboardData.healthScoreDiffPositive ? "trending-up" : "trending-down"}
-                  size={12}
-                  color={activeDashboardData.healthScoreDiffPositive ? "#27AE60" : "#E74C3C"}
-                  style={{ marginRight: 2 }}
-                />
-                <Text style={[
-                  styles.trendText,
-                  { color: activeDashboardData.healthScoreDiffPositive ? "#27AE60" : "#E74C3C" }
-                ]}>
-                  {activeDashboardData.healthScoreDiff.split(" ")[0]}
-                </Text>
-                <Text style={styles.trendSubText}> vs Last Period</Text>
-              </View>
-            </View>
-
-            <View style={styles.scoreCenter}>
-              <GaugeChart score={activeDashboardData.healthScore} />
-              <View style={styles.gaugeStatusLabel}>
-                <Text style={styles.gaugeStatusTitle}>{statistics.statusText}</Text>
-                <Text style={styles.gaugeStatusSub}>{statistics.statusMessage}</Text>
-              </View>
-            </View>
-
-            <View style={styles.scoreRight}>
-              <View style={styles.rightIndicatorRow}>
-                <View
-                  style={[
-                    styles.miniIndicatorCircle,
-                    { backgroundColor: "#EBF5FB" },
-                  ]}
-                >
-                  <Ionicons name="arrow-up" size={10} color="#27AE60" />
-                </View>
-                <View>
-                  <Text style={styles.indLabel}>Income</Text>
-                  <Text style={styles.indValue}>{formatCurrency(activeDashboardData.totals.income.value)}</Text>
-                  <Text style={styles.indSub}>{activeDashboardData.totals.income.change}</Text>
-                </View>
-              </View>
-
-              <View style={styles.rightIndicatorRow}>
-                <View
-                  style={[
-                    styles.miniIndicatorCircle,
-                    { backgroundColor: "#FDEDEC" },
-                  ]}
-                >
-                  <Ionicons name="arrow-down" size={10} color="#E74C3C" />
-                </View>
-                <View>
-                  <Text style={styles.indLabel}>Expenses</Text>
-                  <Text style={styles.indValue}>{formatCurrency(activeDashboardData.totals.expenses.value)}</Text>
-                  <Text style={[styles.indSub, { color: "#E74C3C" }]}>
-                    {activeDashboardData.totals.expenses.change}
+            <View style={styles.scoreSummaryBox}>
+              <View style={styles.scoreSummaryTop}>
+                <View style={styles.scoreLeft}>
+                  <Text style={styles.scoreMainText}>
+                    {activeDashboardData.healthScore}
+                    <Text style={styles.scoreSubText}> /100</Text>
                   </Text>
+                  <Text style={styles.scoreDesc}>
+                    {activeDashboardData.healthScoreText}
+                  </Text>
+                  <View style={[
+                    styles.trendBadge,
+                    { backgroundColor: activeDashboardData.healthScoreDiffPositive ? "#EAFAF1" : "#FDEDEC" }
+                  ]}>
+                    <Ionicons
+                      name={activeDashboardData.healthScoreDiffPositive ? "trending-up" : "trending-down"}
+                      size={12}
+                      color={activeDashboardData.healthScoreDiffPositive ? "#27AE60" : "#E74C3C"}
+                      style={{ marginRight: 2 }}
+                    />
+                    <Text style={[
+                      styles.trendText,
+                      { color: activeDashboardData.healthScoreDiffPositive ? "#27AE60" : "#E74C3C" }
+                    ]}>
+                      {activeDashboardData.healthScoreDiff.split(" ")[0]}
+                    </Text>
+                    <Text style={styles.trendSubText}> vs Last Period</Text>
+                  </View>
+                </View>
+
+                <View style={styles.scoreCenter}>
+                  <GaugeChart score={activeDashboardData.healthScore} />
+                  <View style={styles.gaugeStatusLabel}>
+                    <Text style={styles.gaugeStatusTitle}>{statistics.statusText}</Text>
+                    <Text style={styles.gaugeStatusSub}>{statistics.statusMessage}</Text>
+                  </View>
                 </View>
               </View>
 
-              <View style={styles.rightIndicatorRow}>
-                <View
-                  style={[
-                    styles.miniIndicatorCircle,
-                    { backgroundColor: "#E8F8F5" },
-                  ]}
-                >
-                  <Ionicons name="shuffle-outline" size={10} color="#1ABC9C" />
+              <View style={styles.scoreMetricsGrid}>
+                <View style={styles.scoreMetricCard}>
+                  <View style={[styles.miniIndicatorCircle, { backgroundColor: "#EBF5FB" }]}> 
+                    <Ionicons name="arrow-up" size={10} color="#27AE60" />
+                  </View>
+                  <Text style={styles.scoreMetricLabel}>Income</Text>
+                  <Text style={styles.scoreMetricValue}>{formatCurrency(activeDashboardData.totals.income.value)}</Text>
+                  <Text style={styles.scoreMetricFoot}>{activeDashboardData.totals.income.change}</Text>
                 </View>
-                <View>
-                  <Text style={styles.indLabel}>Savings</Text>
-                  <Text style={styles.indValue}>{formatCurrency(activeDashboardData.totals.savings.value)}</Text>
-                  <Text style={[styles.indSub, { color: "#1ABC9C" }]}>
-                    {activeDashboardData.totals.savings.change}
-                  </Text>
+
+                <View style={styles.scoreMetricCard}>
+                  <View style={[styles.miniIndicatorCircle, { backgroundColor: "#FDEDEC" }]}> 
+                    <Ionicons name="arrow-down" size={10} color="#E74C3C" />
+                  </View>
+                  <Text style={styles.scoreMetricLabel}>Expenses</Text>
+                  <Text style={styles.scoreMetricValue}>{formatCurrency(activeDashboardData.totals.expenses.value)}</Text>
+                  <Text style={[styles.scoreMetricFoot, { color: "#E74C3C" }]}> {activeDashboardData.totals.expenses.change}</Text>
+                </View>
+
+                <View style={styles.scoreMetricCard}>
+                  <View style={[styles.miniIndicatorCircle, { backgroundColor: "#E8F8F5" }]}> 
+                    <Ionicons name="shuffle-outline" size={10} color="#1ABC9C" />
+                  </View>
+                  <Text style={styles.scoreMetricLabel}>Savings</Text>
+                  <Text style={styles.scoreMetricValue}>{formatCurrency(activeDashboardData.totals.savings.value)}</Text>
+                  <Text style={[styles.scoreMetricFoot, { color: "#1ABC9C" }]}> {activeDashboardData.totals.savings.change}</Text>
                 </View>
               </View>
             </View>
@@ -411,66 +390,56 @@ export default function AnalyticsScreen() {
           </View>
         </View>
 
-        {/* --- GRID ROW: CATEGORY & COMPARISON CARDS --- */}
-        <View style={styles.splitCardsRow}>
-          <View style={[styles.analyticsCard, styles.splitCard]}>
-            <Text style={styles.cardLabelBold}>Category Breakdown</Text>
-            <BreakdownChart
-              breakdown={timeframe === "monthly" ? statistics.breakdown : activeDashboardData.breakdown}
-              totalExpenses={activeDashboardData.totals.expenses.value}
-            />
-          </View>
-
-          <View style={[styles.analyticsCard, styles.splitCard]}>
-            <View style={styles.cardHeaderRow}>
-              <Text style={styles.cardLabelBold}>Income vs Expenses</Text>
-            </View>
-
-            <BarChart
-              labels={activeDashboardData.barChart.labels}
-              income={activeDashboardData.barChart.income}
-              expenses={activeDashboardData.barChart.expenses}
-            />
-          </View>
+        <View style={styles.analyticsCard}>
+          <Text style={styles.cardLabelBold}>Category Breakdown</Text>
+          <BreakdownChart
+            breakdown={timeframe === "monthly" ? statistics.breakdown : activeDashboardData.breakdown}
+            totalExpenses={activeDashboardData.totals.expenses.value}
+          />
         </View>
 
-        {/* --- GRID ROW: HEAT MAP & SMART COACH --- */}
-        <View style={[styles.splitCardsRow, { marginTop: 12 }]}>
-          <View style={[styles.analyticsCard, styles.splitCard]}>
-            <Text style={styles.cardLabelBold}>Spending Heat Map</Text>
-            <Text style={styles.cardLabelSub}>When you spend the most</Text>
-            <HeatMap heatmapData={activeDashboardData.heatmap} />
+        <View style={styles.analyticsCard}>
+          <View style={styles.cardHeaderRow}>
+            <Text style={styles.cardLabelBold}>Income vs Expenses</Text>
           </View>
 
-          <View style={[styles.analyticsCard, styles.splitCard]}>
-            <Text style={styles.cardLabelBold}>Smart Trends</Text>
-            <View style={styles.smartTrendsList}>
-              <TouchableOpacity style={styles.smartTrendRowItem}>
-                <View
-                  style={[styles.trendIconBox, { backgroundColor: "#F5EEF8" }]}
-                >
-                  <Ionicons name="car-outline" size={14} color="#8E44AD" />
-                </View>
-                <View style={{ flex: 1, paddingHorizontal: 6 }}>
-                  <Text style={styles.trendItemContentText} numberOfLines={2}>
-                    Transport items increased by 15%.
-                  </Text>
-                </View>
-              </TouchableOpacity>
+          <BarChart
+            labels={activeDashboardData.barChart.labels}
+            income={activeDashboardData.barChart.income}
+            expenses={activeDashboardData.barChart.expenses}
+          />
+        </View>
 
-              <TouchableOpacity style={styles.smartTrendRowItem}>
-                <View
-                  style={[styles.trendIconBox, { backgroundColor: "#E8F8F5" }]}
-                >
-                  <FontAwesome5 name="piggy-bank" size={11} color="#1ABC9C" />
-                </View>
-                <View style={{ flex: 1, paddingHorizontal: 6 }}>
-                  <Text style={styles.trendItemContentText} numberOfLines={2}>
-                    Savings rate grew by 8% this period.
-                  </Text>
-                </View>
-              </TouchableOpacity>
-            </View>
+        <View style={styles.analyticsCard}>
+          <Text style={styles.cardLabelBold}>Spending Heat Map</Text>
+          <Text style={styles.cardLabelSub}>When you spend the most</Text>
+          <HeatMap heatmapData={activeDashboardData.heatmap} />
+        </View>
+
+        <View style={styles.analyticsCard}>
+          <Text style={styles.cardLabelBold}>Smart Trends</Text>
+          <View style={styles.smartTrendsList}>
+            <TouchableOpacity style={styles.smartTrendRowItem}>
+              <View style={[styles.trendIconBox, { backgroundColor: "#F5EEF8" }]}>
+                <Ionicons name="car-outline" size={14} color="#8E44AD" />
+              </View>
+              <View style={{ flex: 1, paddingHorizontal: 6 }}>
+                <Text style={styles.trendItemContentText} numberOfLines={2}>
+                  Transport items increased by 15%.
+                </Text>
+              </View>
+            </TouchableOpacity>
+
+            <TouchableOpacity style={styles.smartTrendRowItem}>
+              <View style={[styles.trendIconBox, { backgroundColor: "#E8F8F5" }]}>
+                <FontAwesome5 name="piggy-bank" size={11} color="#1ABC9C" />
+              </View>
+              <View style={{ flex: 1, paddingHorizontal: 6 }}>
+                <Text style={styles.trendItemContentText} numberOfLines={2}>
+                  Savings rate grew by 8% this period.
+                </Text>
+              </View>
+            </TouchableOpacity>
           </View>
         </View>
       </ScrollView>
@@ -699,13 +668,62 @@ const styles = StyleSheet.create({
     fontWeight: "500",
   },
   healthScoreRow: {
-    flexDirection: "row",
     marginTop: 12,
+  },
+  scoreTopRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+  },
+  scoreBottomRow: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    justifyContent: "space-between",
+    marginTop: 14,
+  },
+  scoreSummaryBox: {
+    width: "100%",
+  },
+  scoreSummaryTop: {
+    flexDirection: "row",
+    alignItems: "center",
     justifyContent: "space-between",
   },
+  scoreMetricsGrid: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    marginTop: 12,
+    gap: 8,
+  },
+  scoreMetricCard: {
+    flex: 1,
+    minWidth: 96,
+    marginBottom: 8,
+    backgroundColor: "#FCFCFC",
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: "#F3EDF0",
+    padding: 10,
+  },
+  scoreMetricLabel: {
+    fontSize: 9,
+    color: "#888",
+  },
+  scoreMetricValue: {
+    fontSize: 11,
+    fontWeight: "700",
+    color: "#1A1A1A",
+    marginTop: 3,
+  },
+  scoreMetricFoot: {
+    fontSize: 8,
+    fontWeight: "600",
+    marginTop: 2,
+  },
   scoreLeft: {
-    flex: 0.35,
+    flex: 1,
     justifyContent: "center",
+    paddingRight: 8,
   },
   scoreMainText: {
     fontSize: 32,
@@ -743,7 +761,7 @@ const styles = StyleSheet.create({
     color: "#777",
   },
   scoreCenter: {
-    flex: 0.3,
+    width: 120,
     alignItems: "center",
     justifyContent: "center",
   },

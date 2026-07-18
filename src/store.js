@@ -49,7 +49,10 @@ export const DEFAULT_BUDGETS = {
 export const DEFAULT_SAVINGS_GOALS = [
   { id: 'goal-1', title: "Tim's Birthday", saved: 120, target: 300, percentage: 40, category: 'gift' },
   { id: 'goal-2', title: "December Party", saved: 450, target: 800, percentage: 56, category: 'party' },
-  { id: 'goal-3', title: "Plastic Surgery", saved: 1250, target: 3000, percentage: 42, category: 'health' }
+  { id: 'goal-3', title: "New Laptop", saved: 1250, target: 3000, percentage: 42, category: 'health' },
+  { id: 'goal-4', title: "Vacation Escape", saved: 620, target: 1500, percentage: 41, category: 'other' },
+  { id: 'goal-5', title: "Home Upgrade", saved: 180, target: 500, percentage: 36, category: 'gift' },
+  { id: 'goal-6', title: "Emergency Fund", saved: 950, target: 2000, percentage: 48, category: 'health' }
 ];
 
 export function useAppStore() {
