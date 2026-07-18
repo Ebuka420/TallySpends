@@ -334,69 +334,54 @@ export default function DashboardScreen() {
             </Text>
             <TouchableOpacity
               style={styles.sortActionRowButton}
-              onPress={() => setIsSortLatest(!isSortLatest)}
+              onPress={() => router.push('/transaction-history' as any)}
               activeOpacity={0.7}
             >
-              <Text style={styles.sortActionButtonLabelText}>Latest</Text>
-              <Ionicons
-                name={isSortLatest ? "arrow-down" : "arrow-up"}
-                size={12}
-                color="#534B52"
-                style={{ marginLeft: 2 }}
-              />
+              <Text style={styles.sortActionButtonLabelText}>View all</Text>
             </TouchableOpacity>
           </View>
 
-          {/* Item 1 */}
-          <View style={styles.transactionRowItemContainer}>
-            <View style={styles.transactionLeftMetadataWrapper}>
-              <View
+          {recentTransactions.map((tx, index) => {
+            const isExpense = tx.type === 'expense';
+            const pillColor = isExpense ? '#FDEDEC' : '#EAF6EC';
+            const pillText = isExpense ? '#E74C3C' : '#2ECC71';
+            return (
+              <TouchableOpacity
+                key={tx.id}
                 style={[
-                  styles.brandMerchantLogoAvatarBox,
-                  { backgroundColor: "#E8F5E9" },
+                  styles.transactionRowItemContainer,
+                  index === recentTransactions.length - 1 && { borderBottomWidth: 0, paddingBottom: 0 },
                 ]}
-              />
-              <View>
-                <Text style={styles.merchantMainNameText}>Starbucks</Text>
-                <Text style={styles.merchantCategorySubText}>
-                  Food & Dining
-                </Text>
-              </View>
-            </View>
-            <View style={styles.transactionRightFinancialWrapper}>
-              <Text style={styles.transactionDebitNegativeAmountValue}>
-                -$5.20
-              </Text>
-              <Text style={styles.transactionTimestampValueText}>May 20</Text>
-            </View>
-          </View>
-
-          {/* Item 2 */}
-          <View
-            style={[
-              styles.transactionRowItemContainer,
-              { borderBottomWidth: 0, paddingBottom: 0 },
-            ]}
-          >
-            <View style={styles.transactionLeftMetadataWrapper}>
-              <View
-                style={[
-                  styles.brandMerchantLogoAvatarBox,
-                  { backgroundColor: "#F5F5F5" },
-                ]}
-              />
-              <View>
-                <Text style={styles.merchantMainNameText}>Uber</Text>
-                <Text style={styles.merchantCategorySubText}>Transport</Text>
-              </View>
-            </View>
-            <View style={styles.transactionRightFinancialWrapper}>
-              <Text style={styles.transactionDebitNegativeAmountValue}>
-                -$18.40
-              </Text>
-              <Text style={styles.transactionTimestampValueText}>May 19</Text>
-            </View>
-          </View>
+                onPress={() => router.push('/transaction-history' as any)}
+              >
+                <View style={styles.transactionLeftMetadataWrapper}>
+                  <View
+                    style={[
+                      styles.brandMerchantLogoAvatarBox,
+                      { backgroundColor: pillColor },
+                    ]}
+                  />
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.merchantMainNameText}>{tx.title}</Text>
+                    <Text style={styles.merchantCategorySubText}>{tx.category}</Text>
+                  </View>
+                </View>
+                <View style={styles.transactionRightFinancialWrapper}>
+                  <Text
+                    style={[styles.transactionDebitNegativeAmountValue, isExpense ? styles.expenseAmount : styles.incomeAmount]}
+                    numberOfLines={1}
+                    adjustsFontSizeToFit
+                    minimumFontScale={0.7}
+                  >
+                    {isExpense ? `-$${tx.amount.toFixed(2)}` : `+$${tx.amount.toFixed(2)}`}
+                  </Text>
+                  <Text style={styles.transactionTimestampValueText} numberOfLines={1}>
+                    {new Date(tx.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+                  </Text>
+                </View>
+              </TouchableOpacity>
+            );
+          })}
         </View>
       </ScrollView>
 
@@ -722,12 +707,16 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
     alignItems: "center",
     paddingVertical: 12,
+    paddingRight: 4,
     borderBottomWidth: 1,
     borderBottomColor: "#EAEAEA",
+    overflow: "hidden",
   },
   transactionLeftMetadataWrapper: {
     flexDirection: "row",
     alignItems: "center",
+    flex: 1,
+    minWidth: 0,
   },
   brandMerchantLogoAvatarBox: {
     width: 32,
@@ -739,16 +728,33 @@ const styles = StyleSheet.create({
   },
   merchantMainNameText: { fontSize: 13, fontWeight: "700", color: "#2D232E" },
   merchantCategorySubText: { fontSize: 11, color: "#534B52", marginTop: 1 },
-  transactionRightFinancialWrapper: { alignItems: "flex-end" },
+  transactionRightFinancialWrapper: {
+    alignItems: "flex-end",
+    width: 82,
+    flexShrink: 0,
+    marginLeft: 8,
+  },
   transactionDebitNegativeAmountValue: {
-    fontSize: 13,
+    fontSize: 11,
     fontWeight: "700",
     color: "#2D232E",
+    textAlign: "right",
+    maxWidth: "100%",
+    flexShrink: 1,
+    includeFontPadding: false,
+  },
+  expenseAmount: {
+    color: "#E74C3C",
+  },
+  incomeAmount: {
+    color: "#2ECC71",
   },
   transactionTimestampValueText: {
-    fontSize: 11,
+    fontSize: 10,
     color: "#A6ACAF",
-    marginVertical: 2,
+    marginTop: 2,
+    textAlign: "right",
+    maxWidth: "100%",
   },
   footerNav: {
     position: "absolute",

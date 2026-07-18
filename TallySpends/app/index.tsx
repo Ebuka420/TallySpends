@@ -707,9 +707,11 @@ const styles = StyleSheet.create({
     color: "#2D232E",
   },
   transactionTimestampValueText: {
-    fontSize: 11,
+    fontSize: 10,
     color: "#A6ACAF",
-    marginVertical: 2,
+    marginTop: 2,
+    textAlign: "right",
+    maxWidth: "100%",
   },
   footerNav: {
     position: "absolute",
