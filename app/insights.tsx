@@ -1,25 +1,18 @@
 import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
-import React, { useMemo, useRef, useState } from "react";
+import React, { useMemo, useState } from "react";
 import {
-  Animated,
   Dimensions,
-  KeyboardAvoidingView,
-  Modal,
-  PanResponder,
-  Platform,
   SafeAreaView,
   ScrollView,
   StyleSheet,
   Text,
-  TextInput,
   TouchableOpacity,
-  TouchableWithoutFeedback,
   View,
 } from "react-native";
 import Svg, { Circle, Path } from "react-native-svg";
 
-const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get("window");
+const { width: SCREEN_WIDTH } = Dimensions.get("window");
 
 export default function InsightsScreen() {
   const router = useRouter();
@@ -31,93 +24,8 @@ export default function InsightsScreen() {
   const [currentCalendarDate, setCurrentCalendarDate] = useState(
     new Date(2026, 4, 1),
   ); // Default focused month: May 2026
-  const [startDate, setStartDate] = useState<Date | null>(new Date(2026, 4, 1)); // May 1, 2026
-  const [endDate, setEndDate] = useState<Date | null>(new Date(2026, 4, 15)); // May 15, 2026
-
-  // AI Chat States
-  const [isChatOpen, setIsChatOpen] = useState(false);
-  const [chatMessage, setChatMessage] = useState("");
-  const [messages, setMessages] = useState([
-    {
-      id: "1",
-      text: "Hey! I noticed you saved 12% on shopping this month. Want some tips to optimize your food budget next?",
-      isAi: true,
-    },
-  ]);
-
-  // Draggable Animated State
-  const pan = useRef(
-    new Animated.ValueXY({ x: SCREEN_WIDTH - 80, y: SCREEN_HEIGHT - 160 }),
-  ).current;
-  const isDragging = useRef(false);
-
-  // Pan Responder Config
-  const panResponder = useRef(
-    PanResponder.create({
-      onStartShouldSetPanResponder: () => true,
-      onMoveShouldSetPanResponder: (_, gestureState) => {
-        return Math.abs(gestureState.dx) > 4 || Math.abs(gestureState.dy) > 4;
-      },
-      onPanResponderGrant: () => {
-        isDragging.current = false;
-        pan.setOffset({
-          x: (pan.x as any)._value,
-          y: (pan.y as any)._value,
-        });
-        pan.setValue({ x: 0, y: 0 });
-      },
-      onPanResponderMove: Animated.event([null, { dx: pan.x, dy: pan.y }], {
-        useNativeDriver: false,
-      }),
-      onPanResponderRelease: (_, gestureState) => {
-        pan.flattenOffset();
-
-        if (Math.abs(gestureState.dx) < 5 && Math.abs(gestureState.dy) < 5) {
-          if (!isDragging.current) {
-            setIsChatOpen(true);
-          }
-        }
-
-        let newX = (pan.x as any)._value;
-        let newY = (pan.y as any)._value;
-
-        if (newX < 10) newX = 10;
-        if (newX > SCREEN_WIDTH - 70) newX = SCREEN_WIDTH - 70;
-        if (newY < 60) newY = 60;
-        if (newY > SCREEN_HEIGHT - 120) newY = SCREEN_HEIGHT - 120;
-
-        Animated.spring(pan, {
-          toValue: { x: newX, y: newY },
-          useNativeDriver: false,
-          friction: 6,
-        }).start();
-      },
-    }),
-  ).current;
-
-  const handleSendMessage = () => {
-    if (!chatMessage.trim()) return;
-    const newMsg = {
-      id: Date.now().toString(),
-      text: chatMessage,
-      isAi: false,
-    };
-    setMessages((prev) => [...prev, newMsg]);
-    setChatMessage("");
-
-    setTimeout(() => {
-      setMessages((prev) => [
-        ...prev,
-        ...[
-          {
-            id: (Date.now() + 1).toString(),
-            text: "Let's track that! Setting up your optimized parameters.",
-            isAi: true,
-          },
-        ],
-      ]);
-    }, 1000);
-  };
+  const [startDate, setStartDate] = useState<Date | null>(new Date(2026, 4, 1));
+  const [endDate, setEndDate] = useState<Date | null>(new Date(2026, 4, 15));
 
   const heatMapBlocks = Array(21)
     .fill(0)
@@ -169,15 +77,6 @@ export default function InsightsScreen() {
 
     return daysArray;
   }, [currentCalendarDate]);
-
-  const formatDateLabel = (date: Date | null) => {
-    if (!date) return "--";
-    return date.toLocaleDateString("en-US", {
-      month: "short",
-      day: "numeric",
-      year: "numeric",
-    });
-  };
 
   const monthYearHeaderLabel = currentCalendarDate.toLocaleDateString("en-US", {
     month: "long",
@@ -497,106 +396,10 @@ export default function InsightsScreen() {
           </Text>
         </View>
       </ScrollView>
-
-      {/* --- FLOATING DRAGGABLE CHAT BOT SPHERE --- */}
-      <Animated.View
-        style={[
-          styles.chatIconBubbleDraggable,
-          { transform: [{ translateX: pan.x }, { translateY: pan.y }] },
-        ]}
-        {...panResponder.panHandlers}
-      >
-        <TouchableOpacity
-          style={styles.chatBubbleInnerCircleButton}
-          onPress={() => setIsChatOpen(true)}
-          activeOpacity={0.8}
-        >
-          <MaterialCommunityIcons name="robot" size={26} color="#FFFFFF" />
-        </TouchableOpacity>
-      </Animated.View>
-
-      {/* --- FULL CHAT WINDOW MODAL SHEET --- */}
-      <Modal
-        visible={isChatOpen}
-        animationType="slide"
-        transparent={true}
-        onRequestClose={() => setIsChatOpen(false)}
-      >
-        <TouchableWithoutFeedback onPress={() => setIsChatOpen(false)}>
-          <View style={styles.chatModalOverlayBackdrop}>
-            <KeyboardAvoidingView
-              behavior={Platform.OS === "ios" ? "padding" : "height"}
-              style={styles.chatCardContentContainerSheet}
-            >
-              <TouchableWithoutFeedback>
-                <View style={{ flex: 1 }}>
-                  <View style={styles.chatModalHeaderBar}>
-                    <View style={styles.chatHeaderLeftGroup}>
-                      <MaterialCommunityIcons
-                        name="robot"
-                        size={22}
-                        color="#4B2C40"
-                      />
-                      <Text style={styles.chatHeaderTitleString}>
-                        Tally Assistant
-                      </Text>
-                    </View>
-                    <TouchableOpacity onPress={() => setIsChatOpen(false)}>
-                      <Ionicons name="close-circle" size={24} color="#A6ACAF" />
-                    </TouchableOpacity>
-                  </View>
-
-                  <ScrollView style={styles.chatMessageScrollPane}>
-                    {messages.map((msg) => (
-                      <View
-                        key={msg.id}
-                        style={[
-                          styles.msgWrapperBubbleLine,
-                          msg.isAi
-                            ? styles.msgAiAlignment
-                            : styles.msgUserAlignment,
-                        ]}
-                      >
-                        <Text
-                          style={[
-                            styles.msgTextBodyString,
-                            msg.isAi
-                              ? styles.msgTextAiColor
-                              : styles.msgTextUserColor,
-                          ]}
-                        >
-                          {msg.text}
-                        </Text>
-                      </View>
-                    ))}
-                  </ScrollView>
-
-                  <View style={styles.chatInputComposerDockFooter}>
-                    <TextInput
-                      style={styles.chatTextInputFieldElement}
-                      placeholder="Ask about your parameters..."
-                      value={chatMessage}
-                      onChangeText={setChatMessage}
-                      placeholderTextColor="#A6ACAF"
-                    />
-                    <TouchableOpacity
-                      style={styles.chatSubmitSendActionButton}
-                      onPress={handleSendMessage}
-                    >
-                      <Ionicons name="send" size={16} color="#FFFFFF" />
-                    </TouchableOpacity>
-                  </View>
-                </View>
-              </TouchableWithoutFeedback>
-            </KeyboardAvoidingView>
-          </View>
-        </TouchableWithoutFeedback>
-      </Modal>
     </SafeAreaView>
   );
 }
 
-// --- ALL COMBINED STYLESHEETS WITH NO MISSING ATTRIBUTES ---
 const styles = StyleSheet.create({
   container: {
     flex: 1,
@@ -914,112 +717,5 @@ const styles = StyleSheet.create({
     alignItems: "center",
     gap: 6,
     marginBottom: -4,
-  },
-  chatIconBubbleDraggable: {
-    position: "absolute",
-    width: 56,
-    height: 56,
-    borderRadius: 28,
-    backgroundColor: "#4B2C40",
-    justifyContent: "center",
-    alignItems: "center",
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 4,
-    elevation: 6,
-    zIndex: 999,
-  },
-  chatBubbleInnerCircleButton: {
-    width: "100%",
-    height: "100%",
-    justifyContent: "center",
-    alignItems: "center",
-  },
-  chatModalOverlayBackdrop: {
-    flex: 1,
-    backgroundColor: "rgba(0, 0, 0, 0.5)",
-    justifyContent: "flex-end",
-  },
-  chatCardContentContainerSheet: {
-    backgroundColor: "#FFFFFF",
-    borderTopLeftRadius: 20,
-    borderTopRightRadius: 20,
-    height: SCREEN_HEIGHT * 0.7,
-    paddingBottom: Platform.OS === "ios" ? 24 : 12,
-  },
-  chatModalHeaderBar: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    padding: 16,
-    borderBottomWidth: 1,
-    borderColor: "#F0F0F2",
-  },
-  chatHeaderLeftGroup: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 8,
-  },
-  chatHeaderTitleString: {
-    fontSize: 16,
-    fontWeight: "700",
-    color: "#4B2C40",
-  },
-  chatMessageScrollPane: {
-    flex: 1,
-    padding: 16,
-  },
-  msgWrapperBubbleLine: {
-    maxWidth: "80%",
-    padding: 12,
-    borderRadius: 16,
-    marginBottom: 12,
-  },
-  msgAiAlignment: {
-    backgroundColor: "#F0F0F2",
-    alignSelf: "flex-start",
-    borderBottomLeftRadius: 4,
-  },
-  msgUserAlignment: {
-    backgroundColor: "#4B2C40",
-    alignSelf: "flex-end",
-    borderBottomRightRadius: 4,
-  },
-  msgTextBodyString: {
-    fontSize: 14,
-    lineHeight: 18,
-  },
-  msgTextAiColor: {
-    color: "#111111",
-  },
-  msgTextUserColor: {
-    color: "#FFFFFF",
-  },
-  chatInputComposerDockFooter: {
-    flexDirection: "row",
-    alignItems: "center",
-    paddingHorizontal: 16,
-    paddingTop: 8,
-    gap: 8,
-  },
-  chatTextInputFieldElement: {
-    flex: 1,
-    height: 44,
-    backgroundColor: "#FAFAFA",
-    borderWidth: 1,
-    borderColor: "#F0F0F2",
-    borderRadius: 22,
-    paddingHorizontal: 16,
-    fontSize: 14,
-    color: "#111111",
-  },
-  chatSubmitSendActionButton: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    backgroundColor: "#4B2C40",
-    justifyContent: "center",
-    alignItems: "center",
   },
 });

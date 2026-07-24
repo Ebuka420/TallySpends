@@ -146,7 +146,7 @@ export default function MoreScreen() {
       <View style={styles.footerContainer}>
         <TouchableOpacity
           style={styles.footerTab}
-          onPress={() => router.replace("/")}
+          onPress={() => router.replace("/(tabs)" as any)}
         >
           <Ionicons name="home-outline" size={24} color="#8E8E93" />
           <Text style={styles.footerTabText}>Home</Text>

@@ -11,13 +11,14 @@ import {
   View,
 } from "react-native";
 import Svg, { Circle, G, Path } from "react-native-svg";
-import { useAppStore } from "../src/store";
+import { useAppStore } from "../../src/store";
 
 const API_URL = process.env.EXPO_PUBLIC_API_URL;
 
 export default function DashboardScreen() {
   const router = useRouter();
-  const { transactions: transactionsRaw, savingsGoals: savingsGoalsRaw } = useAppStore();
+  const { transactions: transactionsRaw, savingsGoals: savingsGoalsRaw } =
+    useAppStore();
   const transactions = (transactionsRaw || []) as any[];
   const savingsGoals = (savingsGoalsRaw || []) as any[];
 
@@ -26,18 +27,22 @@ export default function DashboardScreen() {
   const [isSortLatest, setIsSortLatest] = useState<boolean>(true);
 
   // Compute balance
-  const totalIncome = transactions.filter(t => t.type === 'income').reduce((sum, t) => sum + t.amount, 0);
-  const totalExpense = transactions.filter(t => t.type === 'expense').reduce((sum, t) => sum + t.amount, 0);
+  const totalIncome = transactions
+    .filter((t) => t.type === "income")
+    .reduce((sum, t) => sum + t.amount, 0);
+  const totalExpense = transactions
+    .filter((t) => t.type === "expense")
+    .reduce((sum, t) => sum + t.amount, 0);
   const currentBalance = totalIncome - totalExpense;
 
   // Compute spending data
   const categoriesMap: { [key: string]: { color: string; amount: number } } = {
     "Food & Dining": { color: "#2D232E", amount: 0 },
-    "Transport": { color: "#5DADE2", amount: 0 },
-    "Shopping": { color: "#F5B041", amount: 0 },
+    Transport: { color: "#5DADE2", amount: 0 },
+    Shopping: { color: "#F5B041", amount: 0 },
     "Bills & Utilities": { color: "#EC7063", amount: 0 },
-    "Entertainment": { color: "#A6ACAF", amount: 0 },
-    "Others": { color: "#D5D8DC", amount: 0 },
+    Entertainment: { color: "#A6ACAF", amount: 0 },
+    Others: { color: "#D5D8DC", amount: 0 },
   };
 
   transactions.forEach((t) => {
@@ -76,8 +81,9 @@ export default function DashboardScreen() {
 
   // Goals progress calculations
   const totalGoals = savingsGoals.length;
-  const completedGoals = savingsGoals.filter(g => g.saved >= g.target).length;
-  const completionPercentage = totalGoals > 0 ? Math.round((completedGoals / totalGoals) * 100) : 0;
+  const completedGoals = savingsGoals.filter((g) => g.saved >= g.target).length;
+  const completionPercentage =
+    totalGoals > 0 ? Math.round((completedGoals / totalGoals) * 100) : 0;
 
   // Recent transactions (latest 3)
   const sortedTransactions = [...transactions].sort((a, b) => {
@@ -334,7 +340,7 @@ export default function DashboardScreen() {
             </Text>
             <TouchableOpacity
               style={styles.sortActionRowButton}
-              onPress={() => router.push('/transaction-history' as any)}
+              onPress={() => router.push("/transaction-history" as any)}
               activeOpacity={0.7}
             >
               <Text style={styles.sortActionButtonLabelText}>View all</Text>
@@ -342,17 +348,20 @@ export default function DashboardScreen() {
           </View>
 
           {recentTransactions.map((tx, index) => {
-            const isExpense = tx.type === 'expense';
-            const pillColor = isExpense ? '#FDEDEC' : '#EAF6EC';
-            const pillText = isExpense ? '#E74C3C' : '#2ECC71';
+            const isExpense = tx.type === "expense";
+            const pillColor = isExpense ? "#FDEDEC" : "#EAF6EC";
+            const pillText = isExpense ? "#E74C3C" : "#2ECC71";
             return (
               <TouchableOpacity
                 key={tx.id}
                 style={[
                   styles.transactionRowItemContainer,
-                  index === recentTransactions.length - 1 && { borderBottomWidth: 0, paddingBottom: 0 },
+                  index === recentTransactions.length - 1 && {
+                    borderBottomWidth: 0,
+                    paddingBottom: 0,
+                  },
                 ]}
-                onPress={() => router.push('/transaction-history' as any)}
+                onPress={() => router.push("/transaction-history" as any)}
               >
                 <View style={styles.transactionLeftMetadataWrapper}>
                   <View
@@ -363,20 +372,33 @@ export default function DashboardScreen() {
                   />
                   <View style={{ flex: 1 }}>
                     <Text style={styles.merchantMainNameText}>{tx.title}</Text>
-                    <Text style={styles.merchantCategorySubText}>{tx.category}</Text>
+                    <Text style={styles.merchantCategorySubText}>
+                      {tx.category}
+                    </Text>
                   </View>
                 </View>
                 <View style={styles.transactionRightFinancialWrapper}>
                   <Text
-                    style={[styles.transactionDebitNegativeAmountValue, isExpense ? styles.expenseAmount : styles.incomeAmount]}
+                    style={[
+                      styles.transactionDebitNegativeAmountValue,
+                      isExpense ? styles.expenseAmount : styles.incomeAmount,
+                    ]}
                     numberOfLines={1}
                     adjustsFontSizeToFit
                     minimumFontScale={0.7}
                   >
-                    {isExpense ? `-$${tx.amount.toFixed(2)}` : `+$${tx.amount.toFixed(2)}`}
+                    {isExpense
+                      ? `-$${tx.amount.toFixed(2)}`
+                      : `+$${tx.amount.toFixed(2)}`}
                   </Text>
-                  <Text style={styles.transactionTimestampValueText} numberOfLines={1}>
-                    {new Date(tx.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+                  <Text
+                    style={styles.transactionTimestampValueText}
+                    numberOfLines={1}
+                  >
+                    {new Date(tx.date).toLocaleDateString("en-US", {
+                      month: "short",
+                      day: "numeric",
+                    })}
                   </Text>
                 </View>
               </TouchableOpacity>
@@ -389,7 +411,7 @@ export default function DashboardScreen() {
       <View style={styles.footerNav}>
         <TouchableOpacity
           style={styles.footerItem}
-          onPress={() => router.replace("/")}
+          onPress={() => router.replace("/(tabs)" as any)}
         >
           <Ionicons name="home" size={22} color="#2D232E" />
           <Text style={[styles.footerText, styles.activeFooterText]}>Home</Text>

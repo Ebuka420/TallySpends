@@ -1,32 +1,26 @@
-import {
-  FontAwesome6,
-  Ionicons,
-  MaterialCommunityIcons,
-  Octicons,
-} from "@expo/vector-icons";
+import { Ionicons, Octicons } from "@expo/vector-icons";
 import DateTimePicker, {
   DateTimePickerEvent,
 } from "@react-native-community/datetimepicker";
 import { useRouter } from "expo-router";
-import React, { useEffect, useRef, useState, useMemo } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import {
+  Alert,
   Animated,
   KeyboardAvoidingView,
   Modal,
+  PanResponder,
   Platform,
+  Pressable,
   SafeAreaView,
   ScrollView,
   StyleSheet,
   Text,
-  TouchableOpacity,
-  TouchableWithoutFeedback,
-  View,
   TextInput,
-  PanResponder,
-  Alert,
-  Pressable,
+  TouchableOpacity,
+  View,
 } from "react-native";
-import { useAppStore } from "../src/store";
+import { useAppStore } from "../../src/store";
 
 type TimePeriod = "today" | "week" | "month" | "custom";
 
@@ -80,7 +74,7 @@ const SwipeableRow = ({
           }).start();
         }
       },
-    })
+    }),
   ).current;
 
   const closeRow = () => {
@@ -124,7 +118,12 @@ const SwipeableRow = ({
 
 export default function ExpensesScreen() {
   const router = useRouter();
-  const { transactions: transactionsRaw, addTransaction, deleteTransaction, updateTransaction } = useAppStore();
+  const {
+    transactions: transactionsRaw,
+    addTransaction,
+    deleteTransaction,
+    updateTransaction,
+  } = useAppStore();
   const transactions = (transactionsRaw || []) as any[];
 
   const [activeTab, setActiveTab] = useState<TimePeriod>("month");
@@ -134,7 +133,9 @@ export default function ExpensesScreen() {
   // Filter/Sort States
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
-  const [sortBy, setSortBy] = useState<"latest" | "oldest" | "highest" | "lowest">("latest");
+  const [sortBy, setSortBy] = useState<
+    "latest" | "oldest" | "highest" | "lowest"
+  >("latest");
   const [isSortOpen, setIsSortOpen] = useState(false);
 
   // Add / Edit transaction modals
@@ -206,7 +207,7 @@ export default function ExpensesScreen() {
           setIsAddModalOpen(true);
         }
       },
-    })
+    }),
   ).current;
 
   // Filter transactions by activeTime period and category and search query
@@ -243,14 +244,20 @@ export default function ExpensesScreen() {
         if (activeTab === "month") {
           const baselineMonth = selectedDate.getMonth();
           const baselineYear = selectedDate.getFullYear();
-          return txDate.getMonth() === baselineMonth && txDate.getFullYear() === baselineYear;
+          return (
+            txDate.getMonth() === baselineMonth &&
+            txDate.getFullYear() === baselineYear
+          );
         }
 
         if (activeTab === "custom") {
           // Filter by selected baseline date (month)
           const targetMonth = selectedDate.getMonth();
           const targetYear = selectedDate.getFullYear();
-          return txDate.getMonth() === targetMonth && txDate.getFullYear() === targetYear;
+          return (
+            txDate.getMonth() === targetMonth &&
+            txDate.getFullYear() === targetYear
+          );
         }
 
         return true;
@@ -266,7 +273,14 @@ export default function ExpensesScreen() {
           return a.amount - b.amount;
         }
       });
-  }, [transactions, activeTab, selectedDate, searchQuery, selectedCategory, sortBy]);
+  }, [
+    transactions,
+    activeTab,
+    selectedDate,
+    searchQuery,
+    selectedCategory,
+    sortBy,
+  ]);
 
   const previewTransactions = filteredTransactions.slice(0, 3);
 
@@ -274,18 +288,22 @@ export default function ExpensesScreen() {
   const categorySummary = useMemo(() => {
     const summary: { [key: string]: number } = {
       "Food & Dining": 0,
-      "Transport": 0,
-      "Shopping": 0,
+      Transport: 0,
+      Shopping: 0,
       "Bills & Utilities": 0,
-      "Entertainment": 0,
-      "Others": 0,
+      Entertainment: 0,
+      Others: 0,
     };
 
     let total = 0;
     transactions.forEach((tx) => {
       // Limit category breakdown to transactions in current filtered range/baseline
       const txDate = new Date(tx.date);
-      if (tx.type === "expense" && txDate.getMonth() === selectedDate.getMonth() && txDate.getFullYear() === selectedDate.getFullYear()) {
+      if (
+        tx.type === "expense" &&
+        txDate.getMonth() === selectedDate.getMonth() &&
+        txDate.getFullYear() === selectedDate.getFullYear()
+      ) {
         total += tx.amount;
         if (summary[tx.category] !== undefined) {
           summary[tx.category] += tx.amount;
@@ -301,17 +319,33 @@ export default function ExpensesScreen() {
   const getCategoryDetails = (cat: string) => {
     switch (cat) {
       case "Food & Dining":
-        return { icon: "fast-food-outline" as any, color: "#E67E22", bg: "#FDF2E9" };
+        return {
+          icon: "fast-food-outline" as any,
+          color: "#E67E22",
+          bg: "#FDF2E9",
+        };
       case "Transport":
         return { icon: "car-outline" as any, color: "#8E44AD", bg: "#F4ECF7" };
       case "Shopping":
-        return { icon: "bag-handle-outline" as any, color: "#E74C3C", bg: "#FDEDEC" };
+        return {
+          icon: "bag-handle-outline" as any,
+          color: "#E74C3C",
+          bg: "#FDEDEC",
+        };
       case "Bills & Utilities":
-        return { icon: "document-text-outline" as any, color: "#2ECC71", bg: "#EAF6EC" };
+        return {
+          icon: "document-text-outline" as any,
+          color: "#2ECC71",
+          bg: "#EAF6EC",
+        };
       case "Entertainment":
         return { icon: "film-outline" as any, color: "#7F8C8D", bg: "#F4F6F7" };
       default:
-        return { icon: "ellipsis-horizontal-outline" as any, color: "#5DADE2", bg: "#EBF5FB" };
+        return {
+          icon: "ellipsis-horizontal-outline" as any,
+          color: "#5DADE2",
+          bg: "#EBF5FB",
+        };
     }
   };
 
@@ -389,36 +423,43 @@ export default function ExpensesScreen() {
       >
         {/* --- TIME PERIOD TABS --- */}
         <View style={styles.tabContainer}>
-          {(["today", "week", "month", "custom"] as TimePeriod[]).map((period) => (
-            <TouchableOpacity
-              key={period}
-              style={[
-                styles.tabButton,
-                activeTab === period && styles.activeTabButton,
-              ]}
-              onPress={() => {
-                setActiveTab(period);
-                if (period === "custom" || period === "month") {
-                  setShowDatePicker(true);
-                }
-              }}
-            >
-              <Text
+          {(["today", "week", "month", "custom"] as TimePeriod[]).map(
+            (period) => (
+              <TouchableOpacity
+                key={period}
                 style={[
-                  styles.tabText,
-                  activeTab === period && styles.activeTabText,
+                  styles.tabButton,
+                  activeTab === period && styles.activeTabButton,
                 ]}
+                onPress={() => {
+                  setActiveTab(period);
+                  if (period === "custom" || period === "month") {
+                    setShowDatePicker(true);
+                  }
+                }}
               >
-                {period.charAt(0).toUpperCase() + period.slice(1)}
-              </Text>
-            </TouchableOpacity>
-          ))}
+                <Text
+                  style={[
+                    styles.tabText,
+                    activeTab === period && styles.activeTabText,
+                  ]}
+                >
+                  {period.charAt(0).toUpperCase() + period.slice(1)}
+                </Text>
+              </TouchableOpacity>
+            ),
+          )}
         </View>
 
         {/* --- SEARCH BAR --- */}
         <View style={styles.searchContainer}>
           <View style={styles.searchBox}>
-            <Ionicons name="search-outline" size={18} color="#888" style={{ marginRight: 8 }} />
+            <Ionicons
+              name="search-outline"
+              size={18}
+              color="#888"
+              style={{ marginRight: 8 }}
+            />
             <TextInput
               value={searchQuery}
               onChangeText={setSearchQuery}
@@ -440,11 +481,13 @@ export default function ExpensesScreen() {
             <View>
               <Text style={styles.summaryLabel}>Total Expenses</Text>
               <Text style={styles.summaryAmount}>
-                ${categorySummary.total.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                $
+                {categorySummary.total.toLocaleString(undefined, {
+                  minimumFractionDigits: 2,
+                  maximumFractionDigits: 2,
+                })}
               </Text>
-              <Text style={styles.summaryTrend}>
-                🔹 Current Baseline
-              </Text>
+              <Text style={styles.summaryTrend}>🔹 Current Baseline</Text>
             </View>
             <TouchableOpacity
               style={styles.monthDropdown}
@@ -465,15 +508,23 @@ export default function ExpensesScreen() {
           <View style={styles.metricsRow}>
             <View style={styles.metricItem}>
               <Text style={styles.metricLabel}>Transactions</Text>
-              <Text style={styles.metricValue}>{filteredTransactions.length}</Text>
+              <Text style={styles.metricValue}>
+                {filteredTransactions.length}
+              </Text>
               <Text style={styles.metricSubText}>Total matching logs</Text>
             </View>
             <View style={styles.metricDivider} />
             <View style={styles.metricItem}>
               <Text style={styles.metricLabel}>Average Purchase</Text>
               <Text style={styles.metricValue}>
-                ${filteredTransactions.length > 0
-                  ? (filteredTransactions.reduce((sum, tx) => sum + tx.amount, 0) / filteredTransactions.length).toFixed(2)
+                $
+                {filteredTransactions.length > 0
+                  ? (
+                      filteredTransactions.reduce(
+                        (sum, tx) => sum + tx.amount,
+                        0,
+                      ) / filteredTransactions.length
+                    ).toFixed(2)
                   : "0.00"}
               </Text>
               <Text style={styles.metricSubText}>Per transaction</Text>
@@ -486,7 +537,11 @@ export default function ExpensesScreen() {
           <Text style={styles.sectionTitle}>Expense Categories</Text>
           {selectedCategory && (
             <TouchableOpacity onPress={() => setSelectedCategory(null)}>
-              <Text style={{ fontSize: 12, color: "#E74C3C", fontWeight: "600" }}>Clear Filter</Text>
+              <Text
+                style={{ fontSize: 12, color: "#E74C3C", fontWeight: "600" }}
+              >
+                Clear Filter
+              </Text>
             </TouchableOpacity>
           )}
         </View>
@@ -499,23 +554,42 @@ export default function ExpensesScreen() {
         >
           {categories.map((cat) => {
             const amt = categorySummary.summary[cat] || 0;
-            const pctVal = categorySummary.total > 0 ? (amt / categorySummary.total) * 100 : 0;
+            const pctVal =
+              categorySummary.total > 0
+                ? (amt / categorySummary.total) * 100
+                : 0;
             const details = getCategoryDetails(cat);
             const isSelected = selectedCategory === cat;
 
             return (
               <TouchableOpacity
                 key={cat}
-                onPress={() => router.push({ pathname: '/transaction-history', params: { category: cat } })}
+                onPress={() =>
+                  router.push({
+                    pathname: "/transaction-history",
+                    params: { category: cat },
+                  })
+                }
                 style={[
                   styles.categoryCard,
-                  isSelected && { borderColor: details.color, borderWidth: 1.5 },
+                  isSelected && {
+                    borderColor: details.color,
+                    borderWidth: 1.5,
+                  },
                 ]}
               >
-                <View style={[styles.iconFrame, { backgroundColor: details.bg }]}>
-                  <Ionicons name={details.icon} size={18} color={details.color} />
+                <View
+                  style={[styles.iconFrame, { backgroundColor: details.bg }]}
+                >
+                  <Ionicons
+                    name={details.icon}
+                    size={18}
+                    color={details.color}
+                  />
                 </View>
-                <Text style={styles.catName} numberOfLines={1}>{cat}</Text>
+                <Text style={styles.catName} numberOfLines={1}>
+                  {cat}
+                </Text>
                 <Text style={styles.catAmount}>${amt.toFixed(2)}</Text>
                 <Text style={styles.catPercent}>{Math.round(pctVal)}%</Text>
                 <View style={styles.progressBg}>
@@ -536,7 +610,7 @@ export default function ExpensesScreen() {
           <Text style={styles.sectionTitle}>Latest Transactions</Text>
           <TouchableOpacity
             style={styles.sortDropdown}
-            onPress={() => router.push('/transaction-history')}
+            onPress={() => router.push("/transaction-history")}
           >
             <Text style={styles.sortDropdownText}>View all</Text>
             <Ionicons name="chevron-forward" size={12} color="#666" />
@@ -556,15 +630,31 @@ export default function ExpensesScreen() {
                     `Are you sure you want to delete "${tx.title}"?`,
                     [
                       { text: "Cancel", style: "cancel" },
-                      { text: "Delete", style: "destructive", onPress: () => deleteTransaction(tx.id) },
-                    ]
+                      {
+                        text: "Delete",
+                        style: "destructive",
+                        onPress: () => deleteTransaction(tx.id),
+                      },
+                    ],
                   );
                 }}
               >
                 <View style={styles.txRow}>
-                  <View style={[styles.txIconBox, { backgroundColor: tx.type === "income" ? "#EAF6EC" : details.bg }]}>
+                  <View
+                    style={[
+                      styles.txIconBox,
+                      {
+                        backgroundColor:
+                          tx.type === "income" ? "#EAF6EC" : details.bg,
+                      },
+                    ]}
+                  >
                     <Ionicons
-                      name={tx.type === "income" ? "arrow-up-circle-outline" : details.icon}
+                      name={
+                        tx.type === "income"
+                          ? "arrow-up-circle-outline"
+                          : details.icon
+                      }
                       size={16}
                       color={tx.type === "income" ? "#2ECC71" : details.color}
                     />
@@ -579,10 +669,14 @@ export default function ExpensesScreen() {
                     <Text
                       style={[
                         styles.txAmount,
-                        tx.type === "income" ? styles.incomeAmount : styles.expenseAmount,
+                        tx.type === "income"
+                          ? styles.incomeAmount
+                          : styles.expenseAmount,
                       ]}
                     >
-                      {tx.type === "income" ? `+$${tx.amount.toFixed(2)}` : `-$${tx.amount.toFixed(2)}`}
+                      {tx.type === "income"
+                        ? `+$${tx.amount.toFixed(2)}`
+                        : `-$${tx.amount.toFixed(2)}`}
                     </Text>
                   </View>
                 </View>
@@ -591,7 +685,13 @@ export default function ExpensesScreen() {
           })}
 
           {previewTransactions.length === 0 && (
-            <Text style={{ textAlign: "center", color: "#888", paddingVertical: 24 }}>
+            <Text
+              style={{
+                textAlign: "center",
+                color: "#888",
+                paddingVertical: 24,
+              }}
+            >
               No matching transactions found.
             </Text>
           )}
@@ -611,13 +711,19 @@ export default function ExpensesScreen() {
 
       {/* --- ADD TRANSACTION MODAL --- */}
       <Modal visible={isAddModalOpen} transparent animationType="slide">
-        <Pressable style={styles.modalBackdrop} onPress={() => setIsAddModalOpen(false)}>
+        <Pressable
+          style={styles.modalBackdrop}
+          onPress={() => setIsAddModalOpen(false)}
+        >
           <KeyboardAvoidingView
             behavior={Platform.OS === "ios" ? "padding" : undefined}
             keyboardVerticalOffset={Platform.OS === "ios" ? 90 : 0}
             style={styles.modalKeyboardView}
           >
-            <ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={styles.modalScrollContent}>
+            <ScrollView
+              keyboardShouldPersistTaps="handled"
+              contentContainerStyle={styles.modalScrollContent}
+            >
               <View style={styles.modalSheet}>
                 <View style={styles.modalHeader}>
                   <Text style={styles.modalTitle}>Add Transaction</Text>
@@ -629,16 +735,36 @@ export default function ExpensesScreen() {
                 <View style={styles.modalBody}>
                   <View style={styles.typeTabs}>
                     <TouchableOpacity
-                      style={[styles.typeTab, txType === "expense" && styles.typeTabActive]}
+                      style={[
+                        styles.typeTab,
+                        txType === "expense" && styles.typeTabActive,
+                      ]}
                       onPress={() => setTxType("expense")}
                     >
-                      <Text style={[styles.typeTabText, txType === "expense" && styles.typeTabTextActive]}>Expense</Text>
+                      <Text
+                        style={[
+                          styles.typeTabText,
+                          txType === "expense" && styles.typeTabTextActive,
+                        ]}
+                      >
+                        Expense
+                      </Text>
                     </TouchableOpacity>
                     <TouchableOpacity
-                      style={[styles.typeTab, txType === "income" && styles.typeTabActive]}
+                      style={[
+                        styles.typeTab,
+                        txType === "income" && styles.typeTabActive,
+                      ]}
                       onPress={() => setTxType("income")}
                     >
-                      <Text style={[styles.typeTabText, txType === "income" && styles.typeTabTextActive]}>Income</Text>
+                      <Text
+                        style={[
+                          styles.typeTabText,
+                          txType === "income" && styles.typeTabTextActive,
+                        ]}
+                      >
+                        Income
+                      </Text>
                     </TouchableOpacity>
                   </View>
 
@@ -673,16 +799,29 @@ export default function ExpensesScreen() {
                           <TouchableOpacity
                             key={cat}
                             onPress={() => setTxCategory(cat)}
-                            style={[styles.tagBtn, txCategory === cat && styles.tagBtnActive]}
+                            style={[
+                              styles.tagBtn,
+                              txCategory === cat && styles.tagBtnActive,
+                            ]}
                           >
-                            <Text style={[styles.tagText, txCategory === cat && styles.tagTextActive]}>{cat}</Text>
+                            <Text
+                              style={[
+                                styles.tagText,
+                                txCategory === cat && styles.tagTextActive,
+                              ]}
+                            >
+                              {cat}
+                            </Text>
                           </TouchableOpacity>
                         ))}
                       </View>
                     </View>
                   )}
 
-                  <TouchableOpacity style={styles.saveBtn} onPress={handleAddSubmit}>
+                  <TouchableOpacity
+                    style={styles.saveBtn}
+                    onPress={handleAddSubmit}
+                  >
                     <Text style={styles.saveBtnText}>Save Transaction</Text>
                   </TouchableOpacity>
                 </View>
@@ -694,13 +833,19 @@ export default function ExpensesScreen() {
 
       {/* --- EDIT TRANSACTION MODAL --- */}
       <Modal visible={isEditModalOpen} transparent animationType="slide">
-        <Pressable style={styles.modalBackdrop} onPress={() => setIsEditModalOpen(false)}>
+        <Pressable
+          style={styles.modalBackdrop}
+          onPress={() => setIsEditModalOpen(false)}
+        >
           <KeyboardAvoidingView
             behavior={Platform.OS === "ios" ? "padding" : undefined}
             keyboardVerticalOffset={Platform.OS === "ios" ? 90 : 0}
             style={styles.modalKeyboardView}
           >
-            <ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={styles.modalScrollContent}>
+            <ScrollView
+              keyboardShouldPersistTaps="handled"
+              contentContainerStyle={styles.modalScrollContent}
+            >
               <View style={styles.modalSheet}>
                 <View style={styles.modalHeader}>
                   <Text style={styles.modalTitle}>Edit Transaction</Text>
@@ -712,16 +857,36 @@ export default function ExpensesScreen() {
                 <View style={styles.modalBody}>
                   <View style={styles.typeTabs}>
                     <TouchableOpacity
-                      style={[styles.typeTab, txType === "expense" && styles.typeTabActive]}
+                      style={[
+                        styles.typeTab,
+                        txType === "expense" && styles.typeTabActive,
+                      ]}
                       onPress={() => setTxType("expense")}
                     >
-                      <Text style={[styles.typeTabText, txType === "expense" && styles.typeTabTextActive]}>Expense</Text>
+                      <Text
+                        style={[
+                          styles.typeTabText,
+                          txType === "expense" && styles.typeTabTextActive,
+                        ]}
+                      >
+                        Expense
+                      </Text>
                     </TouchableOpacity>
                     <TouchableOpacity
-                      style={[styles.typeTab, txType === "income" && styles.typeTabActive]}
+                      style={[
+                        styles.typeTab,
+                        txType === "income" && styles.typeTabActive,
+                      ]}
                       onPress={() => setTxType("income")}
                     >
-                      <Text style={[styles.typeTabText, txType === "income" && styles.typeTabTextActive]}>Income</Text>
+                      <Text
+                        style={[
+                          styles.typeTabText,
+                          txType === "income" && styles.typeTabTextActive,
+                        ]}
+                      >
+                        Income
+                      </Text>
                     </TouchableOpacity>
                   </View>
 
@@ -756,16 +921,29 @@ export default function ExpensesScreen() {
                           <TouchableOpacity
                             key={cat}
                             onPress={() => setTxCategory(cat)}
-                            style={[styles.tagBtn, txCategory === cat && styles.tagBtnActive]}
+                            style={[
+                              styles.tagBtn,
+                              txCategory === cat && styles.tagBtnActive,
+                            ]}
                           >
-                            <Text style={[styles.tagText, txCategory === cat && styles.tagTextActive]}>{cat}</Text>
+                            <Text
+                              style={[
+                                styles.tagText,
+                                txCategory === cat && styles.tagTextActive,
+                              ]}
+                            >
+                              {cat}
+                            </Text>
                           </TouchableOpacity>
                         ))}
                       </View>
                     </View>
                   )}
 
-                  <TouchableOpacity style={styles.saveBtn} onPress={handleEditSubmit}>
+                  <TouchableOpacity
+                    style={styles.saveBtn}
+                    onPress={handleEditSubmit}
+                  >
                     <Text style={styles.saveBtnText}>Save Changes</Text>
                   </TouchableOpacity>
                 </View>
@@ -777,7 +955,10 @@ export default function ExpensesScreen() {
 
       {/* --- SORT BY MODAL --- */}
       <Modal visible={isSortOpen} transparent animationType="fade">
-        <Pressable style={styles.modalBackdrop} onPress={() => setIsSortOpen(false)}>
+        <Pressable
+          style={styles.modalBackdrop}
+          onPress={() => setIsSortOpen(false)}
+        >
           <View style={styles.alertBox}>
             <Text style={styles.alertTitle}>Sort Transactions By</Text>
             <View style={{ gap: 8, marginTop: 12 }}>
@@ -793,9 +974,22 @@ export default function ExpensesScreen() {
                     setSortBy(opt.id as any);
                     setIsSortOpen(false);
                   }}
-                  style={[styles.optionMenuBtn, sortBy === opt.id && { borderColor: "#4B2C40", backgroundColor: "#F6F3F5" }]}
+                  style={[
+                    styles.optionMenuBtn,
+                    sortBy === opt.id && {
+                      borderColor: "#4B2C40",
+                      backgroundColor: "#F6F3F5",
+                    },
+                  ]}
                 >
-                  <Text style={[styles.optionMenuBtnText, sortBy === opt.id && { color: "#4B2C40" }]}>{opt.label}</Text>
+                  <Text
+                    style={[
+                      styles.optionMenuBtnText,
+                      sortBy === opt.id && { color: "#4B2C40" },
+                    ]}
+                  >
+                    {opt.label}
+                  </Text>
                 </TouchableOpacity>
               ))}
             </View>
@@ -819,7 +1013,7 @@ export default function ExpensesScreen() {
       <View style={styles.footerNav}>
         <TouchableOpacity
           style={styles.footerItem}
-          onPress={() => router.replace("/")}
+          onPress={() => router.replace("/expenses" as any)}
         >
           <Ionicons name="home-outline" size={22} color="#666666" />
           <Text style={styles.footerText}>Home</Text>
@@ -1394,4 +1588,3 @@ const styles = StyleSheet.create({
     fontWeight: "600",
   },
 });
-
