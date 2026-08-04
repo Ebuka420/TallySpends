@@ -1,7 +1,9 @@
 import { Ionicons } from "@expo/vector-icons";
+import * as ImagePicker from "expo-image-picker";
 import { useRouter } from "expo-router";
 import React from "react";
 import {
+  Image,
   SafeAreaView,
   ScrollView,
   StyleSheet,
@@ -9,9 +11,44 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
+import { useAppStore } from "../src/store";
+
+// Tell TypeScript how your store looks so it stops complaining
+interface AppStore {
+  profileImage: string | null;
+  setProfileImage: (image: string | null) => void;
+  [key: string]: any;
+}
+
+const useTypedAppStore = useAppStore as unknown as () => AppStore;
 
 export default function ProfileScreen() {
   const router = useRouter();
+  const { profileImage, setProfileImage } = useTypedAppStore();
+
+  const pickImageFromGallery = async () => {
+    // Request permission to access the media library
+    const permissionResult =
+      await ImagePicker.requestMediaLibraryPermissionsAsync();
+
+    if (!permissionResult.granted) {
+      alert("Permission to access camera roll is required!");
+      return;
+    }
+
+    // Launch image picker selector
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ImagePicker.MediaTypeOptions.Images,
+      allowsEditing: true,
+      aspect: [1, 1],
+      quality: 0.8,
+    });
+
+    if (!result.canceled && result.assets && result.assets.length > 0) {
+      const uri = result.assets[0].uri;
+      setProfileImage(uri);
+    }
+  };
 
   // Handle mock static layout data for user profiles
   const profileDetails = [
@@ -55,14 +92,22 @@ export default function ProfileScreen() {
       >
         {/* --- AVATAR SELECTION BLOCK --- */}
         <View style={styles.avatarSection}>
-          <View style={styles.avatarContainer}>
-            <View style={styles.avatarPlaceholder}>
-              <Ionicons name="person" size={54} color="#A6ACAF" />
-            </View>
-            <TouchableOpacity style={styles.cameraBadge} activeOpacity={0.8}>
+          <TouchableOpacity
+            style={styles.avatarContainer}
+            onPress={pickImageFromGallery}
+            activeOpacity={0.8}
+          >
+            {profileImage ? (
+              <Image source={{ uri: profileImage }} style={styles.avatar} />
+            ) : (
+              <View style={styles.avatarPlaceholder}>
+                <Ionicons name="person" size={54} color="#A6ACAF" />
+              </View>
+            )}
+            <View style={styles.cameraBadge}>
               <Ionicons name="camera" size={16} color="#FFFFFF" />
-            </TouchableOpacity>
-          </View>
+            </View>
+          </TouchableOpacity>
           <Text style={styles.profileUsernameText}>EBUKA</Text>
         </View>
 
@@ -200,6 +245,13 @@ const styles = StyleSheet.create({
     backgroundColor: "#EAEAEA",
     alignItems: "center",
     justifyContent: "center",
+    borderWidth: 2,
+    borderColor: "#FFFFFF",
+  },
+  avatar: {
+    width: 90,
+    height: 90,
+    borderRadius: 45,
     borderWidth: 2,
     borderColor: "#FFFFFF",
   },

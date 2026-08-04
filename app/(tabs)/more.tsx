@@ -141,51 +141,6 @@ export default function MoreScreen() {
           </TouchableOpacity>
         ))}
       </ScrollView>
-
-      {/* 3. Global Unstacked Bottom Navigation Footer */}
-      <View style={styles.footerContainer}>
-        <TouchableOpacity
-          style={styles.footerTab}
-          onPress={() => router.replace("/(tabs)" as any)}
-        >
-          <Ionicons name="home-outline" size={24} color="#8E8E93" />
-          <Text style={styles.footerTabText}>Home</Text>
-        </TouchableOpacity>
-
-        <TouchableOpacity
-          style={styles.footerTab}
-          onPress={() => router.replace("/expenses" as any)}
-        >
-          <Ionicons name="document-text-outline" size={24} color="#8E8E93" />
-          <Text style={styles.footerTabText}>Expenses</Text>
-        </TouchableOpacity>
-
-        <TouchableOpacity
-          style={styles.footerTab}
-          onPress={() => router.replace("/budget" as any)}
-        >
-          <Ionicons name="wallet-outline" size={24} color="#8E8E93" />
-          <Text style={styles.footerTabText}>Budget</Text>
-        </TouchableOpacity>
-
-        <TouchableOpacity
-          style={styles.footerTab}
-          onPress={() => router.replace("/analytics" as any)}
-        >
-          <Ionicons name="bar-chart-outline" size={24} color="#8E8E93" />
-          <Text style={styles.footerTabText}>Analytics</Text>
-        </TouchableOpacity>
-
-        <TouchableOpacity
-          style={styles.footerTab}
-          onPress={() => router.replace("/more" as any)}
-        >
-          <Ionicons name="ellipsis-horizontal" size={24} color="#5B4E91" />
-          <Text style={[styles.footerTabText, styles.activeFooterTabText]}>
-            More
-          </Text>
-        </TouchableOpacity>
-      </View>
     </SafeAreaView>
   );
 }

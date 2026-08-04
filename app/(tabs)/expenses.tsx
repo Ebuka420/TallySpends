@@ -1008,51 +1008,6 @@ export default function ExpensesScreen() {
       >
         <Ionicons name="add" size={28} color="#FFF" />
       </Animated.View>
-
-      {/* --- STICKY FOOTER NAVIGATION --- */}
-      <View style={styles.footerNav}>
-        <TouchableOpacity
-          style={styles.footerItem}
-          onPress={() => router.replace("/expenses" as any)}
-        >
-          <Ionicons name="home-outline" size={22} color="#666666" />
-          <Text style={styles.footerText}>Home</Text>
-        </TouchableOpacity>
-
-        <TouchableOpacity
-          style={styles.footerItem}
-          onPress={() => router.replace("/expenses")}
-        >
-          <Ionicons name="document-text-sharp" size={22} color="#4B2C40" />
-          <Text style={[styles.footerText, styles.activeFooterText]}>
-            Expenses
-          </Text>
-        </TouchableOpacity>
-
-        <TouchableOpacity
-          style={styles.footerItem}
-          onPress={() => router.replace("/budget")}
-        >
-          <Ionicons name="wallet-outline" size={22} color="#666666" />
-          <Text style={styles.footerText}>Budget</Text>
-        </TouchableOpacity>
-
-        <TouchableOpacity
-          style={styles.footerItem}
-          onPress={() => router.replace("/analytics")}
-        >
-          <Ionicons name="bar-chart-outline" size={22} color="#666666" />
-          <Text style={styles.footerText}>Analytics</Text>
-        </TouchableOpacity>
-
-        <TouchableOpacity
-          style={styles.footerItem}
-          onPress={() => router.push("/more")}
-        >
-          <Ionicons name="ellipsis-horizontal" size={22} color="#666666" />
-          <Text style={styles.footerText}>More</Text>
-        </TouchableOpacity>
-      </View>
     </SafeAreaView>
   );
 }

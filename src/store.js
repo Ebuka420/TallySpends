@@ -327,6 +327,8 @@ export function useAppStore() {
   const [transactions, setTransactions] = useState([]);
   const [budgets, setBudgets] = useState({});
   const [savingsGoals, setSavingsGoals] = useState([]);
+  // Fixed type definition here:
+  const [profileImage, setProfileImage] = useState(null);
   const [loading, setLoading] = useState(true);
 
   // Sync with global auth state
@@ -500,6 +502,8 @@ export function useAppStore() {
     transactions,
     budgets,
     savingsGoals,
+    profileImage,
+    setProfileImage,
     loading,
     isAuthenticated,
     login,

@@ -324,51 +324,6 @@ export default function BudgetScreen() {
           </View>
         </View>
       </ScrollView>
-
-      {/* --- GLOBAL RESPONSIVE FOOTER NAVIGATION --- */}
-      <View style={styles.footerNav}>
-        <TouchableOpacity
-          style={styles.footerItem}
-          onPress={() => router.replace("/(tabs)" as any)}
-        >
-          <Ionicons name="home-outline" size={22} color="#666666" />
-          <Text style={styles.footerText}>Home</Text>
-        </TouchableOpacity>
-
-        <TouchableOpacity
-          style={styles.footerItem}
-          onPress={() => router.replace("/expenses")}
-        >
-          <Ionicons name="document-text-outline" size={22} color="#666666" />
-          <Text style={styles.footerText}>Expenses</Text>
-        </TouchableOpacity>
-
-        <TouchableOpacity
-          style={styles.footerItem}
-          onPress={() => router.replace("/budget")}
-        >
-          <Ionicons name="wallet-sharp" size={22} color="#4B2C40" />
-          <Text style={[styles.footerText, styles.activeFooterText]}>
-            Budget
-          </Text>
-        </TouchableOpacity>
-
-        <TouchableOpacity
-          style={styles.footerItem}
-          onPress={() => router.replace("/analytics")}
-        >
-          <Ionicons name="bar-chart-outline" size={22} color="#666666" />
-          <Text style={styles.footerText}>Analytics</Text>
-        </TouchableOpacity>
-
-        <TouchableOpacity
-          style={styles.footerItem}
-          onPress={() => router.push("/more")}
-        >
-          <Ionicons name="ellipsis-horizontal" size={22} color="#666666" />
-          <Text style={styles.footerText}>More</Text>
-        </TouchableOpacity>
-      </View>
     </SafeAreaView>
   );
 }

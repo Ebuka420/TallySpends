@@ -1,15 +1,15 @@
 import { Ionicons } from "@expo/vector-icons";
 import React, { useRef, useState } from "react";
 import {
-    Animated,
-    Modal,
-    PanResponder,
-    Pressable,
-    StyleSheet,
-    Text,
-    TextInput,
-    TouchableOpacity,
-    View,
+  Animated,
+  Modal,
+  PanResponder,
+  Pressable,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View,
 } from "react-native";
 
 type ActionMode = "coach" | "add" | "calc" | "scan";
@@ -192,7 +192,7 @@ export default function RadialFloatingBot() {
                   <Ionicons
                     name={mode.icon}
                     size={22}
-                    color={activeMode === mode.id ? "#FFFFFF" : "#3E273A"}
+                    color={activeMode === mode.id ? "#FFFFFF" : "#20142A"}
                   />
                 </TouchableOpacity>
               </Animated.View>
@@ -231,7 +231,7 @@ export default function RadialFloatingBot() {
             <View style={styles.modalHeader}>
               <Text style={styles.modalTitle}>Quick Add Expense</Text>
               <TouchableOpacity onPress={() => setActiveModal(null)}>
-                <Ionicons name="close" size={24} color="#3E273A" />
+                <Ionicons name="close" size={24} color="#20142a" />
               </TouchableOpacity>
             </View>
 
@@ -289,7 +289,7 @@ export default function RadialFloatingBot() {
             <View style={styles.modalHeader}>
               <Text style={styles.modalTitle}>✨ Smart Coach</Text>
               <TouchableOpacity onPress={() => setActiveModal(null)}>
-                <Ionicons name="close" size={24} color="#3E273A" />
+                <Ionicons name="close" size={24} color="#20142a" />
               </TouchableOpacity>
             </View>
 
@@ -332,7 +332,7 @@ export default function RadialFloatingBot() {
             <View style={styles.modalHeader}>
               <Text style={styles.modalTitle}>Calculator</Text>
               <TouchableOpacity onPress={() => setActiveModal(null)}>
-                <Ionicons name="close" size={24} color="#3E273A" />
+                <Ionicons name="close" size={24} color="#20142a" />
               </TouchableOpacity>
             </View>
             <Text style={{ color: "#666", marginVertical: 20 }}>
@@ -361,7 +361,7 @@ export default function RadialFloatingBot() {
             <View style={styles.modalHeader}>
               <Text style={styles.modalTitle}>Scan Receipt</Text>
               <TouchableOpacity onPress={() => setActiveModal(null)}>
-                <Ionicons name="close" size={24} color="#3E273A" />
+                <Ionicons name="close" size={24} color="#20142a" />
               </TouchableOpacity>
             </View>
             <Text style={{ color: "#666", marginVertical: 20 }}>
@@ -388,7 +388,7 @@ const styles = StyleSheet.create({
     width: 60,
     height: 60,
     borderRadius: 30,
-    backgroundColor: "#3E273A",
+    backgroundColor: "#20142a",
     justifyContent: "center",
     alignItems: "center",
     elevation: 8,
@@ -398,7 +398,7 @@ const styles = StyleSheet.create({
     shadowRadius: 5,
   },
   mainButtonExpanded: {
-    backgroundColor: "#2A1A27",
+    backgroundColor: "#20142a",
   },
   optionWrapper: {
     position: "absolute",
@@ -417,7 +417,7 @@ const styles = StyleSheet.create({
     shadowRadius: 3.84,
   },
   optionButtonActive: {
-    backgroundColor: "#3E273A",
+    backgroundColor: "#20142a",
   },
 
   // Modal Styles
@@ -442,7 +442,7 @@ const styles = StyleSheet.create({
   modalTitle: {
     fontSize: 18,
     fontWeight: "bold",
-    color: "#3E273A",
+    color: "#20142a",
   },
   input: {
     backgroundColor: "#F3EBF1",
@@ -450,11 +450,11 @@ const styles = StyleSheet.create({
     paddingHorizontal: 15,
     paddingVertical: 12,
     fontSize: 15,
-    color: "#3E273A",
+    color: "#20142a",
     marginBottom: 12,
   },
   submitBtn: {
-    backgroundColor: "#3E273A",
+    backgroundColor: "#20142a",
     borderRadius: 10,
     paddingVertical: 14,
     alignItems: "center",
@@ -473,7 +473,7 @@ const styles = StyleSheet.create({
     minHeight: 120,
   },
   chatText: {
-    color: "#3E273A",
+    color: "#20142A",
     fontSize: 14,
   },
   chatInputRow: {
@@ -482,7 +482,7 @@ const styles = StyleSheet.create({
     gap: 10,
   },
   sendBtn: {
-    backgroundColor: "#3E273A",
+    backgroundColor: "#20142a",
     padding: 12,
     borderRadius: 10,
     justifyContent: "center",
