@@ -1,28 +1,150 @@
 import { Ionicons } from "@expo/vector-icons";
+import { BlurView } from "expo-blur";
 import { Tabs } from "expo-router";
 import React from "react";
+import { Pressable, StyleSheet, View } from "react-native";
+import { useAppStore } from "../../src/store";
+
+const TabBarBackground = ({ opacity }: { opacity: number }) => (
+  <View style={styles.tabBarBackground}>
+    <BlurView intensity={70} tint="light" style={StyleSheet.absoluteFill} />
+    <View
+      style={[
+        styles.tabBarOverlay,
+        {
+          backgroundColor: `rgba(255, 255, 255, ${Math.max(0.02, opacity * 0.96)})`,
+        },
+      ]}
+    />
+  </View>
+);
+
+const GlassTabButton = ({
+  children,
+  onPress,
+  accessibilityState,
+  barOpacity,
+}: any) => {
+  const isActive = accessibilityState?.selected;
+
+  return (
+    <Pressable
+      onPress={onPress}
+      style={({ pressed }) => [
+        styles.tabButton,
+        pressed && styles.tabButtonPressed,
+      ]}
+    >
+      <BlurView
+        tint="light"
+        intensity={isActive ? 90 : 54}
+        style={[
+          styles.tabButtonGlass,
+          isActive && {
+            backgroundColor:
+              barOpacity < 0.3
+                ? "rgba(91, 78, 145, 1)"
+                : "rgba(255, 255, 255, 0.96)",
+            borderColor: "rgba(91, 78, 145, 0.38)",
+            shadowColor: "#5B4E91",
+            shadowOffset: { width: 0, height: 5 },
+            shadowOpacity: 0.24,
+            shadowRadius: 10,
+            elevation: 6,
+          },
+        ]}
+      >
+        {children}
+      </BlurView>
+    </Pressable>
+  );
+};
+
+const styles = StyleSheet.create({
+  tabBarBackground: {
+    flex: 1,
+    borderRadius: 20,
+    overflow: "hidden",
+    borderWidth: 1,
+    borderColor: "rgba(91, 78, 145, 0.16)",
+    shadowColor: "#3B2A58",
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.16,
+    shadowRadius: 16,
+    elevation: 8,
+  },
+  tabBarOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    borderRadius: 20,
+  },
+  tabButton: {
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
+    paddingHorizontal: 4,
+    paddingVertical: 2,
+  },
+  tabButtonGlass: {
+    flex: 1,
+    width: "100%",
+    justifyContent: "center",
+    alignItems: "center",
+    borderRadius: 12,
+    paddingVertical: 6,
+    backgroundColor: "rgba(255, 255, 255, 0.18)",
+    borderWidth: 1,
+    borderColor: "rgba(255, 255, 255, 0.22)",
+  },
+  tabButtonPressed: {
+    transform: [{ scale: 0.97 }],
+  },
+});
 
 export default function TabLayout() {
+  const { tabBarOpacity } = useAppStore();
+  const tabBarAlpha = Math.max(0, Math.min(1, tabBarOpacity ?? 0.72));
+
   return (
     <Tabs
       screenOptions={{
         headerShown: false,
+        tabBarBackground: () => <TabBarBackground opacity={tabBarAlpha} />,
         tabBarStyle: {
-          backgroundColor: "#FFFFFF",
-          borderTopWidth: 1,
-          borderTopColor: "#EFEFEF",
-          height: 85,
-          paddingBottom: 25,
-          paddingTop: 10,
+          position: "absolute",
+          left: 18,
+          right: 18,
+          bottom: 8,
+          height: 62,
+          borderRadius: 20,
+          paddingBottom: 6,
+          paddingTop: 4,
+          paddingHorizontal: 4,
+          backgroundColor: "transparent",
+          borderWidth: 0,
+          elevation: 0,
+          shadowOpacity: 0,
         },
-        tabBarActiveTintColor: "#20142a",
-        tabBarInactiveTintColor: "#9CA3AF",
+        tabBarActiveTintColor: "#5B4E91",
+        tabBarInactiveTintColor: "#8E8E93",
+        tabBarLabelStyle: {
+          fontSize: 11,
+          fontWeight: "600",
+          marginTop: 2,
+        },
+        tabBarItemStyle: {
+          borderRadius: 14,
+          marginHorizontal: 1,
+        },
       }}
     >
+      <View pointerEvents="none" style={StyleSheet.absoluteFill} />
       <Tabs.Screen
         name="index"
         options={{
           title: "Home",
+          tabBarButton: (props) => (
+            <GlassTabButton {...props} barOpacity={tabBarAlpha} />
+          ),
           tabBarIcon: ({ color, size }) => (
             <Ionicons name="home-outline" size={size} color={color} />
           ),
@@ -32,6 +154,9 @@ export default function TabLayout() {
         name="expenses"
         options={{
           title: "Expenses",
+          tabBarButton: (props) => (
+            <GlassTabButton {...props} barOpacity={tabBarAlpha} />
+          ),
           tabBarIcon: ({ color, size }) => (
             <Ionicons name="document-text-sharp" size={size} color={color} />
           ),
@@ -41,6 +166,9 @@ export default function TabLayout() {
         name="budget"
         options={{
           title: "Budget",
+          tabBarButton: (props) => (
+            <GlassTabButton {...props} barOpacity={tabBarAlpha} />
+          ),
           tabBarIcon: ({ color, size }) => (
             <Ionicons name="wallet-outline" size={size} color={color} />
           ),
@@ -50,6 +178,9 @@ export default function TabLayout() {
         name="analytics"
         options={{
           title: "Analytics",
+          tabBarButton: (props) => (
+            <GlassTabButton {...props} barOpacity={tabBarAlpha} />
+          ),
           tabBarIcon: ({ color, size }) => (
             <Ionicons name="bar-chart-outline" size={size} color={color} />
           ),
@@ -59,6 +190,9 @@ export default function TabLayout() {
         name="more"
         options={{
           title: "More",
+          tabBarButton: (props) => (
+            <GlassTabButton {...props} barOpacity={tabBarAlpha} />
+          ),
           tabBarIcon: ({ color, size }) => (
             <Ionicons name="ellipsis-horizontal" size={size} color={color} />
           ),
