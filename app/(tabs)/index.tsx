@@ -1,5 +1,5 @@
 import { Ionicons } from "@expo/vector-icons";
-import React from "react";
+import React, { useState } from "react";
 import {
   ImageBackground,
   ScrollView,
@@ -8,8 +8,23 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
+import { useRouter } from "expo-router";
+import { useAppStore } from "../../src/store";
 
 export default function App() {
+  const router = useRouter();
+  const { transactions } = useAppStore();
+  const [isBalanceVisible, setIsBalanceVisible] = useState(true);
+
+  const transactionsRaw = transactions || [];
+  const totalIncome = transactionsRaw
+    .filter((t: any) => t.type === "income")
+    .reduce((sum: number, t: any) => sum + t.amount, 0);
+  const totalExpenses = transactionsRaw
+    .filter((t: any) => t.type === "expense")
+    .reduce((sum: number, t: any) => sum + t.amount, 0);
+  const currentBalance = 2926.78 + totalIncome - totalExpenses;
+
   return (
     <View style={{ flex: 1, backgroundColor: "#FAFAFA" }}>
       <ScrollView
@@ -18,7 +33,11 @@ export default function App() {
       >
         {/* Header Container */}
         <View style={styles.headerContainer}>
-          <View style={styles.profileContainer}>
+          <TouchableOpacity 
+            style={styles.profileContainer} 
+            onPress={() => router.push("/profile")}
+            activeOpacity={0.7}
+          >
             <View style={styles.avatarWrapper}>
               <Ionicons name="person" size={20} color="#333" />
             </View>
@@ -28,13 +47,21 @@ export default function App() {
                 Where did your money go today?
               </Text>
             </View>
-          </View>
+          </TouchableOpacity>
 
           <View style={styles.headerIcons}>
-            <TouchableOpacity style={styles.iconButton}>
+            <TouchableOpacity 
+              style={styles.iconButton}
+              onPress={() => router.push("/notifications")}
+              activeOpacity={0.7}
+            >
               <Ionicons name="notifications-outline" size={20} color="#333" />
             </TouchableOpacity>
-            <TouchableOpacity style={styles.iconButton}>
+            <TouchableOpacity 
+              style={styles.iconButton}
+              onPress={() => router.push("/customerservice")}
+              activeOpacity={0.7}
+            >
               <Ionicons name="headset-outline" size={20} color="#333" />
             </TouchableOpacity>
           </View>
@@ -47,11 +74,25 @@ export default function App() {
           imageStyle={styles.balanceCardBg}
         >
           <View style={styles.balanceContent}>
-            <Text style={styles.balanceLabel}>
-              Available Balance{" "}
-              <Ionicons name="eye-off-outline" size={14} color="#A0A0A0" />
+            <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
+              <Text style={styles.balanceLabel}>Available Balance</Text>
+              <TouchableOpacity 
+                onPress={() => setIsBalanceVisible(!isBalanceVisible)}
+                hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
+                activeOpacity={0.7}
+              >
+                <Ionicons 
+                  name={isBalanceVisible ? "eye-outline" : "eye-off-outline"} 
+                  size={16} 
+                  color="#A0A0A0" 
+                />
+              </TouchableOpacity>
+            </View>
+            <Text style={styles.balanceAmount}>
+              {isBalanceVisible 
+                ? `$${currentBalance.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` 
+                : "$••••••"}
             </Text>
-            <Text style={styles.balanceAmount}>$2,842.50</Text>
             <View style={styles.trendBadge}>
               <Ionicons name="arrow-up" size={12} color="#10B981" />
               <Text style={styles.trendText}> 8.5% from last month</Text>
@@ -61,21 +102,33 @@ export default function App() {
 
         {/* Action Buttons */}
         <View style={styles.actionsRow}>
-          <TouchableOpacity style={styles.actionButton}>
+          <TouchableOpacity 
+            style={styles.actionButton}
+            onPress={() => router.push("/deposit")}
+            activeOpacity={0.7}
+          >
             <View style={styles.actionIconCircle}>
               <Ionicons name="download-outline" size={20} color="#FFF" />
             </View>
             <Text style={styles.actionText}>Deposit</Text>
           </TouchableOpacity>
 
-          <TouchableOpacity style={styles.actionButton}>
+          <TouchableOpacity 
+            style={styles.actionButton}
+            onPress={() => router.push("/withdraw")}
+            activeOpacity={0.7}
+          >
             <View style={styles.actionIconCircle}>
               <Ionicons name="arrow-up-outline" size={20} color="#FFF" />
             </View>
             <Text style={styles.actionText}>Withdraw</Text>
           </TouchableOpacity>
 
-          <TouchableOpacity style={styles.actionButton}>
+          <TouchableOpacity 
+            style={styles.actionButton}
+            onPress={() => router.push("/transfer")}
+            activeOpacity={0.7}
+          >
             <View style={styles.actionIconCircle}>
               <Ionicons name="swap-horizontal-outline" size={20} color="#FFF" />
             </View>
@@ -86,7 +139,9 @@ export default function App() {
         {/* This Month Section */}
         <View style={styles.sectionHeader}>
           <Text style={styles.sectionTitle}>This Month</Text>
-          <Text style={styles.viewAllText}>View all</Text>
+          <TouchableOpacity onPress={() => router.push("/(tabs)/analytics")} activeOpacity={0.7}>
+            <Text style={styles.viewAllText}>View all</Text>
+          </TouchableOpacity>
         </View>
 
         <View style={styles.metricsRow}>
@@ -134,7 +189,11 @@ export default function App() {
               more this month.
             </Text>
 
-            <TouchableOpacity style={styles.insightsButton}>
+            <TouchableOpacity 
+              style={styles.insightsButton}
+              onPress={() => router.push("/insights")}
+              activeOpacity={0.7}
+            >
               <Text style={styles.insightsButtonText}>See Insights</Text>
             </TouchableOpacity>
           </View>
@@ -146,7 +205,9 @@ export default function App() {
         {/* Top Categories Section */}
         <View style={[styles.sectionHeader, { marginTop: 24 }]}>
           <Text style={styles.sectionTitle}>Top Categories</Text>
-          <Text style={styles.viewAllText}>View all</Text>
+          <TouchableOpacity onPress={() => router.push("/(tabs)/analytics")} activeOpacity={0.7}>
+            <Text style={styles.viewAllText}>View all</Text>
+          </TouchableOpacity>
         </View>
 
         <View style={styles.categoriesRow}>
@@ -198,7 +259,9 @@ export default function App() {
         {/* Recent Transactions Section */}
         <View style={[styles.sectionHeader, { marginTop: 24 }]}>
           <Text style={styles.sectionTitle}>Recent Transactions</Text>
-          <Text style={styles.viewAllText}>View all</Text>
+          <TouchableOpacity onPress={() => router.push("/transaction-history")} activeOpacity={0.7}>
+            <Text style={styles.viewAllText}>View all</Text>
+          </TouchableOpacity>
         </View>
 
         <View style={styles.transactionsContainer}>

@@ -10,8 +10,10 @@ import {
   View,
 } from "react-native";
 import Svg, { Circle, G } from "react-native-svg";
+import { useRouter } from "expo-router";
 
 export default function ExpensesScreen() {
+  const router = useRouter();
   const [activeTab, setActiveTab] = useState("Month");
   const [searchQuery, setSearchQuery] = useState("");
 
@@ -327,7 +329,7 @@ export default function ExpensesScreen() {
         {/* Latest Transactions Section */}
         <View style={styles.sectionHeader}>
           <Text style={styles.sectionTitle}>Latest Transactions</Text>
-          <TouchableOpacity>
+          <TouchableOpacity onPress={() => router.push("/transaction-history")} activeOpacity={0.7}>
             <Text style={styles.viewAllText}>View all</Text>
           </TouchableOpacity>
         </View>
