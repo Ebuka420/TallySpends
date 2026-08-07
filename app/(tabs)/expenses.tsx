@@ -1,723 +1,512 @@
-import { FontAwesome5, Ionicons } from "@expo/vector-icons";
-import React, { useState } from "react";
+import { Ionicons } from "@expo/vector-icons";
+import DateTimePicker, {
+  DateTimePickerEvent,
+} from "@react-native-community/datetimepicker";
+import { useRouter } from "expo-router";
+import React, { useMemo, useState } from "react";
 import {
+  Modal,
+  Platform,
+  Pressable,
   SafeAreaView,
   ScrollView,
   StyleSheet,
   Text,
-  TextInput,
   TouchableOpacity,
   View,
 } from "react-native";
-import Svg, { Circle, G } from "react-native-svg";
-import { useRouter } from "expo-router";
+import { useAppStore } from "../../src/store";
+
+const categoryMeta: Record<string, { icon: any; color: string; soft: string }> =
+  {
+    "Food & Dining": {
+      icon: "fast-food-outline",
+      color: "#A9622C",
+      soft: "#F7EEE5",
+    },
+    Transport: { icon: "car-outline", color: "#586E8D", soft: "#EAF0F6" },
+    Shopping: { icon: "bag-handle-outline", color: "#846590", soft: "#F2ECF5" },
+    "Bills & Utilities": {
+      icon: "document-text-outline",
+      color: "#5B7A67",
+      soft: "#EAF2EA",
+    },
+    Entertainment: { icon: "film-outline", color: "#8A7067", soft: "#F4EEEB" },
+    Others: { icon: "ellipsis-horizontal", color: "#70706B", soft: "#EFEFEB" },
+  };
+
+const money = (amount: number) =>
+  `$${amount.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
 export default function ExpensesScreen() {
   const router = useRouter();
-  const [activeTab, setActiveTab] = useState("Month");
-  const [searchQuery, setSearchQuery] = useState("");
+  const { transactions: rawTransactions = [] } = useAppStore();
+  const [date, setDate] = useState(new Date());
+  const [showCalendar, setShowCalendar] = useState(false);
+  const [showPeriodMenu, setShowPeriodMenu] = useState(false);
+  const [period, setPeriod] = useState<"month" | "year">("month");
+  const transactions = rawTransactions as any[];
 
-  // Donut chart calculations for SVG (r = 50, circumference ≈ 314.159)
-  const radius = 50;
-  const circumference = 2 * Math.PI * radius;
+  const periodTransactions = useMemo(
+    () =>
+      transactions
+        .filter((tx) => {
+          if (tx.type !== "expense") return false;
+          const transactionDate = new Date(tx.date);
+          return period === "year"
+            ? transactionDate.getFullYear() === date.getFullYear()
+            : transactionDate.getMonth() === date.getMonth() &&
+                transactionDate.getFullYear() === date.getFullYear();
+        })
+        .sort(
+          (a, b) => new Date(b.date).getTime() - new Date(a.date).getTime(),
+        ),
+    [transactions, date, period],
+  );
 
-  // 5 Slices with exact percentages and your specified colors
-  const slices = [
-    { percent: 28, color: "#EA580C" }, // Food & Dining (Orange)
-    { percent: 23, color: "#DB2777" }, // Shopping (Pink)
-    { percent: 18, color: "#9CA3AF" }, // Others (Grey)
-    { percent: 17, color: "#059669" }, // Bills & Utilities (Green)
-    { percent: 14, color: "#4F46E5" }, // Transport (Purple)
-  ];
+  const total = periodTransactions.reduce(
+    (sum, tx) => sum + Number(tx.amount || 0),
+    0,
+  );
 
-  let accumulatedPercent = 0;
+  const categoryTotals = useMemo(() => {
+    const totals: Record<string, number> = {};
+    periodTransactions.forEach((tx) => {
+      totals[tx.category] = (totals[tx.category] || 0) + Number(tx.amount || 0);
+    });
+    return Object.entries(totals).sort((a, b) => b[1] - a[1]);
+  }, [periodTransactions]);
+
+  const grouped = useMemo(
+    () =>
+      periodTransactions
+        .slice(0, 8)
+        .reduce<Record<string, any[]>>((result, tx) => {
+          const key =
+            new Date(tx.date).toDateString() === new Date().toDateString()
+              ? "Today"
+              : new Date(tx.date).toLocaleDateString("en-US", {
+                  weekday: "long",
+                  month: "short",
+                  day: "numeric",
+                });
+          (result[key] ||= []).push(tx);
+          return result;
+        }, {}),
+    [periodTransactions],
+  );
+
+  const dateLabel =
+    period === "year"
+      ? String(date.getFullYear())
+      : date.toLocaleDateString("en-US", { month: "long", year: "numeric" });
+
+  const onDateChange = (_: DateTimePickerEvent, selected?: Date) => {
+    setShowCalendar(Platform.OS === "ios");
+    if (selected) setDate(selected);
+  };
 
   return (
-    <SafeAreaView style={styles.safeArea}>
+    <SafeAreaView style={styles.container}>
       <ScrollView
-        style={styles.container}
-        contentContainerStyle={styles.contentContainer}
+        contentContainerStyle={styles.content}
         showsVerticalScrollIndicator={false}
       >
-        {/* Header Title & Filter Icon */}
-        <View style={styles.headerTop}>
-          <View>
-            <Text style={styles.headerTitle}>Expenses</Text>
-            <Text style={styles.headerSubtitle}>
-              Track, manage and save smarter
-            </Text>
+        <View style={styles.topbar}>
+          <Text style={styles.title}>Expenses</Text>
+          <View style={styles.controls}>
+            <TouchableOpacity
+              onPress={() => setShowCalendar(true)}
+              style={styles.dateControl}
+            >
+              <Ionicons name="calendar-outline" size={14} color="#66625E" />
+              <Text style={styles.dateControlText}>{dateLabel}</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              onPress={() => setShowPeriodMenu(true)}
+              style={styles.dropButton}
+            >
+              <Ionicons name="chevron-down" size={16} color="#4B2C40" />
+            </TouchableOpacity>
           </View>
-          <TouchableOpacity style={styles.filterButton}>
-            <Ionicons name="options-outline" size={20} color="#1A1A1A" />
-          </TouchableOpacity>
         </View>
 
-        {/* Time Segmented Pills */}
-        <View style={styles.segmentedControl}>
-          {["Today", "Week", "Month", "Custom"].map((tab) => {
-            const isActive = activeTab === tab;
-            return (
+        <View style={styles.hero}>
+          <Text style={styles.overline}>
+            {period === "month"
+              ? "TOTAL SPENT THIS MONTH"
+              : "TOTAL SPENT THIS YEAR"}
+          </Text>
+          <Text style={styles.total}>{money(total)}</Text>
+          <View style={styles.trend}>
+            <Ionicons name="arrow-down" size={13} color="#63806A" />
+            <Text style={styles.trendText}>
+              Your spending is calmly on track
+            </Text>
+          </View>
+        </View>
+
+        <View style={styles.chartCard}>
+          <View style={styles.chartHeader}>
+            <Text style={styles.chartTitle}>Spending overview</Text>
+            <Text style={styles.chartTotal}>{money(total)}</Text>
+          </View>
+          <View style={styles.chart}>
+            <View style={styles.grid} />
+            {[0.24, 0.42, 0.32, 0.6, 0.52, 0.77, 1].map((height, index) => (
+              <View key={index} style={[styles.bar, { height: height * 96 }]} />
+            ))}
+          </View>
+          <View style={styles.axis}>
+            <Text style={styles.axisText}>Start</Text>
+            <Text style={styles.axisText}>Today</Text>
+          </View>
+        </View>
+
+        <View style={styles.quietStats}>
+          <View style={styles.stat}>
+            <Text style={styles.statLabel}>TRANSACTIONS</Text>
+            <Text style={styles.statValue}>{periodTransactions.length}</Text>
+            <Text style={styles.statHint}>In this period</Text>
+          </View>
+          <View style={styles.divider} />
+          <View style={styles.stat}>
+            <Text style={styles.statLabel}>AVERAGE PURCHASE</Text>
+            <Text style={styles.statValue}>
+              {money(
+                periodTransactions.length
+                  ? total / periodTransactions.length
+                  : 0,
+              )}
+            </Text>
+            <Text style={styles.statHint}>Per transaction</Text>
+          </View>
+        </View>
+
+        <Heading 
+          title="By category" 
+          action="See all" 
+          onPress={() => router.push("/transaction-history" as any)} 
+        />
+        <View style={styles.surface}>
+          {categoryTotals.slice(0, 4).map(([category, amount]) => (
+            <Pressable
+              key={category}
+              onPress={() =>
+                router.push({
+                  pathname: "/transaction-history" as any,
+                  params: { category },
+                })
+              }
+              style={styles.row}
+            >
+              {(() => {
+                const meta = categoryMeta[category] || categoryMeta.Others;
+                return (
+                  <>
+                    <View
+                      style={[styles.iconBox, { backgroundColor: meta.soft }]}
+                    >
+                      <Ionicons name={meta.icon} size={18} color={meta.color} />
+                    </View>
+                    <View style={styles.rowCopy}>
+                      <Text style={styles.rowTitle}>{category}</Text>
+                      <Text style={styles.rowSub}>
+                        {total
+                          ? `${Math.round((amount / total) * 100)}% of spending`
+                          : "No spending"}
+                      </Text>
+                    </View>
+                    <Text style={styles.rowAmount}>{money(amount)}</Text>
+                  </>
+                );
+              })()}
+            </Pressable>
+          ))}
+        </View>
+
+        <Heading 
+          title="Transactions" 
+          action="View all" 
+          onPress={() => router.push("/transaction-history" as any)} 
+        />
+        <View style={styles.transactions}>
+          {Object.entries(grouped).map(([day, items]) => (
+            <View key={day} style={styles.surface}>
+              <View style={styles.groupHeader}>
+                <Text style={styles.groupDay}>{day}</Text>
+                <Text style={styles.groupTotal}>
+                  {money(
+                    items.reduce((sum, tx) => sum + Number(tx.amount || 0), 0),
+                  )}
+                </Text>
+              </View>
+              {items.map((tx) => {
+                const meta = categoryMeta[tx.category] || categoryMeta.Others;
+                return (
+                  <Pressable
+                    key={tx.id}
+                    onPress={() => router.push("/transaction-history" as any)}
+                    style={styles.row}
+                  >
+                    <View
+                      style={[styles.iconBox, { backgroundColor: meta.soft }]}
+                    >
+                      <Ionicons name={meta.icon} size={18} color={meta.color} />
+                    </View>
+                    <View style={styles.rowCopy}>
+                      <Text style={styles.rowTitle}>{tx.title}</Text>
+                      <Text style={styles.rowSub}>{tx.category}</Text>
+                    </View>
+                    <Text style={styles.rowAmount}>
+                      {money(Number(tx.amount))}
+                    </Text>
+                  </Pressable>
+                );
+              })}
+            </View>
+          ))}
+        </View>
+        {!periodTransactions.length && (
+          <Text style={styles.empty}>
+            No expenses recorded for this period.
+          </Text>
+        )}
+      </ScrollView>
+
+      {showCalendar && (
+        <DateTimePicker
+          value={date}
+          mode="date"
+          display={Platform.OS === "ios" ? "spinner" : "default"}
+          onChange={onDateChange}
+        />
+      )}
+
+      <Modal
+        transparent
+        visible={showPeriodMenu}
+        animationType="fade"
+        onRequestClose={() => setShowPeriodMenu(false)}
+      >
+        <Pressable
+          style={styles.modal}
+          onPress={() => setShowPeriodMenu(false)}
+        >
+          <View style={styles.menu}>
+            {(["month", "year"] as const).map((item) => (
               <TouchableOpacity
-                key={tab}
-                style={[
-                  styles.segmentButton,
-                  isActive && styles.segmentButtonActive,
-                ]}
-                onPress={() => setActiveTab(tab)}
+                key={item}
+                onPress={() => {
+                  setPeriod(item);
+                  setShowPeriodMenu(false);
+                }}
+                style={styles.menuItem}
               >
                 <Text
                   style={[
-                    styles.segmentText,
-                    isActive && styles.segmentTextActive,
+                    styles.menuText,
+                    period === item && styles.menuActive,
                   ]}
                 >
-                  {tab}
+                  {item === "month" ? "This month" : "This year"}
                 </Text>
+                {period === item && (
+                  <Ionicons name="checkmark" size={16} color="#4B2C40" />
+                )}
               </TouchableOpacity>
-            );
-          })}
-        </View>
-
-        {/* Search Bar */}
-        <View style={styles.searchContainer}>
-          <Ionicons
-            name="search-outline"
-            size={18}
-            color="#9CA3AF"
-            style={styles.searchIcon}
-          />
-          <TextInput
-            style={styles.searchInput}
-            placeholder="Search items, categories..."
-            placeholderTextColor="#9CA3AF"
-            value={searchQuery}
-            onChangeText={setSearchQuery}
-          />
-        </View>
-
-        {/* Total Expenses Card */}
-        <View style={styles.balanceCard}>
-          <View style={styles.balanceCardHeader}>
-            <Text style={styles.balanceCardTitle}>Total Expenses</Text>
-            <View style={styles.dropdownBadge}>
-              <Text style={styles.dropdownText}>May 2024</Text>
-              <Ionicons name="chevron-down" size={12} color="#4B5563" />
-            </View>
+            ))}
           </View>
-
-          <Text style={styles.balanceAmount}>$3,548.28</Text>
-
-          <View style={styles.baselineRow}>
-            <View style={styles.blueSquareDot} />
-            <Text style={styles.baselineText}>Current Baseline</Text>
-          </View>
-
-          {/* Inline mini stats divider section */}
-          <View style={styles.statsSplitRow}>
-            <View style={styles.statBox}>
-              <View style={styles.statIconCircle}>
-                <Ionicons name="pulse" size={16} color="#7C3AED" />
-              </View>
-              <View>
-                <Text style={styles.statBoxLabel}>Transactions</Text>
-                <Text style={styles.statBoxValue}>31</Text>
-                <Text style={styles.statBoxSub}>Total logs</Text>
-              </View>
-            </View>
-
-            <View style={styles.statDivider} />
-
-            <View style={styles.statBox}>
-              <View
-                style={[styles.statIconCircle, { backgroundColor: "#E6F4EA" }]}
-              >
-                <Ionicons name="basket-outline" size={16} color="#137333" />
-              </View>
-              <View>
-                <Text style={styles.statBoxLabel}>Average Purchase</Text>
-                <Text style={styles.statBoxValue}>$232.20</Text>
-                <Text style={styles.statBoxSub}>Per transaction</Text>
-              </View>
-            </View>
-          </View>
-        </View>
-
-        {/* Expense Categories Section */}
-        <View style={styles.sectionHeader}>
-          <Text style={styles.sectionTitle}>Expense Categories</Text>
-          <TouchableOpacity>
-            <Text style={styles.viewAllText}>View all</Text>
-          </TouchableOpacity>
-        </View>
-
-        <View style={styles.categoriesCard}>
-          <View style={styles.categoriesRowLayout}>
-            {/* SVG 5-Slice Proportional Donut Chart */}
-            <View style={styles.donutContainer}>
-              <Svg width={140} height={140} viewBox="0 0 120 120">
-                <G rotation="-90" origin="60, 60">
-                  {slices.map((slice, index) => {
-                    const strokeDashoffset =
-                      circumference -
-                      (accumulatedPercent / 100) * circumference;
-                    const strokeDasharray = `${(slice.percent / 100) * circumference} ${circumference}`;
-                    accumulatedPercent += slice.percent;
-
-                    return (
-                      <Circle
-                        key={index}
-                        cx="60"
-                        cy="60"
-                        r={radius}
-                        stroke={slice.color}
-                        strokeWidth="16"
-                        strokeDasharray={strokeDasharray}
-                        strokeDashoffset={strokeDashoffset}
-                        fill="transparent"
-                      />
-                    );
-                  })}
-                </G>
-              </Svg>
-              <View style={styles.donutInnerOverlay}>
-                <Text style={styles.donutCenterValue}>$3,548.28</Text>
-                <Text style={styles.donutCenterSub}>Total</Text>
-              </View>
-            </View>
-
-            {/* Category Bars list */}
-            <View style={styles.categoryList}>
-              {/* Item 1: Food & Dining (Orange) */}
-              <View style={styles.categoryItem}>
-                <View
-                  style={[styles.catIconBox, { backgroundColor: "#FFF7ED" }]}
-                >
-                  <Ionicons
-                    name="restaurant-outline"
-                    size={14}
-                    color="#EA580C"
-                  />
-                </View>
-                <View style={styles.catDetails}>
-                  <View style={styles.catDetailsTop}>
-                    <Text style={styles.catName}>Food & Dining</Text>
-                    <Text style={styles.catAmount}>$1,004.72</Text>
-                  </View>
-                  <View style={styles.progressBarBg}>
-                    <View
-                      style={[
-                        styles.progressBarFill,
-                        { width: "28%", backgroundColor: "#EA580C" },
-                      ]}
-                    />
-                  </View>
-                </View>
-                <Text style={styles.catPercentage}>28%</Text>
-              </View>
-
-              {/* Item 2: Transport (Purple) */}
-              <View style={styles.categoryItem}>
-                <View
-                  style={[styles.catIconBox, { backgroundColor: "#EEF2FF" }]}
-                >
-                  <Ionicons name="car-outline" size={14} color="#4F46E5" />
-                </View>
-                <View style={styles.catDetails}>
-                  <View style={styles.catDetailsTop}>
-                    <Text style={styles.catName}>Transport</Text>
-                    <Text style={styles.catAmount}>$511.66</Text>
-                  </View>
-                  <View style={styles.progressBarBg}>
-                    <View
-                      style={[
-                        styles.progressBarFill,
-                        { width: "14%", backgroundColor: "#4F46E5" },
-                      ]}
-                    />
-                  </View>
-                </View>
-                <Text style={styles.catPercentage}>14%</Text>
-              </View>
-
-              {/* Item 3: Shopping (Pink) */}
-              <View style={styles.categoryItem}>
-                <View
-                  style={[styles.catIconBox, { backgroundColor: "#FDF2F8" }]}
-                >
-                  <Ionicons
-                    name="bag-handle-outline"
-                    size={14}
-                    color="#DB2777"
-                  />
-                </View>
-                <View style={styles.catDetails}>
-                  <View style={styles.catDetailsTop}>
-                    <Text style={styles.catName}>Shopping</Text>
-                    <Text style={styles.catAmount}>$818.99</Text>
-                  </View>
-                  <View style={styles.progressBarBg}>
-                    <View
-                      style={[
-                        styles.progressBarFill,
-                        { width: "23%", backgroundColor: "#DB2777" },
-                      ]}
-                    />
-                  </View>
-                </View>
-                <Text style={styles.catPercentage}>23%</Text>
-              </View>
-
-              {/* Item 4: Bills & Utilities (Green) */}
-              <View style={styles.categoryItem}>
-                <View
-                  style={[styles.catIconBox, { backgroundColor: "#ECFDF5" }]}
-                >
-                  <Ionicons
-                    name="document-text-outline"
-                    size={14}
-                    color="#059669"
-                  />
-                </View>
-                <View style={styles.catDetails}>
-                  <View style={styles.catDetailsTop}>
-                    <Text style={styles.catName}>Bills & Utilities</Text>
-                    <Text style={styles.catAmount}>$620.33</Text>
-                  </View>
-                  <View style={styles.progressBarBg}>
-                    <View
-                      style={[
-                        styles.progressBarFill,
-                        { width: "17%", backgroundColor: "#059669" },
-                      ]}
-                    />
-                  </View>
-                </View>
-                <Text style={styles.catPercentage}>17%</Text>
-              </View>
-
-              {/* Item 5: Others (Grey) */}
-              <View style={[styles.categoryItem, { borderBottomWidth: 0 }]}>
-                <View
-                  style={[styles.catIconBox, { backgroundColor: "#F3F4F6" }]}
-                >
-                  <Ionicons
-                    name="ellipsis-horizontal"
-                    size={14}
-                    color="#4B5563"
-                  />
-                </View>
-                <View style={styles.catDetails}>
-                  <View style={styles.catDetailsTop}>
-                    <Text style={styles.catName}>Others</Text>
-                    <Text style={styles.catAmount}>$592.58</Text>
-                  </View>
-                  <View style={styles.progressBarBg}>
-                    <View
-                      style={[
-                        styles.progressBarFill,
-                        { width: "18%", backgroundColor: "#9CA3AF" },
-                      ]}
-                    />
-                  </View>
-                </View>
-                <Text style={styles.catPercentage}>18%</Text>
-              </View>
-            </View>
-          </View>
-        </View>
-
-        {/* Latest Transactions Section */}
-        <View style={styles.sectionHeader}>
-          <Text style={styles.sectionTitle}>Latest Transactions</Text>
-          <TouchableOpacity onPress={() => router.push("/transaction-history")} activeOpacity={0.7}>
-            <Text style={styles.viewAllText}>View all</Text>
-          </TouchableOpacity>
-        </View>
-
-        <View style={styles.transactionsCard}>
-          <View style={styles.transactionRow}>
-            <View style={[styles.merchantAvatar, { backgroundColor: "#000" }]}>
-              <Text style={styles.merchantInitial}>U</Text>
-            </View>
-            <View style={styles.transactionInfo}>
-              <Text style={styles.merchantName}>Uber</Text>
-              <Text style={styles.merchantCategory}>Transport</Text>
-            </View>
-            <View style={styles.transactionAmountGroup}>
-              <Text style={styles.expenseAmountText}>-$18.40</Text>
-              <Text style={styles.transactionTimeText}>Today</Text>
-            </View>
-          </View>
-
-          <View style={styles.transactionRow}>
-            <View
-              style={[styles.merchantAvatar, { backgroundColor: "#006241" }]}
-            >
-              <FontAwesome5 name="starbucks" size={14} color="#FFF" />
-            </View>
-            <View style={styles.transactionInfo}>
-              <Text style={styles.merchantName}>Starbucks</Text>
-              <Text style={styles.merchantCategory}>Food & Dining</Text>
-            </View>
-            <View style={styles.transactionAmountGroup}>
-              <Text style={styles.expenseAmountText}>-$5.20</Text>
-              <Text style={styles.transactionTimeText}>Today</Text>
-            </View>
-          </View>
-
-          <View style={[styles.transactionRow, { borderBottomWidth: 0 }]}>
-            <View
-              style={[styles.merchantAvatar, { backgroundColor: "#FCE7F3" }]}
-            >
-              <Ionicons name="bag-handle" size={14} color="#DB2777" />
-            </View>
-            <View style={styles.transactionInfo}>
-              <Text style={styles.merchantName}>Zara</Text>
-              <Text style={styles.merchantCategory}>Shopping</Text>
-            </View>
-            <View style={styles.transactionAmountGroup}>
-              <Text style={styles.expenseAmountText}>-$89.90</Text>
-              <Text style={styles.transactionTimeText}>Yesterday</Text>
-            </View>
-          </View>
-        </View>
-      </ScrollView>
+        </Pressable>
+      </Modal>
     </SafeAreaView>
   );
 }
 
+function Heading({ title, action, onPress }: { title: string; action: string; onPress?: () => void }) {
+  return (
+    <View style={styles.heading}>
+      <Text style={styles.headingTitle}>{title}</Text>
+      <TouchableOpacity onPress={onPress}>
+        <Text style={styles.action}>{action}</Text>
+      </TouchableOpacity>
+    </View>
+  );
+}
+
 const styles = StyleSheet.create({
-  safeArea: {
-    flex: 1,
-    backgroundColor: "#F9FAFB",
-  },
-  container: {
-    flex: 1,
-  },
-  contentContainer: {
-    paddingHorizontal: 20,
-    paddingTop: 16,
-    paddingBottom: 40,
-  },
-  headerTop: {
+  container: { flex: 1, backgroundColor: "#FAFAF8" },
+  content: { padding: 20, paddingBottom: 120 },
+  topbar: {
+    alignItems: "center",
     flexDirection: "row",
     justifyContent: "space-between",
-    alignItems: "center",
-    marginBottom: 16,
   },
-  headerTitle: {
-    fontSize: 22,
+  title: {
+    fontSize: 25,
     fontWeight: "700",
-    color: "#111827",
+    letterSpacing: -0.7,
+    color: "#201D1B",
   },
-  headerSubtitle: {
-    fontSize: 13,
-    color: "#6B7280",
-    marginTop: 2,
-  },
-  filterButton: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: "#FFFFFF",
-    borderWidth: 1,
-    borderColor: "#E5E7EB",
-    justifyContent: "center",
+  controls: { flexDirection: "row", gap: 7 },
+  dateControl: {
     alignItems: "center",
-  },
-  segmentedControl: {
-    flexDirection: "row",
-    backgroundColor: "#FFFFFF",
-    borderRadius: 24,
-    padding: 4,
+    backgroundColor: "#FFF",
+    borderColor: "#EAE7E3",
+    borderRadius: 17,
     borderWidth: 1,
-    borderColor: "#F3F4F6",
-    marginBottom: 16,
-  },
-  segmentButton: {
-    flex: 1,
+    flexDirection: "row",
+    gap: 6,
+    paddingHorizontal: 11,
     paddingVertical: 8,
+  },
+  dateControlText: { fontSize: 12, fontWeight: "600", color: "#514C48" },
+  dropButton: {
     alignItems: "center",
-    borderRadius: 20,
-  },
-  segmentButtonActive: {
-    backgroundColor: "#20142a",
-  },
-  segmentText: {
-    fontSize: 13,
-    fontWeight: "500",
-    color: "#4B5563",
-  },
-  segmentTextActive: {
-    color: "#FFFFFF",
-    fontWeight: "600",
-  },
-  searchContainer: {
-    flexDirection: "row",
-    alignItems: "center",
-    backgroundColor: "#FFFFFF",
-    borderWidth: 1,
-    borderColor: "#E5E7EB",
-    borderRadius: 12,
-    paddingHorizontal: 12,
-    height: 44,
-    marginBottom: 16,
-  },
-  searchIcon: {
-    marginRight: 8,
-  },
-  searchInput: {
-    flex: 1,
-    fontSize: 14,
-    color: "#111827",
-  },
-  balanceCard: {
-    backgroundColor: "#FFFFFF",
-    borderRadius: 20,
-    padding: 16,
-    borderWidth: 1,
-    borderColor: "#F3F4F6",
-    marginBottom: 20,
-  },
-  balanceCardHeader: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-  },
-  balanceCardTitle: {
-    fontSize: 13,
-    color: "#6B7280",
-  },
-  dropdownBadge: {
-    flexDirection: "row",
-    alignItems: "center",
-    backgroundColor: "#F3F4F6",
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-    borderRadius: 12,
-    gap: 4,
-  },
-  dropdownText: {
-    fontSize: 12,
-    fontWeight: "500",
-    color: "#374151",
-  },
-  balanceAmount: {
-    fontSize: 28,
-    fontWeight: "700",
-    color: "#111827",
-    marginVertical: 4,
-  },
-  baselineRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    marginBottom: 16,
-  },
-  blueSquareDot: {
-    width: 8,
-    height: 8,
-    backgroundColor: "#3B82F6",
-    borderRadius: 2,
-    marginRight: 6,
-  },
-  baselineText: {
-    fontSize: 12,
-    color: "#3B82F6",
-    fontWeight: "500",
-  },
-  statsSplitRow: {
-    flexDirection: "row",
-    borderTopWidth: 1,
-    borderTopColor: "#F3F4F6",
-    paddingTop: 12,
-  },
-  statBox: {
-    flex: 1,
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 10,
-  },
-  statDivider: {
-    width: 1,
-    backgroundColor: "#F3F4F6",
-    marginHorizontal: 12,
-  },
-  statIconCircle: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    backgroundColor: "#F3E8FF",
+    backgroundColor: "#F4EFF2",
+    borderRadius: 17,
     justifyContent: "center",
-    alignItems: "center",
+    width: 34,
+    height: 34,
   },
-  statBoxLabel: {
-    fontSize: 11,
-    color: "#9CA3AF",
-  },
-  statBoxValue: {
-    fontSize: 14,
-    fontWeight: "700",
-    color: "#111827",
-  },
-  statBoxSub: {
+  hero: { alignItems: "center", paddingVertical: 39 },
+  overline: {
     fontSize: 10,
-    color: "#9CA3AF",
-  },
-  sectionHeader: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    marginBottom: 12,
-  },
-  sectionTitle: {
-    fontSize: 16,
     fontWeight: "700",
-    color: "#111827",
+    letterSpacing: 1.15,
+    color: "#928D88",
   },
-  viewAllText: {
-    fontSize: 13,
-    color: "#4F46E5",
-    fontWeight: "600",
-  },
-  categoriesCard: {
-    backgroundColor: "#FFFFFF",
-    borderRadius: 20,
-    padding: 16,
-    borderWidth: 1,
-    borderColor: "#F3F4F6",
-    marginBottom: 20,
-  },
-  categoriesRowLayout: {
-    flexDirection: "column",
-    gap: 16,
-  },
-  donutContainer: {
-    alignItems: "center",
-    justifyContent: "center",
-    paddingVertical: 10,
-    position: "relative",
-    height: 140,
-  },
-  donutInnerOverlay: {
-    position: "absolute",
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  donutCenterValue: {
-    fontSize: 14,
+  total: {
+    fontSize: 46,
     fontWeight: "700",
-    color: "#111827",
+    letterSpacing: -2.1,
+    color: "#1C1917",
+    marginTop: 7,
   },
-  donutCenterSub: {
-    fontSize: 11,
-    color: "#6B7280",
-  },
-  categoryList: {
-    width: "100%",
-  },
-  categoryItem: {
-    flexDirection: "row",
-    alignItems: "center",
-    paddingVertical: 10,
-    borderBottomWidth: 1,
-    borderBottomColor: "#F9FAFB",
-  },
-  catIconBox: {
-    width: 28,
-    height: 28,
-    borderRadius: 8,
-    justifyContent: "center",
-    alignItems: "center",
-    marginRight: 10,
-  },
-  catDetails: {
-    flex: 1,
-    marginRight: 10,
-  },
-  catDetailsTop: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    marginBottom: 4,
-  },
-  catName: {
-    fontSize: 13,
-    fontWeight: "500",
-    color: "#374151",
-  },
-  catAmount: {
-    fontSize: 13,
-    fontWeight: "600",
-    color: "#111827",
-  },
-  progressBarBg: {
-    height: 4,
-    backgroundColor: "#F3F4F6",
-    borderRadius: 2,
-    width: "100%",
-  },
-  progressBarFill: {
-    height: "100%",
-    borderRadius: 2,
-  },
-  catPercentage: {
-    fontSize: 12,
-    fontWeight: "600",
-    color: "#6B7280",
-    width: 32,
-    textAlign: "right",
-  },
-  transactionsCard: {
-    backgroundColor: "#FFFFFF",
-    borderRadius: 20,
-    paddingHorizontal: 16,
-    paddingVertical: 4,
+  trend: { alignItems: "center", flexDirection: "row", gap: 5, marginTop: 9 },
+  trendText: { fontSize: 13, color: "#85807B" },
+  chartCard: {
+    backgroundColor: "#FFF",
+    borderColor: "#ECE9E5",
+    borderRadius: 24,
     borderWidth: 1,
-    borderColor: "#F3F4F6",
+    padding: 18,
   },
-  transactionRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    paddingVertical: 12,
-    borderBottomWidth: 1,
-    borderBottomColor: "#F3F4F6",
-  },
-  merchantAvatar: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    justifyContent: "center",
-    alignItems: "center",
-    marginRight: 12,
-  },
-  merchantInitial: {
-    color: "#FFFFFF",
-    fontWeight: "bold",
-    fontSize: 14,
-  },
-  transactionInfo: {
-    flex: 1,
-  },
-  merchantName: {
-    fontSize: 14,
-    fontWeight: "600",
-    color: "#111827",
-  },
-  merchantCategory: {
-    fontSize: 12,
-    color: "#6B7280",
-    marginTop: 2,
-  },
-  transactionAmountGroup: {
+  chartHeader: { flexDirection: "row", justifyContent: "space-between" },
+  chartTitle: { fontSize: 13, fontWeight: "500", color: "#77716C" },
+  chartTotal: { fontSize: 13, fontWeight: "700", color: "#2B2724" },
+  chart: {
     alignItems: "flex-end",
+    borderBottomColor: "#EEEAE6",
+    borderBottomWidth: 1,
+    flexDirection: "row",
+    height: 112,
+    justifyContent: "space-between",
+    marginTop: 18,
+    paddingHorizontal: 3,
   },
-  expenseAmountText: {
-    fontSize: 14,
-    fontWeight: "600",
-    color: "#111827",
+  grid: {
+    backgroundColor: "#F1EEEA",
+    height: 1,
+    left: 0,
+    position: "absolute",
+    right: 0,
+    top: 44,
   },
-  transactionTimeText: {
-    fontSize: 11,
-    color: "#9CA3AF",
-    marginTop: 2,
+  bar: {
+    backgroundColor: "#4B2C40",
+    borderRadius: 3,
+    opacity: 0.9,
+    width: "8%",
   },
+  axis: { flexDirection: "row", justifyContent: "space-between", marginTop: 8 },
+  axisText: { color: "#A29B96", fontSize: 11 },
+  quietStats: {
+    backgroundColor: "#F2F0ED",
+    borderRadius: 20,
+    flexDirection: "row",
+    marginTop: 14,
+    padding: 17,
+  },
+  stat: { flex: 1 },
+  divider: { backgroundColor: "#DDD8D3", marginHorizontal: 12, width: 1 },
+  statLabel: {
+    color: "#948E89",
+    fontSize: 9,
+    fontWeight: "700",
+    letterSpacing: 0.7,
+  },
+  statValue: {
+    color: "#332E2A",
+    fontSize: 18,
+    fontWeight: "700",
+    marginTop: 5,
+  },
+  statHint: { color: "#8C8681", fontSize: 10, marginTop: 4 },
+  heading: {
+    alignItems: "center",
+    flexDirection: "row",
+    justifyContent: "space-between",
+    marginBottom: 12,
+    marginTop: 31,
+  },
+  headingTitle: { color: "#2B2724", fontSize: 18, fontWeight: "700" },
+  action: { color: "#756E69", fontSize: 12, fontWeight: "600" },
+  surface: {
+    backgroundColor: "#FFF",
+    borderColor: "#ECE9E5",
+    borderRadius: 21,
+    borderWidth: 1,
+    overflow: "hidden",
+  },
+  row: {
+    alignItems: "center",
+    flexDirection: "row",
+    minHeight: 70,
+    paddingHorizontal: 15,
+  },
+  iconBox: {
+    alignItems: "center",
+    borderRadius: 13,
+    height: 40,
+    justifyContent: "center",
+    width: 40,
+  },
+  rowCopy: { flex: 1, marginLeft: 12 },
+  rowTitle: { color: "#302B27", fontSize: 14, fontWeight: "600" },
+  rowSub: { color: "#9C9691", fontSize: 11, marginTop: 3 },
+  rowAmount: { color: "#37312D", fontSize: 14, fontWeight: "700" },
+  transactions: { gap: 15 },
+  groupHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    paddingHorizontal: 15,
+    paddingTop: 14,
+  },
+  groupDay: { color: "#7D7671", fontSize: 12, fontWeight: "600" },
+  groupTotal: { color: "#7D7671", fontSize: 12, fontWeight: "600" },
+  empty: { color: "#99938E", fontSize: 13, textAlign: "center", marginTop: 22 },
+  modal: {
+    backgroundColor: "rgba(25,20,18,.18)",
+    flex: 1,
+    justifyContent: "flex-start",
+    paddingRight: 20,
+    paddingTop: 74,
+  },
+  menu: {
+    alignSelf: "flex-end",
+    backgroundColor: "#FFF",
+    borderRadius: 16,
+    elevation: 5,
+    overflow: "hidden",
+    width: 160,
+  },
+  menuItem: {
+    alignItems: "center",
+    flexDirection: "row",
+    justifyContent: "space-between",
+    padding: 15,
+  },
+  menuText: { color: "#716A65", fontSize: 13 },
+  menuActive: { color: "#4B2C40", fontWeight: "700" },
 });

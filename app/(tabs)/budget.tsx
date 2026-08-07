@@ -1,4 +1,4 @@
-import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
+import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import React from "react";
 import {
@@ -33,68 +33,23 @@ export default function BudgetScreen() {
         contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator={false}
       >
-        {/* --- BUDGET OVERVIEW CARD --- */}
-        <View style={styles.overviewCard}>
-          <Text style={styles.usageLabel}>You've used</Text>
-          <View style={styles.usageRow}>
-            <Text style={styles.usageMainAmount}>
-              $2,158{" "}
-              <Text style={styles.usageSubAmount}>of your $5,000 budget</Text>
-            </Text>
-            <View style={styles.percentageBadge}>
-              <Text style={styles.percentageText}>43%</Text>
-              <Text style={styles.percentageSub}>remaining</Text>
-            </View>
-          </View>
-
-          {/* Master Progress Bar */}
-          <View style={styles.masterProgressBg}>
-            <View style={[styles.masterProgressBar, { width: "43%" }]} />
-          </View>
-
-          {/* Metrics Breakdowns */}
-          <View style={styles.metricsGrid}>
-            <View style={styles.metricItem}>
-              <View
-                style={[styles.metricIconBox, { backgroundColor: "#F9F3F6" }]}
-              >
-                <Ionicons name="briefcase-outline" size={14} color="#4B2C40" />
-              </View>
+        <View style={styles.budgetCardStack}>
+          <View style={styles.budgetCardBack} />
+          <View style={styles.budgetCard}>
+            <View style={styles.budgetCardTop}>
               <View>
-                <Text style={styles.metricItemLabel}>Total Budget</Text>
-                <Text style={styles.metricItemValue}>$5,000</Text>
+                <Text style={styles.budgetCardLabel}>MONTHLY BUDGET</Text>
+                <Text style={styles.budgetCardTitle}>April plan</Text>
               </View>
             </View>
-
-            <View style={styles.metricItem}>
-              <View
-                style={[styles.metricIconBox, { backgroundColor: "#F5EEF0" }]}
-              >
-                <MaterialCommunityIcons
-                  name="arrow-top-right"
-                  size={14}
-                  color="#A04000"
-                />
-              </View>
-              <View>
-                <Text style={styles.metricItemLabel}>Spent</Text>
-                <Text style={styles.metricItemValue}>$2,158</Text>
-              </View>
-            </View>
-
-            <View style={styles.metricItem}>
-              <View
-                style={[styles.metricIconBox, { backgroundColor: "#EBF5FB" }]}
-              >
-                <Ionicons name="arrow-up-outline" size={14} color="#27AE60" />
-              </View>
-              <View>
-                <Text style={styles.metricItemLabel}>Remaining</Text>
-                <Text style={[styles.metricItemValue, { color: "#27AE60" }]}>
-                  $2,842
-                </Text>
-              </View>
-            </View>
+            <TouchableOpacity style={styles.budgetCardAction}>
+              <View style={styles.budgetCardActionIcon}><Ionicons name="add" size={16} color="#624B6A" /></View>
+              <Text style={styles.budgetCardActionText}>Add budget</Text>
+            </TouchableOpacity>
+            <View style={styles.budgetPercent}><Text style={styles.budgetPercentValue}>43%</Text><Text style={styles.budgetPercentLabel}>left</Text></View>
+            <Text style={styles.budgetCardAmount}>$2,842<Text style={styles.budgetCardSubAmount}> remaining</Text></Text>
+            <Text style={styles.budgetCardHelper}>$2,158 spent from your $5,000 monthly budget</Text>
+            <View style={styles.budgetProgressTrack}><View style={styles.budgetProgressFill} /></View>
           </View>
         </View>
 
@@ -102,8 +57,8 @@ export default function BudgetScreen() {
         <View style={styles.sectionHeader}>
           <Text style={styles.sectionTitle}>Budget Categories</Text>
           <TouchableOpacity style={styles.addSectionButton}>
-            <Ionicons name="add-circle" size={16} color="#4B2C40" />
-            <Text style={styles.addSectionText}>Add Budget</Text>
+            <View style={styles.addSectionIcon}><Ionicons name="add" size={13} color="#624B6A" /></View>
+            <Text style={styles.addSectionText}>Add budget</Text>
           </TouchableOpacity>
         </View>
 
@@ -116,9 +71,9 @@ export default function BudgetScreen() {
           <View style={styles.categoryCard}>
             <View style={styles.cardTopRow}>
               <View
-                style={[styles.catIconFrame, { backgroundColor: "#FEF5ED" }]}
+                style={[styles.catIconFrame, { backgroundColor: "#F3EBF1" }]}
               >
-                <Ionicons name="fast-food-outline" size={16} color="#E67E22" />
+                <Ionicons name="fast-food-outline" size={16} color="#4B2C40" />
               </View>
               <Ionicons name="ellipsis-vertical" size={14} color="#BBB" />
             </View>
@@ -130,7 +85,7 @@ export default function BudgetScreen() {
               <View
                 style={[
                   styles.catProgressBar,
-                  { width: "75%", backgroundColor: "#E67E22" },
+                  { width: "75%", backgroundColor: "#4B2C40" },
                 ]}
               />
             </View>
@@ -138,7 +93,7 @@ export default function BudgetScreen() {
               <Text style={styles.cardStatusPercent}>75%</Text>
               <View style={styles.statusDotRow}>
                 <View
-                  style={[styles.statusDot, { backgroundColor: "#F39C12" }]}
+                  style={[styles.statusDot, { backgroundColor: "#8B6599" }]}
                 />
                 <Text style={styles.statusDotText}>Near limit</Text>
               </View>
@@ -149,9 +104,9 @@ export default function BudgetScreen() {
           <View style={styles.categoryCard}>
             <View style={styles.cardTopRow}>
               <View
-                style={[styles.catIconFrame, { backgroundColor: "#F5EEF8" }]}
+                style={[styles.catIconFrame, { backgroundColor: "#EEE4F0" }]}
               >
-                <Ionicons name="car-outline" size={16} color="#8E44AD" />
+                <Ionicons name="car-outline" size={16} color="#6C4C7A" />
               </View>
               <Ionicons name="ellipsis-vertical" size={14} color="#BBB" />
             </View>
@@ -163,7 +118,7 @@ export default function BudgetScreen() {
               <View
                 style={[
                   styles.catProgressBar,
-                  { width: "61%", backgroundColor: "#8E44AD" },
+                  { width: "61%", backgroundColor: "#6C4C7A" },
                 ]}
               />
             </View>
@@ -171,7 +126,7 @@ export default function BudgetScreen() {
               <Text style={styles.cardStatusPercent}>61%</Text>
               <View style={styles.statusDotRow}>
                 <View
-                  style={[styles.statusDot, { backgroundColor: "#2ECC71" }]}
+                  style={[styles.statusDot, { backgroundColor: "#8B6599" }]}
                 />
                 <Text style={styles.statusDotText}>On track</Text>
               </View>
@@ -182,9 +137,9 @@ export default function BudgetScreen() {
           <View style={styles.categoryCard}>
             <View style={styles.cardTopRow}>
               <View
-                style={[styles.catIconFrame, { backgroundColor: "#FDEDEC" }]}
+                style={[styles.catIconFrame, { backgroundColor: "#F7F0F8" }]}
               >
-                <Ionicons name="bag-handle-outline" size={16} color="#E74C3C" />
+                <Ionicons name="bag-handle-outline" size={16} color="#8B6599" />
               </View>
               <Ionicons name="ellipsis-vertical" size={14} color="#BBB" />
             </View>
@@ -196,7 +151,7 @@ export default function BudgetScreen() {
               <View
                 style={[
                   styles.catProgressBar,
-                  { width: "100%", backgroundColor: "#E74C3C" },
+                  { width: "100%", backgroundColor: "#8B6599" },
                 ]}
               />
             </View>
@@ -204,9 +159,9 @@ export default function BudgetScreen() {
               <Text style={styles.cardStatusPercent}>129%</Text>
               <View style={styles.statusDotRow}>
                 <View
-                  style={[styles.statusDot, { backgroundColor: "#E74C3C" }]}
+                  style={[styles.statusDot, { backgroundColor: "#8B6599" }]}
                 />
-                <Text style={[styles.statusDotText, { color: "#E74C3C" }]}>
+                <Text style={[styles.statusDotText, { color: "#6C4C7A" }]}>
                   Exceeded
                 </Text>
               </View>
@@ -218,8 +173,8 @@ export default function BudgetScreen() {
         <View style={styles.sectionHeader}>
           <Text style={styles.sectionTitle}>Savings Goals</Text>
           <TouchableOpacity style={styles.addSectionButton}>
-            <Ionicons name="add-circle" size={16} color="#4B2C40" />
-            <Text style={styles.addSectionText}>Add Goal</Text>
+            <View style={styles.addSectionIcon}><Ionicons name="add" size={13} color="#624B6A" /></View>
+            <Text style={styles.addSectionText}>Add goal</Text>
           </TouchableOpacity>
         </View>
 
@@ -331,7 +286,7 @@ export default function BudgetScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#FAFAFA",
+    backgroundColor: "#FFFEFF",
   },
   scrollContent: {
     paddingBottom: 110,
@@ -343,7 +298,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "space-between",
     paddingHorizontal: 16,
-    backgroundColor: "#FFF",
+    backgroundColor: "#FFFFFF",
   },
   headerSpacer: {
     width: 40,
@@ -357,6 +312,156 @@ const styles = StyleSheet.create({
     width: 40,
     alignItems: "flex-end",
     justifyContent: "center",
+  },
+  budgetCardStack: {
+    marginHorizontal: 16,
+    marginTop: 22,
+    paddingTop: 12,
+    position: "relative",
+  },
+  budgetCardBack: {
+    backgroundColor: "#E9DFEC",
+    borderRadius: 23,
+    height: "100%",
+    left: 10,
+    opacity: 0.9,
+    position: "absolute",
+    right: 10,
+    top: 0,
+  },
+  budgetCard: {
+    backgroundColor: "#20142A",
+    borderRadius: 23,
+    minHeight: 226,
+    overflow: "hidden",
+    padding: 20,
+  },
+  budgetCardTop: {
+    alignItems: "flex-start",
+    flexDirection: "row",
+    justifyContent: "space-between",
+  },
+  budgetCardAction: {
+    alignItems: "center",
+    backgroundColor: "#382440",
+    borderBottomLeftRadius: 19,
+    borderTopLeftRadius: 19,
+    flexDirection: "row",
+    paddingBottom: 6,
+    paddingLeft: 6,
+    paddingRight: 12,
+    paddingTop: 6,
+    position: "absolute",
+    height: 38,
+    right: -1,
+    top: 17,
+    width: 120,
+  },
+  budgetCardActionIcon: {
+    alignItems: "center",
+    backgroundColor: "#FDF9FE",
+    borderRadius: 13,
+    height: 26,
+    justifyContent: "center",
+    marginRight: 7,
+    width: 26,
+  },
+  budgetCardActionText: {
+    color: "#FFFFFF",
+    fontSize: 12,
+    fontWeight: "700",
+  },
+  budgetCardLabel: {
+    color: "#DCCFE2",
+    fontSize: 10,
+    fontWeight: "700",
+    letterSpacing: 1.1,
+  },
+  budgetCardTitle: {
+    color: "#FFFFFF",
+    fontSize: 16,
+    fontWeight: "600",
+    marginTop: 5,
+  },
+  budgetPercent: {
+    alignItems: "center",
+    backgroundColor: "rgba(255,255,255,0.13)",
+    borderColor: "rgba(255,255,255,0.18)",
+    borderRadius: 13,
+    borderWidth: 1,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    position: "absolute",
+    right: 20,
+    top: 96,
+  },
+  budgetPercentValue: {
+    color: "#FFFFFF",
+    fontSize: 14,
+    fontWeight: "700",
+  },
+  budgetPercentLabel: {
+    color: "#DCCFE2",
+    fontSize: 9,
+    marginTop: 1,
+  },
+  budgetCardAmount: {
+    color: "#FFFFFF",
+    fontSize: 34,
+    fontWeight: "700",
+    letterSpacing: -1.1,
+    marginTop: 23,
+  },
+  budgetCardSubAmount: {
+    color: "#DCCFE2",
+    fontSize: 13,
+    fontWeight: "500",
+    letterSpacing: 0,
+  },
+  budgetCardHelper: {
+    color: "#CDBED4",
+    fontSize: 12,
+    marginTop: 6,
+  },
+  budgetProgressTrack: {
+    backgroundColor: "rgba(255,255,255,0.18)",
+    borderRadius: 4,
+    height: 6,
+    marginTop: 16,
+    overflow: "hidden",
+  },
+  budgetProgressFill: {
+    backgroundColor: "#FFFFFF",
+    borderRadius: 4,
+    height: "100%",
+    width: "57%",
+  },
+  addBudgetButton: {
+    alignItems: "center",
+    alignSelf: "flex-end",
+    backgroundColor: "#FFFFFF",
+    borderRadius: 20,
+    bottom: 17,
+    flexDirection: "row",
+    paddingBottom: 6,
+    paddingLeft: 7,
+    paddingRight: 13,
+    paddingTop: 6,
+    position: "absolute",
+  },
+  addBudgetIcon: {
+    alignItems: "center",
+    backgroundColor: "#F0E6F2",
+    borderRadius: 13,
+    height: 26,
+    justifyContent: "center",
+    marginRight: 7,
+    width: 26,
+  },
+  addBudgetButtonText: {
+    color: "#20142A",
+    fontSize: 12,
+    fontWeight: "700",
   },
   /* Overview Card */
   overviewCard: {
@@ -460,14 +565,30 @@ const styles = StyleSheet.create({
     color: "#1A1A1A",
   },
   addSectionButton: {
-    flexDirection: "row",
     alignItems: "center",
+    backgroundColor: "#20142A",
+    borderRadius: 16,
+    flexDirection: "row",
+    height: 38,
+    paddingBottom: 6,
+    paddingLeft: 6,
+    paddingRight: 12,
+    paddingTop: 6,
+    width: 120,
+  },
+  addSectionIcon: {
+    alignItems: "center",
+    backgroundColor: "#FDF9FE",
+    borderRadius: 13,
+    height: 26,
+    justifyContent: "center",
+    marginRight: 7,
+    width: 26,
   },
   addSectionText: {
     fontSize: 12,
-    color: "#4B2C40",
-    fontWeight: "600",
-    marginLeft: 4,
+    color: "#FFFFFF",
+    fontWeight: "700",
   },
   horizontalRow: {
     paddingLeft: 16,
