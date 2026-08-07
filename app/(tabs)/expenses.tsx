@@ -1,1545 +1,486 @@
-import { Ionicons, Octicons } from "@expo/vector-icons";
+import { Ionicons } from "@expo/vector-icons";
 import DateTimePicker, {
   DateTimePickerEvent,
 } from "@react-native-community/datetimepicker";
 import { useRouter } from "expo-router";
-import React, { useEffect, useMemo, useRef, useState } from "react";
+import { useMemo, useState } from "react";
 import {
-  Alert,
-  Animated,
-  KeyboardAvoidingView,
   Modal,
-  PanResponder,
   Platform,
   Pressable,
   SafeAreaView,
   ScrollView,
   StyleSheet,
   Text,
-  TextInput,
   TouchableOpacity,
   View,
 } from "react-native";
 import { useAppStore } from "../../src/store";
 
-type TimePeriod = "today" | "week" | "month" | "custom";
-
-interface Transaction {
-  id: string;
-  title: string;
-  category: string;
-  date: string;
-  amount: number;
-  type: "income" | "expense";
-}
-
-// SwipeableRow Component using PanResponder and Animated
-const SwipeableRow = ({
-  children,
-  onEdit,
-  onDelete,
-}: {
-  children: React.ReactNode;
-  onEdit: () => void;
-  onDelete: () => void;
-}) => {
-  const translateX = useRef(new Animated.Value(0)).current;
-
-  const panResponder = useRef(
-    PanResponder.create({
-      onStartShouldSetPanResponder: () => false,
-      onMoveShouldSetPanResponder: (_, gestureState) => {
-        return Math.abs(gestureState.dx) > 10 && Math.abs(gestureState.dy) < 10;
-      },
-      onPanResponderMove: (_, gestureState) => {
-        const newX = gestureState.dx;
-        if (newX < 0) {
-          translateX.setValue(Math.max(-120, newX));
-        } else {
-          translateX.setValue(Math.min(0, newX));
-        }
-      },
-      onPanResponderRelease: (_, gestureState) => {
-        if (gestureState.dx < -60) {
-          Animated.spring(translateX, {
-            toValue: -120,
-            useNativeDriver: true,
-            bounciness: 4,
-          }).start();
-        } else {
-          Animated.spring(translateX, {
-            toValue: 0,
-            useNativeDriver: true,
-            bounciness: 4,
-          }).start();
-        }
-      },
-    }),
-  ).current;
-
-  const closeRow = () => {
-    Animated.spring(translateX, {
-      toValue: 0,
-      useNativeDriver: true,
-    }).start();
+const categoryMeta: Record<string, { icon: any; color: string; soft: string }> =
+  {
+    "Food & Dining": {
+      icon: "fast-food-outline",
+      color: "#A9622C",
+      soft: "#F7EEE5",
+    },
+    Transport: { icon: "car-outline", color: "#586E8D", soft: "#EAF0F6" },
+    Shopping: { icon: "bag-handle-outline", color: "#846590", soft: "#F2ECF5" },
+    "Bills & Utilities": {
+      icon: "document-text-outline",
+      color: "#5B7A67",
+      soft: "#EAF2EA",
+    },
+    Entertainment: { icon: "film-outline", color: "#8A7067", soft: "#F4EEEB" },
+    Others: { icon: "ellipsis-horizontal", color: "#70706B", soft: "#EFEFEB" },
   };
-
-  return (
-    <View style={styles.swipeContainer}>
-      <View style={styles.swipeActionsBackground}>
-        <TouchableOpacity
-          style={[styles.swipeActionBtn, { backgroundColor: "#F5EBDF" }]}
-          onPress={() => {
-            closeRow();
-            onEdit();
-          }}
-        >
-          <Ionicons name="pencil" size={16} color="#A04000" />
-        </TouchableOpacity>
-        <TouchableOpacity
-          style={[styles.swipeActionBtn, { backgroundColor: "#FADBD8" }]}
-          onPress={() => {
-            closeRow();
-            onDelete();
-          }}
-        >
-          <Ionicons name="trash-outline" size={16} color="#C0392B" />
-        </TouchableOpacity>
-      </View>
-      <Animated.View
-        style={{ transform: [{ translateX }], backgroundColor: "#FFF" }}
-        {...panResponder.panHandlers}
-      >
-        {children}
-      </Animated.View>
-    </View>
-  );
-};
+const money = (amount: number) =>
+  `$${amount.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
 export default function ExpensesScreen() {
   const router = useRouter();
-  const {
-    transactions: transactionsRaw,
-    addTransaction,
-    deleteTransaction,
-    updateTransaction,
-  } = useAppStore();
-  const transactions = (transactionsRaw || []) as any[];
-
-  const [activeTab, setActiveTab] = useState<TimePeriod>("month");
-  const [selectedDate, setSelectedDate] = useState<Date>(new Date(2024, 4, 1)); // May 2024 baseline
-  const [showDatePicker, setShowDatePicker] = useState<boolean>(false);
-
-  // Filter/Sort States
-  const [searchQuery, setSearchQuery] = useState("");
-  const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
-  const [sortBy, setSortBy] = useState<
-    "latest" | "oldest" | "highest" | "lowest"
-  >("latest");
-  const [isSortOpen, setIsSortOpen] = useState(false);
-
-  // Add / Edit transaction modals
-  const [isAddModalOpen, setIsAddModalOpen] = useState(false);
-  const [isEditModalOpen, setIsEditModalOpen] = useState(false);
-  const [selectedTx, setSelectedTx] = useState<any>(null);
-
-  // Modal Form States
-  const [txTitle, setTxTitle] = useState("");
-  const [txAmount, setTxAmount] = useState("");
-  const [txType, setTxType] = useState<"income" | "expense">("expense");
-  const [txCategory, setTxCategory] = useState("Food & Dining");
-
-  const categories = [
-    "Food & Dining",
-    "Transport",
-    "Shopping",
-    "Bills & Utilities",
-    "Entertainment",
-    "Others",
-  ];
-
-  const formatMonthYear = (date: Date): string => {
-    return date.toLocaleDateString("en-US", {
-      month: "short",
-      year: "numeric",
+  const { transactions: rawTransactions = [] } = useAppStore();
+  const [date, setDate] = useState(new Date());
+  const [showCalendar, setShowCalendar] = useState(false);
+  const [showPeriodMenu, setShowPeriodMenu] = useState(false);
+  const [period, setPeriod] = useState<"month" | "year">("month");
+  const transactions = rawTransactions as any[];
+  const periodTransactions = useMemo(
+    () =>
+      transactions
+        .filter((tx) => {
+          if (tx.type !== "expense") return false;
+          const transactionDate = new Date(tx.date);
+          return period === "year"
+            ? transactionDate.getFullYear() === date.getFullYear()
+            : transactionDate.getMonth() === date.getMonth() &&
+                transactionDate.getFullYear() === date.getFullYear();
+        })
+        .sort(
+          (a, b) => new Date(b.date).getTime() - new Date(a.date).getTime(),
+        ),
+    [transactions, date, period],
+  );
+  const total = periodTransactions.reduce(
+    (sum, tx) => sum + Number(tx.amount || 0),
+    0,
+  );
+  const categoryTotals = useMemo(() => {
+    const totals: Record<string, number> = {};
+    periodTransactions.forEach((tx) => {
+      totals[tx.category] = (totals[tx.category] || 0) + Number(tx.amount || 0);
     });
-  };
-
-  const onDateChange = (event: DateTimePickerEvent, date?: Date) => {
-    if (Platform.OS === "android") {
-      setShowDatePicker(false);
-    }
-    if (date) {
-      setSelectedDate(date);
-    }
-  };
-
-  // --- DRAGGABLE FAB PAN RESPONDER ---
-  const pan = useRef(new Animated.ValueXY()).current;
-  const offsetRef = useRef({ x: 0, y: 0 });
-
-  useEffect(() => {
-    const listenerId = pan.addListener((value) => {
-      offsetRef.current = value;
-    });
-    return () => pan.removeListener(listenerId);
-  }, [pan]);
-
-  const panResponder = useRef(
-    PanResponder.create({
-      onStartShouldSetPanResponder: () => true,
-      onMoveShouldSetPanResponder: (_, gestureState) => {
-        return Math.abs(gestureState.dx) > 2 || Math.abs(gestureState.dy) > 2;
-      },
-      onPanResponderGrant: () => {
-        pan.setOffset({
-          x: offsetRef.current.x,
-          y: offsetRef.current.y,
-        });
-        pan.setValue({ x: 0, y: 0 });
-      },
-      onPanResponderMove: Animated.event([null, { dx: pan.x, dy: pan.y }], {
-        useNativeDriver: false,
-      }),
-      onPanResponderRelease: (_, gestureState) => {
-        pan.flattenOffset();
-        if (Math.abs(gestureState.dx) < 5 && Math.abs(gestureState.dy) < 5) {
-          setIsAddModalOpen(true);
-        }
-      },
-    }),
-  ).current;
-
-  // Filter transactions by activeTime period and category and search query
-  const filteredTransactions = useMemo(() => {
-    return transactions
-      .filter((tx) => {
-        // Search query filter
-        const matchesSearch =
-          tx.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-          tx.category.toLowerCase().includes(searchQuery.toLowerCase());
-        if (!matchesSearch) return false;
-
-        // Category filter
-        if (selectedCategory && tx.category !== selectedCategory) return false;
-
-        // Date-based filter
-        const txDate = new Date(tx.date);
-        const today = new Date();
-
-        if (activeTab === "today") {
-          return (
-            txDate.getDate() === today.getDate() &&
-            txDate.getMonth() === today.getMonth() &&
-            txDate.getFullYear() === today.getFullYear()
-          );
-        }
-
-        if (activeTab === "week") {
-          const oneWeekAgo = new Date();
-          oneWeekAgo.setDate(today.getDate() - 7);
-          return txDate >= oneWeekAgo && txDate <= today;
-        }
-
-        if (activeTab === "month") {
-          const baselineMonth = selectedDate.getMonth();
-          const baselineYear = selectedDate.getFullYear();
-          return (
-            txDate.getMonth() === baselineMonth &&
-            txDate.getFullYear() === baselineYear
-          );
-        }
-
-        if (activeTab === "custom") {
-          // Filter by selected baseline date (month)
-          const targetMonth = selectedDate.getMonth();
-          const targetYear = selectedDate.getFullYear();
-          return (
-            txDate.getMonth() === targetMonth &&
-            txDate.getFullYear() === targetYear
-          );
-        }
-
-        return true;
-      })
-      .sort((a, b) => {
-        if (sortBy === "latest") {
-          return new Date(b.date).getTime() - new Date(a.date).getTime();
-        } else if (sortBy === "oldest") {
-          return new Date(a.date).getTime() - new Date(b.date).getTime();
-        } else if (sortBy === "highest") {
-          return b.amount - a.amount;
-        } else {
-          return a.amount - b.amount;
-        }
-      });
-  }, [
-    transactions,
-    activeTab,
-    selectedDate,
-    searchQuery,
-    selectedCategory,
-    sortBy,
-  ]);
-
-  const previewTransactions = filteredTransactions.slice(0, 3);
-
-  // Compute category breakdown totals for the active month
-  const categorySummary = useMemo(() => {
-    const summary: { [key: string]: number } = {
-      "Food & Dining": 0,
-      Transport: 0,
-      Shopping: 0,
-      "Bills & Utilities": 0,
-      Entertainment: 0,
-      Others: 0,
-    };
-
-    let total = 0;
-    transactions.forEach((tx) => {
-      // Limit category breakdown to transactions in current filtered range/baseline
-      const txDate = new Date(tx.date);
-      if (
-        tx.type === "expense" &&
-        txDate.getMonth() === selectedDate.getMonth() &&
-        txDate.getFullYear() === selectedDate.getFullYear()
-      ) {
-        total += tx.amount;
-        if (summary[tx.category] !== undefined) {
-          summary[tx.category] += tx.amount;
-        } else {
-          summary["Others"] += tx.amount;
-        }
-      }
-    });
-
-    return { summary, total };
-  }, [transactions, selectedDate]);
-
-  const getCategoryDetails = (cat: string) => {
-    switch (cat) {
-      case "Food & Dining":
-        return {
-          icon: "fast-food-outline" as any,
-          color: "#E67E22",
-          bg: "#FDF2E9",
-        };
-      case "Transport":
-        return { icon: "car-outline" as any, color: "#8E44AD", bg: "#F4ECF7" };
-      case "Shopping":
-        return {
-          icon: "bag-handle-outline" as any,
-          color: "#E74C3C",
-          bg: "#FDEDEC",
-        };
-      case "Bills & Utilities":
-        return {
-          icon: "document-text-outline" as any,
-          color: "#2ECC71",
-          bg: "#EAF6EC",
-        };
-      case "Entertainment":
-        return { icon: "film-outline" as any, color: "#7F8C8D", bg: "#F4F6F7" };
-      default:
-        return {
-          icon: "ellipsis-horizontal-outline" as any,
-          color: "#5DADE2",
-          bg: "#EBF5FB",
-        };
-    }
-  };
-
-  const handleAddSubmit = () => {
-    const amountVal = parseFloat(txAmount);
-    if (!txTitle.trim() || isNaN(amountVal) || amountVal <= 0) {
-      Alert.alert("Error", "Please fill in all transaction fields correctly.");
-      return;
-    }
-
-    addTransaction({
-      title: txTitle.trim(),
-      amount: amountVal,
-      category: txType === "income" ? "Income" : txCategory,
-      type: txType,
-      date: new Date().toISOString().slice(0, 10),
-    });
-
-    setIsAddModalOpen(false);
-    setTxTitle("");
-    setTxAmount("");
-    setTxType("expense");
-    setTxCategory("Food & Dining");
-  };
-
-  const handleEditSubmit = () => {
-    const amountVal = parseFloat(txAmount);
-    if (!txTitle.trim() || isNaN(amountVal) || amountVal <= 0 || !selectedTx) {
-      Alert.alert("Error", "Please fill in all transaction fields correctly.");
-      return;
-    }
-
-    updateTransaction({
-      ...selectedTx,
-      title: txTitle.trim(),
-      amount: amountVal,
-      category: txType === "income" ? "Income" : txCategory,
-      type: txType,
-    });
-
-    setIsEditModalOpen(false);
-    setSelectedTx(null);
-    setTxTitle("");
-    setTxAmount("");
-  };
-
-  const openEditTx = (tx: any) => {
-    setSelectedTx(tx);
-    setTxTitle(tx.title);
-    setTxAmount(String(tx.amount));
-    setTxType(tx.type);
-    setTxCategory(tx.category === "Income" ? "Food & Dining" : tx.category);
-    setIsEditModalOpen(true);
+    return Object.entries(totals).sort((a, b) => b[1] - a[1]);
+  }, [periodTransactions]);
+  const grouped = useMemo(
+    () =>
+      periodTransactions
+        .slice(0, 8)
+        .reduce<Record<string, any[]>>((result, tx) => {
+          const key =
+            new Date(tx.date).toDateString() === new Date().toDateString()
+              ? "Today"
+              : new Date(tx.date).toLocaleDateString("en-US", {
+                  weekday: "long",
+                  month: "short",
+                  day: "numeric",
+                });
+          (result[key] ||= []).push(tx);
+          return result;
+        }, {}),
+    [periodTransactions],
+  );
+  const dateLabel =
+    period === "year"
+      ? String(date.getFullYear())
+      : date.toLocaleDateString("en-US", { month: "long", year: "numeric" });
+  const onDateChange = (_: DateTimePickerEvent, selected?: Date) => {
+    setShowCalendar(Platform.OS === "ios");
+    if (selected) setDate(selected);
   };
 
   return (
     <SafeAreaView style={styles.container}>
-      {/* --- TOP NAVIGATION BAR --- */}
-      <View style={styles.header}>
-        <View style={styles.headerSpacer} />
-        <Text style={styles.headerTitle}>Expenses</Text>
-        <View style={styles.headerRightIcons}>
-          <TouchableOpacity
-            style={styles.iconButton}
-            onPress={() => setIsSortOpen(true)}
-          >
-            <Octicons name="sliders" size={20} color="#1A1A1A" />
-          </TouchableOpacity>
-        </View>
-      </View>
-
       <ScrollView
-        contentContainerStyle={styles.scrollContent}
+        contentContainerStyle={styles.content}
         showsVerticalScrollIndicator={false}
       >
-        {/* --- TIME PERIOD TABS --- */}
-        <View style={styles.tabContainer}>
-          {(["today", "week", "month", "custom"] as TimePeriod[]).map(
-            (period) => (
+        <View style={styles.topbar}>
+          <Text style={styles.title}>Expenses</Text>
+          <View style={styles.controls}>
+            <TouchableOpacity
+              onPress={() => setShowCalendar(true)}
+              style={styles.dateControl}
+            >
+              <Ionicons name="calendar-outline" size={14} color="#66625E" />
+              <Text style={styles.dateControlText}>{dateLabel}</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              onPress={() => setShowPeriodMenu(true)}
+              style={styles.dropButton}
+            >
+              <Ionicons name="chevron-down" size={16} color="#4B2C40" />
+            </TouchableOpacity>
+          </View>
+        </View>
+        <View style={styles.hero}>
+          <Text style={styles.overline}>
+            {period === "month"
+              ? "TOTAL SPENT THIS MONTH"
+              : "TOTAL SPENT THIS YEAR"}
+          </Text>
+          <Text style={styles.total}>{money(total)}</Text>
+          <View style={styles.trend}>
+            <Ionicons name="arrow-down" size={13} color="#63806A" />
+            <Text style={styles.trendText}>
+              Your spending is calmly on track
+            </Text>
+          </View>
+        </View>
+        <View style={styles.chartCard}>
+          <View style={styles.chartHeader}>
+            <Text style={styles.chartTitle}>Spending overview</Text>
+            <Text style={styles.chartTotal}>{money(total)}</Text>
+          </View>
+          <View style={styles.chart}>
+            <View style={styles.grid} />
+            {[0.24, 0.42, 0.32, 0.6, 0.52, 0.77, 1].map((height, index) => (
+              <View key={index} style={[styles.bar, { height: height * 96 }]} />
+            ))}
+          </View>
+          <View style={styles.axis}>
+            <Text>Start</Text>
+            <Text>Today</Text>
+          </View>
+        </View>
+        <View style={styles.quietStats}>
+          <View style={styles.stat}>
+            <Text style={styles.statLabel}>TRANSACTIONS</Text>
+            <Text style={styles.statValue}>{periodTransactions.length}</Text>
+            <Text style={styles.statHint}>In this period</Text>
+          </View>
+          <View style={styles.divider} />
+          <View style={styles.stat}>
+            <Text style={styles.statLabel}>AVERAGE PURCHASE</Text>
+            <Text style={styles.statValue}>
+              {money(
+                periodTransactions.length
+                  ? total / periodTransactions.length
+                  : 0,
+              )}
+            </Text>
+            <Text style={styles.statHint}>Per transaction</Text>
+          </View>
+        </View>
+        <Heading title="By category" action="See all" />
+        <View style={styles.surface}>
+          {categoryTotals.slice(0, 4).map(([category, amount]) => (
+            <Pressable
+              key={category}
+              onPress={() =>
+                router.push({
+                  pathname: "/transaction-history" as any,
+                  params: { category },
+                })
+              }
+              style={styles.row}
+            >
+              {(() => {
+                const meta = categoryMeta[category] || categoryMeta.Others;
+                return (
+                  <>
+                    <View
+                      style={[styles.iconBox, { backgroundColor: meta.soft }]}
+                    >
+                      <Ionicons name={meta.icon} size={18} color={meta.color} />
+                    </View>
+                    <View style={styles.rowCopy}>
+                      <Text style={styles.rowTitle}>{category}</Text>
+                      <Text style={styles.rowSub}>
+                        {total
+                          ? `${Math.round((amount / total) * 100)}% of spending`
+                          : "No spending"}
+                      </Text>
+                    </View>
+                    <Text style={styles.rowAmount}>{money(amount)}</Text>
+                  </>
+                );
+              })()}
+            </Pressable>
+          ))}
+        </View>
+        <Heading title="Transactions" action="View all" />
+        <View style={styles.transactions}>
+          {Object.entries(grouped).map(([day, items]) => (
+            <View key={day} style={styles.surface}>
+              <View style={styles.groupHeader}>
+                <Text style={styles.groupDay}>{day}</Text>
+                <Text style={styles.groupTotal}>
+                  {money(
+                    items.reduce((sum, tx) => sum + Number(tx.amount || 0), 0),
+                  )}
+                </Text>
+              </View>
+              {items.map((tx) => {
+                const meta = categoryMeta[tx.category] || categoryMeta.Others;
+                return (
+                  <Pressable
+                    key={tx.id}
+                    onPress={() => router.push("/transaction-history" as any)}
+                    style={styles.row}
+                  >
+                    <View
+                      style={[styles.iconBox, { backgroundColor: meta.soft }]}
+                    >
+                      <Ionicons name={meta.icon} size={18} color={meta.color} />
+                    </View>
+                    <View style={styles.rowCopy}>
+                      <Text style={styles.rowTitle}>{tx.title}</Text>
+                      <Text style={styles.rowSub}>{tx.category}</Text>
+                    </View>
+                    <Text style={styles.rowAmount}>
+                      {money(Number(tx.amount))}
+                    </Text>
+                  </Pressable>
+                );
+              })}
+            </View>
+          ))}
+        </View>
+        {!periodTransactions.length && (
+          <Text style={styles.empty}>
+            No expenses recorded for this period.
+          </Text>
+        )}
+      </ScrollView>
+      {showCalendar && (
+        <DateTimePicker
+          value={date}
+          mode="date"
+          display={Platform.OS === "ios" ? "spinner" : "default"}
+          onChange={onDateChange}
+        />
+      )}
+      <Modal
+        transparent
+        visible={showPeriodMenu}
+        animationType="fade"
+        onRequestClose={() => setShowPeriodMenu(false)}
+      >
+        <Pressable
+          style={styles.modal}
+          onPress={() => setShowPeriodMenu(false)}
+        >
+          <View style={styles.menu}>
+            {(["month", "year"] as const).map((item) => (
               <TouchableOpacity
-                key={period}
-                style={[
-                  styles.tabButton,
-                  activeTab === period && styles.activeTabButton,
-                ]}
+                key={item}
                 onPress={() => {
-                  setActiveTab(period);
-                  if (period === "custom" || period === "month") {
-                    setShowDatePicker(true);
-                  }
+                  setPeriod(item);
+                  setShowPeriodMenu(false);
                 }}
+                style={styles.menuItem}
               >
                 <Text
                   style={[
-                    styles.tabText,
-                    activeTab === period && styles.activeTabText,
+                    styles.menuText,
+                    period === item && styles.menuActive,
                   ]}
                 >
-                  {period.charAt(0).toUpperCase() + period.slice(1)}
+                  {item === "month" ? "This month" : "This year"}
                 </Text>
+                {period === item && (
+                  <Ionicons name="checkmark" size={16} color="#4B2C40" />
+                )}
               </TouchableOpacity>
-            ),
-          )}
-        </View>
-
-        {/* --- SEARCH BAR --- */}
-        <View style={styles.searchContainer}>
-          <View style={styles.searchBox}>
-            <Ionicons
-              name="search-outline"
-              size={18}
-              color="#888"
-              style={{ marginRight: 8 }}
-            />
-            <TextInput
-              value={searchQuery}
-              onChangeText={setSearchQuery}
-              placeholder="Search items, categories..."
-              placeholderTextColor="#888"
-              style={styles.searchInput}
-            />
-            {searchQuery !== "" && (
-              <TouchableOpacity onPress={() => setSearchQuery("")}>
-                <Ionicons name="close-circle" size={16} color="#BBB" />
-              </TouchableOpacity>
-            )}
-          </View>
-        </View>
-
-        {/* --- TOTAL EXPENSES CARD --- */}
-        <View style={styles.summaryCard}>
-          <View style={styles.cardHeaderRow}>
-            <View>
-              <Text style={styles.summaryLabel}>Total Expenses</Text>
-              <Text style={styles.summaryAmount}>
-                $
-                {categorySummary.total.toLocaleString(undefined, {
-                  minimumFractionDigits: 2,
-                  maximumFractionDigits: 2,
-                })}
-              </Text>
-              <Text style={styles.summaryTrend}>🔹 Current Baseline</Text>
-            </View>
-            <TouchableOpacity
-              style={styles.monthDropdown}
-              onPress={() => setShowDatePicker(true)}
-            >
-              <Text style={styles.monthDropdownText}>
-                {formatMonthYear(selectedDate)}
-              </Text>
-              <Ionicons
-                name="chevron-down"
-                size={12}
-                color="#666"
-                style={{ marginLeft: 4 }}
-              />
-            </TouchableOpacity>
-          </View>
-
-          <View style={styles.metricsRow}>
-            <View style={styles.metricItem}>
-              <Text style={styles.metricLabel}>Transactions</Text>
-              <Text style={styles.metricValue}>
-                {filteredTransactions.length}
-              </Text>
-              <Text style={styles.metricSubText}>Total matching logs</Text>
-            </View>
-            <View style={styles.metricDivider} />
-            <View style={styles.metricItem}>
-              <Text style={styles.metricLabel}>Average Purchase</Text>
-              <Text style={styles.metricValue}>
-                $
-                {filteredTransactions.length > 0
-                  ? (
-                      filteredTransactions.reduce(
-                        (sum, tx) => sum + tx.amount,
-                        0,
-                      ) / filteredTransactions.length
-                    ).toFixed(2)
-                  : "0.00"}
-              </Text>
-              <Text style={styles.metricSubText}>Per transaction</Text>
-            </View>
-          </View>
-        </View>
-
-        {/* --- EXPENSE CATEGORIES SECTION --- */}
-        <View style={styles.sectionHeader}>
-          <Text style={styles.sectionTitle}>Expense Categories</Text>
-          {selectedCategory && (
-            <TouchableOpacity onPress={() => setSelectedCategory(null)}>
-              <Text
-                style={{ fontSize: 12, color: "#E74C3C", fontWeight: "600" }}
-              >
-                Clear Filter
-              </Text>
-            </TouchableOpacity>
-          )}
-        </View>
-
-        <ScrollView
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          style={styles.categoriesRow}
-          contentContainerStyle={{ paddingRight: 16 }}
-        >
-          {categories.map((cat) => {
-            const amt = categorySummary.summary[cat] || 0;
-            const pctVal =
-              categorySummary.total > 0
-                ? (amt / categorySummary.total) * 100
-                : 0;
-            const details = getCategoryDetails(cat);
-            const isSelected = selectedCategory === cat;
-
-            return (
-              <TouchableOpacity
-                key={cat}
-                onPress={() =>
-                  router.push({
-                    pathname: "/transaction-history",
-                    params: { category: cat },
-                  })
-                }
-                style={[
-                  styles.categoryCard,
-                  isSelected && {
-                    borderColor: details.color,
-                    borderWidth: 1.5,
-                  },
-                ]}
-              >
-                <View
-                  style={[styles.iconFrame, { backgroundColor: details.bg }]}
-                >
-                  <Ionicons
-                    name={details.icon}
-                    size={18}
-                    color={details.color}
-                  />
-                </View>
-                <Text style={styles.catName} numberOfLines={1}>
-                  {cat}
-                </Text>
-                <Text style={styles.catAmount}>${amt.toFixed(2)}</Text>
-                <Text style={styles.catPercent}>{Math.round(pctVal)}%</Text>
-                <View style={styles.progressBg}>
-                  <View
-                    style={[
-                      styles.progressBar,
-                      { width: `${pctVal}%`, backgroundColor: details.color },
-                    ]}
-                  />
-                </View>
-              </TouchableOpacity>
-            );
-          })}
-        </ScrollView>
-
-        {/* --- TRANSACTION HISTORY PREVIEW --- */}
-        <View style={styles.sectionHeader}>
-          <Text style={styles.sectionTitle}>Latest Transactions</Text>
-          <TouchableOpacity
-            style={styles.sortDropdown}
-            onPress={() => router.push("/transaction-history")}
-          >
-            <Text style={styles.sortDropdownText}>View all</Text>
-            <Ionicons name="chevron-forward" size={12} color="#666" />
-          </TouchableOpacity>
-        </View>
-
-        <View style={styles.previewCard}>
-          {previewTransactions.map((tx) => {
-            const details = getCategoryDetails(tx.category);
-            return (
-              <SwipeableRow
-                key={tx.id}
-                onEdit={() => openEditTx(tx)}
-                onDelete={() => {
-                  Alert.alert(
-                    "Delete Transaction",
-                    `Are you sure you want to delete "${tx.title}"?`,
-                    [
-                      { text: "Cancel", style: "cancel" },
-                      {
-                        text: "Delete",
-                        style: "destructive",
-                        onPress: () => deleteTransaction(tx.id),
-                      },
-                    ],
-                  );
-                }}
-              >
-                <View style={styles.txRow}>
-                  <View
-                    style={[
-                      styles.txIconBox,
-                      {
-                        backgroundColor:
-                          tx.type === "income" ? "#EAF6EC" : details.bg,
-                      },
-                    ]}
-                  >
-                    <Ionicons
-                      name={
-                        tx.type === "income"
-                          ? "arrow-up-circle-outline"
-                          : details.icon
-                      }
-                      size={16}
-                      color={tx.type === "income" ? "#2ECC71" : details.color}
-                    />
-                  </View>
-                  <View style={styles.txDetails}>
-                    <Text style={styles.txTitle}>{tx.title}</Text>
-                    <Text style={styles.txSub}>
-                      {tx.category} • {tx.date}
-                    </Text>
-                  </View>
-                  <View style={styles.txAmountBox}>
-                    <Text
-                      style={[
-                        styles.txAmount,
-                        tx.type === "income"
-                          ? styles.incomeAmount
-                          : styles.expenseAmount,
-                      ]}
-                    >
-                      {tx.type === "income"
-                        ? `+$${tx.amount.toFixed(2)}`
-                        : `-$${tx.amount.toFixed(2)}`}
-                    </Text>
-                  </View>
-                </View>
-              </SwipeableRow>
-            );
-          })}
-
-          {previewTransactions.length === 0 && (
-            <Text
-              style={{
-                textAlign: "center",
-                color: "#888",
-                paddingVertical: 24,
-              }}
-            >
-              No matching transactions found.
-            </Text>
-          )}
-        </View>
-      </ScrollView>
-
-      {/* --- DATE PICKER MODAL --- */}
-      {showDatePicker && (
-        <DateTimePicker
-          value={selectedDate}
-          mode="date"
-          display="default"
-          onChange={onDateChange}
-          maximumDate={new Date()}
-        />
-      )}
-
-      {/* --- ADD TRANSACTION MODAL --- */}
-      <Modal visible={isAddModalOpen} transparent animationType="slide">
-        <Pressable
-          style={styles.modalBackdrop}
-          onPress={() => setIsAddModalOpen(false)}
-        >
-          <KeyboardAvoidingView
-            behavior={Platform.OS === "ios" ? "padding" : undefined}
-            keyboardVerticalOffset={Platform.OS === "ios" ? 90 : 0}
-            style={styles.modalKeyboardView}
-          >
-            <ScrollView
-              keyboardShouldPersistTaps="handled"
-              contentContainerStyle={styles.modalScrollContent}
-            >
-              <View style={styles.modalSheet}>
-                <View style={styles.modalHeader}>
-                  <Text style={styles.modalTitle}>Add Transaction</Text>
-                  <TouchableOpacity onPress={() => setIsAddModalOpen(false)}>
-                    <Text style={styles.cancelText}>Cancel</Text>
-                  </TouchableOpacity>
-                </View>
-
-                <View style={styles.modalBody}>
-                  <View style={styles.typeTabs}>
-                    <TouchableOpacity
-                      style={[
-                        styles.typeTab,
-                        txType === "expense" && styles.typeTabActive,
-                      ]}
-                      onPress={() => setTxType("expense")}
-                    >
-                      <Text
-                        style={[
-                          styles.typeTabText,
-                          txType === "expense" && styles.typeTabTextActive,
-                        ]}
-                      >
-                        Expense
-                      </Text>
-                    </TouchableOpacity>
-                    <TouchableOpacity
-                      style={[
-                        styles.typeTab,
-                        txType === "income" && styles.typeTabActive,
-                      ]}
-                      onPress={() => setTxType("income")}
-                    >
-                      <Text
-                        style={[
-                          styles.typeTabText,
-                          txType === "income" && styles.typeTabTextActive,
-                        ]}
-                      >
-                        Income
-                      </Text>
-                    </TouchableOpacity>
-                  </View>
-
-                  <View style={styles.inputGroup}>
-                    <Text style={styles.inputLabel}>Title</Text>
-                    <TextInput
-                      placeholder="e.g. Starbucks, Salary..."
-                      value={txTitle}
-                      onChangeText={setTxTitle}
-                      style={styles.textInput}
-                      placeholderTextColor="#888"
-                    />
-                  </View>
-
-                  <View style={styles.inputGroup}>
-                    <Text style={styles.inputLabel}>Amount ($)</Text>
-                    <TextInput
-                      placeholder="0.00"
-                      value={txAmount}
-                      onChangeText={setTxAmount}
-                      keyboardType="numeric"
-                      style={styles.textInput}
-                      placeholderTextColor="#888"
-                    />
-                  </View>
-
-                  {txType === "expense" && (
-                    <View style={styles.inputGroup}>
-                      <Text style={styles.inputLabel}>Category</Text>
-                      <View style={styles.tagsContainer}>
-                        {categories.map((cat) => (
-                          <TouchableOpacity
-                            key={cat}
-                            onPress={() => setTxCategory(cat)}
-                            style={[
-                              styles.tagBtn,
-                              txCategory === cat && styles.tagBtnActive,
-                            ]}
-                          >
-                            <Text
-                              style={[
-                                styles.tagText,
-                                txCategory === cat && styles.tagTextActive,
-                              ]}
-                            >
-                              {cat}
-                            </Text>
-                          </TouchableOpacity>
-                        ))}
-                      </View>
-                    </View>
-                  )}
-
-                  <TouchableOpacity
-                    style={styles.saveBtn}
-                    onPress={handleAddSubmit}
-                  >
-                    <Text style={styles.saveBtnText}>Save Transaction</Text>
-                  </TouchableOpacity>
-                </View>
-              </View>
-            </ScrollView>
-          </KeyboardAvoidingView>
-        </Pressable>
-      </Modal>
-
-      {/* --- EDIT TRANSACTION MODAL --- */}
-      <Modal visible={isEditModalOpen} transparent animationType="slide">
-        <Pressable
-          style={styles.modalBackdrop}
-          onPress={() => setIsEditModalOpen(false)}
-        >
-          <KeyboardAvoidingView
-            behavior={Platform.OS === "ios" ? "padding" : undefined}
-            keyboardVerticalOffset={Platform.OS === "ios" ? 90 : 0}
-            style={styles.modalKeyboardView}
-          >
-            <ScrollView
-              keyboardShouldPersistTaps="handled"
-              contentContainerStyle={styles.modalScrollContent}
-            >
-              <View style={styles.modalSheet}>
-                <View style={styles.modalHeader}>
-                  <Text style={styles.modalTitle}>Edit Transaction</Text>
-                  <TouchableOpacity onPress={() => setIsEditModalOpen(false)}>
-                    <Text style={styles.cancelText}>Cancel</Text>
-                  </TouchableOpacity>
-                </View>
-
-                <View style={styles.modalBody}>
-                  <View style={styles.typeTabs}>
-                    <TouchableOpacity
-                      style={[
-                        styles.typeTab,
-                        txType === "expense" && styles.typeTabActive,
-                      ]}
-                      onPress={() => setTxType("expense")}
-                    >
-                      <Text
-                        style={[
-                          styles.typeTabText,
-                          txType === "expense" && styles.typeTabTextActive,
-                        ]}
-                      >
-                        Expense
-                      </Text>
-                    </TouchableOpacity>
-                    <TouchableOpacity
-                      style={[
-                        styles.typeTab,
-                        txType === "income" && styles.typeTabActive,
-                      ]}
-                      onPress={() => setTxType("income")}
-                    >
-                      <Text
-                        style={[
-                          styles.typeTabText,
-                          txType === "income" && styles.typeTabTextActive,
-                        ]}
-                      >
-                        Income
-                      </Text>
-                    </TouchableOpacity>
-                  </View>
-
-                  <View style={styles.inputGroup}>
-                    <Text style={styles.inputLabel}>Title</Text>
-                    <TextInput
-                      placeholder="e.g. Starbucks, Salary..."
-                      value={txTitle}
-                      onChangeText={setTxTitle}
-                      style={styles.textInput}
-                      placeholderTextColor="#888"
-                    />
-                  </View>
-
-                  <View style={styles.inputGroup}>
-                    <Text style={styles.inputLabel}>Amount ($)</Text>
-                    <TextInput
-                      placeholder="0.00"
-                      value={txAmount}
-                      onChangeText={setTxAmount}
-                      keyboardType="numeric"
-                      style={styles.textInput}
-                      placeholderTextColor="#888"
-                    />
-                  </View>
-
-                  {txType === "expense" && (
-                    <View style={styles.inputGroup}>
-                      <Text style={styles.inputLabel}>Category</Text>
-                      <View style={styles.tagsContainer}>
-                        {categories.map((cat) => (
-                          <TouchableOpacity
-                            key={cat}
-                            onPress={() => setTxCategory(cat)}
-                            style={[
-                              styles.tagBtn,
-                              txCategory === cat && styles.tagBtnActive,
-                            ]}
-                          >
-                            <Text
-                              style={[
-                                styles.tagText,
-                                txCategory === cat && styles.tagTextActive,
-                              ]}
-                            >
-                              {cat}
-                            </Text>
-                          </TouchableOpacity>
-                        ))}
-                      </View>
-                    </View>
-                  )}
-
-                  <TouchableOpacity
-                    style={styles.saveBtn}
-                    onPress={handleEditSubmit}
-                  >
-                    <Text style={styles.saveBtnText}>Save Changes</Text>
-                  </TouchableOpacity>
-                </View>
-              </View>
-            </ScrollView>
-          </KeyboardAvoidingView>
-        </Pressable>
-      </Modal>
-
-      {/* --- SORT BY MODAL --- */}
-      <Modal visible={isSortOpen} transparent animationType="fade">
-        <Pressable
-          style={styles.modalBackdrop}
-          onPress={() => setIsSortOpen(false)}
-        >
-          <View style={styles.alertBox}>
-            <Text style={styles.alertTitle}>Sort Transactions By</Text>
-            <View style={{ gap: 8, marginTop: 12 }}>
-              {[
-                { id: "latest", label: "📅 Latest Date" },
-                { id: "oldest", label: "📅 Oldest Date" },
-                { id: "highest", label: "💰 Highest Amount" },
-                { id: "lowest", label: "💰 Lowest Amount" },
-              ].map((opt) => (
-                <TouchableOpacity
-                  key={opt.id}
-                  onPress={() => {
-                    setSortBy(opt.id as any);
-                    setIsSortOpen(false);
-                  }}
-                  style={[
-                    styles.optionMenuBtn,
-                    sortBy === opt.id && {
-                      borderColor: "#4B2C40",
-                      backgroundColor: "#F6F3F5",
-                    },
-                  ]}
-                >
-                  <Text
-                    style={[
-                      styles.optionMenuBtnText,
-                      sortBy === opt.id && { color: "#4B2C40" },
-                    ]}
-                  >
-                    {opt.label}
-                  </Text>
-                </TouchableOpacity>
-              ))}
-            </View>
+            ))}
           </View>
         </Pressable>
       </Modal>
-
-      {/* --- DRAGGABLE FAB --- */}
-      <Animated.View
-        style={[
-          styles.fabWrapper,
-          styles.fabButton,
-          { transform: pan.getTranslateTransform() },
-        ]}
-        {...panResponder.panHandlers}
-      >
-        <Ionicons name="add" size={28} color="#FFF" />
-      </Animated.View>
     </SafeAreaView>
   );
 }
-
+function Heading({ title, action }: { title: string; action: string }) {
+  return (
+    <View style={styles.heading}>
+      <Text style={styles.headingTitle}>{title}</Text>
+      <Text style={styles.action}>{action}</Text>
+    </View>
+  );
+}
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: "#FAFAFA",
-  },
-  scrollContent: {
-    paddingBottom: 140,
-  },
-  header: {
-    height: 56,
-    flexDirection: "row",
+  container: { flex: 1, backgroundColor: "#FAFAF8" },
+  content: { padding: 20, paddingBottom: 120 },
+  topbar: {
     alignItems: "center",
+    flexDirection: "row",
     justifyContent: "space-between",
-    paddingHorizontal: 16,
-    backgroundColor: "#FFF",
   },
-  headerSpacer: {
-    width: 60,
-  },
-  headerTitle: {
-    fontSize: 20,
+  title: {
+    fontSize: 25,
     fontWeight: "700",
-    color: "#1A1A1A",
+    letterSpacing: -0.7,
+    color: "#201D1B",
   },
-  headerRightIcons: {
-    flexDirection: "row",
-    alignItems: "center",
-    width: 60,
-    justifyContent: "flex-end",
-  },
-  iconButton: {
-    marginLeft: 14,
-  },
-  tabContainer: {
-    flexDirection: "row",
-    backgroundColor: "#FFF",
-    marginHorizontal: 16,
-    marginTop: 12,
-    borderRadius: 12,
-    padding: 4,
-    borderWidth: 1,
-    borderColor: "#EAEAEA",
-  },
-  tabButton: {
-    flex: 1,
-    paddingVertical: 10,
-    alignItems: "center",
-    justifyContent: "center",
-    borderRadius: 8,
-  },
-  activeTabButton: {
-    backgroundColor: "#4B2C40",
-  },
-  tabText: {
-    fontSize: 13,
-    fontWeight: "500",
-    color: "#666666",
-  },
-  activeTabText: {
-    color: "#FFFFFF",
-    fontWeight: "600",
-  },
-  searchContainer: {
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    marginTop: 6,
-  },
-  searchBox: {
-    flexDirection: "row",
+  controls: { flexDirection: "row", gap: 7 },
+  dateControl: {
     alignItems: "center",
     backgroundColor: "#FFF",
-    borderRadius: 12,
-    paddingHorizontal: 12,
-    height: 44,
+    borderColor: "#EAE7E3",
+    borderRadius: 17,
     borderWidth: 1,
-    borderColor: "#EAEAEA",
-  },
-  searchInput: {
-    flex: 1,
-    fontSize: 14,
-    color: "#1A1A1A",
+    flexDirection: "row",
+    gap: 6,
+    paddingHorizontal: 11,
     paddingVertical: 8,
   },
-  summaryCard: {
-    backgroundColor: "#FFF",
-    marginHorizontal: 16,
-    marginTop: 12,
-    borderRadius: 16,
-    padding: 16,
-    borderWidth: 1,
-    borderColor: "#F0F0F0",
-  },
-  cardHeaderRow: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "flex-start",
-  },
-  summaryLabel: {
-    fontSize: 12,
-    color: "#666",
-  },
-  summaryAmount: {
-    fontSize: 28,
-    fontWeight: "700",
-    color: "#1A1A1A",
-    marginVertical: 4,
-  },
-  summaryTrend: {
-    fontSize: 12,
-    color: "#27AE60",
-    fontWeight: "500",
-  },
-  monthDropdown: {
-    flexDirection: "row",
+  dateControlText: { fontSize: 12, fontWeight: "600", color: "#514C48" },
+  dropButton: {
     alignItems: "center",
-    backgroundColor: "#FAFAFA",
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: "#EAEAEA",
-  },
-  monthDropdownText: {
-    fontSize: 12,
-    color: "#4A4A4A",
-    fontWeight: "500",
-  },
-  metricsRow: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    borderTopWidth: 1,
-    borderTopColor: "#FAFAFA",
-    paddingTop: 12,
-    marginTop: 12,
-  },
-  metricItem: {
-    flex: 1,
-  },
-  metricLabel: {
-    fontSize: 10,
-    color: "#888",
-  },
-  metricValue: {
-    fontSize: 15,
-    fontWeight: "700",
-    color: "#1A1A1A",
-    marginVertical: 2,
-  },
-  metricSubText: {
-    fontSize: 9,
-    color: "#AAA",
-  },
-  metricDivider: {
-    width: 1,
-    backgroundColor: "#EAEAEA",
-    marginHorizontal: 12,
-  },
-  sectionHeader: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    marginHorizontal: 16,
-    marginTop: 22,
-    marginBottom: 12,
-  },
-  sectionTitle: {
-    fontSize: 15,
-    fontWeight: "700",
-    color: "#1A1A1A",
-  },
-  categoriesRow: {
-    paddingLeft: 16,
-  },
-  categoryCard: {
-    width: 110,
-    backgroundColor: "#FFF",
-    borderRadius: 12,
-    padding: 12,
-    marginRight: 10,
-    borderWidth: 1,
-    borderColor: "#F0F0F0",
-  },
-  iconFrame: {
-    width: 32,
-    height: 32,
-    borderRadius: 8,
-    alignItems: "center",
+    backgroundColor: "#F4EFF2",
+    borderRadius: 17,
     justifyContent: "center",
-    marginBottom: 12,
+    width: 34,
+    height: 34,
   },
-  catName: {
-    fontSize: 11,
-    color: "#666",
-    fontWeight: "500",
-  },
-  catAmount: {
-    fontSize: 14,
-    fontWeight: "700",
-    color: "#1A1A1A",
-    marginTop: 2,
-  },
-  catPercent: {
+  hero: { alignItems: "center", paddingVertical: 39 },
+  overline: {
     fontSize: 10,
-    color: "#AAA",
-    marginTop: 4,
+    fontWeight: "700",
+    letterSpacing: 1.15,
+    color: "#928D88",
   },
-  progressBg: {
-    height: 3,
-    backgroundColor: "#F0F0F0",
-    borderRadius: 2,
-    marginTop: 4,
+  total: {
+    fontSize: 46,
+    fontWeight: "700",
+    letterSpacing: -2.1,
+    color: "#1C1917",
+    marginTop: 7,
   },
-  progressBar: {
-    height: "100%",
-    borderRadius: 2,
-  },
-  sortDropdown: {
-    flexDirection: "row",
-    alignItems: "center",
-  },
-  sortDropdownText: {
-    fontSize: 12,
-    color: "#666",
-    marginRight: 4,
-  },
-  previewCard: {
+  trend: { alignItems: "center", flexDirection: "row", gap: 5, marginTop: 9 },
+  trendText: { fontSize: 13, color: "#85807B" },
+  chartCard: {
     backgroundColor: "#FFF",
-    borderRadius: 14,
+    borderColor: "#ECE9E5",
+    borderRadius: 24,
     borderWidth: 1,
-    borderColor: "#F0F0F0",
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    marginHorizontal: 16,
+    padding: 18,
   },
-  txRow: {
-    flexDirection: "row",
-    paddingVertical: 12,
-    paddingHorizontal: 12,
-    paddingRight: 104,
-    alignItems: "center",
-  },
-  txIconBox: {
-    width: 38,
-    height: 38,
-    borderRadius: 10,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  txDetails: {
-    flex: 1,
-    marginLeft: 12,
-  },
-  txTitle: {
-    fontSize: 14,
-    fontWeight: "600",
-    color: "#1A1A1A",
-  },
-  txSub: {
-    fontSize: 11,
-    color: "#888",
-    marginTop: 2,
-  },
-  txAmountBox: {
+  chartHeader: { flexDirection: "row", justifyContent: "space-between" },
+  chartTitle: { fontSize: 13, fontWeight: "500", color: "#77716C" },
+  chartTotal: { fontSize: 13, fontWeight: "700", color: "#2B2724" },
+  chart: {
     alignItems: "flex-end",
-  },
-  txAmount: {
-    fontSize: 14,
-    fontWeight: "700",
-    color: "#1A1A1A",
-  },
-  incomeAmount: {
-    color: "#2ECC71",
-  },
-  expenseAmount: {
-    color: "#E74C3C",
-  },
-  txMethod: {
-    fontSize: 10,
-    color: "#AAA",
-    marginTop: 2,
-  },
-  fabWrapper: {
-    position: "absolute",
-    bottom: 90,
-    right: 16,
-    zIndex: 999,
-  },
-  fabButton: {
-    backgroundColor: "#4B2C40",
-    width: 56,
-    height: 56,
-    borderRadius: 28,
-    alignItems: "center",
-    justifyContent: "center",
-    ...Platform.select({
-      ios: {
-        shadowColor: "#000",
-        shadowOpacity: 0.15,
-        shadowRadius: 4,
-        shadowOffset: { width: 0, height: 2 },
-      },
-      android: {
-        elevation: 4,
-      },
-    }),
-  },
-  footerNav: {
-    position: "absolute",
-    bottom: 0,
-    left: 0,
-    right: 0,
-    height: 74,
-    backgroundColor: "#FFFFFF",
+    borderBottomColor: "#EEEAE6",
+    borderBottomWidth: 1,
     flexDirection: "row",
-    justifyContent: "space-around",
-    alignItems: "center",
-    borderTopWidth: 1,
-    borderTopColor: "#EAEAEA",
-    paddingBottom: Platform.OS === "ios" ? 15 : 0,
-  },
-  footerItem: {
-    alignItems: "center",
-    justifyContent: "center",
-    paddingTop: 8,
-    flex: 1,
-  },
-  footerText: {
-    fontSize: 11,
-    color: "#666666",
-    marginTop: 4,
-    fontWeight: "500",
-  },
-  activeFooterText: {
-    color: "#4B2C40",
-    fontWeight: "600",
-  },
-  /* Custom Swipe Row Styles */
-  swipeContainer: {
-    position: "relative",
-    overflow: "hidden",
-    marginHorizontal: 16,
-    marginBottom: 8,
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: "#F0F0F0",
-    backgroundColor: "#FFF",
-  },
-  swipeActionsBackground: {
-    position: "absolute",
-    right: 0,
-    top: 0,
-    bottom: 0,
-    width: 94,
-    flexDirection: "row",
-    justifyContent: "flex-end",
-    alignItems: "center",
-    zIndex: 1,
-    paddingRight: 8,
-  },
-  swipeActionBtn: {
-    width: 38,
-    height: 38,
-    justifyContent: "center",
-    alignItems: "center",
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: "#EADFD9",
-    marginLeft: 6,
-  },
-  /* Modal backdrop & sheets styles */
-  modalBackdrop: {
-    flex: 1,
-    backgroundColor: "rgba(0,0,0,0.4)",
-    justifyContent: "flex-end",
-  },
-  modalKeyboardView: {
-    justifyContent: "flex-end",
-  },
-  modalScrollContent: {
-    justifyContent: "flex-end",
-    paddingTop: 20,
-  },
-  modalSheet: {
-    backgroundColor: "#FFF",
-    borderTopLeftRadius: 24,
-    borderTopRightRadius: 24,
-    padding: 20,
-    paddingBottom: Platform.OS === "ios" ? 40 : 24,
-    maxHeight: "88%",
-  },
-  modalHeader: {
-    flexDirection: "row",
+    height: 112,
     justifyContent: "space-between",
-    alignItems: "center",
-    marginBottom: 20,
+    marginTop: 18,
+    paddingHorizontal: 3,
   },
-  modalTitle: {
+  grid: {
+    backgroundColor: "#F1EEEA",
+    height: 1,
+    left: 0,
+    position: "absolute",
+    right: 0,
+    top: 44,
+  },
+  bar: {
+    backgroundColor: "#4B2C40",
+    borderRadius: 3,
+    opacity: 0.9,
+    width: "8%",
+  },
+  axis: { flexDirection: "row", justifyContent: "space-between", marginTop: 8 },
+  quietStats: {
+    backgroundColor: "#F2F0ED",
+    borderRadius: 20,
+    flexDirection: "row",
+    marginTop: 14,
+    padding: 17,
+  },
+  stat: { flex: 1 },
+  divider: { backgroundColor: "#DDD8D3", marginHorizontal: 12, width: 1 },
+  statLabel: {
+    color: "#948E89",
+    fontSize: 9,
+    fontWeight: "700",
+    letterSpacing: 0.7,
+  },
+  statValue: {
+    color: "#332E2A",
     fontSize: 18,
     fontWeight: "700",
-    color: "#1A1A1A",
+    marginTop: 5,
   },
-  cancelText: {
-    fontSize: 14,
-    color: "#888",
-    fontWeight: "500",
-  },
-  modalBody: {
-    gap: 16,
-  },
-  typeTabs: {
-    flexDirection: "row",
-    backgroundColor: "#F2EFEF",
-    borderRadius: 10,
-    padding: 2,
-    marginBottom: 8,
-  },
-  typeTab: {
-    flex: 1,
-    paddingVertical: 10,
+  statHint: { color: "#8C8681", fontSize: 10, marginTop: 4 },
+  heading: {
     alignItems: "center",
-    borderRadius: 8,
-  },
-  typeTabActive: {
-    backgroundColor: "#FFF",
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.1,
-    shadowRadius: 2,
-    elevation: 1,
-  },
-  typeTabText: {
-    fontSize: 14,
-    color: "#666",
-    fontWeight: "500",
-  },
-  typeTabTextActive: {
-    color: "#4B2C40",
-    fontWeight: "700",
-  },
-  inputGroup: {
-    gap: 6,
-  },
-  inputLabel: {
-    fontSize: 13,
-    fontWeight: "600",
-    color: "#666",
-  },
-  textInput: {
-    borderWidth: 1,
-    borderColor: "#EBEBEB",
-    borderRadius: 10,
-    paddingHorizontal: 12,
-    height: 48,
-    fontSize: 14,
-    color: "#1A1A1A",
-    backgroundColor: "#FAFAFA",
-  },
-  tagsContainer: {
     flexDirection: "row",
-    flexWrap: "wrap",
-    gap: 6,
-    marginTop: 4,
+    justifyContent: "space-between",
+    marginBottom: 12,
+    marginTop: 31,
   },
-  tagBtn: {
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    borderRadius: 20,
-    borderWidth: 1,
-    borderColor: "#EBEBEB",
+  headingTitle: { color: "#2B2724", fontSize: 18, fontWeight: "700" },
+  action: { color: "#756E69", fontSize: 12, fontWeight: "600" },
+  surface: {
     backgroundColor: "#FFF",
+    borderColor: "#ECE9E5",
+    borderRadius: 21,
+    borderWidth: 1,
+    overflow: "hidden",
   },
-  tagBtnActive: {
-    borderColor: "#4B2C40",
-    backgroundColor: "#F6F3F5",
+  row: {
+    alignItems: "center",
+    flexDirection: "row",
+    minHeight: 70,
+    paddingHorizontal: 15,
   },
-  tagText: {
-    fontSize: 12,
-    color: "#666",
-  },
-  tagTextActive: {
-    color: "#4B2C40",
-    fontWeight: "600",
-  },
-  saveBtn: {
-    backgroundColor: "#4B2C40",
-    borderRadius: 12,
-    height: 50,
+  iconBox: {
+    alignItems: "center",
+    borderRadius: 13,
+    height: 40,
     justifyContent: "center",
-    alignItems: "center",
-    marginTop: 12,
+    width: 40,
   },
-  saveBtnText: {
-    color: "#FFF",
-    fontSize: 16,
-    fontWeight: "700",
+  rowCopy: { flex: 1, marginLeft: 12 },
+  rowTitle: { color: "#302B27", fontSize: 14, fontWeight: "600" },
+  rowSub: { color: "#9C9691", fontSize: 11, marginTop: 3 },
+  rowAmount: { color: "#37312D", fontSize: 14, fontWeight: "700" },
+  transactions: { gap: 15 },
+  groupHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    paddingHorizontal: 15,
+    paddingTop: 14,
   },
-  alertBox: {
+  groupDay: { color: "#7D7671", fontSize: 12, fontWeight: "600" },
+  groupTotal: { color: "#7D7671", fontSize: 12, fontWeight: "600" },
+  empty: { color: "#99938E", fontSize: 13, textAlign: "center", marginTop: 22 },
+  modal: {
+    backgroundColor: "rgba(25,20,18,.18)",
+    flex: 1,
+    justifyContent: "flex-start",
+    paddingRight: 20,
+    paddingTop: 74,
+  },
+  menu: {
+    alignSelf: "flex-end",
     backgroundColor: "#FFF",
     borderRadius: 16,
-    padding: 20,
-    width: "80%",
-    alignSelf: "center",
-    justifyContent: "center",
-    borderWidth: 1,
-    borderColor: "#F0F0F0",
-    shadowColor: "#000",
-    shadowOpacity: 0.1,
-    shadowRadius: 10,
-    shadowOffset: { width: 0, height: 4 },
     elevation: 5,
+    overflow: "hidden",
+    width: 160,
   },
-  alertTitle: {
-    fontSize: 16,
-    fontWeight: "700",
-    color: "#1A1A1A",
-    textAlign: "center",
-  },
-  optionMenuBtn: {
-    borderWidth: 1,
-    borderColor: "#EBEBEB",
-    borderRadius: 10,
-    height: 44,
-    justifyContent: "center",
+  menuItem: {
     alignItems: "center",
+    flexDirection: "row",
+    justifyContent: "space-between",
+    padding: 15,
   },
-  optionMenuBtnText: {
-    fontSize: 14,
-    color: "#1A1A1A",
-    fontWeight: "600",
-  },
+  menuText: { color: "#716A65", fontSize: 13 },
+  menuActive: { color: "#4B2C40", fontWeight: "700" },
+  axisText: { color: "#A29B96", fontSize: 11 },
 });
