@@ -76,9 +76,9 @@ export const mockData = {
     trends: {
       labels: ["May 1", "May 8", "May 15", "May 22", "May 29"],
       datasets: [
-        { name: "Expenses", color: "#3d2e3c", data: [1100, 1400, 2120, 1800, 2158.3] },
-        { name: "Savings", color: "#34a853", data: [700, 900, 1200, 1050, 1291.7] },
-        { name: "Income", color: "#d8cfd6", data: [1800, 2300, 3320, 2850, 3450] }
+        { name: "Expenses", color: "#2D2334", data: [1100, 1400, 2120, 1800, 2158.3] },
+        { name: "Savings", color: "#27AE60", data: [700, 900, 1200, 1050, 1291.7] },
+        { name: "Income", color: "#4C78FF", data: [1800, 2300, 3320, 2850, 3450] }
       ],
       hoverDetails: [
         { day: "May 1", Expenses: 1100, Savings: 700, Income: 1800 },

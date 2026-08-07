@@ -9,6 +9,7 @@ import {
   TouchableOpacity,
   TouchableWithoutFeedback,
   View,
+  type DimensionValue,
 } from "react-native";
 import Svg, { Circle, Path } from "react-native-svg";
 
@@ -18,10 +19,20 @@ const options: Record<Timeframe, string[]> = {
   monthly: ["March 2026", "April 2026", "May 2026", "June 2026"],
   yearly: ["2024", "2025", "2026"],
 };
-const categories = [
-  ["Food & dining", "$692.20", "32%", "fast-food-outline" as const, "#F3EBF1"],
-  ["Transport", "$539.60", "25%", "car-outline" as const, "#EEE5F2"],
-  ["Shopping", "$388.50", "18%", "bag-handle-outline" as const, "#F7F0F8"],
+type CategoryItem = [
+  string,
+  string,
+  `${number}%`,
+  typeof Ionicons.glyphMap extends Record<string, unknown>
+    ? keyof typeof Ionicons.glyphMap
+    : string,
+  string,
+];
+
+const categories: CategoryItem[] = [
+  ["Food & dining", "$692.20", "32%", "fast-food-outline", "#F3EBF1"],
+  ["Transport", "$539.60", "25%", "car-outline", "#EEE5F2"],
+  ["Shopping", "$388.50", "18%", "bag-handle-outline", "#F7F0F8"],
 ];
 
 export default function AnalyticsScreen() {
@@ -114,19 +125,52 @@ export default function AnalyticsScreen() {
                 opacity={0.72}
               />
               <Path
-                d="M0 91 C18 85 29 69 48 72 C67 75 78 51 98 57 C117 63 128 44 148 49 C167 55 181 29 201 35 C222 42 234 19 255 25 C276 31 288 12 320 17"
+                d="M0 84 C18 80 29 72 48 74 C67 76 78 64 98 67 C117 71 128 58 148 60 C167 63 181 46 201 49 C222 52 234 37 255 40 C276 43 288 31 320 33"
+                fill="none"
+                stroke="#C79A00"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth="3.5"
+              />
+              <Path
+                d="M0 73 C18 69 29 60 48 62 C67 64 78 53 98 56 C117 60 128 46 148 49 C167 53 181 38 201 41 C222 45 234 28 255 33 C276 37 288 24 320 24"
+                fill="none"
+                stroke="#2F8F4F"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth="2.6"
+              />
+              <Path
+                d="M0 95 C18 92 29 85 48 86 C67 87 78 78 98 80 C117 82 128 72 148 74 C167 76 181 64 201 66 C222 69 234 60 255 63 C276 66 288 57 320 58"
                 fill="none"
                 stroke="#20142A"
                 strokeLinecap="round"
-                strokeWidth="3.5"
+                strokeLinejoin="round"
+                strokeWidth="2.6"
               />
               <Circle
                 cx="255"
-                cy="25"
+                cy="40"
                 fill="#FFFFFF"
                 r="5.5"
-                stroke="#20142A"
+                stroke="#C79A00"
                 strokeWidth="3"
+              />
+              <Circle
+                cx="255"
+                cy="33"
+                fill="#FFFFFF"
+                r="4.4"
+                stroke="#2F8F4F"
+                strokeWidth="2.2"
+              />
+              <Circle
+                cx="255"
+                cy="63"
+                fill="#FFFFFF"
+                r="4.4"
+                stroke="#20142A"
+                strokeWidth="2.2"
               />
             </Svg>
           </View>
@@ -165,7 +209,10 @@ export default function AnalyticsScreen() {
                 <Text style={styles.categoryName}>{name}</Text>
                 <View style={styles.categoryTrack}>
                   <View
-                    style={[styles.categoryFill, { width: share as string }]}
+                    style={[
+                      styles.categoryFill,
+                      { width: share as DimensionValue },
+                    ]}
                   />
                 </View>
               </View>

@@ -41,14 +41,11 @@ const GlassTabButton = ({
         style={[
           styles.tabButtonGlass,
           isActive && {
-            backgroundColor:
-              barOpacity < 0.3
-                ? "rgba(91, 78, 145, 1)"
-                : "rgba(255, 255, 255, 0.96)",
-            borderColor: "rgba(91, 78, 145, 0.38)",
-            shadowColor: "#5B4E91",
+            backgroundColor: "rgba(244, 239, 241, 0.96)",
+            borderColor: "rgba(75, 44, 64, 0.28)",
+            shadowColor: "#4B2C40",
             shadowOffset: { width: 0, height: 5 },
-            shadowOpacity: 0.24,
+            shadowOpacity: 0.22,
             shadowRadius: 10,
             elevation: 6,
           },
@@ -124,8 +121,8 @@ export default function TabLayout() {
           elevation: 0,
           shadowOpacity: 0,
         },
-        tabBarActiveTintColor: "#5B4E91",
-        tabBarInactiveTintColor: "#8E8E93",
+        tabBarActiveTintColor: "#4B2C40",
+        tabBarInactiveTintColor: "#8E7B95",
         tabBarLabelStyle: {
           fontSize: 11,
           fontWeight: "600",
