@@ -2,6 +2,9 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useNavigation } from "expo-router";
 import { useCallback, useEffect, useState } from "react";
 
+const THEME_STORAGE_KEY = "ts_theme";
+const TAB_BAR_OPACITY_STORAGE_KEY = "ts_tab_bar_opacity";
+
 // Initial Transactions - type: 'income' or 'expense'
 export const DEFAULT_TRANSACTIONS = [
   {
@@ -330,6 +333,8 @@ export function useAppStore() {
   // Fixed type definition here:
   const [profileImage, setProfileImage] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [themePreference, setThemePreferenceState] = useState("aurora");
+  const [tabBarOpacity, setTabBarOpacityState] = useState(0.72);
 
   // Sync with global auth state
   const [isAuthenticated, setIsAuthenticated] = useState(globalIsAuthenticated);
@@ -348,6 +353,22 @@ export function useAppStore() {
       const storedTxs = await AsyncStorage.getItem("ts_txs");
       const storedBudgets = await AsyncStorage.getItem("ts_bgts");
       const storedGoals = await AsyncStorage.getItem("ts_goals");
+      const storedTheme = await AsyncStorage.getItem(THEME_STORAGE_KEY);
+      const storedTabBarOpacity = await AsyncStorage.getItem(
+        TAB_BAR_OPACITY_STORAGE_KEY,
+      );
+
+      if (storedTheme) {
+        setThemePreferenceState(storedTheme);
+      }
+
+      if (storedTabBarOpacity !== null) {
+        const parsedOpacity = Number(storedTabBarOpacity);
+        if (!Number.isNaN(parsedOpacity)) {
+          const clampedOpacity = Math.max(0, Math.min(1, parsedOpacity));
+          setTabBarOpacityState(clampedOpacity);
+        }
+      }
 
       if (storedTxs !== null) {
         setTransactions(JSON.parse(storedTxs));
@@ -397,6 +418,20 @@ export function useAppStore() {
 
   const logout = useCallback(() => {
     setGlobalAuth(false);
+  }, []);
+
+  const setThemePreference = useCallback(async (themeId) => {
+    setThemePreferenceState(themeId);
+    await AsyncStorage.setItem(THEME_STORAGE_KEY, themeId);
+  }, []);
+
+  const setTabBarOpacity = useCallback(async (opacity) => {
+    const nextOpacity = Math.max(0.45, Math.min(0.98, opacity));
+    setTabBarOpacityState(nextOpacity);
+    await AsyncStorage.setItem(
+      TAB_BAR_OPACITY_STORAGE_KEY,
+      String(nextOpacity),
+    );
   }, []);
 
   const addTransaction = useCallback(async (newTx) => {
@@ -506,6 +541,10 @@ export function useAppStore() {
     setProfileImage,
     loading,
     isAuthenticated,
+    themePreference,
+    tabBarOpacity,
+    setThemePreference,
+    setTabBarOpacity,
     login,
     logout,
     addTransaction,
