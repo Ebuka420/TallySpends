@@ -6,6 +6,7 @@ import { useRouter } from "expo-router";
 import React, { useMemo, useState } from "react";
 import {
   Modal,
+  PanResponder,
   Platform,
   Pressable,
   SafeAreaView,
@@ -15,6 +16,7 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
+import Svg, { Path } from "react-native-svg";
 import { useAppStore } from "../../src/store";
 
 const categoryMeta: Record<string, { icon: any; color: string; soft: string }> =
@@ -38,13 +40,17 @@ const categoryMeta: Record<string, { icon: any; color: string; soft: string }> =
 const money = (amount: number) =>
   `$${amount.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
+type ChartStyle = "line" | "area";
+
 export default function ExpensesScreen() {
   const router = useRouter();
   const { transactions: rawTransactions = [] } = useAppStore();
   const [date, setDate] = useState(new Date());
   const [showCalendar, setShowCalendar] = useState(false);
   const [showPeriodMenu, setShowPeriodMenu] = useState(false);
+  const [showChartStyleMenu, setShowChartStyleMenu] = useState(false);
   const [period, setPeriod] = useState<"month" | "year">("month");
+  const [chartStyle, setChartStyle] = useState<ChartStyle>("line");
   const transactions = rawTransactions as any[];
 
   const periodTransactions = useMemo(
@@ -105,6 +111,26 @@ export default function ExpensesScreen() {
     setShowCalendar(Platform.OS === "ios");
     if (selected) setDate(selected);
   };
+  const chartStyles: ChartStyle[] = ["line", "area"];
+  const cycleChartStyle = (direction: 1 | -1) => {
+    const currentIndex = chartStyles.indexOf(chartStyle);
+    const nextIndex =
+      (currentIndex + direction + chartStyles.length) % chartStyles.length;
+    setChartStyle(chartStyles[nextIndex]);
+  };
+  const panResponder = PanResponder.create({
+    onStartShouldSetPanResponder: () => true,
+    onMoveShouldSetPanResponder: (_, gestureState) =>
+      Math.abs(gestureState.dx) > 12,
+    onPanResponderRelease: (_, gestureState) => {
+      if (gestureState.dx > 40) {
+        cycleChartStyle(-1);
+      } else if (gestureState.dx < -40) {
+        cycleChartStyle(1);
+      }
+    },
+  });
+  const chartStyleLabel = chartStyle === "line" ? "Line" : "Area";
 
   return (
     <SafeAreaView style={styles.container}>
@@ -148,14 +174,45 @@ export default function ExpensesScreen() {
 
         <View style={styles.chartCard}>
           <View style={styles.chartHeader}>
-            <Text style={styles.chartTitle}>Spending overview</Text>
-            <Text style={styles.chartTotal}>{money(total)}</Text>
+            <View>
+              <Text style={styles.chartTitle}>Spending overview</Text>
+              <Text style={styles.chartHint}>Swipe or tap to switch views</Text>
+            </View>
+            <View style={styles.chartHeaderRight}>
+              <Text style={styles.chartTotal}>{money(total)}</Text>
+              <TouchableOpacity
+                style={styles.chartPicker}
+                onPress={() => setShowChartStyleMenu(true)}
+              >
+                <View>
+                  <Text style={styles.chartPickerLabel}>Chart</Text>
+                  <Text style={styles.chartPickerValue}>{chartStyleLabel}</Text>
+                </View>
+                <Ionicons name="chevron-down" size={13} color="#4B2C40" />
+              </TouchableOpacity>
+            </View>
           </View>
-          <View style={styles.chart}>
+          <View {...panResponder.panHandlers} style={styles.chart}>
             <View style={styles.grid} />
-            {[0.24, 0.42, 0.32, 0.6, 0.52, 0.77, 1].map((height, index) => (
-              <View key={index} style={[styles.bar, { height: height * 96 }]} />
-            ))}
+            <Svg
+              width="100%"
+              height="112"
+              viewBox="0 0 320 112"
+              preserveAspectRatio="none"
+            >
+              <Path
+                d="M0 84 C23 76 43 66 62 68 C85 70 101 53 124 58 C146 62 157 39 179 41 C204 44 220 25 244 26 C268 27 285 14 320 16 L320 112 L0 112 Z"
+                fill={chartStyle === "area" ? "#F3E7EB" : "transparent"}
+              />
+              <Path
+                d="M0 84 C23 76 43 66 62 68 C85 70 101 53 124 58 C146 62 157 39 179 41 C204 44 220 25 244 26 C268 27 285 14 320 16"
+                fill="none"
+                stroke="#4B2C40"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth="3"
+              />
+            </Svg>
           </View>
           <View style={styles.axis}>
             <Text style={styles.axisText}>Start</Text>
@@ -319,6 +376,46 @@ export default function ExpensesScreen() {
           </View>
         </Pressable>
       </Modal>
+      <Modal
+        transparent
+        visible={showChartStyleMenu}
+        animationType="fade"
+        onRequestClose={() => setShowChartStyleMenu(false)}
+      >
+        <Pressable
+          style={styles.modal}
+          onPress={() => setShowChartStyleMenu(false)}
+        >
+          <View style={styles.menu}>
+            <Text style={styles.menuTitle}>Select chart style</Text>
+            {(["line", "area"] as ChartStyle[]).map((item) => {
+              const label = item === "line" ? "Line view" : "Area view";
+              return (
+                <TouchableOpacity
+                  key={item}
+                  onPress={() => {
+                    setChartStyle(item);
+                    setShowChartStyleMenu(false);
+                  }}
+                  style={styles.menuItem}
+                >
+                  <Text
+                    style={[
+                      styles.menuText,
+                      chartStyle === item && styles.menuActive,
+                    ]}
+                  >
+                    {label}
+                  </Text>
+                  {chartStyle === item && (
+                    <Ionicons name="checkmark" size={16} color="#4B2C40" />
+                  )}
+                </TouchableOpacity>
+              );
+            })}
+          </View>
+        </Pressable>
+      </Modal>
     </SafeAreaView>
   );
 }
@@ -393,17 +490,42 @@ const styles = StyleSheet.create({
     padding: 18,
   },
   chartHeader: { flexDirection: "row", justifyContent: "space-between" },
+  chartHeaderRight: { alignItems: "flex-end", gap: 8 },
   chartTitle: { fontSize: 13, fontWeight: "500", color: "#77716C" },
+  chartHint: { color: "#9A8FA0", fontSize: 10, marginTop: 4 },
+  chartPicker: {
+    alignItems: "center",
+    backgroundColor: "#F4EDF1",
+    borderRadius: 12,
+    flexDirection: "row",
+    gap: 6,
+    paddingHorizontal: 9,
+    paddingVertical: 6,
+  },
+  chartPickerLabel: { color: "#8B6F7D", fontSize: 9, fontWeight: "700" },
+  chartPickerValue: { color: "#4B2C40", fontSize: 11, fontWeight: "700" },
   chartTotal: { fontSize: 13, fontWeight: "700", color: "#2B2724" },
   chart: {
     alignItems: "flex-end",
     borderBottomColor: "#EEEAE6",
     borderBottomWidth: 1,
-    flexDirection: "row",
     height: 112,
     justifyContent: "space-between",
-    marginTop: 18,
+    marginTop: 12,
     paddingHorizontal: 3,
+  },
+  barChart: {
+    alignItems: "flex-end",
+    flex: 1,
+    flexDirection: "row",
+    justifyContent: "space-between",
+    paddingBottom: 8,
+    paddingHorizontal: 2,
+  },
+  barChartBar: {
+    backgroundColor: "#4B2C40",
+    borderRadius: 4,
+    width: "8%",
   },
   grid: {
     backgroundColor: "#F1EEEA",
@@ -492,6 +614,12 @@ const styles = StyleSheet.create({
     justifyContent: "flex-start",
     paddingRight: 20,
     paddingTop: 74,
+  },
+  menuTitle: {
+    color: "#2B2724",
+    fontSize: 13,
+    fontWeight: "700",
+    marginBottom: 4,
   },
   menu: {
     alignSelf: "flex-end",

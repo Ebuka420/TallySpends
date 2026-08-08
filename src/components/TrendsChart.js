@@ -73,6 +73,17 @@ const TrendsChart = ({ data }) => {
   const activeDetails = hoverDetails[activeIndex] || {};
   const activeX = paddingLeft + (activeIndex / (labels.length - 1)) * chartWidth;
 
+  const getLineStyle = (name = "") => {
+    const normalizedName = name.toLowerCase();
+    if (normalizedName.includes("income")) {
+      return { strokeDasharray: "6 4", strokeWidth: "3.2" };
+    }
+    if (normalizedName.includes("savings")) {
+      return { strokeDasharray: "3 3", strokeWidth: "3.2" };
+    }
+    return { strokeDasharray: undefined, strokeWidth: "3.4" };
+  };
+
   // Render horizontal gridlines & labels
   const gridLines = [];
   for (let val = 0; val <= yMax; val += yStep) {
@@ -123,6 +134,7 @@ const TrendsChart = ({ data }) => {
             const points = getCoords(ds.data);
             const pathD = getBezierPath(points);
             const activePoint = points[activeIndex];
+            const lineStyle = getLineStyle(ds.name);
 
             return (
               <React.Fragment key={ds.name}>
@@ -130,17 +142,20 @@ const TrendsChart = ({ data }) => {
                   d={pathD}
                   fill="none"
                   stroke={ds.color}
-                  strokeWidth="2.5"
+                  strokeWidth={lineStyle.strokeWidth}
                   strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeOpacity="0.96"
+                  strokeDasharray={lineStyle.strokeDasharray}
                 />
                 {activePoint && (
                   <Circle
                     cx={activePoint.x}
                     cy={activePoint.y}
-                    r="4"
+                    r="5"
                     fill={ds.color}
                     stroke="#fff"
-                    strokeWidth="1.5"
+                    strokeWidth="2"
                   />
                 )}
               </React.Fragment>
