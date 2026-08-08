@@ -22,123 +22,231 @@ export default function BudgetScreen() {
         contentContainerStyle={styles.contentContainer}
         showsVerticalScrollIndicator={false}
       >
-        {/* Header Section */}
-        <View style={styles.headerTop}>
-          <View style={styles.headerLeft}>
-            <View>
-              <Text style={styles.headerTitle}>Budget</Text>
-              <Text style={styles.headerSubtitle}>
-                Stay on track. Build your future.
-              </Text>
+        <View style={styles.budgetCardStack}>
+          <View style={styles.budgetCardBack} />
+          <View style={styles.budgetCard}>
+            <View style={styles.budgetCardTop}>
+              <View>
+                <Text style={styles.budgetCardLabel}>MONTHLY BUDGET</Text>
+                <Text style={styles.budgetCardTitle}>April plan</Text>
+              </View>
             </View>
-          </View>
-          <View style={styles.headerIcons}>
-            <TouchableOpacity style={styles.iconButton}>
-              <Ionicons
-                name="notifications-outline"
-                size={20}
-                color="#1A1A1A"
-              />
+            <TouchableOpacity style={styles.budgetCardAction}>
+              <View style={styles.budgetCardActionIcon}><Ionicons name="add" size={16} color="#624B6A" /></View>
+              <Text style={styles.budgetCardActionText}>Add budget</Text>
             </TouchableOpacity>
-            <TouchableOpacity style={styles.iconButton}>
-              <Ionicons name="headset-outline" size={20} color="#1A1A1A" />
-            </TouchableOpacity>
-          </View>
-        </View>
-
-        {/* Dark Summary Card */}
-        <View style={styles.summaryCard}>
-          <View style={styles.summaryTopRow}>
-            <View>
-              <Text style={styles.summaryLabel}>Monthly Budget</Text>
-              <Text style={styles.summaryAmount}>$2,158</Text>
-              <Text style={styles.summarySubAmount}>of $5,000</Text>
-            </View>
-            <View style={styles.ringContainer}>
-              <View style={styles.ringOuter}>
-                <View style={styles.ringInner}>
-                  <Text style={styles.ringPercent}>43%</Text>
-                  <Text style={styles.ringSubText}>remaining</Text>
-                </View>
-              </View>
-            </View>
-          </View>
-
-          <View style={styles.cardProgressBarBg}>
-            <View style={styles.cardProgressBarFill} />
-          </View>
-
-          <View style={styles.summaryStatsRow}>
-            <View style={styles.summaryStatItem}>
-              <View
-                style={[
-                  styles.statIconBox,
-                  { backgroundColor: "rgba(255,255,255,0.15)" },
-                ]}
-              >
-                <Ionicons name="briefcase-outline" size={14} color="#FFF" />
-              </View>
-              <View>
-                <Text style={styles.summaryStatTitle}>Total Budget</Text>
-                <Text style={styles.summaryStatValue}>$5,000</Text>
-              </View>
-            </View>
-
-            <View style={styles.summaryStatDivider} />
-
-            <View style={styles.summaryStatItem}>
-              <View
-                style={[
-                  styles.statIconBox,
-                  { backgroundColor: "rgba(234,88,12,0.2)" },
-                ]}
-              >
-                <Ionicons name="trending-up" size={14} color="#EA580C" />
-              </View>
-              <View>
-                <Text style={styles.summaryStatTitle}>Spent</Text>
-                <Text style={styles.summaryStatValue}>$2,158</Text>
-              </View>
-            </View>
-
-            <View style={styles.summaryStatDivider} />
-
-            <View style={styles.summaryStatItem}>
-              <View
-                style={[
-                  styles.statIconBox,
-                  { backgroundColor: "rgba(5,150,105,0.2)" },
-                ]}
-              >
-                <Ionicons name="arrow-up" size={14} color="#34D399" />
-              </View>
-              <View>
-                <Text style={styles.summaryStatTitle}>Remaining</Text>
-                <Text style={[styles.summaryStatValue, { color: "#34D399" }]}>
-                  $2,842
-                </Text>
-              </View>
-            </View>
+            <View style={styles.budgetPercent}><Text style={styles.budgetPercentValue}>43%</Text><Text style={styles.budgetPercentLabel}>left</Text></View>
+            <Text style={styles.budgetCardAmount}>$2,842<Text style={styles.budgetCardSubAmount}> remaining</Text></Text>
+            <Text style={styles.budgetCardHelper}>$2,158 spent from your $5,000 monthly budget</Text>
+            <View style={styles.budgetProgressTrack}><View style={styles.budgetProgressFill} /></View>
           </View>
         </View>
 
         {/* Budget Categories Section Header */}
         <View style={styles.sectionHeader}>
           <Text style={styles.sectionTitle}>Budget Categories</Text>
-          <TouchableOpacity
-            style={styles.addButton}
-            onPress={() => router.push("/add-budget" as any)}
-          >
-            <Ionicons name="add" size={14} color="#7C3AED" />
-            <Text style={styles.addButtonText}>Add Budget</Text>
+          <TouchableOpacity style={styles.addSectionButton}>
+            <View style={styles.addSectionIcon}><Ionicons name="add" size={13} color="#624B6A" /></View>
+            <Text style={styles.addSectionText}>Add budget</Text>
           </TouchableOpacity>
         </View>
 
-        {/* Category Item 1: Food & Dining */}
-        <View style={styles.categoryCard}>
-          <View style={styles.categoryRow}>
-            <View
-              style={[styles.catIconContainer, { backgroundColor: "#FFF7ED" }]}
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          style={styles.horizontalRow}
+        >
+          {/* Food & Dining */}
+          <View style={styles.categoryCard}>
+            <View style={styles.cardTopRow}>
+              <View
+                style={[styles.catIconFrame, { backgroundColor: "#F3EBF1" }]}
+              >
+                <Ionicons name="fast-food-outline" size={16} color="#4B2C40" />
+              </View>
+              <Ionicons name="ellipsis-vertical" size={14} color="#BBB" />
+            </View>
+            <Text style={styles.catName}>Food & Dining</Text>
+            <Text style={styles.catSplit}>
+              $602 <Text style={styles.catTotal}>/ $800</Text>
+            </Text>
+            <View style={styles.catProgressBg}>
+              <View
+                style={[
+                  styles.catProgressBar,
+                  { width: "75%", backgroundColor: "#4B2C40" },
+                ]}
+              />
+            </View>
+            <View style={styles.cardStatusRow}>
+              <Text style={styles.cardStatusPercent}>75%</Text>
+              <View style={styles.statusDotRow}>
+                <View
+                  style={[styles.statusDot, { backgroundColor: "#8B6599" }]}
+                />
+                <Text style={styles.statusDotText}>Near limit</Text>
+              </View>
+            </View>
+          </View>
+
+          {/* Transport */}
+          <View style={styles.categoryCard}>
+            <View style={styles.cardTopRow}>
+              <View
+                style={[styles.catIconFrame, { backgroundColor: "#EEE4F0" }]}
+              >
+                <Ionicons name="car-outline" size={16} color="#6C4C7A" />
+              </View>
+              <Ionicons name="ellipsis-vertical" size={14} color="#BBB" />
+            </View>
+            <Text style={styles.catName}>Transport</Text>
+            <Text style={styles.catSplit}>
+              $430 <Text style={styles.catTotal}>/ $700</Text>
+            </Text>
+            <View style={styles.catProgressBg}>
+              <View
+                style={[
+                  styles.catProgressBar,
+                  { width: "61%", backgroundColor: "#6C4C7A" },
+                ]}
+              />
+            </View>
+            <View style={styles.cardStatusRow}>
+              <Text style={styles.cardStatusPercent}>61%</Text>
+              <View style={styles.statusDotRow}>
+                <View
+                  style={[styles.statusDot, { backgroundColor: "#8B6599" }]}
+                />
+                <Text style={styles.statusDotText}>On track</Text>
+              </View>
+            </View>
+          </View>
+
+          {/* Shopping */}
+          <View style={styles.categoryCard}>
+            <View style={styles.cardTopRow}>
+              <View
+                style={[styles.catIconFrame, { backgroundColor: "#F7F0F8" }]}
+              >
+                <Ionicons name="bag-handle-outline" size={16} color="#8B6599" />
+              </View>
+              <Ionicons name="ellipsis-vertical" size={14} color="#BBB" />
+            </View>
+            <Text style={styles.catName}>Shopping</Text>
+            <Text style={styles.catSplit}>
+              $387 <Text style={styles.catTotal}>/ $300</Text>
+            </Text>
+            <View style={styles.catProgressBg}>
+              <View
+                style={[
+                  styles.catProgressBar,
+                  { width: "100%", backgroundColor: "#8B6599" },
+                ]}
+              />
+            </View>
+            <View style={styles.cardStatusRow}>
+              <Text style={styles.cardStatusPercent}>129%</Text>
+              <View style={styles.statusDotRow}>
+                <View
+                  style={[styles.statusDot, { backgroundColor: "#8B6599" }]}
+                />
+                <Text style={[styles.statusDotText, { color: "#6C4C7A" }]}>
+                  Exceeded
+                </Text>
+              </View>
+            </View>
+          </View>
+        </ScrollView>
+
+        {/* --- SAVINGS GOALS SECTION --- */}
+        <View style={styles.sectionHeader}>
+          <Text style={styles.sectionTitle}>Savings Goals</Text>
+          <TouchableOpacity style={styles.addSectionButton}>
+            <View style={styles.addSectionIcon}><Ionicons name="add" size={13} color="#624B6A" /></View>
+            <Text style={styles.addSectionText}>Add goal</Text>
+          </TouchableOpacity>
+        </View>
+
+        <View style={styles.goalsContainer}>
+          {/* Goal 1 */}
+          <View style={styles.goalRow}>
+            <View style={[styles.goalIconBox, { backgroundColor: "#F4ECF7" }]}>
+              <Ionicons name="gift-outline" size={18} color="#8E44AD" />
+            </View>
+            <View style={styles.goalMainInfo}>
+              <Text style={styles.goalTitle}>Tim's Birthday</Text>
+              <Text style={styles.goalSub}>Saved $120 of $300</Text>
+            </View>
+            <View style={styles.goalProgressContainer}>
+              <View style={styles.goalProgressBg}>
+                <View
+                  style={[
+                    styles.goalProgressBar,
+                    { width: "40%", backgroundColor: "#4B2C40" },
+                  ]}
+                />
+              </View>
+              <Text style={styles.goalPercentText}>40%</Text>
+            </View>
+            <Ionicons
+              name="ellipsis-vertical"
+              size={14}
+              color="#BBB"
+              style={{ marginLeft: 8 }}
+            />
+          </View>
+
+          {/* Goal 2 */}
+          <View style={styles.goalRow}>
+            <View style={[styles.goalIconBox, { backgroundColor: "#FDEDEC" }]}>
+              <Ionicons name="wine-outline" size={18} color="#E74C3C" />
+            </View>
+            <View style={styles.goalMainInfo}>
+              <Text style={styles.goalTitle}>December Party</Text>
+              <Text style={styles.goalSub}>Saved $450 of $800</Text>
+            </View>
+            <View style={styles.goalProgressContainer}>
+              <View style={styles.goalProgressBg}>
+                <View
+                  style={[
+                    styles.goalProgressBar,
+                    { width: "56%", backgroundColor: "#4B2C40" },
+                  ]}
+                />
+              </View>
+              <Text style={styles.goalPercentText}>56%</Text>
+            </View>
+            <Ionicons
+              name="ellipsis-vertical"
+              size={14}
+              color="#BBB"
+              style={{ marginLeft: 8 }}
+            />
+          </View>
+        </View>
+
+        <TouchableOpacity style={styles.viewAllGoalsButton}>
+          <Text style={styles.viewAllGoalsText}>View all savings goals</Text>
+          <Ionicons
+            name="chevron-forward"
+            size={14}
+            color="#666"
+            style={{ marginLeft: 4 }}
+          />
+        </TouchableOpacity>
+
+        {/* --- AJO PROMOTIONAL PANEL --- */}
+        <View style={styles.ajoCard}>
+          <View style={styles.ajoLeftColumn}>
+            <Text style={styles.ajoTitle}>Ajo</Text>
+            <Text style={styles.ajoSubtitle}>Save with family and friends</Text>
+            <Text style={styles.ajoDescription}>
+              Pool money together, stay consistent and achieve your goals
+              faster.
+            </Text>
+            <TouchableOpacity
+              style={styles.ajoButton}
+              onPress={() => router.push("/ajo" as any)}
             >
               <Ionicons name="fast-food-outline" size={18} color="#EA580C" />
             </View>
@@ -362,6 +470,10 @@ const styles = StyleSheet.create({
   },
   container: {
     flex: 1,
+<<<<<<< HEAD
+=======
+    backgroundColor: "#FFFEFF",
+>>>>>>> 8c693bedea82281e597e210b6ea17314072f60bf
   },
   contentContainer: {
     paddingHorizontal: 20,
@@ -377,13 +489,191 @@ const styles = StyleSheet.create({
   headerLeft: {
     flexDirection: "row",
     alignItems: "center",
+<<<<<<< HEAD
+=======
+    justifyContent: "space-between",
+    paddingHorizontal: 16,
+    backgroundColor: "#FFFFFF",
+  },
+  headerSpacer: {
+    width: 40,
+>>>>>>> 8c693bedea82281e597e210b6ea17314072f60bf
   },
   headerTitle: {
     fontSize: 24,
     fontWeight: "700",
     color: "#111827",
   },
+<<<<<<< HEAD
   headerSubtitle: {
+=======
+  settingsButton: {
+    width: 40,
+    alignItems: "flex-end",
+    justifyContent: "center",
+  },
+  budgetCardStack: {
+    marginHorizontal: 16,
+    marginTop: 22,
+    paddingTop: 12,
+    position: "relative",
+  },
+  budgetCardBack: {
+    backgroundColor: "#E9DFEC",
+    borderRadius: 23,
+    height: "100%",
+    left: 10,
+    opacity: 0.9,
+    position: "absolute",
+    right: 10,
+    top: 0,
+  },
+  budgetCard: {
+    backgroundColor: "#20142A",
+    borderRadius: 23,
+    minHeight: 226,
+    overflow: "hidden",
+    padding: 20,
+  },
+  budgetCardTop: {
+    alignItems: "flex-start",
+    flexDirection: "row",
+    justifyContent: "space-between",
+  },
+  budgetCardAction: {
+    alignItems: "center",
+    backgroundColor: "#382440",
+    borderBottomLeftRadius: 19,
+    borderTopLeftRadius: 19,
+    flexDirection: "row",
+    paddingBottom: 6,
+    paddingLeft: 6,
+    paddingRight: 12,
+    paddingTop: 6,
+    position: "absolute",
+    height: 38,
+    right: -1,
+    top: 17,
+    width: 120,
+  },
+  budgetCardActionIcon: {
+    alignItems: "center",
+    backgroundColor: "#FDF9FE",
+    borderRadius: 13,
+    height: 26,
+    justifyContent: "center",
+    marginRight: 7,
+    width: 26,
+  },
+  budgetCardActionText: {
+    color: "#FFFFFF",
+    fontSize: 12,
+    fontWeight: "700",
+  },
+  budgetCardLabel: {
+    color: "#DCCFE2",
+    fontSize: 10,
+    fontWeight: "700",
+    letterSpacing: 1.1,
+  },
+  budgetCardTitle: {
+    color: "#FFFFFF",
+    fontSize: 16,
+    fontWeight: "600",
+    marginTop: 5,
+  },
+  budgetPercent: {
+    alignItems: "center",
+    backgroundColor: "rgba(255,255,255,0.13)",
+    borderColor: "rgba(255,255,255,0.18)",
+    borderRadius: 13,
+    borderWidth: 1,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    position: "absolute",
+    right: 20,
+    top: 96,
+  },
+  budgetPercentValue: {
+    color: "#FFFFFF",
+    fontSize: 14,
+    fontWeight: "700",
+  },
+  budgetPercentLabel: {
+    color: "#DCCFE2",
+    fontSize: 9,
+    marginTop: 1,
+  },
+  budgetCardAmount: {
+    color: "#FFFFFF",
+    fontSize: 34,
+    fontWeight: "700",
+    letterSpacing: -1.1,
+    marginTop: 23,
+  },
+  budgetCardSubAmount: {
+    color: "#DCCFE2",
+    fontSize: 13,
+    fontWeight: "500",
+    letterSpacing: 0,
+  },
+  budgetCardHelper: {
+    color: "#CDBED4",
+    fontSize: 12,
+    marginTop: 6,
+  },
+  budgetProgressTrack: {
+    backgroundColor: "rgba(255,255,255,0.18)",
+    borderRadius: 4,
+    height: 6,
+    marginTop: 16,
+    overflow: "hidden",
+  },
+  budgetProgressFill: {
+    backgroundColor: "#FFFFFF",
+    borderRadius: 4,
+    height: "100%",
+    width: "57%",
+  },
+  addBudgetButton: {
+    alignItems: "center",
+    alignSelf: "flex-end",
+    backgroundColor: "#FFFFFF",
+    borderRadius: 20,
+    bottom: 17,
+    flexDirection: "row",
+    paddingBottom: 6,
+    paddingLeft: 7,
+    paddingRight: 13,
+    paddingTop: 6,
+    position: "absolute",
+  },
+  addBudgetIcon: {
+    alignItems: "center",
+    backgroundColor: "#F0E6F2",
+    borderRadius: 13,
+    height: 26,
+    justifyContent: "center",
+    marginRight: 7,
+    width: 26,
+  },
+  addBudgetButtonText: {
+    color: "#20142A",
+    fontSize: 12,
+    fontWeight: "700",
+  },
+  /* Overview Card */
+  overviewCard: {
+    backgroundColor: "#FFF",
+    marginHorizontal: 16,
+    marginTop: 16,
+    borderRadius: 16,
+    padding: 16,
+    borderWidth: 1,
+    borderColor: "#F0F0F0",
+  },
+  usageLabel: {
+>>>>>>> 8c693bedea82281e597e210b6ea17314072f60bf
     fontSize: 12,
     color: "#6B7280",
     marginTop: 1,
@@ -519,6 +809,7 @@ const styles = StyleSheet.create({
     fontWeight: "700",
     color: "#111827",
   },
+<<<<<<< HEAD
   addButton: {
     flexDirection: "row",
     alignItems: "center",
@@ -527,11 +818,42 @@ const styles = StyleSheet.create({
     paddingVertical: 6,
     borderRadius: 14,
     gap: 4,
+=======
+  addSectionButton: {
+    alignItems: "center",
+    backgroundColor: "#20142A",
+    borderRadius: 16,
+    flexDirection: "row",
+    height: 38,
+    paddingBottom: 6,
+    paddingLeft: 6,
+    paddingRight: 12,
+    paddingTop: 6,
+    width: 120,
+  },
+  addSectionIcon: {
+    alignItems: "center",
+    backgroundColor: "#FDF9FE",
+    borderRadius: 13,
+    height: 26,
+    justifyContent: "center",
+    marginRight: 7,
+    width: 26,
+>>>>>>> 8c693bedea82281e597e210b6ea17314072f60bf
   },
   addButtonText: {
     fontSize: 12,
+<<<<<<< HEAD
     fontWeight: "600",
     color: "#7C3AED",
+=======
+    color: "#FFFFFF",
+    fontWeight: "700",
+  },
+  horizontalRow: {
+    paddingLeft: 16,
+    flexDirection: "row",
+>>>>>>> 8c693bedea82281e597e210b6ea17314072f60bf
   },
   categoryCard: {
     backgroundColor: "#FFFFFF",

@@ -1,13 +1,7 @@
-import {
-  FontAwesome5,
-  Ionicons,
-  MaterialCommunityIcons,
-} from "@expo/vector-icons";
-import { useRouter } from "expo-router";
+import { Ionicons } from "@expo/vector-icons";
 import React, { useState } from "react";
 import {
   Modal,
-  Platform,
   SafeAreaView,
   ScrollView,
   StyleSheet,
@@ -16,537 +10,255 @@ import {
   TouchableWithoutFeedback,
   View,
 } from "react-native";
+import Svg, { Circle, Path } from "react-native-svg";
 
-const API_URL = process.env.EXPO_PUBLIC_API_URL;
+type Timeframe = "weekly" | "monthly" | "yearly";
+const options: Record<Timeframe, string[]> = {
+  weekly: ["W1 May", "W2 May", "W3 May", "W4 May"],
+  monthly: ["March 2026", "April 2026", "May 2026", "June 2026"],
+  yearly: ["2024", "2025", "2026"],
+};
+const categories = [
+  ["Food & dining", "$692.20", "32%", "fast-food-outline" as const, "#F3EBF1"],
+  ["Transport", "$539.60", "25%", "car-outline" as const, "#EEE5F2"],
+  ["Shopping", "$388.50", "18%", "bag-handle-outline" as const, "#F7F0F8"],
+];
 
 export default function AnalyticsScreen() {
-  const router = useRouter();
-  const [timeframe, setTimeframe] = useState<"weekly" | "monthly" | "yearly">(
-    "monthly",
-  );
-
-  // State for controlling calendar dropdown visibility and selections
-  const [isCalendarOpen, setIsCalendarOpen] = useState(false);
-  const [selectedWeek, setSelectedWeek] = useState("W2 May (May 08 - May 14)");
-  const [selectedMonth, setSelectedMonth] = useState("May 2026");
-  const [selectedYear, setSelectedYear] = useState("2026");
-
-  // Dynamic label based on chosen timeframe
-  const getCurrentDateLabel = () => {
-    if (timeframe === "weekly")
-      return selectedWeek.split(" ")[0] + " " + selectedWeek.split(" ")[1]; // Short display like "W2 May"
-    if (timeframe === "monthly") return selectedMonth;
-    return selectedYear;
+  const [timeframe, setTimeframe] = useState<Timeframe>("monthly");
+  const [period, setPeriod] = useState("May 2026");
+  const [showPeriods, setShowPeriods] = useState(false);
+  const chooseTimeframe = (next: Timeframe) => {
+    setTimeframe(next);
+    setPeriod(options[next][Math.min(1, options[next].length - 1)]);
   };
-
-  // Mock choices for the bottom sheet selector
-  const calendarOptions = {
-    weekly: [
-      "W1 May (May 01 - May 07)",
-      "W2 May (May 08 - May 14)",
-      "W3 May (May 15 - May 21)",
-      "W4 May (May 22 - May 28)",
-      "W5 May (May 29 - Jun 04)",
-    ],
-    monthly: ["March 2026", "April 2026", "May 2026", "June 2026", "July 2026"],
-    yearly: ["2024", "2025", "2026"],
-  };
-
-  const handleSelectDate = (item: string) => {
-    if (timeframe === "weekly") setSelectedWeek(item);
-    else if (timeframe === "monthly") setSelectedMonth(item);
-    else setSelectedYear(item);
-    setIsCalendarOpen(false);
-  };
-
-  // Renders the block grid for the Spending Heat Map
-  const renderHeatmapGrid = () => {
-    const days = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
-    const intensities: { [key: string]: number[] } = {
-      Mon: [0, 0, 1, 1, 1, 0, 0],
-      Tue: [0, 0, 1, 2, 1, 0, 0],
-      Wed: [0, 1, 2, 3, 2, 1, 0],
-      Thu: [0, 1, 2, 4, 2, 1, 0],
-      Fri: [1, 2, 3, 4, 3, 2, 1],
-      Sat: [1, 3, 4, 4, 4, 3, 1],
-      Sun: [0, 1, 2, 2, 2, 1, 0],
-    };
-
-    const getColor = (val: number) => {
-      if (val === 4) return "#4B2C40";
-      if (val === 3) return "#6D4C62";
-      if (val === 2) return "#96788B";
-      if (val === 1) return "#CEBFCA";
-      return "#F4F2F4";
-    };
-
-    return days.map((day) => (
-      <View key={day} style={styles.heatmapRow}>
-        <Text style={styles.heatmapDayLabel}>{day}</Text>
-        <View style={styles.heatmapBlocksContainer}>
-          {intensities[day].map((val, idx) => (
-            <View
-              key={idx}
-              style={[styles.heatmapBlock, { backgroundColor: getColor(val) }]}
-            />
-          ))}
-        </View>
-      </View>
-    ));
-  };
-
   return (
-    <SafeAreaView style={styles.container}>
-      {/* --- HEADER BAR (No Hamburger Menu) --- */}
-      <View style={styles.header}>
-        <View style={styles.headerSpacer} />
-        <Text style={styles.headerTitle}>Analytics</Text>
-        <TouchableOpacity style={styles.shareButton}>
-          <Ionicons name="share-outline" size={22} color="#1A1A1A" />
-        </TouchableOpacity>
-      </View>
-
+    <SafeAreaView style={styles.safeArea}>
       <ScrollView
-        contentContainerStyle={styles.scrollContent}
+        contentContainerStyle={styles.content}
         showsVerticalScrollIndicator={false}
       >
-        {/* --- TIMEFRAME & CALENDAR SELECTOR --- */}
-        <View style={styles.selectorRow}>
-          <View style={styles.pillContainer}>
-            <TouchableOpacity
-              style={[styles.pill, timeframe === "weekly" && styles.activePill]}
-              onPress={() => setTimeframe("weekly")}
-            >
-              <Text
+        <View style={styles.header}>
+          <Text style={styles.title}>Analytics</Text>
+          <TouchableOpacity style={styles.share}>
+            <Ionicons name="share-outline" size={19} color="#20142A" />
+          </TouchableOpacity>
+        </View>
+        <View style={styles.controls}>
+          <View style={styles.segment}>
+            {(["weekly", "monthly", "yearly"] as Timeframe[]).map((item) => (
+              <TouchableOpacity
+                key={item}
+                onPress={() => chooseTimeframe(item)}
                 style={[
-                  styles.pillText,
-                  timeframe === "weekly" && styles.activePillText,
+                  styles.segmentOption,
+                  timeframe === item && styles.segmentActive,
                 ]}
               >
-                Weekly
-              </Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={[
-                styles.pill,
-                timeframe === "monthly" && styles.activePill,
-              ]}
-              onPress={() => setTimeframe("monthly")}
-            >
-              <Text
-                style={[
-                  styles.pillText,
-                  timeframe === "monthly" && styles.activePillText,
-                ]}
-              >
-                Monthly
-              </Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={[styles.pill, timeframe === "yearly" && styles.activePill]}
-              onPress={() => setTimeframe("yearly")}
-            >
-              <Text
-                style={[
-                  styles.pillText,
-                  timeframe === "yearly" && styles.activePillText,
-                ]}
-              >
-                Yearly
-              </Text>
-            </TouchableOpacity>
+                <Text
+                  style={[
+                    styles.segmentText,
+                    timeframe === item && styles.segmentTextActive,
+                  ]}
+                >
+                  {item[0].toUpperCase() + item.slice(1)}
+                </Text>
+              </TouchableOpacity>
+            ))}
           </View>
-
           <TouchableOpacity
-            style={styles.dateDropdown}
-            onPress={() => setIsCalendarOpen(true)}
+            style={styles.periodButton}
+            onPress={() => setShowPeriods(true)}
           >
-            <Ionicons
-              name="calendar-outline"
-              size={13}
-              color="#4A4A4A"
-              style={{ marginRight: 4 }}
-            />
-            <Text style={styles.dateDropdownText}>{getCurrentDateLabel()}</Text>
-            <Ionicons
-              name="chevron-down"
-              size={12}
-              color="#4A4A4A"
-              style={{ marginLeft: 4 }}
-            />
+            <Text style={styles.periodText}>{period}</Text>
+            <Ionicons name="chevron-down" size={14} color="#624B6A" />
           </TouchableOpacity>
         </View>
 
-        {/* --- FINANCIAL HEALTH SCORE --- */}
-        <View style={styles.analyticsCard}>
-          <Text style={styles.cardLabel}>Financial Health Score</Text>
-          <View style={styles.healthScoreRow}>
-            <View style={styles.scoreLeft}>
-              <Text style={styles.scoreMainText}>
-                82<Text style={styles.scoreSubText}> /100</Text>
-              </Text>
-              <Text style={styles.scoreDesc}>
-                Spending efficiency improved this month
-              </Text>
-              <View style={styles.trendBadge}>
-                <Ionicons
-                  name="trending-up"
-                  size={12}
-                  color="#27AE60"
-                  style={{ marginRight: 2 }}
-                />
-                <Text style={styles.trendText}>+8%</Text>
-                <Text style={styles.trendSubText}> vs Last Period</Text>
-              </View>
+        <View style={styles.hero}>
+          <Text style={styles.overline}>FINANCIAL HEALTH</Text>
+          <View style={styles.heroRow}>
+            <Text style={styles.score}>82</Text>
+            <Text style={styles.outOf}>/100</Text>
+            <View style={styles.scoreBadge}>
+              <Ionicons name="arrow-up" size={12} color="#624B6A" />
+              <Text style={styles.scoreBadgeText}>8%</Text>
             </View>
+          </View>
+          <Text style={styles.heroTitle}>You’re building healthy habits.</Text>
+          <Text style={styles.heroSubtitle}>
+            Your spending efficiency improved compared with last month.
+          </Text>
+        </View>
 
-            <View style={styles.scoreCenter}>
-              <View style={styles.gaugeMock}>
-                <MaterialCommunityIcons
-                  name="pulse"
-                  size={20}
-                  color="#4B2C40"
-                />
-                <Text style={styles.gaugeStatusText}>Good</Text>
-                <Text style={styles.gaugeSubTextText}>
-                  You're on the right track!
-                </Text>
-              </View>
+        <View style={styles.trendCard}>
+          <View style={styles.cardHeader}>
+            <View>
+              <Text style={styles.cardLabel}>SPENDING OVERVIEW</Text>
+              <Text style={styles.cardTitle}>Your monthly flow</Text>
             </View>
-
-            <View style={styles.scoreRight}>
-              <View style={styles.rightIndicatorRow}>
-                <View
-                  style={[
-                    styles.miniIndicatorCircle,
-                    { backgroundColor: "#EBF5FB" },
-                  ]}
-                >
-                  <Ionicons name="arrow-up" size={10} color="#27AE60" />
-                </View>
-                <View>
-                  <Text style={styles.indLabel}>Income</Text>
-                  <Text style={styles.indValue}>$3,450.00</Text>
-                  <Text style={styles.indSub}>+12% vs Apr</Text>
-                </View>
-              </View>
-
-              <View style={styles.rightIndicatorRow}>
-                <View
-                  style={[
-                    styles.miniIndicatorCircle,
-                    { backgroundColor: "#FDEDEC" },
-                  ]}
-                >
-                  <Ionicons name="arrow-down" size={10} color="#E74C3C" />
-                </View>
-                <View>
-                  <Text style={styles.indLabel}>Expenses</Text>
-                  <Text style={styles.indValue}>$2,158.30</Text>
-                  <Text style={[styles.indSub, { color: "#E74C3C" }]}>
-                    -12% vs Apr
-                  </Text>
-                </View>
-              </View>
-
-              <View style={styles.rightIndicatorRow}>
-                <View
-                  style={[
-                    styles.miniIndicatorCircle,
-                    { backgroundColor: "#E8F8F5" },
-                  ]}
-                >
-                  <Ionicons name="shuffle-outline" size={10} color="#1ABC9C" />
-                </View>
-                <View>
-                  <Text style={styles.indLabel}>Savings</Text>
-                  <Text style={styles.indValue}>$1,291.70</Text>
-                  <Text style={[styles.indSub, { color: "#1ABC9C" }]}>
-                    +28% vs Apr
-                  </Text>
-                </View>
-              </View>
-            </View>
+            <Text style={styles.cardAmount}>$2,158</Text>
+          </View>
+          <View style={styles.chart}>
+            <View style={[styles.chartGuide, { top: 31 }]} />
+            <View style={[styles.chartGuide, { top: 72 }]} />
+            <Svg
+              width="100%"
+              height="112"
+              viewBox="0 0 320 112"
+              preserveAspectRatio="none"
+            >
+              <Path
+                d="M0 91 C18 85 29 69 48 72 C67 75 78 51 98 57 C117 63 128 44 148 49 C167 55 181 29 201 35 C222 42 234 19 255 25 C276 31 288 12 320 17 L320 112 L0 112 Z"
+                fill="#EEE5F0"
+                opacity={0.72}
+              />
+              <Path
+                d="M0 91 C18 85 29 69 48 72 C67 75 78 51 98 57 C117 63 128 44 148 49 C167 55 181 29 201 35 C222 42 234 19 255 25 C276 31 288 12 320 17"
+                fill="none"
+                stroke="#20142A"
+                strokeLinecap="round"
+                strokeWidth="3.5"
+              />
+              <Circle
+                cx="255"
+                cy="25"
+                fill="#FFFFFF"
+                r="5.5"
+                stroke="#20142A"
+                strokeWidth="3"
+              />
+            </Svg>
+          </View>
+          <View style={styles.chartAxis}>
+            <Text style={styles.chartAxisText}>Week 1</Text>
+            <Text style={styles.chartAxisText}>Week 4</Text>
+          </View>
+          <View style={styles.legend}>
+            <Legend label="Spent" color="#20142A" />
+            <Legend label="Income" color="#BDAAC5" />
+            <Legend label="Saved" color="#E6DCE9" />
           </View>
         </View>
 
-        {/* --- SPENDING TRENDS LINE CHART --- */}
-        <View style={styles.analyticsCard}>
-          <View style={styles.cardHeaderRow}>
-            <Text style={styles.cardLabelBold}>Spending Trends</Text>
-            <TouchableOpacity style={styles.miniInlineDropdown}>
-              <Text style={styles.miniDropdownText}>All Accounts</Text>
-              <Ionicons
-                name="chevron-down"
-                size={10}
-                color="#666"
-                style={{ marginLeft: 2 }}
-              />
+        <View style={styles.metrics}>
+          <Metric label="INCOME" value="$3,450" icon="arrow-down-outline" />
+          <View style={styles.metricDivider} />
+          <Metric label="SPENT" value="$2,158" icon="arrow-up-outline" />
+          <View style={styles.metricDivider} />
+          <Metric label="SAVED" value="$1,292" icon="leaf-outline" />
+        </View>
+
+        <Heading title="Where your money went." action="See details" />
+        <View style={styles.surface}>
+          {categories.map(([name, amount, share, icon, tint]) => (
+            <TouchableOpacity key={name} style={styles.categoryRow}>
+              <View
+                style={[
+                  styles.categoryIcon,
+                  { backgroundColor: tint as string },
+                ]}
+              >
+                <Ionicons name={icon as any} size={18} color="#624B6A" />
+              </View>
+              <View style={styles.categoryCopy}>
+                <Text style={styles.categoryName}>{name}</Text>
+                <View style={styles.categoryTrack}>
+                  <View
+                    style={[styles.categoryFill, { width: share as string }]}
+                  />
+                </View>
+              </View>
+              <View style={styles.categoryEnd}>
+                <Text style={styles.categoryAmount}>{amount}</Text>
+                <Text style={styles.categoryShare}>{share}</Text>
+              </View>
             </TouchableOpacity>
-          </View>
-
-          <View style={styles.chartContainerMock}>
-            <View style={styles.yAxisLabels}>
-              <Text style={styles.axisLabel}>$4k</Text>
-              <Text style={styles.axisLabel}>$3k</Text>
-              <Text style={styles.axisLabel}>$2k</Text>
-              <Text style={styles.axisLabel}>$1k</Text>
-              <Text style={styles.axisLabel}>$0</Text>
-            </View>
-
-            <View style={styles.chartCanvas}>
-              <View style={styles.gridLine} />
-              <View style={styles.gridLine} />
-              <View style={styles.gridLine} />
-              <View style={styles.gridLine} />
-
-              <View style={styles.chartTooltipPointerLine}>
-                <View
-                  style={[
-                    styles.pointerDot,
-                    { top: "30%", backgroundColor: "#4B2C40" },
-                  ]}
-                />
-                <View
-                  style={[
-                    styles.pointerDot,
-                    { top: "50%", backgroundColor: "#27AE60" },
-                  ]}
-                />
-                <View
-                  style={[
-                    styles.pointerDot,
-                    { top: "65%", backgroundColor: "#E0E0E0" },
-                  ]}
-                />
-
-                <View style={styles.chartTooltipCard}>
-                  <Text style={styles.tooltipDate}>Selected Period</Text>
-                  <Text style={styles.tooltipRowText}>
-                    • Expenses <Text style={{ fontWeight: "700" }}>$2,120</Text>
-                  </Text>
-                  <Text style={styles.tooltipRowText}>
-                    • Savings <Text style={{ fontWeight: "700" }}>$1,200</Text>
-                  </Text>
-                  <Text style={styles.tooltipRowText}>
-                    • Income <Text style={{ fontWeight: "700" }}>$3,320</Text>
-                  </Text>
-                </View>
-              </View>
-            </View>
-          </View>
-
-          <View style={styles.xAxisLabels}>
-            <Text style={styles.axisLabel}>P1</Text>
-            <Text style={styles.axisLabel}>P2</Text>
-            <Text style={styles.axisLabel}>P3</Text>
-            <Text style={styles.axisLabel}>P4</Text>
-            <Text style={styles.axisLabel}>P5</Text>
-          </View>
-
-          <View style={styles.chartLegendRow}>
-            <View style={styles.legendItem}>
-              <View
-                style={[styles.legendDot, { backgroundColor: "#4B2C40" }]}
-              />
-              <Text style={styles.legendText}>Expenses</Text>
-            </View>
-            <View style={styles.legendItem}>
-              <View
-                style={[styles.legendDot, { backgroundColor: "#27AE60" }]}
-              />
-              <Text style={styles.legendText}>Savings</Text>
-            </View>
-            <View style={styles.legendItem}>
-              <View
-                style={[styles.legendDot, { backgroundColor: "#E0E0E0" }]}
-              />
-              <Text style={styles.legendText}>Income</Text>
-            </View>
-          </View>
+          ))}
         </View>
 
-        {/* --- GRID ROW: CATEGORY & COMPARISON CARDS --- */}
-        <View style={styles.splitCardsRow}>
-          <View style={[styles.analyticsCard, styles.splitCard]}>
-            <Text style={styles.cardLabelBold}>Category Breakdown</Text>
-            <View style={styles.donutChartContainer}>
-              <View style={styles.donutMockCircle}>
-                <Text style={styles.donutInnerValue}>$2,158.30</Text>
-                <Text style={styles.donutInnerLabel}>Total Expenses</Text>
-              </View>
-            </View>
-
-            <View style={styles.categoryListBreakdown}>
-              <View style={styles.catBreakdownRow}>
-                <View
-                  style={[styles.legendDot, { backgroundColor: "#4B2C40" }]}
-                />
-                <Text style={styles.catBreakdownName}>Food & Dining</Text>
-                <Text style={styles.catBreakdownPercent}>32%</Text>
-              </View>
-              <View style={styles.catBreakdownRow}>
-                <View
-                  style={[styles.legendDot, { backgroundColor: "#8E44AD" }]}
-                />
-                <Text style={styles.catBreakdownName}>Transport</Text>
-                <Text style={styles.catBreakdownPercent}>25%</Text>
-              </View>
-              <View style={styles.catBreakdownRow}>
-                <View
-                  style={[styles.legendDot, { backgroundColor: "#E74C3C" }]}
-                />
-                <Text style={styles.catBreakdownName}>Shopping</Text>
-                <Text style={styles.catBreakdownPercent}>18%</Text>
-              </View>
-            </View>
+        <Heading title="Smart observations." action="View all" />
+        <View style={styles.insight}>
+          <View style={styles.insightIcon}>
+            <Ionicons name="sparkles-outline" size={19} color="#624B6A" />
           </View>
-
-          <View style={[styles.analyticsCard, styles.splitCard]}>
-            <View style={styles.cardHeaderRow}>
-              <Text style={styles.cardLabelBold}>Income vs Expenses</Text>
-            </View>
-
-            <View style={styles.barChartContainerMock}>
-              <View style={styles.yAxisLabelsMini}>
-                <Text style={styles.axisLabelMini}>$4k</Text>
-                <Text style={styles.axisLabelMini}>$2k</Text>
-                <Text style={styles.axisLabelMini}>$0</Text>
-              </View>
-
-              <View style={styles.barCanvasMini}>
-                {[1, 2, 3, 4, 5].map((item, idx) => (
-                  <View key={idx} style={styles.barGroupColumn}>
-                    <View style={styles.doubleBarFrame}>
-                      <View
-                        style={[
-                          styles.verticalBarUnit,
-                          {
-                            height: idx === 4 ? "70%" : "85%",
-                            backgroundColor: "#2ECC71",
-                          },
-                        ]}
-                      />
-                      <View
-                        style={[
-                          styles.verticalBarUnit,
-                          {
-                            height: idx === 4 ? "55%" : "60%",
-                            backgroundColor: "#4B2C40",
-                          },
-                        ]}
-                      />
-                    </View>
-                    <Text style={styles.miniMonthLabel}>P{item}</Text>
-                  </View>
-                ))}
-              </View>
-            </View>
+          <View style={styles.insightCopy}>
+            <Text style={styles.insightTitle}>A small shift to notice</Text>
+            <Text style={styles.insightText}>
+              Food spending was higher this week than it was last month. A $35
+              weekly cap could keep you on track.
+            </Text>
           </View>
+          <Ionicons name="chevron-forward" size={16} color="#8E7B95" />
         </View>
 
-        {/* --- GRID ROW: HEAT MAP & SMART COACH --- */}
-        <View style={[styles.splitCardsRow, { marginTop: 12 }]}>
-          <View style={[styles.analyticsCard, styles.splitCard]}>
-            <Text style={styles.cardLabelBold}>Spending Heat Map</Text>
-            <Text style={styles.cardLabelSub}>When you spend the most</Text>
-            <View style={styles.heatmapWrapper}>
-              {renderHeatmapGrid()}
-              <View style={styles.heatmapXAxisTimeline}>
-                <Text style={styles.heatmapTimeText}>6 AM</Text>
-                <Text style={styles.heatmapTimeText}>12 PM</Text>
-                <Text style={styles.heatmapTimeText}>6 PM</Text>
-              </View>
-            </View>
+        <Heading title="Spending rhythm." action="This month" />
+        <View style={styles.surface}>
+          <Text style={styles.rhythmCaption}>
+            Your busiest spending time is between 12 PM and 6 PM.
+          </Text>
+          <View style={styles.heatmap}>
+            {[
+              1, 2, 3, 4, 3, 2, 1, 0, 1, 2, 3, 4, 3, 2, 1, 0, 1, 2, 3, 4, 3, 2,
+              1, 0,
+            ].map((intensity, index) => (
+              <View
+                key={index}
+                style={[
+                  styles.heatCell,
+                  {
+                    backgroundColor: [
+                      "#F5F0F6",
+                      "#E7DDE9",
+                      "#CDBBD3",
+                      "#8F729A",
+                      "#624B6A",
+                    ][intensity],
+                  },
+                ]}
+              />
+            ))}
           </View>
-
-          <View style={[styles.analyticsCard, styles.splitCard]}>
-            <Text style={styles.cardLabelBold}>Smart Trends</Text>
-            <View style={styles.smartTrendsList}>
-              <TouchableOpacity style={styles.smartTrendRowItem}>
-                <View
-                  style={[styles.trendIconBox, { backgroundColor: "#F5EEF8" }]}
-                >
-                  <Ionicons name="car-outline" size={14} color="#8E44AD" />
-                </View>
-                <View style={{ flex: 1, paddingHorizontal: 6 }}>
-                  <Text style={styles.trendItemContentText} numberOfLines={2}>
-                    Transport items increased by 15%.
-                  </Text>
-                </View>
-              </TouchableOpacity>
-
-              <TouchableOpacity style={styles.smartTrendRowItem}>
-                <View
-                  style={[styles.trendIconBox, { backgroundColor: "#E8F8F5" }]}
-                >
-                  <FontAwesome5 name="piggy-bank" size={11} color="#1ABC9C" />
-                </View>
-                <View style={{ flex: 1, paddingHorizontal: 6 }}>
-                  <Text style={styles.trendItemContentText} numberOfLines={2}>
-                    Savings rate grew by 8% this period.
-                  </Text>
-                </View>
-              </TouchableOpacity>
-            </View>
+          <View style={styles.heatLabels}>
+            <Text style={styles.heatLabelsText}>6 AM</Text>
+            <Text style={styles.heatLabelsText}>12 PM</Text>
+            <Text style={styles.heatLabelsText}>6 PM</Text>
           </View>
         </View>
       </ScrollView>
-
-      {/* --- BOTTOM SHEET DROPDOWN MODAL --- */}
       <Modal
-        visible={isCalendarOpen}
-        transparent={true}
-        animationType="slide"
-        onRequestClose={() => setIsCalendarOpen(false)}
+        transparent
+        visible={showPeriods}
+        animationType="fade"
+        onRequestClose={() => setShowPeriods(false)}
       >
-        <TouchableWithoutFeedback onPress={() => setIsCalendarOpen(false)}>
-          <View style={styles.modalOverlay}>
+        <TouchableWithoutFeedback onPress={() => setShowPeriods(false)}>
+          <View style={styles.overlay}>
             <TouchableWithoutFeedback>
-              <View style={styles.modalContent}>
-                <View style={styles.modalHeader}>
-                  <View style={styles.modalHeaderKnob} />
-                  <Text style={styles.modalTitle}>
-                    Select{" "}
-                    {timeframe.charAt(0).toUpperCase() + timeframe.slice(1)}{" "}
-                    Period
-                  </Text>
-                </View>
-                <ScrollView contentContainerStyle={styles.modalList}>
-                  {calendarOptions[timeframe].map((item) => {
-                    const isSelected =
-                      (timeframe === "weekly" && selectedWeek === item) ||
-                      (timeframe === "monthly" && selectedMonth === item) ||
-                      (timeframe === "yearly" && selectedYear === item);
-
-                    return (
-                      <TouchableOpacity
-                        key={item}
-                        style={[
-                          styles.modalItem,
-                          isSelected && styles.modalItemSelected,
-                        ]}
-                        onPress={() => handleSelectDate(item)}
-                      >
-                        <Text
-                          style={[
-                            styles.modalItemText,
-                            isSelected && styles.modalItemTextSelected,
-                          ]}
-                        >
-                          {item}
-                        </Text>
-                        {isSelected && (
-                          <Ionicons
-                            name="checkmark-circle"
-                            size={18}
-                            color="#4B2C40"
-                          />
-                        )}
-                      </TouchableOpacity>
-                    );
-                  })}
-                </ScrollView>
+              <View style={styles.menu}>
+                <Text style={styles.menuTitle}>Select period</Text>
+                {options[timeframe].map((item) => (
+                  <TouchableOpacity
+                    key={item}
+                    onPress={() => {
+                      setPeriod(item);
+                      setShowPeriods(false);
+                    }}
+                    style={styles.menuItem}
+                  >
+                    <Text
+                      style={[
+                        styles.menuText,
+                        period === item && styles.menuActive,
+                      ]}
+                    >
+                      {item}
+                    </Text>
+                    {period === item && (
+                      <Ionicons name="checkmark" size={17} color="#20142A" />
+                    )}
+                  </TouchableOpacity>
+                ))}
               </View>
             </TouchableWithoutFeedback>
           </View>
@@ -555,564 +267,323 @@ export default function AnalyticsScreen() {
     </SafeAreaView>
   );
 }
-
+function Heading({ title, action }: { title: string; action: string }) {
+  return (
+    <View style={styles.heading}>
+      <Text style={styles.headingTitle}>{title}</Text>
+      <Text style={styles.headingAction}>{action}</Text>
+    </View>
+  );
+}
+function Legend({ label, color }: { label: string; color: string }) {
+  return (
+    <View style={styles.legendItem}>
+      <View style={[styles.legendDot, { backgroundColor: color }]} />
+      <Text style={styles.legendText}>{label}</Text>
+    </View>
+  );
+}
+function Metric({
+  label,
+  value,
+  icon,
+}: {
+  label: string;
+  value: string;
+  icon: any;
+}) {
+  return (
+    <View style={styles.metric}>
+      <View style={styles.metricIcon}>
+        <Ionicons name={icon} size={14} color="#20142A" />
+      </View>
+      <Text style={styles.metricLabel}>{label}</Text>
+      <Text style={styles.metricValue}>{value}</Text>
+    </View>
+  );
+}
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: "#FAFAFA",
-  },
-  scrollContent: {
-    paddingBottom: 110,
-  },
+  safeArea: { flex: 1, backgroundColor: "#FFF" },
+  content: { padding: 20, paddingBottom: 120 },
   header: {
-    height: 56,
-    flexDirection: "row",
     alignItems: "center",
+    flexDirection: "row",
     justifyContent: "space-between",
-    paddingHorizontal: 16,
-    backgroundColor: "#FFF",
+    paddingTop: 8,
   },
-  headerSpacer: {
-    width: 40,
-  },
-  headerTitle: {
-    fontSize: 20,
+  title: {
+    color: "#251A2B",
+    fontSize: 25,
     fontWeight: "700",
-    color: "#1A1A1A",
+    letterSpacing: -0.7,
   },
-  shareButton: {
-    width: 40,
-    alignItems: "flex-end",
+  share: {
+    alignItems: "center",
+    backgroundColor: "#F3EBF1",
+    borderRadius: 18,
+    height: 36,
     justifyContent: "center",
+    width: 36,
   },
-  selectorRow: {
+  controls: {
+    alignItems: "center",
     flexDirection: "row",
     justifyContent: "space-between",
-    alignItems: "center",
-    paddingHorizontal: 16,
-    marginTop: 16,
+    marginTop: 25,
   },
-  pillContainer: {
+  segment: {
+    backgroundColor: "#F3F0F4",
+    borderRadius: 14,
     flexDirection: "row",
-    backgroundColor: "#EFEFEF",
-    borderRadius: 10,
     padding: 3,
   },
-  pill: {
-    paddingHorizontal: 16,
-    paddingVertical: 6,
-    borderRadius: 8,
-  },
-  activePill: {
-    backgroundColor: "#4B2C40",
-  },
-  pillText: {
-    fontSize: 12,
-    color: "#666",
-    fontWeight: "500",
-  },
-  activePillText: {
-    color: "#FFF",
-    fontWeight: "600",
-  },
-  dateDropdown: {
-    flexDirection: "row",
-    alignItems: "center",
-    backgroundColor: "#FFF",
-    borderWidth: 1,
-    borderColor: "#EAEAEA",
-    borderRadius: 10,
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-  },
-  dateDropdownText: {
-    fontSize: 12,
-    fontWeight: "600",
-    color: "#1A1A1A",
-  },
-  analyticsCard: {
-    backgroundColor: "#FFF",
-    marginHorizontal: 16,
-    marginTop: 16,
-    borderRadius: 16,
-    padding: 16,
-    borderWidth: 1,
-    borderColor: "#F0F0F0",
-  },
-  cardLabel: {
-    fontSize: 12,
-    color: "#888",
-    fontWeight: "500",
-  },
-  cardLabelBold: {
-    fontSize: 14,
-    fontWeight: "700",
-    color: "#1A1A1A",
-  },
-  cardLabelSub: {
-    fontSize: 11,
-    color: "#888",
-    marginTop: 2,
-  },
-  cardHeaderRow: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    marginBottom: 12,
-  },
-  miniInlineDropdown: {
-    flexDirection: "row",
-    alignItems: "center",
-    backgroundColor: "#FAFAFA",
-    borderWidth: 1,
-    borderColor: "#EFEFEF",
-    borderRadius: 6,
-    paddingHorizontal: 6,
-    paddingVertical: 3,
-  },
-  miniDropdownText: {
-    fontSize: 10,
-    color: "#666",
-    fontWeight: "500",
-  },
-  healthScoreRow: {
-    flexDirection: "row",
-    marginTop: 12,
-    justifyContent: "space-between",
-  },
-  scoreLeft: {
-    flex: 0.35,
-    justifyContent: "center",
-  },
-  scoreMainText: {
-    fontSize: 32,
-    fontWeight: "800",
-    color: "#1A1A1A",
-  },
-  scoreSubText: {
-    fontSize: 14,
-    fontWeight: "500",
-    color: "#999",
-  },
-  scoreDesc: {
-    fontSize: 11,
-    color: "#666",
-    marginTop: 6,
-    lineHeight: 14,
-  },
-  trendBadge: {
-    flexDirection: "row",
-    alignItems: "center",
-    backgroundColor: "#EAFAF1",
-    paddingHorizontal: 6,
-    paddingVertical: 3,
-    borderRadius: 6,
-    alignSelf: "flex-start",
-    marginTop: 10,
-  },
-  trendText: {
-    fontSize: 11,
-    fontWeight: "700",
-    color: "#27AE60",
-  },
-  trendSubText: {
-    fontSize: 9,
-    color: "#777",
-  },
-  scoreCenter: {
-    flex: 0.3,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  gaugeMock: {
-    alignItems: "center",
-    justifyContent: "center",
-    borderWidth: 3,
-    borderColor: "#4B2C40",
-    borderRadius: 45,
-    width: 86,
-    height: 86,
-    backgroundColor: "#FCFCFC",
-  },
-  gaugeStatusText: {
-    fontSize: 13,
-    fontWeight: "700",
-    color: "#1A1A1A",
-    marginTop: 2,
-  },
-  gaugeSubTextText: {
-    fontSize: 7,
-    color: "#888",
-    textAlign: "center",
-    paddingHorizontal: 4,
-    marginTop: 1,
-  },
-  scoreRight: {
-    flex: 0.35,
-    justifyContent: "center",
-  },
-  rightIndicatorRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    marginBottom: 8,
-  },
-  miniIndicatorCircle: {
-    width: 18,
-    height: 18,
-    borderRadius: 9,
-    alignItems: "center",
-    justifyContent: "center",
-    marginRight: 6,
-  },
-  indLabel: {
-    fontSize: 9,
-    color: "#888",
-  },
-  indValue: {
-    fontSize: 11,
-    fontWeight: "700",
-    color: "#1A1A1A",
-  },
-  indSub: {
-    fontSize: 8,
-    color: "#27AE60",
-    fontWeight: "500",
-  },
-  chartContainerMock: {
-    flexDirection: "row",
-    height: 140,
-    marginTop: 12,
-  },
-  yAxisLabels: {
-    justifyContent: "space-between",
-    height: "100%",
-    paddingRight: 8,
-    width: 28,
-  },
-  axisLabel: {
-    fontSize: 10,
-    color: "#999",
-    textAlign: "right",
-  },
-  chartCanvas: {
-    flex: 1,
-    height: "100%",
-    borderLeftWidth: 1,
-    borderBottomWidth: 1,
-    borderColor: "#EAEAEA",
-    justifyContent: "space-between",
-    position: "relative",
-  },
-  gridLine: {
-    height: 1,
-    backgroundColor: "#F5F5F5",
-    width: "100%",
-  },
-  chartTooltipPointerLine: {
-    position: "absolute",
-    left: "52%",
-    top: 0,
-    bottom: 0,
-    width: 1,
-    backgroundColor: "#DDD",
-    borderStyle: "dashed",
-    alignItems: "center",
-  },
-  pointerDot: {
-    position: "absolute",
-    width: 6,
-    height: 6,
-    borderRadius: 3,
-    left: -2,
-  },
-  chartTooltipCard: {
-    position: "absolute",
-    top: 15,
-    left: 8,
-    backgroundColor: "#FFF",
-    borderWidth: 1,
-    borderColor: "#EAEAEA",
-    borderRadius: 8,
-    padding: 8,
-    width: 105,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.05,
-    shadowRadius: 4,
-    elevation: 2,
-  },
-  tooltipDate: {
-    fontSize: 9,
-    color: "#999",
-    fontWeight: "600",
-    marginBottom: 4,
-  },
-  tooltipRowText: {
-    fontSize: 9,
-    color: "#333",
-    marginVertical: 1,
-  },
-  xAxisLabels: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    paddingLeft: 28,
-    marginTop: 8,
-  },
-  chartLegendRow: {
-    flexDirection: "row",
-    justifyContent: "flex-start",
-    paddingLeft: 28,
-    marginTop: 12,
-  },
-  legendItem: {
-    flexDirection: "row",
-    alignItems: "center",
-    marginRight: 16,
-  },
-  legendDot: {
-    width: 8,
-    height: 8,
-    borderRadius: 4,
-    marginRight: 6,
-  },
-  legendText: {
-    fontSize: 11,
-    color: "#666",
-    fontWeight: "500",
-  },
-  splitCardsRow: {
-    flexDirection: "row",
-    paddingHorizontal: 16,
-    justifyContent: "space-between",
-    marginTop: 16,
-  },
-  splitCard: {
-    flex: 0.485,
-    marginHorizontal: 0,
-    padding: 12,
-  },
-  donutChartContainer: {
-    alignItems: "center",
-    justifyContent: "center",
-    marginVertical: 16,
-  },
-  donutMockCircle: {
-    width: 95,
-    height: 95,
-    borderRadius: 48,
-    borderWidth: 10,
-    borderColor: "#4B2C40",
-    alignItems: "center",
-    justifyContent: "center",
-    backgroundColor: "#FFF",
-  },
-  donutInnerValue: {
-    fontSize: 12,
-    fontWeight: "700",
-    color: "#1A1A1A",
-  },
-  donutInnerLabel: {
-    fontSize: 7,
-    color: "#888",
-    textAlign: "center",
-    marginTop: 2,
-  },
-  categoryListBreakdown: {
-    marginTop: 4,
-  },
-  catBreakdownRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    marginVertical: 4,
-  },
-  catBreakdownName: {
-    fontSize: 11,
-    color: "#555",
-    flex: 1,
-    marginLeft: 6,
-  },
-  catBreakdownPercent: {
-    fontSize: 11,
-    fontWeight: "600",
-    color: "#1A1A1A",
-  },
-  barChartContainerMock: {
-    flexDirection: "row",
-    height: 110,
-    marginTop: 12,
-  },
-  yAxisLabelsMini: {
-    justifyContent: "space-between",
-    paddingRight: 4,
-  },
-  axisLabelMini: {
-    fontSize: 9,
-    color: "#999",
-  },
-  barCanvasMini: {
-    flex: 1,
-    flexDirection: "row",
-    justifyContent: "space-around",
-    alignItems: "flex-end",
-    borderLeftWidth: 1,
-    borderBottomWidth: 1,
-    borderColor: "#EAEAEA",
-    paddingHorizontal: 4,
-  },
-  barGroupColumn: {
-    alignItems: "center",
-  },
-  doubleBarFrame: {
-    flexDirection: "row",
-    alignItems: "flex-end",
-    height: 80,
-    width: 16,
-    justifyContent: "space-between",
-  },
-  verticalBarUnit: {
-    width: 7,
-    borderRadius: 2,
-  },
-  miniMonthLabel: {
-    fontSize: 8,
-    color: "#999",
-    marginTop: 4,
-  },
-  heatmapWrapper: {
-    marginTop: 12,
-  },
-  heatmapRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    marginVertical: 2,
-  },
-  heatmapDayLabel: {
-    fontSize: 10,
-    color: "#777",
-    width: 24,
-  },
-  heatmapBlocksContainer: {
-    flexDirection: "row",
-    flex: 1,
-    justifyContent: "space-between",
-  },
-  heatmapBlock: {
-    width: 12,
-    height: 12,
-    borderRadius: 2,
-  },
-  heatmapXAxisTimeline: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    paddingLeft: 24,
-    marginTop: 4,
-  },
-  heatmapTimeText: {
-    fontSize: 8,
-    color: "#999",
-  },
-  smartTrendsList: {
-    marginTop: 8,
-  },
-  smartTrendRowItem: {
-    flexDirection: "row",
-    alignItems: "center",
-    marginVertical: 4,
-  },
-  trendIconBox: {
-    width: 24,
-    height: 24,
-    borderRadius: 6,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  trendItemContentText: {
-    fontSize: 10,
-    color: "#4A4A4A",
-    lineHeight: 13,
-  },
-  footerNav: {
-    position: "absolute",
-    bottom: 0,
-    left: 0,
-    right: 0,
-    height: 64,
-    backgroundColor: "#FFF",
-    borderTopWidth: 1,
-    borderTopColor: "#EAEAEA",
-    flexDirection: "row",
-    justifyContent: "space-around",
-    alignItems: "center",
-    paddingBottom: Platform.OS === "ios" ? 14 : 0,
-  },
-  footerItem: {
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  footerText: {
-    fontSize: 10,
-    color: "#666",
-    marginTop: 2,
-  },
-  activeFooterText: {
-    color: "#4B2C40",
-    fontWeight: "600",
-  },
-
-  /* --- NEW CALENDAR MODAL STYLES --- */
-  modalOverlay: {
-    flex: 1,
-    backgroundColor: "rgba(0, 0, 0, 0.4)",
-    justifyContent: "flex-end",
-  },
-  modalContent: {
-    backgroundColor: "#FFF",
-    borderTopLeftRadius: 20,
-    borderTopRightRadius: 20,
-    paddingHorizontal: 16,
-    paddingBottom: Platform.OS === "ios" ? 34 : 24,
-    maxHeight: "50%",
-  },
-  modalHeader: {
-    alignItems: "center",
-    paddingVertical: 14,
-    borderBottomWidth: 1,
-    borderBottomColor: "#F0F0F0",
-  },
-  modalHeaderKnob: {
-    width: 36,
-    height: 4,
-    backgroundColor: "#E0E0E0",
-    borderRadius: 2,
-    marginBottom: 10,
-  },
-  modalTitle: {
-    fontSize: 15,
-    fontWeight: "700",
-    color: "#1A1A1A",
-  },
-  modalList: {
+  segmentOption: {
+    borderRadius: 11,
+    paddingHorizontal: 11,
     paddingVertical: 8,
   },
-  modalItem: {
+  segmentActive: { backgroundColor: "#20142A" },
+  segmentText: { color: "#82778A", fontSize: 11, fontWeight: "600" },
+  segmentTextActive: { color: "#FFF" },
+  periodButton: {
+    alignItems: "center",
+    backgroundColor: "#FFF",
+    borderColor: "#E9E1EB",
+    borderRadius: 15,
+    borderWidth: 1,
+    flexDirection: "row",
+    gap: 5,
+    paddingHorizontal: 10,
+    paddingVertical: 9,
+  },
+  periodText: { color: "#513C5B", fontSize: 11, fontWeight: "700" },
+  hero: { paddingBottom: 29, paddingTop: 40 },
+  overline: {
+    color: "#8C7D93",
+    fontSize: 10,
+    fontWeight: "700",
+    letterSpacing: 1.15,
+  },
+  heroRow: { alignItems: "baseline", flexDirection: "row", marginTop: 4 },
+  score: {
+    color: "#20142A",
+    fontSize: 50,
+    fontWeight: "700",
+    letterSpacing: -2,
+  },
+  outOf: { color: "#968A9B", fontSize: 16, fontWeight: "600", marginLeft: 3 },
+  scoreBadge: {
+    alignItems: "center",
+    backgroundColor: "#F0E8F2",
+    borderRadius: 13,
+    flexDirection: "row",
+    gap: 3,
+    marginLeft: 12,
+    paddingHorizontal: 8,
+    paddingVertical: 5,
+  },
+  scoreBadgeText: { color: "#624B6A", fontSize: 11, fontWeight: "700" },
+  heroTitle: {
+    color: "#302437",
+    fontSize: 17,
+    fontWeight: "700",
+    marginTop: 4,
+  },
+  heroSubtitle: {
+    color: "#817687",
+    fontSize: 12,
+    lineHeight: 18,
+    marginTop: 5,
+  },
+  trendCard: {
+    backgroundColor: "#FFF",
+    borderColor: "#E9E1EB",
+    borderRadius: 23,
+    borderWidth: 1,
+    padding: 18,
+  },
+  cardHeader: { flexDirection: "row", justifyContent: "space-between" },
+  cardLabel: {
+    color: "#94899A",
+    fontSize: 9,
+    fontWeight: "700",
+    letterSpacing: 0.8,
+  },
+  cardTitle: {
+    color: "#33273A",
+    fontSize: 15,
+    fontWeight: "700",
+    marginTop: 4,
+  },
+  cardAmount: { color: "#33273A", fontSize: 14, fontWeight: "700" },
+  chart: {
+    borderBottomColor: "#EFE9F0",
+    borderBottomWidth: 1,
+    height: 112,
+    marginTop: 19,
+    position: "relative",
+  },
+  chartGuide: {
+    backgroundColor: "#F0EBF1",
+    height: 1,
+    left: 0,
+    position: "absolute",
+    right: 0,
+  },
+  chartAxis: {
     flexDirection: "row",
     justifyContent: "space-between",
+    marginTop: 8,
+  },
+  chartAxisText: { color: "#A399A6", fontSize: 10 },
+  legend: { flexDirection: "row", gap: 15, marginTop: 15 },
+  legendItem: { alignItems: "center", flexDirection: "row", gap: 5 },
+  legendDot: { borderRadius: 4, height: 7, width: 7 },
+  legendText: { color: "#817687", fontSize: 10 },
+  metrics: {
+    backgroundColor: "#F5F1F6",
+    borderRadius: 20,
+    flexDirection: "row",
+    marginTop: 14,
+    paddingHorizontal: 13,
+    paddingVertical: 17,
+  },
+  metric: { alignItems: "center", flex: 1 },
+  metricIcon: {
     alignItems: "center",
-    paddingVertical: 14,
-    paddingHorizontal: 8,
-    borderRadius: 10,
+    backgroundColor: "#E9DDEB",
+    borderRadius: 11,
+    height: 25,
+    justifyContent: "center",
+    width: 25,
   },
-  modalItemSelected: {
-    backgroundColor: "#F4F2F4",
-  },
-  modalItemText: {
-    fontSize: 14,
-    color: "#4A4A4A",
-    fontWeight: "500",
-  },
-  modalItemTextSelected: {
-    color: "#4B2C40",
+  metricDivider: { backgroundColor: "#DDD4E0", marginVertical: 3, width: 1 },
+  metricLabel: {
+    color: "#887C8D",
+    fontSize: 8,
     fontWeight: "700",
+    letterSpacing: 0.65,
+    marginTop: 7,
   },
+  metricValue: {
+    color: "#20142A",
+    fontSize: 16,
+    fontWeight: "700",
+    letterSpacing: -0.35,
+    marginTop: 4,
+  },
+  heading: {
+    alignItems: "center",
+    flexDirection: "row",
+    justifyContent: "space-between",
+    marginBottom: 12,
+    marginTop: 31,
+  },
+  headingTitle: {
+    color: "#2C2033",
+    fontSize: 18,
+    fontWeight: "700",
+    letterSpacing: -0.35,
+  },
+  headingAction: { color: "#6C4C7A", fontSize: 12, fontWeight: "600" },
+  surface: {
+    backgroundColor: "#FFF",
+    borderColor: "#E9E1EB",
+    borderRadius: 22,
+    borderWidth: 1,
+    overflow: "hidden",
+  },
+  categoryRow: {
+    alignItems: "center",
+    flexDirection: "row",
+    minHeight: 72,
+    paddingHorizontal: 15,
+  },
+  categoryIcon: {
+    alignItems: "center",
+    borderRadius: 13,
+    height: 40,
+    justifyContent: "center",
+    width: 40,
+  },
+  categoryCopy: { flex: 1, marginLeft: 12 },
+  categoryName: { color: "#362B3D", fontSize: 14, fontWeight: "600" },
+  categoryTrack: {
+    backgroundColor: "#F0EBF1",
+    borderRadius: 2,
+    height: 4,
+    marginTop: 8,
+    overflow: "hidden",
+    width: "88%",
+  },
+  categoryFill: { backgroundColor: "#624B6A", borderRadius: 2, height: "100%" },
+  categoryEnd: { alignItems: "flex-end" },
+  categoryAmount: { color: "#382C3F", fontSize: 13, fontWeight: "700" },
+  categoryShare: { color: "#9A8FA0", fontSize: 10, marginTop: 3 },
+  insight: {
+    alignItems: "center",
+    backgroundColor: "#F3EBF1",
+    borderRadius: 21,
+    flexDirection: "row",
+    padding: 16,
+  },
+  insightIcon: {
+    alignItems: "center",
+    backgroundColor: "#FFF",
+    borderRadius: 14,
+    height: 42,
+    justifyContent: "center",
+    marginRight: 12,
+    width: 42,
+  },
+  insightCopy: { flex: 1, paddingRight: 8 },
+  insightTitle: { color: "#34273B", fontSize: 14, fontWeight: "700" },
+  insightText: { color: "#736779", fontSize: 12, lineHeight: 17, marginTop: 5 },
+  rhythmCaption: {
+    color: "#817687",
+    fontSize: 12,
+    paddingHorizontal: 15,
+    paddingTop: 15,
+  },
+  heatmap: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 6,
+    padding: 15,
+    paddingBottom: 10,
+  },
+  heatCell: { borderRadius: 5, height: 23, width: "14%" },
+  heatLabels: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    paddingHorizontal: 15,
+    paddingBottom: 15,
+  },
+  heatLabelsText: { color: "#A097A4", fontSize: 10 },
+  overlay: {
+    backgroundColor: "rgba(31,20,38,.18)",
+    flex: 1,
+    justifyContent: "flex-end",
+  },
+  menu: {
+    backgroundColor: "#FFF",
+    borderTopLeftRadius: 25,
+    borderTopRightRadius: 25,
+    padding: 20,
+    paddingBottom: 35,
+  },
+  menuTitle: {
+    color: "#302437",
+    fontSize: 17,
+    fontWeight: "700",
+    marginBottom: 10,
+  },
+  menuItem: {
+    alignItems: "center",
+    flexDirection: "row",
+    justifyContent: "space-between",
+    paddingVertical: 14,
+  },
+  menuText: { color: "#7E7284", fontSize: 14 },
+  menuActive: { color: "#20142A", fontWeight: "700" },
 });

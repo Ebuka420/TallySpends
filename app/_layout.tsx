@@ -64,6 +64,7 @@ export default function RootLayout() {
 
         {/* Standalone Sub-screens */}
         <Stack.Screen name="customerservice" />
+        <Stack.Screen name="deposit" />
         <Stack.Screen name="insights" />
         <Stack.Screen name="invitation" />
         <Stack.Screen name="linkbank" />
@@ -75,6 +76,8 @@ export default function RootLayout() {
         <Stack.Screen name="SObreakdown" />
         <Stack.Screen name="support" />
         <Stack.Screen name="transaction-details" />
+        <Stack.Screen name="transfer" />
+        <Stack.Screen name="withdraw" />
       </Stack>
 
       {/* Floating Global Bot Overlay */}
