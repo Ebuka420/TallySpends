@@ -37,26 +37,19 @@ export default function BudgetScreen() {
               </View>
               <Text style={styles.budgetCardActionText}>Add budget</Text>
             </TouchableOpacity>
-<<<<<<< HEAD
             <View style={styles.budgetPercent}>
               <Text style={styles.budgetPercentValue}>43%</Text>
               <Text style={styles.budgetPercentLabel}>left</Text>
             </View>
             <Text style={styles.budgetCardAmount}>
-              $2,842<Text style={styles.budgetCardSubAmount}> remaining</Text>
+              ₦2,842<Text style={styles.budgetCardSubAmount}> remaining</Text>
             </Text>
             <Text style={styles.budgetCardHelper}>
-              $2,158 spent from your $5,000 monthly budget
+              ₦2,158 spent from your ₦5,000 monthly budget
             </Text>
             <View style={styles.budgetProgressTrack}>
               <View style={styles.budgetProgressFill} />
             </View>
-=======
-            <View style={styles.budgetPercent}><Text style={styles.budgetPercentValue}>43%</Text><Text style={styles.budgetPercentLabel}>left</Text></View>
-            <Text style={styles.budgetCardAmount}>₦2,842<Text style={styles.budgetCardSubAmount}> remaining</Text></Text>
-            <Text style={styles.budgetCardHelper}>₦2,158 spent from your ₦5,000 monthly budget</Text>
-            <View style={styles.budgetProgressTrack}><View style={styles.budgetProgressFill} /></View>
->>>>>>> c203827a6a0ee3752f7079113785d4232f41704c
           </View>
         </View>
 
