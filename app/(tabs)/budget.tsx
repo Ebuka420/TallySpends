@@ -47,8 +47,8 @@ export default function BudgetScreen() {
               <Text style={styles.budgetCardActionText}>Add budget</Text>
             </TouchableOpacity>
             <View style={styles.budgetPercent}><Text style={styles.budgetPercentValue}>43%</Text><Text style={styles.budgetPercentLabel}>left</Text></View>
-            <Text style={styles.budgetCardAmount}>$2,842<Text style={styles.budgetCardSubAmount}> remaining</Text></Text>
-            <Text style={styles.budgetCardHelper}>$2,158 spent from your $5,000 monthly budget</Text>
+            <Text style={styles.budgetCardAmount}>₦2,842<Text style={styles.budgetCardSubAmount}> remaining</Text></Text>
+            <Text style={styles.budgetCardHelper}>₦2,158 spent from your ₦5,000 monthly budget</Text>
             <View style={styles.budgetProgressTrack}><View style={styles.budgetProgressFill} /></View>
           </View>
         </View>
@@ -79,7 +79,7 @@ export default function BudgetScreen() {
             </View>
             <Text style={styles.catName}>Food & Dining</Text>
             <Text style={styles.catSplit}>
-              $602 <Text style={styles.catTotal}>/ $800</Text>
+              ₦602 <Text style={styles.catTotal}>/ ₦800</Text>
             </Text>
             <View style={styles.catProgressBg}>
               <View
@@ -112,7 +112,7 @@ export default function BudgetScreen() {
             </View>
             <Text style={styles.catName}>Transport</Text>
             <Text style={styles.catSplit}>
-              $430 <Text style={styles.catTotal}>/ $700</Text>
+              ₦430 <Text style={styles.catTotal}>/ ₦700</Text>
             </Text>
             <View style={styles.catProgressBg}>
               <View
@@ -145,7 +145,7 @@ export default function BudgetScreen() {
             </View>
             <Text style={styles.catName}>Shopping</Text>
             <Text style={styles.catSplit}>
-              $387 <Text style={styles.catTotal}>/ $300</Text>
+              ₦387 <Text style={styles.catTotal}>/ ₦300</Text>
             </Text>
             <View style={styles.catProgressBg}>
               <View
@@ -186,7 +186,7 @@ export default function BudgetScreen() {
             </View>
             <View style={styles.goalMainInfo}>
               <Text style={styles.goalTitle}>Tim's Birthday</Text>
-              <Text style={styles.goalSub}>Saved $120 of $300</Text>
+              <Text style={styles.goalSub}>Saved ₦120 of ₦300</Text>
             </View>
             <View style={styles.goalProgressContainer}>
               <View style={styles.goalProgressBg}>
@@ -214,7 +214,7 @@ export default function BudgetScreen() {
             </View>
             <View style={styles.goalMainInfo}>
               <Text style={styles.goalTitle}>December Party</Text>
-              <Text style={styles.goalSub}>Saved $450 of $800</Text>
+              <Text style={styles.goalSub}>Saved ₦450 of ₦800</Text>
             </View>
             <View style={styles.goalProgressContainer}>
               <View style={styles.goalProgressBg}>

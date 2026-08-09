@@ -176,7 +176,7 @@ export default function TransferScreen() {
       ? (customCategory.trim() || customCategoryInput.trim() || "Other")
       : selectedCategory || "Other";
     addTransaction({
-      title: `Transfer to @${selectedRecipient.username}`,
+      title: `Transfer to ${selectedRecipient.name}`,
       amount: value,
       category: finalCategory,
       type: "expense",
@@ -188,7 +188,7 @@ export default function TransferScreen() {
 
     Alert.alert(
       "Success 🎉",
-      `Successfully transferred ₦${Number(value).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} to @${selectedRecipient.username}!`,
+      `Successfully transferred ₦${Number(value).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} to ${selectedRecipient.name}!`,
       [{ text: "Great", onPress: () => router.back() }]
     );
   };
@@ -522,17 +522,8 @@ export default function TransferScreen() {
                   </View>
                   <View style={{ flex: 1 }}>
                     <Text style={styles.selectedName}>{selectedRecipient.name}</Text>
-                    <Text style={styles.selectedUsername}>@{selectedRecipient.username}</Text>
-                    <Text style={styles.selectedBank}>{selectedRecipient.bank}</Text>
+                    <Text style={styles.selectedUsername}>{selectedRecipient.bank}</Text>
                   </View>
-                </View>
-
-                {/* Available Balance */}
-                <View style={styles.modalBalanceRow}>
-                  <Text style={styles.modalBalanceLabel}>Available Balance:</Text>
-                  <Text style={styles.modalBalanceValue}>
-                    ₦{Number(currentBalance).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                  </Text>
                 </View>
 
                 {/* Amount Input */}

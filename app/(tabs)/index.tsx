@@ -8,7 +8,15 @@ import {
   View,
 } from "react-native";
 import { useRouter } from "expo-router";
-import { useAppStore } from "../../src/store";
+import { useAppStore, MOCK_RECIPIENTS } from "../../src/store";
+
+const normalizeTransferTitle = (title: string) => {
+  const transferRegex = /(Transfer to\s+)@([a-zA-Z0-9_]+)/i;
+  return title.replace(transferRegex, (_, prefix, username) => {
+    const recipient = MOCK_RECIPIENTS.find((r) => r.username.toLowerCase() === username.toLowerCase());
+    return recipient ? `${prefix}${recipient.name}` : `Transfer to @${username}`;
+  });
+};
 
 const insights = [
   {
@@ -28,7 +36,7 @@ const insights = [
   {
     icon: "sparkles-outline" as const,
     title: "A small win",
-    text: "You are just $96 away from this month's savings goal.",
+    text: "You are just ₦96 away from this month's savings goal.",
     tint: "#EEE4F0",
     color: "#4B2C40",
   },
@@ -44,7 +52,7 @@ const categoryMeta: Record<string, { icon: any; color: string; soft: string }> =
 };
 
 const formatCurrency = (amount: number) =>
-  `$${amount.toLocaleString(undefined, {
+  `₦${amount.toLocaleString(undefined, {
     minimumFractionDigits: 2,
     maximumFractionDigits: 2,
   })}`;
@@ -82,21 +90,6 @@ export default function App() {
     .filter((t: any) => t.type === "expense")
     .reduce((sum: number, t: any) => sum + Number(t.amount || 0), 0);
   const currentBalance = 2926.78 + totalIncome - totalExpenses;
-
-  const topCategories = useMemo(() => {
-    const totals: Record<string, number> = {};
-
-    transactionsRaw
-      .filter((tx) => tx.type === "expense")
-      .forEach((tx) => {
-        const category = tx.category || "Others";
-        totals[category] = (totals[category] || 0) + Number(tx.amount || 0);
-      });
-
-    return Object.entries(totals)
-      .sort((a, b) => b[1] - a[1])
-      .slice(0, 4);
-  }, [transactionsRaw]);
 
   const recentTransactions = useMemo(() => {
     return [...transactionsRaw]
@@ -176,7 +169,7 @@ export default function App() {
               ]}
             >
               {balanceVisible 
-                ? `$${currentBalance.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` 
+                ? `₦${currentBalance.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` 
                 : "********"}
             </Text>
           </TouchableOpacity>
@@ -288,40 +281,6 @@ export default function App() {
           ))}
         </View>
 
-        {/* Top Categories Section */}
-        <View style={[styles.sectionHeader, { marginTop: 24 }]}>
-          <Text style={styles.sectionTitle}>Top Categories</Text>
-          <TouchableOpacity onPress={() => router.push("/(tabs)/analytics")} activeOpacity={0.7}>
-            <Text style={styles.viewAllText}>View all</Text>
-          </TouchableOpacity>
-        </View>
-
-        <View style={styles.categoriesRow}>
-          {topCategories.length > 0 ? (
-            topCategories.map(([category, amount]) => {
-              const meta = categoryMeta[category] || categoryMeta.Others;
-              const percentage = totalExpenses
-                ? Math.round((amount / totalExpenses) * 100)
-                : 0;
-
-              return (
-                <View key={category} style={styles.categoryCard}>
-                  <View style={[styles.catIconCircle, { backgroundColor: meta.color }]}>
-                    <Ionicons name={meta.icon} size={16} color="#FFF" />
-                  </View>
-                  <Text style={styles.catTitle}>{category}</Text>
-                  <Text style={styles.catAmount}>{formatCurrency(amount)}</Text>
-                  <Text style={styles.catPercentage}>{percentage}%</Text>
-                </View>
-              );
-            })
-          ) : (
-            <View style={styles.emptyStateCard}>
-              <Text style={styles.emptyStateText}>No expense categories yet.</Text>
-            </View>
-          )}
-        </View>
-
         {/* Recent Transactions Section */}
         <View style={[styles.sectionHeader, { marginTop: 24 }]}>
           <Text style={styles.sectionTitle}>Recent transactions</Text>
@@ -341,7 +300,7 @@ export default function App() {
                     icon={isIncome ? "arrow-down-outline" : meta.icon}
                     tint={meta.soft}
                     color={meta.color}
-                    name={tx.title || "Transaction"}
+                    name={normalizeTransferTitle(tx.title || "Transaction")}
                     category={tx.category || "Others"}
                     amount={`${isIncome ? "+" : "-"}${formatCurrency(Number(tx.amount || 0))}`}
                     time={getTimeLabel(tx.date)}
@@ -579,13 +538,15 @@ const styles = StyleSheet.create({
     overflow: "hidden",
   },
   transactionItem: {
-    alignItems: "center",
+    alignItems: "flex-start",
     flexDirection: "row",
     justifyContent: "space-between",
+    flexWrap: "wrap",
     minHeight: 74,
     paddingHorizontal: 15,
+    paddingVertical: 12,
   },
-  transLeft: { alignItems: "center", flexDirection: "row", flex: 1 },
+  transLeft: { alignItems: "flex-start", flexDirection: "row", flex: 1, minWidth: 0 },
   transIconCircle: {
     alignItems: "center",
     borderRadius: 13,
@@ -594,10 +555,27 @@ const styles = StyleSheet.create({
     marginRight: 12,
     width: 40,
   },
-  transName: { color: "#302638", fontSize: 14, fontWeight: "600" },
-  transCategory: { color: "#978C9B", fontSize: 11, marginTop: 3 },
-  transRight: { alignItems: "flex-end" },
-  transAmount: { color: "#382C3F", fontSize: 14, fontWeight: "700" },
+  transName: {
+    color: "#302638",
+    fontSize: 14,
+    fontWeight: "600",
+    flexShrink: 1,
+    flexWrap: "wrap",
+  },
+  transCategory: {
+    color: "#978C9B",
+    fontSize: 11,
+    marginTop: 3,
+    flexWrap: "wrap",
+  },
+  transRight: { alignItems: "flex-end", marginLeft: 12, maxWidth: 120, minWidth: 0 },
+  transAmount: {
+    color: "#382C3F",
+    fontSize: 14,
+    fontWeight: "700",
+    textAlign: "right",
+    flexWrap: "wrap",
+  },
   positiveAmount: { color: "#6D4F7D" },
   transTime: { color: "#A197A5", fontSize: 11, marginTop: 3 },
   rowDivider: { backgroundColor: "#F1ECF2", height: 1, marginLeft: 67 },

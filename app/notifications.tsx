@@ -34,7 +34,7 @@ export default function NotificationsScreen() {
       type: "alert",
       title: "Budget Warning!",
       description:
-        "You have used 85% of your 'Food & Dining' budget for this month. Only $90.00 remaining.",
+        "You have used 85% of your 'Food & Dining' budget for this month. Only ₦90.00 remaining.",
       timestamp: "10m ago",
       isUnread: true,
     },
@@ -52,7 +52,7 @@ export default function NotificationsScreen() {
       type: "bill",
       title: "Upcoming Subscription",
       description:
-        "Your Adobe Creative Cloud subscription ($54.99) is scheduled for automatic renewal tomorrow.",
+        "Your Adobe Creative Cloud subscription (₦54.99) is scheduled for automatic renewal tomorrow.",
       timestamp: "1d ago",
       isUnread: false,
     },
@@ -61,7 +61,7 @@ export default function NotificationsScreen() {
       type: "alert",
       title: "Unusual Transaction Flag",
       description:
-        "A larger-than-normal debit of $430.00 was categorized under Transport (Uber).",
+        "A larger-than-normal debit of ₦430.00 was categorized under Transport (Uber).",
       timestamp: "2d ago",
       isUnread: false,
     },
