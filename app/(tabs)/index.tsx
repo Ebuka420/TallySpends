@@ -1,5 +1,5 @@
 import { Ionicons } from "@expo/vector-icons";
-import React, { useState } from "react";
+import React, { useMemo, useState } from "react";
 import {
   ScrollView,
   StyleSheet,
@@ -8,7 +8,15 @@ import {
   View,
 } from "react-native";
 import { useRouter } from "expo-router";
-import { useAppStore } from "../../src/store";
+import { useAppStore, MOCK_RECIPIENTS } from "../../src/store";
+
+const normalizeTransferTitle = (title: string) => {
+  const transferRegex = /(Transfer to\s+)@([a-zA-Z0-9_]+)/i;
+  return title.replace(transferRegex, (_, prefix, username) => {
+    const recipient = MOCK_RECIPIENTS.find((r) => r.username.toLowerCase() === username.toLowerCase());
+    return recipient ? `${prefix}${recipient.name}` : `Transfer to @${username}`;
+  });
+};
 
 const insights = [
   {
@@ -28,11 +36,45 @@ const insights = [
   {
     icon: "sparkles-outline" as const,
     title: "A small win",
-    text: "You are just $96 away from this month's savings goal.",
+    text: "You are just ₦96 away from this month's savings goal.",
     tint: "#EEE4F0",
     color: "#4B2C40",
   },
 ];
+
+const categoryMeta: Record<string, { icon: any; color: string; soft: string }> = {
+  "Food & Dining": { icon: "restaurant-outline", color: "#A9622C", soft: "#F7EEE7" },
+  Transport: { icon: "car-outline", color: "#59728F", soft: "#EAF0F6" },
+  Shopping: { icon: "bag-handle-outline", color: "#846590", soft: "#F2ECF5" },
+  "Bills & Utilities": { icon: "document-text-outline", color: "#5B7A67", soft: "#EAF2EA" },
+  Entertainment: { icon: "film-outline", color: "#8A7067", soft: "#F4EEEB" },
+  Others: { icon: "ellipsis-horizontal", color: "#70706B", soft: "#EFEFEB" },
+};
+
+const formatCurrency = (amount: number) =>
+  `₦${amount.toLocaleString(undefined, {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  })}`;
+
+const getTimeLabel = (value?: string) => {
+  if (!value) return "Recently added";
+
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "Recently added";
+
+  const today = new Date();
+  const yesterday = new Date(today);
+  yesterday.setDate(today.getDate() - 1);
+
+  const isToday = date.toDateString() === today.toDateString();
+  const isYesterday = date.toDateString() === yesterday.toDateString();
+
+  if (isToday) return "Today";
+  if (isYesterday) return "Yesterday";
+
+  return date.toLocaleDateString("en-US", { month: "short", day: "numeric" });
+};
 
 export default function App() {
   const router = useRouter();
@@ -40,14 +82,24 @@ export default function App() {
   const [balanceVisible, setBalanceVisible] = useState(true);
   const [activeInsight, setActiveInsight] = useState(0);
 
-  const transactionsRaw = transactions || [];
+  const transactionsRaw = (transactions || []) as any[];
   const totalIncome = transactionsRaw
     .filter((t: any) => t.type === "income")
-    .reduce((sum: number, t: any) => sum + t.amount, 0);
+    .reduce((sum: number, t: any) => sum + Number(t.amount || 0), 0);
   const totalExpenses = transactionsRaw
     .filter((t: any) => t.type === "expense")
-    .reduce((sum: number, t: any) => sum + t.amount, 0);
+    .reduce((sum: number, t: any) => sum + Number(t.amount || 0), 0);
   const currentBalance = 2926.78 + totalIncome - totalExpenses;
+
+  const recentTransactions = useMemo(() => {
+    return [...transactionsRaw]
+      .sort((a, b) => {
+        const aTime = new Date(a.date || 0).getTime();
+        const bTime = new Date(b.date || 0).getTime();
+        return bTime - aTime;
+      })
+      .slice(0, 3);
+  }, [transactionsRaw]);
 
   return (
     <View style={styles.screen}>
@@ -74,6 +126,13 @@ export default function App() {
             </View>
           </TouchableOpacity>
           <View style={styles.headerIcons}>
+            <TouchableOpacity 
+              style={styles.iconButton}
+              onPress={() => router.push("/request")}
+              activeOpacity={0.7}
+            >
+              <Ionicons name="qr-code-outline" size={18} color="#333" />
+            </TouchableOpacity>
             <TouchableOpacity 
               style={styles.iconButton}
               onPress={() => router.push("/notifications")}
@@ -110,7 +169,7 @@ export default function App() {
               ]}
             >
               {balanceVisible 
-                ? `$${currentBalance.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` 
+                ? `₦${currentBalance.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` 
                 : "********"}
             </Text>
           </TouchableOpacity>
@@ -222,52 +281,6 @@ export default function App() {
           ))}
         </View>
 
-        {/* Top Categories Section (from DanielBranch-fixed) */}
-        <View style={[styles.sectionHeader, { marginTop: 24 }]}>
-          <Text style={styles.sectionTitle}>Top Categories</Text>
-          <TouchableOpacity onPress={() => router.push("/(tabs)/analytics")} activeOpacity={0.7}>
-            <Text style={styles.viewAllText}>View all</Text>
-          </TouchableOpacity>
-        </View>
-
-        <View style={styles.categoriesRow}>
-          <View style={styles.categoryCard}>
-            <View style={[styles.catIconCircle, { backgroundColor: "#1A1A1A" }]}>
-              <Ionicons name="restaurant-outline" size={16} color="#FFF" />
-            </View>
-            <Text style={styles.catTitle}>Food & Dining</Text>
-            <Text style={styles.catAmount}>$602.10</Text>
-            <Text style={styles.catPercentage}>26%</Text>
-          </View>
-
-          <View style={styles.categoryCard}>
-            <View style={[styles.catIconCircle, { backgroundColor: "#5B21B6" }]}>
-              <Ionicons name="car-outline" size={16} color="#FFF" />
-            </View>
-            <Text style={styles.catTitle}>Transport</Text>
-            <Text style={styles.catAmount}>$430.00</Text>
-            <Text style={styles.catPercentage}>20%</Text>
-          </View>
-
-          <View style={styles.categoryCard}>
-            <View style={[styles.catIconCircle, { backgroundColor: "#F59E0B" }]}>
-              <Ionicons name="bag-handle-outline" size={16} color="#FFF" />
-            </View>
-            <Text style={styles.catTitle}>Shopping</Text>
-            <Text style={styles.catAmount}>$387.50</Text>
-            <Text style={styles.catPercentage}>18%</Text>
-          </View>
-
-          <View style={styles.categoryCard}>
-            <View style={[styles.catIconCircle, { backgroundColor: "#3B82F6" }]}>
-              <Ionicons name="document-text-outline" size={16} color="#FFF" />
-            </View>
-            <Text style={styles.catTitle}>Bills & Utilities</Text>
-            <Text style={styles.catAmount}>$322.00</Text>
-            <Text style={styles.catPercentage}>15%</Text>
-          </View>
-        </View>
-
         {/* Recent Transactions Section */}
         <View style={[styles.sectionHeader, { marginTop: 24 }]}>
           <Text style={styles.sectionTitle}>Recent transactions</Text>
@@ -276,36 +289,32 @@ export default function App() {
           </TouchableOpacity>
         </View>
         <View style={styles.transactionsContainer}>
-          <Transaction
-            icon="cafe-outline"
-            tint="#F7EEE7"
-            color="#A9622C"
-            name="Starbucks"
-            category="Food & Dining"
-            amount="-$5.20"
-            time="Today"
-          />
-          <View style={styles.rowDivider} />
-          <Transaction
-            icon="car-sport-outline"
-            tint="#EAF0F6"
-            color="#59728F"
-            name="Uber"
-            category="Transport"
-            amount="-$18.40"
-            time="Yesterday"
-          />
-          <View style={styles.rowDivider} />
-          <Transaction
-            icon="arrow-down-outline"
-            tint="#EAF2EB"
-            color="#52725D"
-            name="Monthly income"
-            category="Income"
-            amount="+$2,100.00"
-            time="Apr 28"
-            positive
-          />
+          {recentTransactions.length > 0 ? (
+            recentTransactions.map((tx, index) => {
+              const isIncome = tx.type === "income";
+              const meta = categoryMeta[tx.category || "Others"] || categoryMeta.Others;
+
+              return (
+                <View key={tx.id || `${tx.title}-${index}`}>
+                  <Transaction
+                    icon={isIncome ? "arrow-down-outline" : meta.icon}
+                    tint={meta.soft}
+                    color={meta.color}
+                    name={normalizeTransferTitle(tx.title || "Transaction")}
+                    category={tx.category || "Others"}
+                    amount={`${isIncome ? "+" : "-"}${formatCurrency(Number(tx.amount || 0))}`}
+                    time={getTimeLabel(tx.date)}
+                    positive={isIncome}
+                  />
+                  {index < recentTransactions.length - 1 && <View style={styles.rowDivider} />}
+                </View>
+              );
+            })
+          ) : (
+            <View style={styles.emptyStateCard}>
+              <Text style={styles.emptyStateText}>No transactions yet.</Text>
+            </View>
+          )}
         </View>
       </ScrollView>
     </View>
@@ -486,14 +495,16 @@ const styles = StyleSheet.create({
   categoriesRow: {
     flexDirection: "row",
     gap: 8,
+    flexWrap: "wrap",
   },
   categoryCard: {
-    flex: 1,
+    flexBasis: "48%",
     backgroundColor: "#FFFFFF",
     borderRadius: 16,
     padding: 10,
     borderWidth: 1,
     borderColor: "#F0F0F0",
+    marginBottom: 8,
   },
   catIconCircle: {
     width: 32,
@@ -527,13 +538,15 @@ const styles = StyleSheet.create({
     overflow: "hidden",
   },
   transactionItem: {
-    alignItems: "center",
+    alignItems: "flex-start",
     flexDirection: "row",
     justifyContent: "space-between",
+    flexWrap: "wrap",
     minHeight: 74,
     paddingHorizontal: 15,
+    paddingVertical: 12,
   },
-  transLeft: { alignItems: "center", flexDirection: "row", flex: 1 },
+  transLeft: { alignItems: "flex-start", flexDirection: "row", flex: 1, minWidth: 0 },
   transIconCircle: {
     alignItems: "center",
     borderRadius: 13,
@@ -542,11 +555,44 @@ const styles = StyleSheet.create({
     marginRight: 12,
     width: 40,
   },
-  transName: { color: "#302638", fontSize: 14, fontWeight: "600" },
-  transCategory: { color: "#978C9B", fontSize: 11, marginTop: 3 },
-  transRight: { alignItems: "flex-end" },
-  transAmount: { color: "#382C3F", fontSize: 14, fontWeight: "700" },
+  transName: {
+    color: "#302638",
+    fontSize: 14,
+    fontWeight: "600",
+    flexShrink: 1,
+    flexWrap: "wrap",
+  },
+  transCategory: {
+    color: "#978C9B",
+    fontSize: 11,
+    marginTop: 3,
+    flexWrap: "wrap",
+  },
+  transRight: { alignItems: "flex-end", marginLeft: 12, maxWidth: 120, minWidth: 0 },
+  transAmount: {
+    color: "#382C3F",
+    fontSize: 14,
+    fontWeight: "700",
+    textAlign: "right",
+    flexWrap: "wrap",
+  },
   positiveAmount: { color: "#6D4F7D" },
   transTime: { color: "#A197A5", fontSize: 11, marginTop: 3 },
   rowDivider: { backgroundColor: "#F1ECF2", height: 1, marginLeft: 67 },
+  emptyStateCard: {
+    alignItems: "center",
+    backgroundColor: "#F8F5F8",
+    borderColor: "#EDE7EE",
+    borderRadius: 16,
+    borderWidth: 1,
+    justifyContent: "center",
+    paddingHorizontal: 16,
+    paddingVertical: 18,
+    width: "100%",
+  },
+  emptyStateText: {
+    color: "#6E6470",
+    fontSize: 13,
+    textAlign: "center",
+  },
 });

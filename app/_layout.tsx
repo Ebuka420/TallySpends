@@ -72,6 +72,7 @@ export default function RootLayout() {
         <Stack.Screen name="notifications" />
         <Stack.Screen name="profile" />
         <Stack.Screen name="rateus" />
+        <Stack.Screen name="request" />
         <Stack.Screen name="settings" />
         <Stack.Screen name="SObreakdown" />
         <Stack.Screen name="support" />

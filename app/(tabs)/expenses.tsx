@@ -17,7 +17,15 @@ import {
   View,
 } from "react-native";
 import Svg, { Path } from "react-native-svg";
-import { useAppStore } from "../../src/store";
+import { useAppStore, MOCK_RECIPIENTS } from "../../src/store";
+
+const normalizeTransferTitle = (title: string) => {
+  const transferRegex = /(Transfer to\s+)@([a-zA-Z0-9_]+)/i;
+  return title.replace(transferRegex, (_, prefix, username) => {
+    const recipient = MOCK_RECIPIENTS.find((r) => r.username.toLowerCase() === username.toLowerCase());
+    return recipient ? `${prefix}${recipient.name}` : `Transfer to @${username}`;
+  });
+};
 
 const categoryMeta: Record<string, { icon: any; color: string; soft: string }> =
   {
@@ -38,7 +46,7 @@ const categoryMeta: Record<string, { icon: any; color: string; soft: string }> =
   };
 
 const money = (amount: number) =>
-  `$${amount.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+  `₦${amount.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
 type ChartStyle = "line" | "area";
 
@@ -312,7 +320,7 @@ export default function ExpensesScreen() {
                       <Ionicons name={meta.icon} size={18} color={meta.color} />
                     </View>
                     <View style={styles.rowCopy}>
-                      <Text style={styles.rowTitle}>{tx.title}</Text>
+                      <Text style={styles.rowTitle}>{normalizeTransferTitle(tx.title)}</Text>
                       <Text style={styles.rowSub}>{tx.category}</Text>
                     </View>
                     <Text style={styles.rowAmount}>

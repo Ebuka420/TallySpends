@@ -50,21 +50,21 @@ export default function InsightsScreen() {
       id: "tip-1",
       title: "Optimize Grocery Spending",
       short: "Cut down on food delivery by meal prepping.",
-      full: "Food & Dining represents 26% of your budget ($602.10). By meal prepping just 3 days a week, you can save an estimated $80-$100 per month. Try to use grocery lists and avoid shopping while hungry!",
+      full: "Food & Dining represents 26% of your budget (₦602.10). By meal prepping just 3 days a week, you can save an estimated ₦80-₦100 per month. Try to use grocery lists and avoid shopping while hungry!",
       icon: "restaurant-outline"
     },
     {
       id: "tip-2",
       title: "Review Subscriptions",
       short: "Audit monthly direct debits.",
-      full: "Bills & Utilities stand at $322.00. Check for forgotten streaming services, gym memberships, or software subscriptions. Canceling just one unused $15 subscription saves you $180 a year.",
+      full: "Bills & Utilities stand at ₦322.00. Check for forgotten streaming services, gym memberships, or software subscriptions. Canceling just one unused ₦15 subscription saves you ₦180 a year.",
       icon: "card-outline"
     },
     {
       id: "tip-3",
       title: "Smart Savings Allocation",
       short: "Set up auto-save rules.",
-      full: "You've saved $1,104.00 this month. Set up a recurring $50 transfer to your savings goals right after your salary drops to pay yourself first and secure your laptop savings goal faster.",
+      full: "You've saved ₦1,104.00 this month. Set up a recurring ₦50 transfer to your savings goals right after your salary drops to pay yourself first and secure your laptop savings goal faster.",
       icon: "trending-up-outline"
     }
   ];
@@ -93,17 +93,17 @@ export default function InsightsScreen() {
       const lower = trimmed.toLowerCase();
 
       if (lower.includes("food") || lower.includes("grocery") || lower.includes("eat")) {
-        replyText = "Food & Dining is currently your largest category at 26% of total spending ($602.10). Limiting dining out to once a week could save you around $85 this month. Would you like me to suggest a food budget limit?";
+        replyText = "Food & Dining is currently your largest category at 26% of total spending (₦602.10). Limiting dining out to once a week could save you around ₦85 this month. Would you like me to suggest a food budget limit?";
       } else if (lower.includes("category") || lower.includes("spending") || lower.includes("most")) {
-        replyText = "Your top spending categories are:\n• Food & Dining: 26% ($602.10)\n• Transport: 20% ($430.00)\n• Shopping: 18% ($387.50)\n\nReducing Shopping by just 10% next month would put $38.75 back in your pocket!";
+        replyText = "Your top spending categories are:\n• Food & Dining: 26% (₦602.10)\n• Transport: 20% (₦430.00)\n• Shopping: 18% (₦387.50)\n\nReducing Shopping by just 10% next month would put ₦38.75 back in your pocket!";
       } else if (lower.includes("bill") || lower.includes("utility") || lower.includes("sub")) {
-        replyText = "Your Bills & Utilities are at $322.00 this month. I recommend checking for active subscriptions or memberships you haven't used in the past 30 days to easily cut back.";
+        replyText = "Your Bills & Utilities are at ₦322.00 this month. I recommend checking for active subscriptions or memberships you haven't used in the past 30 days to easily cut back.";
       } else if (lower.includes("save") || lower.includes("laptop") || lower.includes("goal")) {
-        replyText = "You're doing well with $1,104.00 saved. Your Laptop goal is at 42% ($1,250 of $3,000). If you add just $20 more weekly from your dining savings, you will hit the goal 2.5 weeks ahead of schedule!";
+        replyText = "You're doing well with ₦1,104.00 saved. Your Laptop goal is at 42% (₦1,250 of ₦3,000). If you add just ₦20 more weekly from your dining savings, you will hit the goal 2.5 weeks ahead of schedule!";
       } else if (lower.includes("hello") || lower.includes("hi") || lower.includes("hey")) {
         replyText = "Hello! I'm here to help you make smart financial choices. Ask me about your 'top categories', 'how to save on food', or 'laptop goal'!";
       } else {
-        replyText = "That's a good question! Based on your current balance ($2,842.50) and recent metrics, I suggest keeping transport and shopping expenses under $400 this month to maintain your savings rate. Let me know if you want tips on a specific category!";
+        replyText = "That's a good question! Based on your current balance (₦2,842.50) and recent metrics, I suggest keeping transport and shopping expenses under ₦400 this month to maintain your savings rate. Let me know if you want tips on a specific category!";
       }
 
       const botMsg = {

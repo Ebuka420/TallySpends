@@ -4,6 +4,20 @@ import { useCallback, useEffect, useState } from "react";
 
 const THEME_STORAGE_KEY = "ts_theme";
 const TAB_BAR_OPACITY_STORAGE_KEY = "ts_tab_bar_opacity";
+const DEFAULT_CUSTOM_CATEGORIES_STORAGE_KEY = "ts_custom_categories";
+
+const getCustomCategoriesStorageKey = (usernameValue) =>
+  `${DEFAULT_CUSTOM_CATEGORIES_STORAGE_KEY}_${(usernameValue || "default").replace(/[^a-zA-Z0-9_-]/g, "_")}`;
+
+export const MOCK_RECIPIENTS = [
+  { id: "rec-1", name: "Alief Wahya", username: "alief_w", initial: "AW", color: "#EEF2FF", textColor: "#4F46E5", bank: "Citibank - USD Account", isRecent: true },
+  { id: "rec-2", name: "Bayside Budget", username: "bayside_b", initial: "BB", color: "#FDF2F8", textColor: "#DB2777", bank: "Premium Ch - GBP Account", isRecent: true },
+  { id: "rec-3", name: "Cypress Carter", username: "cypress_c", initial: "CC", color: "#ECFDF5", textColor: "#059669", bank: "Basic Ch - EUR Account", isRecent: true },
+  { id: "rec-4", name: "Dahlia Dawn", username: "dahlia_d", initial: "DD", color: "#FFF9C4", textColor: "#F57F17", bank: "Deluxe Ch - AUD Account", isRecent: true },
+  { id: "rec-5", name: "Maya Sari", username: "maya_s", initial: "MS", color: "#F3E5F5", textColor: "#7B1FA2", bank: "Bank Mandiri - IDR Account", isRecent: false },
+  { id: "rec-6", name: "Ravi Kumar", username: "ravi_k", initial: "RK", color: "#E1F5FE", textColor: "#0288D1", bank: "HDFC Bank - INR Account", isRecent: false },
+  { id: "rec-7", name: "Sarah Jenkins", username: "sarah_j", initial: "SJ", color: "#E8F8F5", textColor: "#2ECC71", bank: "Citibank - USD Account", isRecent: false },
+];
 
 // Initial Transactions - type: 'income' or 'expense'
 export const DEFAULT_TRANSACTIONS = [
@@ -330,11 +344,12 @@ export function useAppStore() {
   const [transactions, setTransactions] = useState([]);
   const [budgets, setBudgets] = useState({});
   const [savingsGoals, setSavingsGoals] = useState([]);
-  // Fixed type definition here:
   const [profileImage, setProfileImage] = useState(null);
   const [loading, setLoading] = useState(true);
   const [themePreference, setThemePreferenceState] = useState("aurora");
   const [tabBarOpacity, setTabBarOpacityState] = useState(0.72);
+  const [username, setUsernameState] = useState("ebuka");
+  const [customCategories, setCustomCategoriesState] = useState([]);
 
   // Sync with global auth state
   const [isAuthenticated, setIsAuthenticated] = useState(globalIsAuthenticated);
@@ -357,6 +372,17 @@ export function useAppStore() {
       const storedTabBarOpacity = await AsyncStorage.getItem(
         TAB_BAR_OPACITY_STORAGE_KEY,
       );
+      const storedUsername = await AsyncStorage.getItem("ts_username");
+      const storedCustomCategories = await AsyncStorage.getItem(
+        getCustomCategoriesStorageKey(storedUsername || "ebuka"),
+      );
+
+      if (storedUsername) {
+        setUsernameState(storedUsername);
+      } else {
+        await AsyncStorage.setItem("ts_username", "ebuka");
+        setUsernameState("ebuka");
+      }
 
       if (storedTheme) {
         setThemePreferenceState(storedTheme);
@@ -367,6 +393,17 @@ export function useAppStore() {
         if (!Number.isNaN(parsedOpacity)) {
           const clampedOpacity = Math.max(0, Math.min(1, parsedOpacity));
           setTabBarOpacityState(clampedOpacity);
+        }
+      }
+
+      if (storedCustomCategories) {
+        try {
+          const parsedCategories = JSON.parse(storedCustomCategories);
+          if (Array.isArray(parsedCategories)) {
+            setCustomCategoriesState(parsedCategories);
+          }
+        } catch (error) {
+          console.warn("Failed to parse custom categories", error);
         }
       }
 
@@ -433,6 +470,33 @@ export function useAppStore() {
       String(nextOpacity),
     );
   }, []);
+
+  const setUsername = useCallback(async (newUsername) => {
+    setUsernameState(newUsername);
+    await AsyncStorage.setItem("ts_username", newUsername);
+  }, []);
+
+  const addCustomCategory = useCallback(async (categoryName) => {
+    const trimmed = categoryName?.trim();
+    if (!trimmed) return;
+    const storageKey = getCustomCategoriesStorageKey(username || "ebuka");
+    setCustomCategoriesState((prev) => {
+      const next = prev.includes(trimmed) ? prev : [...prev, trimmed];
+      AsyncStorage.setItem(storageKey, JSON.stringify(next));
+      return next;
+    });
+  }, [username]);
+
+  const deleteCustomCategory = useCallback(async (categoryName) => {
+    const trimmed = categoryName?.trim();
+    if (!trimmed) return;
+    const storageKey = getCustomCategoriesStorageKey(username || "ebuka");
+    setCustomCategoriesState((prev) => {
+      const next = prev.filter((item) => item !== trimmed);
+      AsyncStorage.setItem(storageKey, JSON.stringify(next));
+      return next;
+    });
+  }, [username]);
 
   const addTransaction = useCallback(async (newTx) => {
     const tx = {
@@ -528,9 +592,16 @@ export function useAppStore() {
       "ts_goals",
       JSON.stringify(DEFAULT_SAVINGS_GOALS),
     );
+    await AsyncStorage.setItem("ts_username", "ebuka");
+    await AsyncStorage.setItem(
+      getCustomCategoriesStorageKey("ebuka"),
+      JSON.stringify([]),
+    );
     setTransactions(DEFAULT_TRANSACTIONS);
     setBudgets(DEFAULT_BUDGETS);
     setSavingsGoals(DEFAULT_SAVINGS_GOALS);
+    setUsernameState("ebuka");
+    setCustomCategoriesState([]);
   }, []);
 
   return {
@@ -555,6 +626,11 @@ export function useAppStore() {
     addSavingsGoal,
     deleteSavingsGoal,
     updateSavingsGoal,
+    username,
+    setUsername,
+    customCategories,
+    addCustomCategory,
+    deleteCustomCategory,
     resetData,
   };
 }

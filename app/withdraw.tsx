@@ -13,32 +13,47 @@ import {
 } from "react-native";
 import { useAppStore } from "../src/store";
 
+const withdrawOptions = [
+  {
+    id: "gtbank",
+    icon: "business-outline",
+    title: "GTBank",
+    subtitle: "**** 1234",
+  },
+  {
+    id: "access",
+    icon: "business-outline",
+    title: "Access Bank",
+    subtitle: "**** 5678",
+  },
+  {
+    id: "add-account",
+    icon: "add-circle-outline",
+    title: "Add New Account",
+    subtitle: "Add a new bank account",
+  },
+];
+
 export default function WithdrawScreen() {
   const router = useRouter();
   const { addTransaction, transactions } = useAppStore();
   const [amount, setAmount] = useState("");
-  const [selectedMethod, setSelectedMethod] = useState("Zenith Bank");
+  const [selectedOption, setSelectedOption] = useState("gtbank");
   const [isBalanceVisible, setIsBalanceVisible] = useState(true);
 
   const transactionsRaw = transactions || [];
   const totalIncome = transactionsRaw
     .filter((t: any) => t.type === "income")
-    .reduce((sum: number, t: any) => sum + t.amount, 0);
+    .reduce((sum: number, t: any) => sum + Number(t.amount || 0), 0);
   const totalExpenses = transactionsRaw
     .filter((t: any) => t.type === "expense")
-    .reduce((sum: number, t: any) => sum + t.amount, 0);
+    .reduce((sum: number, t: any) => sum + Number(t.amount || 0), 0);
   const currentBalance = 2926.78 + totalIncome - totalExpenses;
 
   const parsedAmount = parseFloat(amount);
   const isOverBalance = !isNaN(parsedAmount) && parsedAmount > currentBalance;
-
-  const quickAmounts = ["50", "100", "200", "500"];
-  const paymentMethods = [
-    { id: "zenith", name: "Zenith Bank", subtitle: "**** 8392", icon: "wallet-outline" },
-    { id: "access", name: "Access Bank", subtitle: "**** 1093", icon: "wallet-outline" },
-    { id: "gtb", name: "GTBank", subtitle: "**** 4829", icon: "wallet-outline" },
-    { id: "kuda", name: "Kuda Bank", subtitle: "**** 9512", icon: "wallet-outline" },
-  ];
+  const withdrawalFee = 0;
+  const receiveAmount = isNaN(parsedAmount) ? 0 : Math.max(parsedAmount - withdrawalFee, 0);
 
   const handleWithdraw = () => {
     const value = parseFloat(amount);
@@ -48,160 +63,121 @@ export default function WithdrawScreen() {
     }
 
     if (value > currentBalance) {
-      Alert.alert(
-        "Insufficient Funds",
-        "You do not have enough funds to complete this withdrawal."
-      );
+      Alert.alert("Insufficient Funds", "You do not have enough funds to complete this withdrawal.");
       return;
     }
 
+    const option = withdrawOptions.find((item) => item.id === selectedOption);
+
     addTransaction({
-      title: `Withdraw to ${selectedMethod}`,
+      title: `Withdraw to ${option?.title ?? "GTBank"}`,
       amount: value,
       category: "Others",
       type: "expense",
       date: new Date().toISOString().slice(0, 10),
     });
 
-    Alert.alert(
-      "Success 🎉",
-      `Successfully withdrew $${value.toFixed(2)} to your bank!`,
-      [{ text: "Done", onPress: () => router.back() }]
-    );
+    Alert.alert("Success 🎉", `Successfully withdrew ₦${value.toFixed(2)} to your bank!`, [
+      { text: "Done", onPress: () => router.back() },
+    ]);
   };
 
   return (
     <SafeAreaView style={styles.safeArea}>
       <View style={styles.header}>
-        <TouchableOpacity
-          style={styles.backButton}
-          onPress={() => router.back()}
-          activeOpacity={0.7}
-        >
-          <Ionicons name="chevron-back" size={24} color="#20142A" />
+        <TouchableOpacity onPress={() => router.back()} style={styles.backButton} activeOpacity={0.8}>
+          <Ionicons name="chevron-back" size={24} color="#1A1A1A" />
         </TouchableOpacity>
-        <Text style={styles.headerTitle}>Withdraw Funds</Text>
-        <View style={styles.headerRightPlaceholder} />
+        <Text style={styles.headerTitle}>Withdraw</Text>
+        <View style={styles.headerPlaceholder} />
       </View>
 
-      <ScrollView contentContainerStyle={styles.scrollContainer} keyboardShouldPersistTaps="handled">
-        {/* Balance Card */}
+      <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
         <View style={styles.balanceCard}>
-          <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
-            <Text style={styles.balanceLabel}>Current Available Balance</Text>
-            <TouchableOpacity 
-              onPress={() => setIsBalanceVisible(!isBalanceVisible)}
-              hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
-              activeOpacity={0.7}
-            >
-              <Ionicons 
-                name={isBalanceVisible ? "eye-outline" : "eye-off-outline"} 
-                size={14} 
-                color="#A0A0A0" 
-              />
-            </TouchableOpacity>
-          </View>
-          <Text style={styles.balanceAmount}>
-            {isBalanceVisible 
-              ? `$${currentBalance.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` 
-              : "$••••••"}
-          </Text>
+          <Text style={styles.balanceLabel}>Available Balance</Text>
+          <TouchableOpacity onPress={() => setIsBalanceVisible(!isBalanceVisible)} activeOpacity={0.8}>
+            <Text style={styles.balanceAmount}>
+              {isBalanceVisible
+                ? `₦${currentBalance.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+                : "₦•••••••"}
+            </Text>
+          </TouchableOpacity>
         </View>
 
-        {/* Amount Input */}
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Enter Withdrawal Amount</Text>
-          <View style={[styles.inputWrapper, isOverBalance && styles.inputWrapperError]}>
-            <Text style={styles.currencyPrefix}>$</Text>
+        <View style={styles.cardSection}>
+          <Text style={styles.cardTitle}>How much do you want to withdraw?</Text>
+          <View style={styles.amountInputRow}>
+            <Text style={styles.prefix}>₦</Text>
             <TextInput
               style={styles.amountInput}
-              placeholder="0.00"
-              placeholderTextColor="#A0A0A0"
-              keyboardType="decimal-pad"
+              placeholder="Enter amount"
+              placeholderTextColor="#B0B0B0"
               value={amount}
               onChangeText={setAmount}
-              autoFocus
+              keyboardType="decimal-pad"
             />
+            {amount !== "" && (
+              <TouchableOpacity onPress={() => setAmount("")} style={styles.clearButton} activeOpacity={0.7}>
+                <Text style={styles.clearText}>Clear</Text>
+              </TouchableOpacity>
+            )}
           </View>
-          {isOverBalance && (
-            <Text style={styles.errorText}>
-              ⚠️ Amount exceeds available balance
-            </Text>
-          )}
+          <Text style={styles.hintText}>Minimum withdrawal is ₦1,000</Text>
         </View>
 
-        {/* Quick Amount Selection */}
-        <View style={styles.quickAmountRow}>
-          {quickAmounts.map((amt) => {
-            const val = parseFloat(amt);
-            const disabled = val > currentBalance;
+        <View style={styles.cardSection}>
+          <Text style={styles.cardTitle}>Withdraw to</Text>
+          {withdrawOptions.map((option) => {
+            const selected = selectedOption === option.id;
             return (
               <TouchableOpacity
-                key={amt}
-                style={[
-                  styles.quickAmountChip, 
-                  amount === amt && styles.quickAmountChipSelected,
-                  disabled && styles.quickAmountChipDisabled
-                ]}
-                onPress={() => !disabled && setAmount(amt)}
-                activeOpacity={disabled ? 1 : 0.7}
-                disabled={disabled}
+                key={option.id}
+                style={[styles.destinationCard, selected && styles.destinationCardSelected]}
+                onPress={() => setSelectedOption(option.id)}
+                activeOpacity={0.85}
               >
-                <Text style={[
-                  styles.quickAmountText, 
-                  amount === amt && styles.quickAmountTextSelected,
-                  disabled && styles.quickAmountTextDisabled
-                ]}>
-                  +${amt}
-                </Text>
+                <View style={[styles.destinationIcon, selected && styles.destinationIconSelected]}>
+                  <Ionicons
+                    name={option.icon as any}
+                    size={20}
+                    color={selected ? "#4B2C40" : "#6B5B8B"}
+                  />
+                </View>
+                <View style={styles.destinationInfo}>
+                  <Text style={styles.destinationTitle}>{option.title}</Text>
+                  <Text style={styles.destinationSubtitle}>{option.subtitle}</Text>
+                </View>
+                <View style={[styles.radioOuter, selected && styles.radioOuterSelected]}>
+                  {selected && <View style={styles.radioInner} />}
+                </View>
               </TouchableOpacity>
             );
           })}
         </View>
 
-        {/* Destination Bank Account */}
-        <View style={[styles.section, { marginTop: 24 }]}>
-          <Text style={styles.sectionTitle}>Withdrawal Destination</Text>
-          <View style={styles.methodsContainer}>
-            {paymentMethods.map((method) => {
-              const isSelected = selectedMethod === method.name;
-              return (
-                <TouchableOpacity
-                  key={method.id}
-                  style={[styles.methodCard, isSelected && styles.methodCardSelected]}
-                  onPress={() => setSelectedMethod(method.name)}
-                  activeOpacity={0.7}
-                >
-                  <View style={[styles.methodIconBox, isSelected && styles.methodIconBoxSelected]}>
-                    <Ionicons
-                      name={method.icon as any}
-                      size={18}
-                      color={isSelected ? "#FFFFFF" : "#20142A"}
-                    />
-                  </View>
-                  <View style={styles.methodInfo}>
-                    <Text style={[styles.methodName, isSelected && styles.methodNameSelected]}>
-                      {method.name}
-                    </Text>
-                    <Text style={styles.methodSubtitle}>{method.subtitle}</Text>
-                  </View>
-                  {isSelected && (
-                    <Ionicons name="checkmark-circle" size={20} color="#20142A" style={styles.checkIcon} />
-                  )}
-                </TouchableOpacity>
-              );
-            })}
+        <View style={styles.summaryCard}>
+          <Text style={styles.summaryLabel}>Withdrawal Summary</Text>
+          <View style={styles.summaryRow}>
+            <Text style={styles.summaryText}>Amount</Text>
+            <Text style={styles.summaryAmount}>₦{isNaN(parsedAmount) ? "0.00" : parsedAmount.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</Text>
+          </View>
+          <View style={styles.summaryRow}>
+            <Text style={styles.summaryText}>Fee</Text>
+            <Text style={styles.summaryAmount}>₦{withdrawalFee.toFixed(2)}</Text>
+          </View>
+          <View style={styles.summaryRowTotal}>
+            <Text style={styles.summaryTotalLabel}>You will receive</Text>
+            <Text style={styles.summaryTotalAmount}>₦{receiveAmount.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</Text>
           </View>
         </View>
 
-        {/* Confirm Button */}
         <TouchableOpacity
-          style={[styles.confirmButton, (isOverBalance || !amount) && styles.confirmButtonDisabled]}
+          style={[styles.primaryButton, (isOverBalance || !amount) && styles.primaryButtonDisabled]}
           onPress={handleWithdraw}
-          activeOpacity={0.8}
+          activeOpacity={0.85}
           disabled={isOverBalance || !amount}
         >
-          <Text style={styles.confirmButtonText}>Confirm Withdrawal</Text>
+          <Text style={styles.primaryButtonText}>Continue</Text>
         </TouchableOpacity>
       </ScrollView>
     </SafeAreaView>
@@ -211,196 +187,237 @@ export default function WithdrawScreen() {
 const styles = StyleSheet.create({
   safeArea: {
     flex: 1,
-    backgroundColor: "#FAFAFA",
+    backgroundColor: "#F6F2FF",
   },
   header: {
-    height: 56,
+    height: 64,
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
     paddingHorizontal: 16,
-    borderBottomWidth: 1,
-    borderColor: "#F0F0F2",
-    backgroundColor: "#FFFFFF",
+    marginTop: 8,
   },
   backButton: {
-    padding: 4,
+    width: 40,
+    height: 40,
+    borderRadius: 14,
+    backgroundColor: "#FFFFFF",
+    justifyContent: "center",
+    alignItems: "center",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.08,
+    shadowRadius: 8,
+    elevation: 2,
   },
   headerTitle: {
     fontSize: 18,
     fontWeight: "700",
-    color: "#20142A",
+    color: "#1C112D",
   },
-  headerRightPlaceholder: {
-    width: 32,
+  headerPlaceholder: {
+    width: 40,
   },
-  scrollContainer: {
-    padding: 20,
-    paddingBottom: 40,
+  content: {
+    padding: 16,
+    paddingBottom: 32,
   },
   balanceCard: {
-    backgroundColor: "#20142A",
-    borderRadius: 20,
-    padding: 20,
-    marginBottom: 24,
+    backgroundColor: "#FFFFFF",
+    borderRadius: 28,
+    padding: 22,
+    alignItems: "center",
     shadowColor: "#000",
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.1,
-    shadowRadius: 10,
-    elevation: 3,
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.08,
+    shadowRadius: 18,
+    elevation: 4,
+    marginBottom: 18,
   },
   balanceLabel: {
-    color: "#A0A0A0",
+    color: "#7D7D7D",
     fontSize: 12,
-    fontWeight: "500",
-    textTransform: "uppercase",
+    fontWeight: "600",
+    marginBottom: 8,
   },
   balanceAmount: {
-    color: "#FFFFFF",
-    fontSize: 26,
-    fontWeight: "bold",
-    marginTop: 6,
+    fontSize: 32,
+    fontWeight: "800",
+    color: "#1C112D",
   },
-  section: {
-    marginBottom: 12,
+  cardSection: {
+    backgroundColor: "#FFFFFF",
+    borderRadius: 28,
+    padding: 18,
+    marginBottom: 18,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.05,
+    shadowRadius: 18,
+    elevation: 3,
   },
-  sectionTitle: {
-    fontSize: 14,
-    fontWeight: "600",
-    color: "#7C7C7C",
-    marginBottom: 10,
+  cardTitle: {
+    fontSize: 15,
+    fontWeight: "700",
+    color: "#1C112D",
+    marginBottom: 16,
   },
-  inputWrapper: {
+  amountInputRow: {
     flexDirection: "row",
     alignItems: "center",
-    backgroundColor: "#FFFFFF",
-    borderWidth: 1,
-    borderColor: "#EAEAEA",
-    borderRadius: 16,
-    paddingHorizontal: 16,
+    backgroundColor: "#F8F5FF",
+    borderRadius: 20,
+    paddingHorizontal: 18,
     height: 64,
   },
-  inputWrapperError: {
-    borderColor: "#EF4444",
-    borderWidth: 1.5,
-  },
-  currencyPrefix: {
+  prefix: {
     fontSize: 24,
-    fontWeight: "600",
-    color: "#20142A",
-    marginRight: 4,
+    fontWeight: "700",
+    color: "#1C112D",
+    marginRight: 10,
   },
   amountInput: {
     flex: 1,
-    fontSize: 24,
-    fontWeight: "600",
-    color: "#20142A",
+    fontSize: 22,
+    fontWeight: "700",
+    color: "#1C112D",
   },
-  errorText: {
-    color: "#EF4444",
+  clearButton: {
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+  },
+  clearText: {
+    fontSize: 13,
+    fontWeight: "700",
+    color: "#7D5AF7",
+  },
+  hintText: {
+    marginTop: 10,
     fontSize: 12,
-    fontWeight: "500",
-    marginTop: 6,
-    marginLeft: 4,
+    color: "#7D7D7D",
   },
-  quickAmountRow: {
+  destinationCard: {
+    flexDirection: "row",
+    alignItems: "center",
+    padding: 16,
+    borderRadius: 20,
+    backgroundColor: "#F8F5FF",
+    marginBottom: 12,
+  },
+  destinationCardSelected: {
+    backgroundColor: "#F3EDFF",
+  },
+  destinationIcon: {
+    width: 48,
+    height: 48,
+    borderRadius: 16,
+    backgroundColor: "#FFFFFF",
+    justifyContent: "center",
+    alignItems: "center",
+    marginRight: 14,
+  },
+  destinationIconSelected: {
+    backgroundColor: "#E5DBF7",
+  },
+  destinationInfo: {
+    flex: 1,
+  },
+  destinationTitle: {
+    fontSize: 15,
+    fontWeight: "700",
+    color: "#1A1A1A",
+  },
+  destinationSubtitle: {
+    fontSize: 13,
+    color: "#7A6F8B",
+    marginTop: 4,
+    lineHeight: 18,
+  },
+  radioOuter: {
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    borderWidth: 2,
+    borderColor: "#D8D2E6",
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  radioOuterSelected: {
+    borderColor: "#4B2C40",
+  },
+  radioInner: {
+    width: 12,
+    height: 12,
+    borderRadius: 6,
+    backgroundColor: "#4B2C40",
+  },
+  summaryCard: {
+    backgroundColor: "#FFFFFF",
+    borderRadius: 28,
+    padding: 18,
+    marginBottom: 18,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.05,
+    shadowRadius: 18,
+    elevation: 3,
+  },
+  summaryLabel: {
+    fontSize: 14,
+    fontWeight: "700",
+    color: "#1C112D",
+    marginBottom: 14,
+  },
+  summaryRow: {
     flexDirection: "row",
     justifyContent: "space-between",
-    gap: 8,
+    marginBottom: 12,
+  },
+  summaryText: {
+    fontSize: 13,
+    color: "#7D7D7D",
+  },
+  summaryAmount: {
+    fontSize: 13,
+    fontWeight: "700",
+    color: "#1C112D",
+  },
+  summaryRowTotal: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
     marginTop: 8,
   },
-  quickAmountChip: {
-    flex: 1,
-    backgroundColor: "#F3F3F5",
-    borderRadius: 12,
-    paddingVertical: 10,
-    alignItems: "center",
-  },
-  quickAmountChipSelected: {
-    backgroundColor: "#20142A",
-  },
-  quickAmountChipDisabled: {
-    opacity: 0.4,
-  },
-  quickAmountText: {
-    fontSize: 13,
-    color: "#534B52",
-    fontWeight: "600",
-  },
-  quickAmountTextSelected: {
-    color: "#FFFFFF",
-  },
-  quickAmountTextDisabled: {
-    color: "#A0A0A0",
-  },
-  methodsContainer: {
-    gap: 12,
-  },
-  methodCard: {
-    flexDirection: "row",
-    alignItems: "center",
-    backgroundColor: "#FFFFFF",
-    borderWidth: 1,
-    borderColor: "#EAEAEA",
-    borderRadius: 16,
-    padding: 14,
-  },
-  methodCardSelected: {
-    borderColor: "#20142A",
-    backgroundColor: "rgba(32, 20, 42, 0.02)",
-  },
-  methodIconBox: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    backgroundColor: "#F3F3F5",
-    justifyContent: "center",
-    alignItems: "center",
-    marginRight: 12,
-  },
-  methodIconBoxSelected: {
-    backgroundColor: "#20142A",
-  },
-  methodInfo: {
-    flex: 1,
-  },
-  methodName: {
+  summaryTotalLabel: {
     fontSize: 14,
-    fontWeight: "600",
-    color: "#20142A",
-  },
-  methodNameSelected: {
     fontWeight: "700",
+    color: "#1A1A1A",
   },
-  methodSubtitle: {
-    fontSize: 11,
-    color: "#7C7C7C",
-    marginTop: 2,
+  summaryTotalAmount: {
+    fontSize: 16,
+    fontWeight: "800",
+    color: "#4B2C40",
   },
-  checkIcon: {
-    marginLeft: "auto",
-  },
-  confirmButton: {
-    backgroundColor: "#20142A",
-    borderRadius: 16,
-    height: 54,
+  primaryButton: {
+    backgroundColor: "#4B2C40",
+    borderRadius: 20,
+    height: 58,
     justifyContent: "center",
     alignItems: "center",
-    marginTop: 32,
-    shadowColor: "#20142A",
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.2,
-    shadowRadius: 10,
-    elevation: 4,
+    shadowColor: "#4B2C40",
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.18,
+    shadowRadius: 18,
+    elevation: 5,
   },
-  confirmButtonDisabled: {
-    backgroundColor: "#A0A0A0",
+  primaryButtonDisabled: {
+    backgroundColor: "#BFB8D6",
     shadowOpacity: 0,
     elevation: 0,
   },
-  confirmButtonText: {
+  primaryButtonText: {
     color: "#FFFFFF",
-    fontSize: 15,
+    fontSize: 16,
     fontWeight: "700",
   },
 });
