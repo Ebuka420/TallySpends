@@ -30,9 +30,9 @@ type CategoryItem = [
 ];
 
 const categories: CategoryItem[] = [
-  ["Food & dining", "$692.20", "32%", "fast-food-outline", "#F3EBF1"],
-  ["Transport", "$539.60", "25%", "car-outline", "#EEE5F2"],
-  ["Shopping", "$388.50", "18%", "bag-handle-outline", "#F7F0F8"],
+  ["Food & dining", "₦692.20", "32%", "fast-food-outline", "#F3EBF1"],
+  ["Transport", "₦539.60", "25%", "car-outline", "#EEE5F2"],
+  ["Shopping", "₦388.50", "18%", "bag-handle-outline", "#F7F0F8"],
 ];
 
 export default function AnalyticsScreen() {
@@ -186,11 +186,11 @@ export default function AnalyticsScreen() {
         </View>
 
         <View style={styles.metrics}>
-          <Metric label="INCOME" value="$3,450" icon="arrow-down-outline" />
+          <Metric label="INCOME" value="₦3,450" icon="arrow-down-outline" />
           <View style={styles.metricDivider} />
-          <Metric label="SPENT" value="$2,158" icon="arrow-up-outline" />
+          <Metric label="SPENT" value="₦2,158" icon="arrow-up-outline" />
           <View style={styles.metricDivider} />
-          <Metric label="SAVED" value="$1,292" icon="leaf-outline" />
+          <Metric label="SAVED" value="₦1,292" icon="leaf-outline" />
         </View>
 
         <Heading title="Where your money went." action="See details" />
@@ -232,7 +232,7 @@ export default function AnalyticsScreen() {
           <View style={styles.insightCopy}>
             <Text style={styles.insightTitle}>A small shift to notice</Text>
             <Text style={styles.insightText}>
-              Food spending was higher this week than it was last month. A $35
+              Food spending was higher this week than it was last month. A ₦35
               weekly cap could keep you on track.
             </Text>
           </View>

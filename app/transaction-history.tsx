@@ -10,97 +10,13 @@ import {
   Modal,
   Pressable,
   Platform,
-  PanResponder,
-  Animated,
   Alert,
   KeyboardAvoidingView,
+  PanResponder,
 } from "react-native";
 import { Stack, useLocalSearchParams, useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
-import { useAppStore } from "../src/store";
-
-// SwipeableRow Component using PanResponder and Animated
-const SwipeableRow = ({
-  children,
-  onEdit,
-  onDelete,
-}: {
-  children: React.ReactNode;
-  onEdit: () => void;
-  onDelete: () => void;
-}) => {
-  const translateX = useRef(new Animated.Value(0)).current;
-
-  const panResponder = useRef(
-    PanResponder.create({
-      onStartShouldSetPanResponder: () => false,
-      onMoveShouldSetPanResponder: (_, gestureState) => {
-        return Math.abs(gestureState.dx) > 10 && Math.abs(gestureState.dy) < 10;
-      },
-      onPanResponderMove: (_, gestureState) => {
-        const newX = gestureState.dx;
-        if (newX < 0) {
-          translateX.setValue(Math.max(-120, newX));
-        } else {
-          translateX.setValue(Math.min(0, newX));
-        }
-      },
-      onPanResponderRelease: (_, gestureState) => {
-        if (gestureState.dx < -60) {
-          Animated.spring(translateX, {
-            toValue: -120,
-            useNativeDriver: true,
-            bounciness: 4,
-          }).start();
-        } else {
-          Animated.spring(translateX, {
-            toValue: 0,
-            useNativeDriver: true,
-            bounciness: 4,
-          }).start();
-        }
-      },
-    })
-  ).current;
-
-  const closeRow = () => {
-    Animated.spring(translateX, {
-      toValue: 0,
-      useNativeDriver: true,
-    }).start();
-  };
-
-  return (
-    <View style={styles.swipeContainer}>
-      <View style={styles.swipeActionsBackground}>
-        <TouchableOpacity
-          style={[styles.swipeActionBtn, { backgroundColor: "#F5EBDF" }]}
-          onPress={() => {
-            closeRow();
-            onEdit();
-          }}
-        >
-          <Ionicons name="pencil" size={16} color="#A04000" />
-        </TouchableOpacity>
-        <TouchableOpacity
-          style={[styles.swipeActionBtn, { backgroundColor: "#FADBD8" }]}
-          onPress={() => {
-            closeRow();
-            onDelete();
-          }}
-        >
-          <Ionicons name="trash-outline" size={16} color="#C0392B" />
-        </TouchableOpacity>
-      </View>
-      <Animated.View
-        style={{ transform: [{ translateX }], backgroundColor: "#FFF" }}
-        {...panResponder.panHandlers}
-      >
-        {children}
-      </Animated.View>
-    </View>
-  );
-};
+import { useAppStore, MOCK_RECIPIENTS } from "../src/store";
 
 export default function TransactionHistoryScreen() {
   const router = useRouter();
@@ -108,8 +24,6 @@ export default function TransactionHistoryScreen() {
   const {
     transactions: transactionsRaw,
     addTransaction,
-    deleteTransaction,
-    updateTransaction,
     loading,
   } = useAppStore();
   const transactions = (transactionsRaw || []) as any[];
@@ -117,9 +31,6 @@ export default function TransactionHistoryScreen() {
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedCategory, setSelectedCategory] = useState<string | null>(params.category ?? null);
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
-  const [isEditModalOpen, setIsEditModalOpen] = useState(false);
-  const [selectedTx, setSelectedTx] = useState<any>(null);
-  
   // Form states
   const [txTitle, setTxTitle] = useState("");
   const [txAmount, setTxAmount] = useState("");
@@ -156,46 +67,42 @@ export default function TransactionHistoryScreen() {
     setIsAddModalOpen(false);
   };
 
-  const handleEditSubmit = () => {
-    const value = parseFloat(txAmount);
-    if (!txTitle.trim() || isNaN(value) || value <= 0 || !selectedTx) return;
-
-    updateTransaction({
-      ...selectedTx,
-      title: txTitle.trim(),
-      amount: value,
-      category: txType === "income" ? "Income" : txCategory,
-      type: txType,
-    });
-
-    // Reset
-    setTxTitle("");
-    setTxAmount("");
-    setSelectedTx(null);
-    setIsEditModalOpen(false);
-  };
-
-  const openEditTx = (tx: any) => {
-    setSelectedTx(tx);
-    setTxTitle(tx.title);
-    setTxAmount(String(tx.amount));
-    setTxType(tx.type);
-    setTxCategory(tx.category === "Income" ? "Food & Dining" : tx.category);
-    setIsEditModalOpen(true);
-  };
 
   useEffect(() => {
     setSelectedCategory(params.category ?? null);
   }, [params.category]);
 
+  // Block horizontal pan gestures inside the transactions list so rows cannot swipe
+  const blockPanResponder = useRef(
+    PanResponder.create({
+      onStartShouldSetPanResponder: () => false,
+      onMoveShouldSetPanResponder: (_, gestureState) => {
+        // intercept horizontal moves larger than vertical moves
+        return Math.abs(gestureState.dx) > Math.abs(gestureState.dy) && Math.abs(gestureState.dx) > 8;
+      },
+      onPanResponderMove: () => {},
+      onPanResponderRelease: () => {},
+    })
+  ).current;
+
+
+  const normalizeTransferTitle = (title: string) => {
+    const transferRegex = /(Transfer to\s+)@([a-zA-Z0-9_]+)/i;
+    return title.replace(transferRegex, (_, prefix, username) => {
+      const recipient = MOCK_RECIPIENTS.find((r) => r.username.toLowerCase() === username.toLowerCase());
+      return recipient ? `${prefix}${recipient.name}` : `Transfer to @${username}`;
+    });
+  };
+
   const filteredTransactions = transactions.filter((tx) => {
-    const matchesSearch = `${tx.title} ${tx.category}`.toLowerCase().includes(searchQuery.toLowerCase());
+    const normalizedTitle = normalizeTransferTitle(tx.title);
+    const matchesSearch = `${normalizedTitle} ${tx.category}`.toLowerCase().includes(searchQuery.toLowerCase());
     const matchesCategory = !selectedCategory || tx.category === selectedCategory;
     return matchesSearch && matchesCategory;
   });
 
   const formatCurrency = (val: number) => {
-    return `$${val.toLocaleString(undefined, {
+    return `₦${val.toLocaleString(undefined, {
       minimumFractionDigits: 2,
       maximumFractionDigits: 2,
     })}`;
@@ -232,7 +139,7 @@ export default function TransactionHistoryScreen() {
         >
           <Ionicons name="chevron-back" size={24} color="#1A1A1A" />
         </TouchableOpacity>
-        <Text style={styles.headerTitle}>Transaction History</Text>
+        <Text style={styles.headerTitle}>My Transactions</Text>
         <TouchableOpacity
           style={styles.headerBtnAdd}
           onPress={() => setIsAddModalOpen(true)}
@@ -242,70 +149,24 @@ export default function TransactionHistoryScreen() {
       </View>
 
       {/* --- SEARCH BAR --- */}
-      <View style={styles.searchContainer}>
-        <View style={styles.searchBox}>
-          <Ionicons name="search-outline" size={18} color="#888" style={{ marginRight: 8 }} />
-          <TextInput
-            value={searchQuery}
-            onChangeText={setSearchQuery}
-            placeholder="Search items, categories..."
-            placeholderTextColor="#888"
-            style={styles.searchInput}
-          />
-          {searchQuery !== "" && (
-            <TouchableOpacity onPress={() => setSearchQuery("")}>
-              <Ionicons name="close-circle" size={16} color="#BBB" />
-            </TouchableOpacity>
-          )}
-        </View>
-      </View>
-
-      <View style={styles.filterRow}>
-        {categories.map((cat) => {
-          const isActive = selectedCategory === cat;
-          return (
-            <TouchableOpacity
-              key={cat}
-              onPress={() => setSelectedCategory(isActive ? null : cat)}
-              style={[styles.filterChip, isActive && styles.filterChipActive]}
-            >
-              <Text style={[styles.filterChipText, isActive && styles.filterChipTextActive]}>{cat}</Text>
-            </TouchableOpacity>
-          );
-        })}
-      </View>
-
-      {/* --- TRANSACTIONS LIST --- */}
       <ScrollView
         contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator={false}
       >
-        <View style={styles.ledgerCard}>
-          {filteredTransactions.map((tx) => {
-            const catStyle = getCategoryColor(tx.category);
-            return (
-              <SwipeableRow
-                key={tx.id}
-                onEdit={() => openEditTx(tx)}
-                onDelete={() => {
-                  Alert.alert(
-                    "Delete Transaction",
-                    `Are you sure you want to delete "${tx.title}"?`,
-                    [
-                      { text: "Cancel", style: "cancel" },
-                      { text: "Delete", style: "destructive", onPress: () => deleteTransaction(tx.id) },
-                    ]
-                  );
-                }}
-              >
-                <View style={styles.row}>
-                  <View style={[styles.initialBox, { backgroundColor: catStyle.bg }]}>
-                    <Text style={[styles.initialText, { color: catStyle.color }]}>
-                      {tx.category ? tx.category.charAt(0) : "T"}
+        <View style={styles.ledgerCard} {...blockPanResponder.panHandlers}>
+          {filteredTransactions.length > 0 ? (
+            filteredTransactions.map((tx) => {
+              const catStyle = getCategoryColor(tx.category);
+              const displayTitle = normalizeTransferTitle(tx.title);
+              return (
+                <View key={tx.id} style={styles.row}>
+                  <View style={[styles.initialBox, { backgroundColor: catStyle.bg }]}> 
+                    <Text style={[styles.initialText, { color: catStyle.color }]}> 
+                      {tx.category ? tx.category.charAt(0) : "T"} 
                     </Text>
                   </View>
                   <View style={styles.infoCol}>
-                    <Text style={styles.txTitleText}>{tx.title}</Text>
+                    <Text style={styles.txTitleText}>{displayTitle}</Text>
                     <Text style={styles.txMeta}>
                       {tx.date} • {tx.category}
                     </Text>
@@ -322,11 +183,9 @@ export default function TransactionHistoryScreen() {
                     </Text>
                   </View>
                 </View>
-              </SwipeableRow>
-            );
-          })}
-
-          {filteredTransactions.length === 0 && (
+              );
+            })
+          ) : (
             <View style={styles.emptyContainer}>
               <Text style={styles.emptyText}>
                 {loading ? "Loading transactions..." : "No matching logs found."}
@@ -404,7 +263,7 @@ export default function TransactionHistoryScreen() {
                   </View>
 
                   <View style={styles.inputGroup}>
-                    <Text style={styles.inputLabel}>Amount ($)</Text>
+                    <Text style={styles.inputLabel}>Amount (₦)</Text>
                     <TextInput
                       placeholder="0.00"
                       value={txAmount}
@@ -452,121 +311,6 @@ export default function TransactionHistoryScreen() {
         </Pressable>
       </Modal>
 
-      {/* --- EDIT TRANSACTION MODAL --- */}
-      <Modal visible={isEditModalOpen} transparent animationType="slide">
-        <Pressable
-          style={styles.modalBackdrop}
-          onPress={() => setIsEditModalOpen(false)}
-        >
-          <KeyboardAvoidingView
-            behavior={Platform.OS === "ios" ? "padding" : undefined}
-            keyboardVerticalOffset={Platform.OS === "ios" ? 90 : 0}
-            style={styles.modalKeyboardView}
-          >
-            <ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={styles.modalScrollContent}>
-              <View style={styles.modalSheet}>
-                <View style={styles.modalHeader}>
-                  <Text style={styles.modalTitle}>Edit Transaction</Text>
-                  <TouchableOpacity onPress={() => setIsEditModalOpen(false)}>
-                    <Text style={styles.cancelText}>Cancel</Text>
-                  </TouchableOpacity>
-                </View>
-
-                <View style={styles.modalBody}>
-                  <View style={styles.typeTabs}>
-                    <TouchableOpacity
-                      style={[
-                        styles.typeTab,
-                        txType === "expense" && styles.typeTabActive,
-                      ]}
-                      onPress={() => setTxType("expense")}
-                    >
-                      <Text
-                        style={[
-                          styles.typeTabText,
-                          txType === "expense" && styles.typeTabTextActive,
-                        ]}
-                      >
-                        Expense
-                      </Text>
-                    </TouchableOpacity>
-                    <TouchableOpacity
-                      style={[
-                        styles.typeTab,
-                        txType === "income" && styles.typeTabActive,
-                      ]}
-                      onPress={() => setTxType("income")}
-                    >
-                      <Text
-                        style={[
-                          styles.typeTabText,
-                          txType === "income" && styles.typeTabTextActive,
-                        ]}
-                      >
-                        Income
-                      </Text>
-                    </TouchableOpacity>
-                  </View>
-
-                  <View style={styles.inputGroup}>
-                    <Text style={styles.inputLabel}>Description / Title</Text>
-                    <TextInput
-                      placeholder="e.g. Starbucks, Groceries..."
-                      value={txTitle}
-                      onChangeText={setTxTitle}
-                      style={styles.textInput}
-                      placeholderTextColor="#888"
-                    />
-                  </View>
-
-                  <View style={styles.inputGroup}>
-                    <Text style={styles.inputLabel}>Amount ($)</Text>
-                    <TextInput
-                      placeholder="0.00"
-                      value={txAmount}
-                      onChangeText={setTxAmount}
-                      keyboardType="numeric"
-                      style={styles.textInput}
-                      placeholderTextColor="#888"
-                    />
-                  </View>
-
-                  {txType === "expense" && (
-                    <View style={styles.inputGroup}>
-                      <Text style={styles.inputLabel}>Category</Text>
-                      <View style={styles.tagsContainer}>
-                        {categories.map((cat) => (
-                          <TouchableOpacity
-                            key={cat}
-                            onPress={() => setTxCategory(cat)}
-                            style={[
-                              styles.tagBtn,
-                              txCategory === cat && styles.tagBtnActive,
-                            ]}
-                          >
-                            <Text
-                              style={[
-                                styles.tagText,
-                                txCategory === cat && styles.tagTextActive,
-                              ]}
-                            >
-                              {cat}
-                            </Text>
-                          </TouchableOpacity>
-                        ))}
-                      </View>
-                    </View>
-                  )}
-
-                  <TouchableOpacity style={styles.saveBtn} onPress={handleEditSubmit}>
-                    <Text style={styles.saveBtnText}>Save Changes</Text>
-                  </TouchableOpacity>
-                </View>
-              </View>
-            </ScrollView>
-          </KeyboardAvoidingView>
-        </Pressable>
-      </Modal>
     </SafeAreaView>
   );
 }
@@ -664,9 +408,16 @@ const styles = StyleSheet.create({
   row: {
     flexDirection: "row",
     alignItems: "center",
-    paddingHorizontal: 14,
-    paddingVertical: 14,
-    paddingRight: 104,
+    paddingHorizontal: 16,
+    paddingVertical: 16,
+    marginBottom: 12,
+    backgroundColor: "#FFF",
+    borderRadius: 20,
+    shadowColor: "#000",
+    shadowOpacity: 0.05,
+    shadowOffset: { width: 0, height: 4 },
+    shadowRadius: 12,
+    elevation: 2,
   },
   initialBox: {
     width: 38,
@@ -689,17 +440,21 @@ const styles = StyleSheet.create({
     color: "#1A1A1A",
   },
   txMeta: {
-    fontSize: 11,
+    fontSize: 12,
     color: "#888",
-    marginTop: 2,
+    marginTop: 4,
+  },
+  txDate: {
+    fontSize: 12,
+    color: "#888",
+    marginTop: 6,
   },
   rightCol: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 12,
+    alignItems: "flex-end",
+    justifyContent: "center",
   },
   txAmount: {
-    fontSize: 14,
+    fontSize: 16,
     fontWeight: "700",
     color: "#1A1A1A",
   },
@@ -842,38 +597,6 @@ const styles = StyleSheet.create({
     color: "#FFF",
     fontSize: 16,
     fontWeight: "700",
-  },
-  /* Swipeable Row Styles */
-  swipeContainer: {
-    position: "relative",
-    overflow: "hidden",
-    marginBottom: 8,
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: "#F0F0F0",
-    backgroundColor: "#FFF",
-  },
-  swipeActionsBackground: {
-    position: "absolute",
-    right: 0,
-    top: 0,
-    bottom: 0,
-    width: 94,
-    flexDirection: "row",
-    justifyContent: "flex-end",
-    alignItems: "center",
-    zIndex: 1,
-    paddingRight: 8,
-  },
-  swipeActionBtn: {
-    width: 38,
-    height: 38,
-    justifyContent: "center",
-    alignItems: "center",
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: "#EADFD9",
-    marginLeft: 6,
   },
 });
 
