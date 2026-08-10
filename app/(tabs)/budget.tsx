@@ -14,7 +14,7 @@ export default function BudgetScreen() {
   const router = useRouter();
 
   return (
-    <SafeAreaView style={styles.safeArea}>
+    <SafeAreaView style={[styles.safeArea, { backgroundColor: theme.background }]}> 
       <ScrollView
         style={styles.container}
         contentContainerStyle={styles.contentContainer}

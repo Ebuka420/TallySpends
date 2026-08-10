@@ -209,7 +209,7 @@ export default function AnalyticsScreen() {
   const chartLabel = timeframe === "yearly" ? `${selectedPeriod}` : `${period}`;
 
   return (
-    <SafeAreaView style={styles.safeArea}>
+    <SafeAreaView style={[styles.safeArea, { backgroundColor: theme.background }]}> 
       <ScrollView
         contentContainerStyle={styles.content}
         showsVerticalScrollIndicator={false}
@@ -251,7 +251,7 @@ export default function AnalyticsScreen() {
           </TouchableOpacity>
         </View>
 
-        <View style={styles.hero}>
+        <View style={[styles.hero, { backgroundColor: theme.background }]}> 
           <Text style={styles.overline}>FINANCIAL HEALTH</Text>
           <View style={styles.heroRow}>
             <Text style={styles.score}>82</Text>
@@ -267,7 +267,7 @@ export default function AnalyticsScreen() {
           </Text>
         </View>
 
-        <View style={styles.trendCard}>
+        <View style={[styles.trendCard, { backgroundColor: theme.surface, borderColor: theme.border }]}> 
           <View style={styles.cardHeader}>
             <View>
               <Text style={styles.cardLabel}>SPENDING OVERVIEW</Text>

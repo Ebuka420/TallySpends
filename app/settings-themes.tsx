@@ -1,6 +1,7 @@
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import React, { useState } from "react";
+import { useAppStore } from "../src/store";
 import {
     SafeAreaView,
     StyleSheet,
@@ -8,6 +9,7 @@ import {
     TouchableOpacity,
     View,
 } from "react-native";
+import { APP_COLORS } from "../src/theme";
 
 const themes = [
   {
@@ -32,7 +34,8 @@ const themes = [
 
 export default function SettingsThemesScreen() {
   const router = useRouter();
-  const [selected, setSelected] = useState("aurora");
+  const { themePreference, setThemePreference } = useAppStore();
+  const [selected, setSelected] = useState(themePreference || "aurora");
 
   return (
     <SafeAreaView style={styles.container}>
@@ -63,7 +66,10 @@ export default function SettingsThemesScreen() {
         <TouchableOpacity
           key={theme.id}
           style={[styles.card, selected === theme.id && styles.cardActive]}
-          onPress={() => setSelected(theme.id)}
+          onPress={async () => {
+            setSelected(theme.id);
+            await setThemePreference(theme.id);
+          }}
         >
           <View
             style={[styles.colorSwatch, { backgroundColor: theme.accent }]}
@@ -84,7 +90,7 @@ export default function SettingsThemesScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: "#FAF9FB" },
+  container: { flex: 1, backgroundColor: APP_COLORS.background },
   headerContainer: {
     flexDirection: "row",
     alignItems: "center",
@@ -94,7 +100,7 @@ const styles = StyleSheet.create({
     paddingBottom: 16,
   },
   backButton: { padding: 4 },
-  headerTitle: { fontSize: 20, fontWeight: "700", color: "#1C1C1E" },
+  headerTitle: { fontSize: 20, fontWeight: "700", color: APP_COLORS.textPrimary },
   headerSpacer: { width: 32 },
   heroCard: {
     flexDirection: "row",
@@ -113,7 +119,7 @@ const styles = StyleSheet.create({
     width: 46,
     height: 46,
     borderRadius: 23,
-    backgroundColor: "#FAF2EC",
+    backgroundColor: APP_COLORS.accentSoft,
     alignItems: "center",
     justifyContent: "center",
     marginRight: 12,
@@ -122,10 +128,10 @@ const styles = StyleSheet.create({
   heroTitle: {
     fontSize: 15,
     fontWeight: "700",
-    color: "#1C1C1E",
+    color: APP_COLORS.textPrimary,
     marginBottom: 4,
   },
-  heroSubtitle: { fontSize: 12.5, color: "#8E8E93", lineHeight: 18 },
+  heroSubtitle: { fontSize: 12.5, color: APP_COLORS.textSecondary, lineHeight: 18 },
   card: {
     flexDirection: "row",
     alignItems: "center",
@@ -138,6 +144,6 @@ const styles = StyleSheet.create({
   cardActive: { borderWidth: 1, borderColor: "#5B4E91" },
   colorSwatch: { width: 18, height: 18, borderRadius: 9, marginRight: 12 },
   cardTextWrap: { flex: 1 },
-  cardTitle: { fontSize: 15, fontWeight: "600", color: "#1C1C1E" },
-  cardSubtitle: { fontSize: 12.5, color: "#8E8E93", marginTop: 4 },
+  cardTitle: { fontSize: 15, fontWeight: "600", color: APP_COLORS.textPrimary },
+  cardSubtitle: { fontSize: 12.5, color: APP_COLORS.textSecondary, marginTop: 4 },
 });

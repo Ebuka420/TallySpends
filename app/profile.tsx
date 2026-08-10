@@ -111,7 +111,7 @@ export default function ProfileScreen() {
           <Text style={styles.profileUsernameText}>EBUKA</Text>
         </View>
 
-        {/* --- TOP METRICS CARD (ACCOUNT NO & FREEMIUM PLAN) --- */}
+        {/* --- TOP METRICS CARD (TALLYTAG & ACCOUNT PLAN) --- */}
         <View style={styles.card}>
           <View
             style={[
@@ -123,16 +123,16 @@ export default function ProfileScreen() {
               },
             ]}
           >
-            <Text style={styles.cardFieldLabel}>Bank Account Number</Text>
+            <Text style={styles.cardFieldLabel}>TallyTag</Text>
             <View style={styles.accountNumberWrapper}>
-              <Text style={styles.accountNumberText}>3546892334</Text>
+              <Text style={styles.accountNumberText}>@EBUKA</Text>
               <TouchableOpacity style={{ marginLeft: 6 }}>
                 <Ionicons name="copy-outline" size={14} color="#A6ACAF" />
               </TouchableOpacity>
             </View>
           </View>
 
-          <View style={[styles.cardRow, { paddingTop: 14 }]}>
+          <View style={[styles.cardRow, { paddingTop: 14 }]}> 
             <Text style={styles.cardFieldLabel}>Account Plan</Text>
             <View style={styles.badgeFlexContainer}>
               <View style={styles.planTierBadge}>

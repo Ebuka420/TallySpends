@@ -1,6 +1,7 @@
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import React, { useState } from "react";
+import * as Clipboard from "expo-clipboard";
 import {
   SafeAreaView,
   StyleSheet,
@@ -36,9 +37,11 @@ const depositOptions = [
 
 export default function DepositScreen() {
   const router = useRouter();
-  const { addTransaction, transactions } = useAppStore();
+  const { addTransaction, transactions, savedCards = [] } = useAppStore();
   const [amount, setAmount] = useState("");
   const [selectedOption, setSelectedOption] = useState("bank-transfer");
+  const [generatedBank, setGeneratedBank] = useState<any>(null);
+  const [selectedCard, setSelectedCard] = useState<string | null>(null);
   const [isBalanceVisible, setIsBalanceVisible] = useState(true);
 
   const transactionsRaw = transactions || [];
@@ -79,6 +82,27 @@ export default function DepositScreen() {
     );
   };
 
+  
+  const copyBankDetail = async (value: string) => {
+    try {
+      await Clipboard.setStringAsync(String(value));
+      Alert.alert("Copied", "Bank detail copied to clipboard.");
+    } catch (e) {
+      Alert.alert("Error", "Could not copy to clipboard.");
+    }
+  };
+
+  const generateBankDetails = () => {
+    const ref = `TS${Math.floor(Math.random() * 900000) + 100000}`;
+    const details = {
+      bankName: "Tally Bank",
+      accountNumber: String(Math.floor(1000000000 + Math.random() * 8999999999)),
+      accountName: "TALLYSPENDS",
+      reference: ref,
+    };
+    setGeneratedBank(details);
+  };
+
   return (
     <SafeAreaView style={styles.safeArea}>
       <View style={styles.header}>
@@ -100,6 +124,8 @@ export default function DepositScreen() {
             </Text>
           </TouchableOpacity>
         </View>
+
+        
 
         <View style={styles.cardSection}>
           <Text style={styles.cardTitle}>How would you like to deposit?</Text>
@@ -127,6 +153,115 @@ export default function DepositScreen() {
               </TouchableOpacity>
             );
           })}
+        </View>
+
+        {/* Conditional area: show amount input + generated bank details for Bank Transfer,
+            or saved cards list for Debit/Credit Card. */}
+        {selectedOption === "bank-transfer" && (
+          <View style={styles.actionBlock}>
+            <View style={styles.amountSection}>
+              <Text style={styles.sectionTitle}>Enter Amount to Deposit</Text>
+              <View style={styles.amountInputRowAlt}>
+                <Text style={styles.currencySymbol}>₦</Text>
+                <TextInput
+                  style={styles.amountInputField}
+                  placeholder="Enter amount"
+                  placeholderTextColor="#B0B0B0"
+                  value={amount}
+                  onChangeText={setAmount}
+                  keyboardType="decimal-pad"
+                />
+              </View>
+            </View>
+
+            <TouchableOpacity
+              style={[styles.secondaryButton, { marginTop: 12 }]}
+              onPress={generateBankDetails}
+              activeOpacity={0.85}
+            >
+              <Text style={styles.secondaryButtonText}>Generate Bank Details</Text>
+            </TouchableOpacity>
+
+            {generatedBank && (
+              <View style={styles.bankDetailsCard}>
+                <Text style={styles.bankLineLabel}>Bank</Text>
+                <Text style={styles.bankLineValue}>{generatedBank.bankName}</Text>
+                <Text style={styles.bankLineLabel}>Account Number</Text>
+                <TouchableOpacity onPress={() => copyBankDetail(generatedBank.accountNumber)}>
+                  <Text style={styles.bankLineValue}>{generatedBank.accountNumber} (tap to copy)</Text>
+                </TouchableOpacity>
+                <Text style={styles.bankLineLabel}>Account Name</Text>
+                <Text style={styles.bankLineValue}>{generatedBank.accountName}</Text>
+                <Text style={styles.bankLineLabel}>Reference</Text>
+                <TouchableOpacity onPress={() => copyBankDetail(generatedBank.reference)}>
+                  <Text style={styles.bankLineValue}>{generatedBank.reference} (tap to copy)</Text>
+                </TouchableOpacity>
+              </View>
+            )}
+          </View>
+        )}
+
+        {selectedOption === "debit-card" && (
+          <View style={styles.actionBlock}>
+            <View style={styles.amountSection}>
+              <Text style={styles.sectionTitle}>Enter Amount to Deposit</Text>
+              <View style={styles.amountInputRowAlt}>
+                <Text style={styles.currencySymbol}>₦</Text>
+                <TextInput
+                  style={styles.amountInputField}
+                  placeholder="Enter amount"
+                  placeholderTextColor="#B0B0B0"
+                  value={amount}
+                  onChangeText={setAmount}
+                  keyboardType="decimal-pad"
+                />
+              </View>
+            </View>
+
+            <Text style={styles.sectionTitle}>Select a saved card</Text>
+            {savedCards.length === 0 ? (
+              <View style={styles.emptyNotice}>
+                <Text style={styles.emptyNoticeText}>
+                  No saved cards found. Add a card in Settings to use this option.
+                </Text>
+              </View>
+            ) : (
+              savedCards.map((c) => (
+                <TouchableOpacity
+                  key={c.id}
+                  style={[styles.cardRow, selectedCard === c.id && styles.cardRowSelected]}
+                  onPress={() => setSelectedCard(c.id)}
+                  activeOpacity={0.8}
+                >
+                  <View style={styles.cardIconBox}>
+                    <Ionicons name="card-outline" size={20} color="#6B5B8B" />
+                  </View>
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.cardTitle}>{`${c.brand} •••• ${c.last4}`}</Text>
+                    <Text style={styles.cardSubtitle}>{c.holder}</Text>
+                  </View>
+                  {selectedCard === c.id && <Ionicons name="checkmark-circle" size={20} color="#4B2C40" />}
+                </TouchableOpacity>
+              ))
+            )}
+          </View>
+        )}
+
+        <TouchableOpacity
+          style={[
+            styles.primaryButton,
+            (!amount || (selectedOption === "debit-card" && !selectedCard)) && { opacity: 0.6 },
+          ]}
+          onPress={handleDeposit}
+          activeOpacity={0.85}
+          disabled={!amount || (selectedOption === "debit-card" && !selectedCard)}
+        >
+          <Text style={styles.primaryButtonText}>Continue</Text>
+        </TouchableOpacity>
+
+        <View style={styles.noteCard}>
+          <Ionicons name="shield-checkmark-outline" size={18} color="#4B2C40" />
+          <Text style={styles.noteText}>Your money is safe with us. All deposits are secure and encrypted.</Text>
         </View>
 
         <View style={styles.cardSection}>
@@ -159,30 +294,6 @@ export default function DepositScreen() {
             </View>
           )}
         </View>
-
-        <View style={styles.noteCard}>
-          <Ionicons name="shield-checkmark-outline" size={18} color="#4B2C40" />
-          <Text style={styles.noteText}>Your money is safe with us. All deposits are secure and encrypted.</Text>
-        </View>
-
-        <View style={styles.amountSection}>
-          <Text style={styles.sectionTitle}>Deposit Amount</Text>
-          <View style={styles.amountInputRow}>
-            <Text style={styles.currencySymbol}>₦</Text>
-            <TextInput
-              style={styles.amountInputField}
-              placeholder="Enter amount"
-              placeholderTextColor="#B0B0B0"
-              value={amount}
-              onChangeText={setAmount}
-              keyboardType="decimal-pad"
-            />
-          </View>
-        </View>
-
-        <TouchableOpacity style={styles.primaryButton} onPress={handleDeposit} activeOpacity={0.85}>
-          <Text style={styles.primaryButtonText}>Continue</Text>
-        </TouchableOpacity>
       </ScrollView>
     </SafeAreaView>
   );
@@ -191,7 +302,7 @@ export default function DepositScreen() {
 const styles = StyleSheet.create({
   safeArea: {
     flex: 1,
-    backgroundColor: "#F6F2FF",
+    backgroundColor: "#F8F9FA",
   },
   header: {
     height: 64,
@@ -217,7 +328,7 @@ const styles = StyleSheet.create({
   headerTitle: {
     fontSize: 18,
     fontWeight: "700",
-    color: "#1C112D",
+    color: "#2D232E",
   },
   headerPlaceholder: {
     width: 40,
@@ -228,14 +339,14 @@ const styles = StyleSheet.create({
   },
   balanceCard: {
     backgroundColor: "#FFFFFF",
-    borderRadius: 28,
-    padding: 22,
+    borderRadius: 16,
+    padding: 18,
     alignItems: "center",
     shadowColor: "#000",
-    shadowOffset: { width: 0, height: 6 },
-    shadowOpacity: 0.08,
-    shadowRadius: 18,
-    elevation: 4,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.03,
+    shadowRadius: 8,
+    elevation: 2,
     marginBottom: 18,
   },
   balanceLabel: {
@@ -245,32 +356,32 @@ const styles = StyleSheet.create({
     marginBottom: 8,
   },
   balanceAmount: {
-    fontSize: 32,
-    fontWeight: "800",
-    color: "#1C112D",
+    fontSize: 28,
+    fontWeight: "700",
+    color: "#2D232E",
   },
   cardSection: {
     backgroundColor: "#FFFFFF",
-    borderRadius: 28,
-    padding: 18,
-    marginBottom: 18,
+    borderRadius: 16,
+    padding: 16,
+    marginBottom: 16,
     shadowColor: "#000",
-    shadowOffset: { width: 0, height: 6 },
-    shadowOpacity: 0.05,
-    shadowRadius: 18,
-    elevation: 3,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.03,
+    shadowRadius: 8,
+    elevation: 2,
   },
   cardTitle: {
     fontSize: 15,
     fontWeight: "700",
-    color: "#1C112D",
+    color: "#2D232E",
     marginBottom: 16,
   },
   optionCard: {
     flexDirection: "row",
     alignItems: "center",
     padding: 16,
-    borderRadius: 20,
+    borderRadius: 12,
     backgroundColor: "#F8F5FF",
     marginBottom: 12,
   },
@@ -400,8 +511,8 @@ const styles = StyleSheet.create({
   },
   amountInputField: {
     flex: 1,
-    fontSize: 24,
-    fontWeight: "800",
+    fontSize: 20,
+    fontWeight: "700",
     color: "#1A1A1A",
   },
   primaryButton: {
@@ -420,5 +531,79 @@ const styles = StyleSheet.create({
     color: "#FFFFFF",
     fontSize: 16,
     fontWeight: "700",
+  },
+  /* New styles for conditional deposit UI */
+  actionBlock: {
+    marginBottom: 18,
+  },
+  amountInputRowAlt: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#FFFFFF",
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: "#EDEAF6",
+    paddingHorizontal: 14,
+    height: 60,
+    marginTop: 8,
+  },
+  secondaryButton: {
+    backgroundColor: "#FFFFFF",
+    borderRadius: 12,
+    paddingVertical: 12,
+    alignItems: "center",
+    borderWidth: 1,
+    borderColor: "#EDEAF6",
+  },
+  secondaryButtonText: {
+    color: "#4B2C40",
+    fontWeight: "700",
+  },
+  bankDetailsCard: {
+    backgroundColor: "#F8F9FA",
+    borderRadius: 12,
+    padding: 12,
+    marginTop: 12,
+  },
+  bankLineLabel: {
+    fontSize: 12,
+    color: "#7D7D7D",
+    marginTop: 8,
+  },
+  bankLineValue: {
+    fontSize: 14,
+    color: "#2D232E",
+    fontWeight: "700",
+  },
+  cardRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#FFFFFF",
+    borderRadius: 12,
+    padding: 12,
+    marginBottom: 10,
+  },
+  cardRowSelected: {
+    borderWidth: 1,
+    borderColor: "#4B2C40",
+  },
+  cardIconBox: {
+    width: 44,
+    height: 44,
+    borderRadius: 8,
+    backgroundColor: "#F3F0FA",
+    alignItems: "center",
+    justifyContent: "center",
+    marginRight: 12,
+  },
+  cardTitle: {
+    fontSize: 14,
+    fontWeight: "700",
+    color: "#2D232E",
+  },
+  cardSubtitle: {
+    fontSize: 12,
+    color: "#7A6F8B",
+    marginTop: 4,
   },
 });
