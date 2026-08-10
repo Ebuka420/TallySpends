@@ -74,8 +74,8 @@ const THEME_PALETTES = {
 
 export default function SettingsScreen() {
   const router = useRouter();
-  const { resetData, logout, themePreference } = useAppStore();
-  const theme = getThemePalette(themePreference);
+  const { logout, themePreference } = useAppStore();
+  const theme = THEME_PALETTES[themePreference] ?? THEME_PALETTES.aurora;
   const accent = theme.accent;
   const soft = theme.soft;
 
@@ -150,31 +150,6 @@ export default function SettingsScreen() {
             </View>
           </TouchableOpacity>
         ))}
-
-        <TouchableOpacity
-          style={[styles.actionCard, styles.dangerCard]}
-          activeOpacity={0.85}
-          onPress={() => {
-            Alert.alert(
-              "Reset App Data",
-              "This will restore transactions, budgets, and savings goals to the defaults.",
-              [
-                { text: "Cancel", style: "cancel" },
-                {
-                  text: "Reset",
-                  style: "destructive",
-                  onPress: async () => {
-                    await resetData();
-                    Alert.alert("Done", "Your app data has been reset.");
-                  },
-                },
-              ],
-            );
-          }}
-        >
-          <Ionicons name="refresh-outline" size={18} color="#C0392B" />
-          <Text style={styles.actionCardTextDanger}>Reset App Data</Text>
-        </TouchableOpacity>
 
         <TouchableOpacity
           style={[styles.actionCard, styles.secondaryActionCard]}

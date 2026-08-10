@@ -17,14 +17,17 @@ import {
   View,
 } from "react-native";
 import Svg, { Path } from "react-native-svg";
-import { useAppStore, MOCK_RECIPIENTS } from "../../src/store";
-import { getThemePalette } from "../../src/theme";
+import { MOCK_RECIPIENTS, useAppStore } from "../../src/store";
 
 const normalizeTransferTitle = (title: string) => {
   const transferRegex = /(Transfer to\s+)@([a-zA-Z0-9_]+)/i;
   return title.replace(transferRegex, (_, prefix, username) => {
-    const recipient = MOCK_RECIPIENTS.find((r) => r.username.toLowerCase() === username.toLowerCase());
-    return recipient ? `${prefix}${recipient.name}` : `Transfer to @${username}`;
+    const recipient = MOCK_RECIPIENTS.find(
+      (r) => r.username.toLowerCase() === username.toLowerCase(),
+    );
+    return recipient
+      ? `${prefix}${recipient.name}`
+      : `Transfer to @${username}`;
   });
 };
 
@@ -111,6 +114,78 @@ export default function ExpensesScreen() {
         }, {}),
     [periodTransactions],
   );
+
+  const chartPoints = useMemo(() => {
+    if (period === "year") {
+      return Array.from({ length: 12 }, (_, index) => {
+        const monthTotal = periodTransactions.reduce((sum, tx) => {
+          const txDate = new Date(tx.date);
+          return txDate.getMonth() === index
+            ? sum + Number(tx.amount || 0)
+            : sum;
+        }, 0);
+
+        return {
+          label: new Date(date.getFullYear(), index, 1).toLocaleDateString(
+            "en-US",
+            {
+              month: "short",
+            },
+          ),
+          value: monthTotal,
+        };
+      });
+    }
+
+    const weekBuckets = [
+      { label: "W1", start: 1, end: 7 },
+      { label: "W2", start: 8, end: 14 },
+      { label: "W3", start: 15, end: 21 },
+      { label: "W4", start: 22, end: 28 },
+      { label: "W5", start: 29, end: 31 },
+    ];
+
+    return weekBuckets.map((bucket) => {
+      const bucketTotal = periodTransactions.reduce((sum, tx) => {
+        const txDate = new Date(tx.date);
+        const day = txDate.getDate();
+        return day >= bucket.start && day <= bucket.end
+          ? sum + Number(tx.amount || 0)
+          : sum;
+      }, 0);
+
+      return {
+        label: bucket.label,
+        value: bucketTotal,
+      };
+    });
+  }, [periodTransactions, date, period]);
+
+  const maxChartValue = Math.max(...chartPoints.map((item) => item.value), 1);
+
+  const chartPath = useMemo(() => {
+    if (!chartPoints.length) {
+      return "M0 100 L320 100";
+    }
+
+    const chartHeight = 80;
+    const step = chartPoints.length > 1 ? 320 / (chartPoints.length - 1) : 320;
+    const points = chartPoints.map((point, index) => ({
+      x: index * step,
+      y: 96 - (point.value / maxChartValue) * chartHeight,
+    }));
+
+    if (points.length === 1) {
+      return `M${points[0].x} ${points[0].y}`;
+    }
+
+    return points.reduce((path, point, index, arr) => {
+      if (index === 0) return `M${point.x} ${point.y}`;
+      const prev = arr[index - 1];
+      const controlX = (prev.x + point.x) / 2;
+      return `${path} C ${controlX} ${prev.y} ${controlX} ${point.y} ${point.x} ${point.y}`;
+    }, "");
+  }, [chartPoints, maxChartValue]);
 
   const dateLabel =
     period === "year"
@@ -213,11 +288,16 @@ export default function ExpensesScreen() {
               preserveAspectRatio="none"
             >
               <Path
-                d="M0 84 C23 76 43 66 62 68 C85 70 101 53 124 58 C146 62 157 39 179 41 C204 44 220 25 244 26 C268 27 285 14 320 16 L320 112 L0 112 Z"
+                d={
+                  chartStyle === "area"
+                    ? `${chartPath} L320 96 L0 96 Z`
+                    : chartPath
+                }
                 fill={chartStyle === "area" ? "#F3E7EB" : "transparent"}
+                opacity={chartStyle === "area" ? 1 : 1}
               />
               <Path
-                d="M0 84 C23 76 43 66 62 68 C85 70 101 53 124 58 C146 62 157 39 179 41 C204 44 220 25 244 26 C268 27 285 14 320 16"
+                d={chartPath}
                 fill="none"
                 stroke="#4B2C40"
                 strokeLinecap="round"
@@ -227,8 +307,12 @@ export default function ExpensesScreen() {
             </Svg>
           </View>
           <View style={styles.axis}>
-            <Text style={styles.axisText}>Start</Text>
-            <Text style={styles.axisText}>Today</Text>
+            <Text style={styles.axisText}>
+              {chartPoints[0]?.label ?? "Start"}
+            </Text>
+            <Text style={styles.axisText}>
+              {chartPoints[chartPoints.length - 1]?.label ?? "End"}
+            </Text>
           </View>
         </View>
 
@@ -252,10 +336,10 @@ export default function ExpensesScreen() {
           </View>
         </View>
 
-        <Heading 
-          title="By category" 
-          action="See all" 
-          onPress={() => router.push("/transaction-history" as any)} 
+        <Heading
+          title="By category"
+          action="See all"
+          onPress={() => router.push("/transaction-history" as any)}
         />
         <View style={[styles.surface, { backgroundColor: theme.surface, borderColor: theme.border }]}> 
           {categoryTotals.slice(0, 4).map(([category, amount]) => (
@@ -294,10 +378,10 @@ export default function ExpensesScreen() {
           ))}
         </View>
 
-        <Heading 
-          title="Transactions" 
-          action="View all" 
-          onPress={() => router.push("/transaction-history" as any)} 
+        <Heading
+          title="Transactions"
+          action="View all"
+          onPress={() => router.push("/transaction-history" as any)}
         />
         <View style={styles.transactions}>
           {Object.entries(grouped).map(([day, items]) => (
@@ -324,7 +408,9 @@ export default function ExpensesScreen() {
                       <Ionicons name={meta.icon} size={18} color={meta.color} />
                     </View>
                     <View style={styles.rowCopy}>
-                      <Text style={styles.rowTitle}>{normalizeTransferTitle(tx.title)}</Text>
+                      <Text style={styles.rowTitle}>
+                        {normalizeTransferTitle(tx.title)}
+                      </Text>
                       <Text style={styles.rowSub}>{tx.category}</Text>
                     </View>
                     <Text style={styles.rowAmount}>
@@ -437,7 +523,15 @@ export default function ExpensesScreen() {
   );
 }
 
-function Heading({ title, action, onPress }: { title: string; action: string; onPress?: () => void }) {
+function Heading({
+  title,
+  action,
+  onPress,
+}: {
+  title: string;
+  action: string;
+  onPress?: () => void;
+}) {
   return (
     <View style={styles.heading}>
       <Text style={styles.headingTitle}>{title}</Text>
