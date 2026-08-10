@@ -11,6 +11,7 @@ import {
     View,
 } from "react-native";
 import { useAppStore } from "../src/store";
+import { getThemePalette } from "../src/theme";
 
 const SETTINGS_ITEMS = [
   {
@@ -74,7 +75,7 @@ const THEME_PALETTES = {
 export default function SettingsScreen() {
   const router = useRouter();
   const { resetData, logout, themePreference } = useAppStore();
-  const theme = THEME_PALETTES[themePreference] ?? THEME_PALETTES.aurora;
+  const theme = getThemePalette(themePreference);
   const accent = theme.accent;
   const soft = theme.soft;
 
@@ -93,8 +94,8 @@ export default function SettingsScreen() {
   };
 
   return (
-    <SafeAreaView style={styles.container}>
-      <View style={styles.headerContainer}>
+    <SafeAreaView style={[styles.container, { backgroundColor: theme.background }]}> 
+      <View style={[styles.headerContainer, { backgroundColor: theme.background }]}> 
         <TouchableOpacity
           style={styles.backButton}
           onPress={() => router.back()}
@@ -110,7 +111,7 @@ export default function SettingsScreen() {
         contentContainerStyle={styles.scrollListContainer}
         showsVerticalScrollIndicator={false}
       >
-        <View style={styles.heroCard}>
+        <View style={[styles.heroCard, { backgroundColor: theme.surface, borderColor: theme.border }]}> 
           <View style={styles.heroIconCircle}>
             <Ionicons name="options-outline" size={22} color="#5B4E91" />
           </View>

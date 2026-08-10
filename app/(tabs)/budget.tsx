@@ -1,6 +1,8 @@
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import React, { useState } from "react";
+import { useAppStore } from "../../src/store";
+import { getThemePalette } from "../../src/theme";
 import {
   Image,
   SafeAreaView,
@@ -13,10 +15,12 @@ import {
 
 export default function BudgetScreen() {
   const router = useRouter();
+  const { themePreference } = useAppStore();
+  const theme = getThemePalette(themePreference);
   const [activeTab, setActiveTab] = useState("Month");
 
   return (
-    <SafeAreaView style={styles.safeArea}>
+    <SafeAreaView style={[styles.safeArea, { backgroundColor: theme.background }]}> 
       <ScrollView
         style={styles.container}
         contentContainerStyle={styles.contentContainer}
@@ -24,7 +28,7 @@ export default function BudgetScreen() {
       >
         <View style={styles.budgetCardStack}>
           <View style={styles.budgetCardBack} />
-          <View style={styles.budgetCard}>
+          <View style={[styles.budgetCard, { backgroundColor: theme.surface, borderColor: theme.border }]}> 
             <View style={styles.budgetCardTop}>
               <View>
                 <Text style={styles.budgetCardLabel}>MONTHLY BUDGET</Text>
@@ -251,7 +255,7 @@ export default function BudgetScreen() {
         </TouchableOpacity>
 
         {/* --- AJO PROMOTIONAL PANEL --- */}
-        <View style={styles.ajoCard}>
+        <View style={[styles.ajoCard, { backgroundColor: theme.surface, borderColor: theme.border }]}> 
           <View style={styles.ajoLeftColumn}>
             <Text style={styles.ajoTitle}>Ajo</Text>
             <Text style={styles.ajoSubtitle}>Save with family and friends</Text>

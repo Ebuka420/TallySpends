@@ -18,6 +18,7 @@ import {
 } from "react-native";
 import Svg, { Path } from "react-native-svg";
 import { useAppStore, MOCK_RECIPIENTS } from "../../src/store";
+import { getThemePalette } from "../../src/theme";
 
 const normalizeTransferTitle = (title: string) => {
   const transferRegex = /(Transfer to\s+)@([a-zA-Z0-9_]+)/i;
@@ -52,7 +53,8 @@ type ChartStyle = "line" | "area";
 
 export default function ExpensesScreen() {
   const router = useRouter();
-  const { transactions: rawTransactions = [] } = useAppStore();
+  const { transactions: rawTransactions = [], themePreference } = useAppStore();
+  const theme = getThemePalette(themePreference);
   const [date, setDate] = useState(new Date());
   const [showCalendar, setShowCalendar] = useState(false);
   const [showPeriodMenu, setShowPeriodMenu] = useState(false);
@@ -139,9 +141,11 @@ export default function ExpensesScreen() {
     },
   });
   const chartStyleLabel = chartStyle === "line" ? "Line" : "Area";
+  const pickerAccentColor = theme.accent;
+  const pickerTextColor = theme.textPrimary;
 
   return (
-    <SafeAreaView style={styles.container}>
+    <SafeAreaView style={[styles.container, { backgroundColor: theme.background }]}> 
       <ScrollView
         contentContainerStyle={styles.content}
         showsVerticalScrollIndicator={false}
@@ -180,7 +184,7 @@ export default function ExpensesScreen() {
           </View>
         </View>
 
-        <View style={styles.chartCard}>
+        <View style={[styles.chartCard, { backgroundColor: theme.surface, borderColor: theme.border }]}> 
           <View style={styles.chartHeader}>
             <View>
               <Text style={styles.chartTitle}>Spending overview</Text>
@@ -253,7 +257,7 @@ export default function ExpensesScreen() {
           action="See all" 
           onPress={() => router.push("/transaction-history" as any)} 
         />
-        <View style={styles.surface}>
+        <View style={[styles.surface, { backgroundColor: theme.surface, borderColor: theme.border }]}> 
           {categoryTotals.slice(0, 4).map(([category, amount]) => (
             <Pressable
               key={category}
@@ -340,12 +344,17 @@ export default function ExpensesScreen() {
       </ScrollView>
 
       {showCalendar && (
-        <DateTimePicker
-          value={date}
-          mode="date"
-          display={Platform.OS === "ios" ? "spinner" : "default"}
-          onChange={onDateChange}
-        />
+        <View style={[styles.pickerContainer, { backgroundColor: theme.surface }]}> 
+          <DateTimePicker
+            value={date}
+            mode="date"
+            display={Platform.OS === "ios" ? "spinner" : "default"}
+            onChange={onDateChange}
+            themeVariant="light"
+            accentColor={pickerAccentColor}
+            textColor={pickerTextColor}
+          />
+        </View>
       )}
 
       <Modal
@@ -616,6 +625,12 @@ const styles = StyleSheet.create({
   groupDay: { color: "#7D7671", fontSize: 12, fontWeight: "600" },
   groupTotal: { color: "#7D7671", fontSize: 12, fontWeight: "600" },
   empty: { color: "#99938E", fontSize: 13, textAlign: "center", marginTop: 22 },
+  pickerContainer: {
+    alignItems: "center",
+    backgroundColor: "#FFFFFF",
+    justifyContent: "center",
+    paddingVertical: 8,
+  },
   modal: {
     backgroundColor: "rgba(25,20,18,.18)",
     flex: 1,

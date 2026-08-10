@@ -13,11 +13,15 @@ import {
   ActivityIndicator,
 } from "react-native";
 import Svg, { Circle, Path } from "react-native-svg";
+import { useAppStore } from "../src/store";
+import { getThemePalette } from "../src/theme";
 
 const { width: SCREEN_WIDTH } = Dimensions.get("window");
 
 export default function InsightsScreen() {
   const router = useRouter();
+  const { themePreference } = useAppStore();
+  const theme = getThemePalette(themePreference);
   const [activeTab, setActiveTab] = useState<"week" | "month" | "custom">(
     "month",
   );
@@ -179,9 +183,9 @@ export default function InsightsScreen() {
   });
 
   return (
-    <SafeAreaView style={styles.container}>
+    <SafeAreaView style={[styles.container, { backgroundColor: theme.background }]}> 
       {/* --- HEADER --- */}
-      <View style={styles.header}>
+      <View style={[styles.header, { backgroundColor: theme.surface, borderColor: theme.border }]}> 
         <TouchableOpacity
           style={styles.backButton}
           onPress={() => router.back()}
@@ -260,7 +264,7 @@ export default function InsightsScreen() {
         {/* --- DYNAMIC HEADER CONTENT CARD --- */}
         {activeTab !== "custom" ? (
           /* --- MONTHLY SUMMARY HERO CARD --- */
-          <View style={styles.heroCard}>
+          <View style={[styles.heroCard, { backgroundColor: theme.surface, borderColor: theme.border }]}> 
             <Text style={styles.heroSummaryMetaLabel}>
               {activeTab === "week" ? "Weekly Summary" : "Monthly Summary"}
             </Text>
@@ -360,7 +364,7 @@ export default function InsightsScreen() {
           </View>
         ) : (
           /* --- CUSTOM CALENDAR RANGE PICKER CARD --- */
-          <View style={styles.calendarCard}>
+          <View style={[styles.calendarCard, { backgroundColor: theme.surface, borderColor: theme.border }]}> 
             <View style={styles.calendarNavbar}>
               <TouchableOpacity onPress={() => changeMonth("prev")}>
                 <Ionicons name="chevron-back" size={20} color="#4B2C40" />

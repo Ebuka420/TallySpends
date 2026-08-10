@@ -12,6 +12,8 @@ import {
   type DimensionValue,
 } from "react-native";
 import Svg, { Circle, Path } from "react-native-svg";
+import { useAppStore } from "../../src/store";
+import { getThemePalette } from "../../src/theme";
 
 type Timeframe = "weekly" | "monthly" | "yearly";
 const options: Record<Timeframe, string[]> = {
@@ -36,6 +38,8 @@ const categories: CategoryItem[] = [
 ];
 
 export default function AnalyticsScreen() {
+  const { themePreference } = useAppStore();
+  const theme = getThemePalette(themePreference);
   const [timeframe, setTimeframe] = useState<Timeframe>("monthly");
   const [period, setPeriod] = useState("May 2026");
   const [showPeriods, setShowPeriods] = useState(false);
@@ -44,7 +48,7 @@ export default function AnalyticsScreen() {
     setPeriod(options[next][Math.min(1, options[next].length - 1)]);
   };
   return (
-    <SafeAreaView style={styles.safeArea}>
+    <SafeAreaView style={[styles.safeArea, { backgroundColor: theme.background }]}> 
       <ScrollView
         contentContainerStyle={styles.content}
         showsVerticalScrollIndicator={false}
@@ -86,7 +90,7 @@ export default function AnalyticsScreen() {
           </TouchableOpacity>
         </View>
 
-        <View style={styles.hero}>
+        <View style={[styles.hero, { backgroundColor: theme.background }]}> 
           <Text style={styles.overline}>FINANCIAL HEALTH</Text>
           <View style={styles.heroRow}>
             <Text style={styles.score}>82</Text>
@@ -102,7 +106,7 @@ export default function AnalyticsScreen() {
           </Text>
         </View>
 
-        <View style={styles.trendCard}>
+        <View style={[styles.trendCard, { backgroundColor: theme.surface, borderColor: theme.border }]}> 
           <View style={styles.cardHeader}>
             <View>
               <Text style={styles.cardLabel}>SPENDING OVERVIEW</Text>

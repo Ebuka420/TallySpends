@@ -9,6 +9,7 @@ import {
 } from "react-native";
 import { useRouter } from "expo-router";
 import { useAppStore, MOCK_RECIPIENTS } from "../../src/store";
+import { getThemePalette } from "../../src/theme";
 
 const normalizeTransferTitle = (title: string) => {
   const transferRegex = /(Transfer to\s+)@([a-zA-Z0-9_]+)/i;
@@ -78,7 +79,8 @@ const getTimeLabel = (value?: string) => {
 
 export default function App() {
   const router = useRouter();
-  const { transactions } = useAppStore();
+  const { transactions, themePreference } = useAppStore();
+  const theme = getThemePalette(themePreference);
   const [balanceVisible, setBalanceVisible] = useState(true);
   const [activeInsight, setActiveInsight] = useState(0);
 
@@ -102,7 +104,7 @@ export default function App() {
   }, [transactionsRaw]);
 
   return (
-    <View style={styles.screen}>
+    <View style={[styles.screen, { backgroundColor: theme.background }]}> 
       <ScrollView
         style={styles.container}
         contentContainerStyle={styles.contentContainer}
@@ -115,7 +117,7 @@ export default function App() {
             onPress={() => router.push("/profile")}
             activeOpacity={0.7}
           >
-            <View style={styles.avatarWrapper}>
+            <View style={[styles.avatarWrapper, { backgroundColor: theme.accentSoft }]}> 
               <Ionicons name="person" size={20} color="#333" />
             </View>
             <View>

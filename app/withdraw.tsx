@@ -122,38 +122,50 @@ export default function WithdrawScreen() {
               </TouchableOpacity>
             )}
           </View>
-          <Text style={styles.hintText}>Minimum withdrawal is ₦1,000</Text>
-        </View>
+            <View style={styles.quickAmountRow}>
+              {[100, 1000, 5000, 10000].map((value) => (
+                <TouchableOpacity
+                  key={value}
+                  style={styles.quickAmountButton}
+                  onPress={() => setAmount(String(value))}
+                  activeOpacity={0.8}
+                >
+                  <Text style={styles.quickAmountText}>₦{value.toLocaleString()}</Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+            <Text style={styles.hintText}>Minimum withdrawal is ₦1,000</Text>
+          </View>
 
-        <View style={styles.cardSection}>
-          <Text style={styles.cardTitle}>Withdraw to</Text>
-          {withdrawOptions.map((option) => {
-            const selected = selectedOption === option.id;
-            return (
-              <TouchableOpacity
-                key={option.id}
-                style={[styles.destinationCard, selected && styles.destinationCardSelected]}
-                onPress={() => setSelectedOption(option.id)}
-                activeOpacity={0.85}
-              >
-                <View style={[styles.destinationIcon, selected && styles.destinationIconSelected]}>
-                  <Ionicons
-                    name={option.icon as any}
-                    size={20}
-                    color={selected ? "#4B2C40" : "#6B5B8B"}
-                  />
-                </View>
-                <View style={styles.destinationInfo}>
-                  <Text style={styles.destinationTitle}>{option.title}</Text>
-                  <Text style={styles.destinationSubtitle}>{option.subtitle}</Text>
-                </View>
-                <View style={[styles.radioOuter, selected && styles.radioOuterSelected]}>
-                  {selected && <View style={styles.radioInner} />}
-                </View>
-              </TouchableOpacity>
-            );
-          })}
-        </View>
+          <View style={styles.cardSection}>
+            <Text style={styles.cardTitle}>Withdraw to</Text>
+            {withdrawOptions.map((option) => {
+              const selected = selectedOption === option.id;
+              return (
+                <TouchableOpacity
+                  key={option.id}
+                  style={[styles.destinationCard, selected && styles.destinationCardSelected]}
+                  onPress={() => setSelectedOption(option.id)}
+                  activeOpacity={0.85}
+                >
+                  <View style={[styles.destinationIcon, selected && styles.destinationIconSelected]}>
+                    <Ionicons
+                      name={option.icon as any}
+                      size={20}
+                      color={selected ? "#4B2C40" : "#6B5B8B"}
+                    />
+                  </View>
+                  <View style={styles.destinationInfo}>
+                    <Text style={styles.destinationTitle}>{option.title}</Text>
+                    <Text style={styles.destinationSubtitle}>{option.subtitle}</Text>
+                  </View>
+                  <View style={[styles.radioOuter, selected && styles.radioOuterSelected]}>
+                    {selected && <View style={styles.radioInner} />}
+                  </View>
+                </TouchableOpacity>
+              );
+            })}
+          </View>
 
         <View style={styles.summaryCard}>
           <Text style={styles.summaryLabel}>Withdrawal Summary</Text>
@@ -187,7 +199,7 @@ export default function WithdrawScreen() {
 const styles = StyleSheet.create({
   safeArea: {
     flex: 1,
-    backgroundColor: "#F6F2FF",
+    backgroundColor: "#F8F9FA",
   },
   header: {
     height: 64,
@@ -213,7 +225,7 @@ const styles = StyleSheet.create({
   headerTitle: {
     fontSize: 18,
     fontWeight: "700",
-    color: "#1C112D",
+    color: "#2D232E",
   },
   headerPlaceholder: {
     width: 40,
@@ -224,14 +236,14 @@ const styles = StyleSheet.create({
   },
   balanceCard: {
     backgroundColor: "#FFFFFF",
-    borderRadius: 28,
-    padding: 22,
+    borderRadius: 16,
+    padding: 18,
     alignItems: "center",
     shadowColor: "#000",
-    shadowOffset: { width: 0, height: 6 },
-    shadowOpacity: 0.08,
-    shadowRadius: 18,
-    elevation: 4,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.03,
+    shadowRadius: 8,
+    elevation: 2,
     marginBottom: 18,
   },
   balanceLabel: {
@@ -241,44 +253,46 @@ const styles = StyleSheet.create({
     marginBottom: 8,
   },
   balanceAmount: {
-    fontSize: 32,
-    fontWeight: "800",
-    color: "#1C112D",
+    fontSize: 28,
+    fontWeight: "700",
+    color: "#2D232E",
   },
   cardSection: {
     backgroundColor: "#FFFFFF",
-    borderRadius: 28,
-    padding: 18,
-    marginBottom: 18,
+    borderRadius: 16,
+    padding: 16,
+    marginBottom: 16,
     shadowColor: "#000",
-    shadowOffset: { width: 0, height: 6 },
-    shadowOpacity: 0.05,
-    shadowRadius: 18,
-    elevation: 3,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.03,
+    shadowRadius: 8,
+    elevation: 2,
   },
   cardTitle: {
     fontSize: 15,
     fontWeight: "700",
-    color: "#1C112D",
+    color: "#2D232E",
     marginBottom: 16,
   },
   amountInputRow: {
     flexDirection: "row",
     alignItems: "center",
-    backgroundColor: "#F8F5FF",
-    borderRadius: 20,
-    paddingHorizontal: 18,
-    height: 64,
+    backgroundColor: "#FFFFFF",
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: "#EDEAF6",
+    paddingHorizontal: 14,
+    height: 60,
   },
   prefix: {
     fontSize: 24,
     fontWeight: "700",
-    color: "#1C112D",
+    color: "#2D232E",
     marginRight: 10,
   },
   amountInput: {
     flex: 1,
-    fontSize: 22,
+    fontSize: 20,
     fontWeight: "700",
     color: "#1C112D",
   },
@@ -290,6 +304,25 @@ const styles = StyleSheet.create({
     fontSize: 13,
     fontWeight: "700",
     color: "#7D5AF7",
+  },
+  quickAmountRow: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 8,
+    marginTop: 12,
+  },
+  quickAmountButton: {
+    backgroundColor: "#F5F0FF",
+    borderRadius: 14,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    borderWidth: 1,
+    borderColor: "#EDEAF6",
+  },
+  quickAmountText: {
+    color: "#4B2C40",
+    fontWeight: "700",
+    fontSize: 13,
   },
   hintText: {
     marginTop: 10,

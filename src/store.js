@@ -350,6 +350,10 @@ export function useAppStore() {
   const [tabBarOpacity, setTabBarOpacityState] = useState(0.72);
   const [username, setUsernameState] = useState("ebuka");
   const [customCategories, setCustomCategoriesState] = useState([]);
+  const [savedCards, setSavedCards] = useState([
+    { id: "card-1", brand: "Visa", last4: "5682", holder: "EBUKA" },
+    { id: "card-2", brand: "Mastercard", last4: "1123", holder: "EBUKA" },
+  ]);
 
   // Sync with global auth state
   const [isAuthenticated, setIsAuthenticated] = useState(globalIsAuthenticated);
@@ -376,6 +380,7 @@ export function useAppStore() {
       const storedCustomCategories = await AsyncStorage.getItem(
         getCustomCategoriesStorageKey(storedUsername || "ebuka"),
       );
+      const storedCards = await AsyncStorage.getItem("ts_cards");
 
       if (storedUsername) {
         setUsernameState(storedUsername);
@@ -405,6 +410,25 @@ export function useAppStore() {
         } catch (error) {
           console.warn("Failed to parse custom categories", error);
         }
+      }
+
+      if (storedCards !== null) {
+        try {
+          const parsed = JSON.parse(storedCards);
+          if (Array.isArray(parsed)) {
+            setSavedCards(parsed);
+          }
+        } catch (e) {
+          console.warn("Failed to parse stored cards", e);
+        }
+      } else {
+        await AsyncStorage.setItem(
+          "ts_cards",
+          JSON.stringify([
+            { id: "card-1", brand: "Visa", last4: "5682", holder: "EBUKA" },
+            { id: "card-2", brand: "Mastercard", last4: "1123", holder: "EBUKA" },
+          ]),
+        );
       }
 
       if (storedTxs !== null) {
@@ -594,6 +618,8 @@ export function useAppStore() {
     );
     await AsyncStorage.setItem("ts_username", "ebuka");
     await AsyncStorage.setItem(
+              savedCards,
+              setSavedCards,
       getCustomCategoriesStorageKey("ebuka"),
       JSON.stringify([]),
     );
