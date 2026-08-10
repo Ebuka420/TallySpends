@@ -1,19 +1,17 @@
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
-import React, { useState } from "react";
+import React from "react";
 import {
-  Image,
-  SafeAreaView,
-  ScrollView,
-  StyleSheet,
-  Text,
-  TouchableOpacity,
-  View,
+    SafeAreaView,
+    ScrollView,
+    StyleSheet,
+    Text,
+    TouchableOpacity,
+    View
 } from "react-native";
 
 export default function BudgetScreen() {
   const router = useRouter();
-  const [activeTab, setActiveTab] = useState("Month");
 
   return (
     <SafeAreaView style={styles.safeArea}>
@@ -22,14 +20,15 @@ export default function BudgetScreen() {
         contentContainerStyle={styles.contentContainer}
         showsVerticalScrollIndicator={false}
       >
-        <View style={styles.budgetCardStack}>
-          <View style={styles.budgetCardBack} />
-          <View style={styles.budgetCard}>
-            <View style={styles.budgetCardTop}>
-              <View>
-                <Text style={styles.budgetCardLabel}>MONTHLY BUDGET</Text>
-                <Text style={styles.budgetCardTitle}>April plan</Text>
-              </View>
+        <View style={styles.pageHeader}>
+          <Text style={styles.pageTitle}>Budget</Text>
+        </View>
+
+        <View style={styles.budgetCard}>
+          <View style={styles.budgetCardTop}>
+            <View>
+              <Text style={styles.budgetCardLabel}>Monthly budget</Text>
+              <Text style={styles.budgetCardTitle}>April plan</Text>
             </View>
             <TouchableOpacity style={styles.budgetCardAction}>
               <View style={styles.budgetCardActionIcon}>
@@ -37,19 +36,20 @@ export default function BudgetScreen() {
               </View>
               <Text style={styles.budgetCardActionText}>Add budget</Text>
             </TouchableOpacity>
-            <View style={styles.budgetPercent}>
-              <Text style={styles.budgetPercentValue}>43%</Text>
-              <Text style={styles.budgetPercentLabel}>left</Text>
-            </View>
-            <Text style={styles.budgetCardAmount}>
-              ₦2,842<Text style={styles.budgetCardSubAmount}> remaining</Text>
-            </Text>
-            <Text style={styles.budgetCardHelper}>
-              ₦2,158 spent from your ₦5,000 monthly budget
-            </Text>
-            <View style={styles.budgetProgressTrack}>
-              <View style={styles.budgetProgressFill} />
-            </View>
+          </View>
+
+          <View style={styles.budgetPercent}>
+            <Text style={styles.budgetPercentValue}>43%</Text>
+            <Text style={styles.budgetPercentLabel}>left</Text>
+          </View>
+          <Text style={styles.budgetCardAmount}>
+            ₦2,842<Text style={styles.budgetCardSubAmount}> remaining</Text>
+          </Text>
+          <Text style={styles.budgetCardHelper}>
+            ₦2,158 spent from your ₦5,000 monthly budget
+          </Text>
+          <View style={styles.budgetProgressTrack}>
+            <View style={styles.budgetProgressFill} />
           </View>
         </View>
 
@@ -249,32 +249,6 @@ export default function BudgetScreen() {
             style={{ marginLeft: 4 }}
           />
         </TouchableOpacity>
-
-        {/* --- AJO PROMOTIONAL PANEL --- */}
-        <View style={styles.ajoCard}>
-          <View style={styles.ajoLeftColumn}>
-            <Text style={styles.ajoTitle}>Ajo</Text>
-            <Text style={styles.ajoSubtitle}>Save with family and friends</Text>
-            <Text style={styles.ajoDescription}>
-              Pool money together, stay consistent and achieve your goals
-              faster.
-            </Text>
-            <TouchableOpacity
-              style={styles.ajoButton}
-              onPress={() => router.push("/ajo" as any)}
-            >
-              <Text style={styles.ajoButtonText}>Start Ajo</Text>
-              <Ionicons name="chevron-forward" size={14} color="#FFF" />
-            </TouchableOpacity>
-          </View>
-          <View style={styles.ajoIllustrationContainer}>
-            <Image
-              source={require("../../assets/images/ajo-removebg-preview.png")}
-              style={styles.ajoImage}
-              resizeMode="contain"
-            />
-          </View>
-        </View>
       </ScrollView>
     </SafeAreaView>
   );
@@ -300,28 +274,21 @@ const styles = StyleSheet.create({
     alignItems: "center",
     marginBottom: 20,
   },
-  budgetCardStack: {
-    marginHorizontal: 16,
-    marginTop: 22,
-    paddingTop: 12,
-    position: "relative",
+  pageHeader: {
+    marginBottom: 18,
   },
-  budgetCardBack: {
-    backgroundColor: "#E9DFEC",
-    borderRadius: 23,
-    height: "100%",
-    left: 10,
-    opacity: 0.9,
-    position: "absolute",
-    right: 10,
-    top: 0,
+  pageTitle: {
+    color: "#1A1A1A",
+    fontSize: 28,
+    fontWeight: "700",
   },
   budgetCard: {
-    backgroundColor: "#20142A",
-    borderRadius: 23,
-    minHeight: 226,
-    overflow: "hidden",
+    backgroundColor: "#FFFFFF",
+    borderColor: "#E9E1EB",
+    borderRadius: 20,
+    borderWidth: 1,
     padding: 20,
+    marginBottom: 22,
   },
   budgetCardTop: {
     alignItems: "flex-start",
@@ -330,95 +297,88 @@ const styles = StyleSheet.create({
   },
   budgetCardAction: {
     alignItems: "center",
-    backgroundColor: "#382440",
-    borderBottomLeftRadius: 19,
-    borderTopLeftRadius: 19,
+    backgroundColor: "#F3EBF1",
+    borderRadius: 16,
     flexDirection: "row",
-    paddingBottom: 6,
-    paddingLeft: 6,
-    paddingRight: 12,
-    paddingTop: 6,
-    position: "absolute",
-    height: 38,
-    right: -1,
-    top: 17,
-    width: 120,
+    paddingHorizontal: 12,
+    paddingVertical: 9,
   },
   budgetCardActionIcon: {
     alignItems: "center",
-    backgroundColor: "#FDF9FE",
-    borderRadius: 13,
-    height: 26,
+    backgroundColor: "#FFFFFF",
+    borderRadius: 12,
+    height: 28,
     justifyContent: "center",
-    marginRight: 7,
-    width: 26,
+    marginRight: 8,
+    width: 28,
   },
   budgetCardActionText: {
-    color: "#FFFFFF",
+    color: "#624B6A",
     fontSize: 12,
     fontWeight: "700",
   },
   budgetCardLabel: {
-    color: "#DCCFE2",
-    fontSize: 10,
+    color: "#6B7280",
+    fontSize: 11,
     fontWeight: "700",
     letterSpacing: 1.1,
+    textTransform: "uppercase",
   },
   budgetCardTitle: {
-    color: "#FFFFFF",
-    fontSize: 16,
-    fontWeight: "600",
-    marginTop: 5,
+    color: "#111827",
+    fontSize: 20,
+    fontWeight: "700",
+    marginTop: 6,
   },
   budgetPercent: {
     alignItems: "center",
-    backgroundColor: "rgba(255,255,255,0.13)",
-    borderColor: "rgba(255,255,255,0.18)",
-    borderRadius: 13,
-    borderWidth: 1,
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-    position: "absolute",
-    right: 20,
-    top: 96,
+    backgroundColor: "#F3EBF1",
+    borderRadius: 14,
+    flexDirection: "row",
+    justifyContent: "center",
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    alignSelf: "flex-start",
+    marginTop: 16,
   },
   budgetPercentValue: {
-    color: "#FFFFFF",
+    color: "#624B6A",
     fontSize: 14,
     fontWeight: "700",
+    marginRight: 4,
   },
   budgetPercentLabel: {
-    color: "#DCCFE2",
-    fontSize: 9,
-    marginTop: 1,
+    color: "#624B6A",
+    fontSize: 12,
+    fontWeight: "600",
   },
   budgetCardAmount: {
-    color: "#FFFFFF",
-    fontSize: 34,
+    color: "#111827",
+    fontSize: 32,
     fontWeight: "700",
-    letterSpacing: -1.1,
-    marginTop: 23,
+    letterSpacing: -0.8,
+    marginTop: 18,
   },
   budgetCardSubAmount: {
-    color: "#DCCFE2",
-    fontSize: 13,
+    color: "#6B7280",
+    fontSize: 14,
     fontWeight: "500",
-    letterSpacing: 0,
   },
   budgetCardHelper: {
-    color: "#CDBED4",
+    color: "#6B7280",
     fontSize: 12,
-    marginTop: 6,
+    marginTop: 8,
+    lineHeight: 18,
   },
   budgetProgressTrack: {
-    backgroundColor: "rgba(255,255,255,0.18)",
+    backgroundColor: "#F3F4F6",
     borderRadius: 4,
-    height: 6,
-    marginTop: 16,
+    height: 8,
+    marginTop: 18,
     overflow: "hidden",
   },
   budgetProgressFill: {
-    backgroundColor: "#FFFFFF",
+    backgroundColor: "#4B2C40",
     borderRadius: 4,
     height: "100%",
     width: "57%",
@@ -437,28 +397,25 @@ const styles = StyleSheet.create({
   },
   addSectionButton: {
     alignItems: "center",
-    backgroundColor: "#20142A",
+    backgroundColor: "#F3F4F6",
     borderRadius: 16,
     flexDirection: "row",
     height: 38,
-    paddingBottom: 6,
-    paddingLeft: 6,
-    paddingRight: 12,
-    paddingTop: 6,
-    width: 120,
+    paddingHorizontal: 12,
+    justifyContent: "center",
   },
   addSectionIcon: {
     alignItems: "center",
-    backgroundColor: "#FDF9FE",
+    backgroundColor: "#FFFFFF",
     borderRadius: 13,
     height: 26,
     justifyContent: "center",
-    marginRight: 7,
+    marginRight: 8,
     width: 26,
   },
   addSectionText: {
     fontSize: 12,
-    color: "#FFFFFF",
+    color: "#4B5563",
     fontWeight: "700",
   },
   horizontalRow: {
@@ -520,7 +477,7 @@ const styles = StyleSheet.create({
   cardStatusPercent: {
     fontSize: 12,
     fontWeight: "700",
-    color: "#111827",
+    color: "#374151",
   },
   statusDotRow: {
     flexDirection: "row",
@@ -530,7 +487,7 @@ const styles = StyleSheet.create({
     width: 6,
     height: 6,
     borderRadius: 3,
-    marginRight: 4,
+    marginRight: 6,
   },
   statusDotText: {
     fontSize: 11,
@@ -588,7 +545,7 @@ const styles = StyleSheet.create({
   goalPercentText: {
     fontSize: 11,
     fontWeight: "700",
-    color: "#111827",
+    color: "#4B5563",
   },
   viewAllGoalsButton: {
     flexDirection: "row",

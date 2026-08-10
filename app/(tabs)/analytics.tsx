@@ -1,5 +1,5 @@
 import { Ionicons } from "@expo/vector-icons";
-import React, { useState } from "react";
+import React, { useMemo, useState } from "react";
 import {
   Modal,
   SafeAreaView,
@@ -11,38 +11,203 @@ import {
   View,
   type DimensionValue,
 } from "react-native";
-import Svg, { Circle, Path } from "react-native-svg";
+import Svg, { Path } from "react-native-svg";
+import { useAppStore } from "../../src/store";
 
 type Timeframe = "weekly" | "monthly" | "yearly";
 const options: Record<Timeframe, string[]> = {
-  weekly: ["W1 May", "W2 May", "W3 May", "W4 May"],
-  monthly: ["March 2026", "April 2026", "May 2026", "June 2026"],
+  weekly: ["W1", "W2", "W3", "W4"],
+  monthly: [
+    "Jan",
+    "Feb",
+    "Mar",
+    "Apr",
+    "May",
+    "Jun",
+    "Jul",
+    "Aug",
+    "Sep",
+    "Oct",
+    "Nov",
+    "Dec",
+  ],
   yearly: ["2024", "2025", "2026"],
 };
-type CategoryItem = [
+const categoryMeta: Record<
   string,
-  string,
-  `${number}%`,
-  typeof Ionicons.glyphMap extends Record<string, unknown>
-    ? keyof typeof Ionicons.glyphMap
-    : string,
-  string,
-];
-
-const categories: CategoryItem[] = [
-  ["Food & dining", "₦692.20", "32%", "fast-food-outline", "#F3EBF1"],
-  ["Transport", "₦539.60", "25%", "car-outline", "#EEE5F2"],
-  ["Shopping", "₦388.50", "18%", "bag-handle-outline", "#F7F0F8"],
-];
+  { icon: keyof typeof Ionicons.glyphMap; tint: string }
+> = {
+  "Food & Dining": { icon: "fast-food-outline", tint: "#F3EBF1" },
+  Transport: { icon: "car-outline", tint: "#EEE5F2" },
+  Shopping: { icon: "bag-handle-outline", tint: "#F7F0F8" },
+  "Bills & Utilities": { icon: "document-text-outline", tint: "#EEF7EE" },
+  Entertainment: { icon: "film-outline", tint: "#F7F0F8" },
+  Others: { icon: "ellipsis-horizontal", tint: "#EFEFEB" },
+  Income: { icon: "cash-outline", tint: "#E9F5EE" },
+};
 
 export default function AnalyticsScreen() {
+  const { transactions: rawTransactions = [] } = useAppStore();
+  const transactions = rawTransactions as any[];
   const [timeframe, setTimeframe] = useState<Timeframe>("monthly");
-  const [period, setPeriod] = useState("May 2026");
+  const [period, setPeriod] = useState("May");
   const [showPeriods, setShowPeriods] = useState(false);
+
   const chooseTimeframe = (next: Timeframe) => {
     setTimeframe(next);
-    setPeriod(options[next][Math.min(1, options[next].length - 1)]);
+    setPeriod(options[next][0]);
   };
+
+  const selectedPeriod = useMemo(() => {
+    if (timeframe === "yearly") {
+      const year = parseInt(period, 10);
+      return isNaN(year) ? new Date().getFullYear() : year;
+    }
+    return period;
+  }, [period, timeframe]);
+
+  const filteredTransactions = useMemo(() => {
+    if (timeframe === "yearly") {
+      return transactions.filter((tx) => {
+        const txDate = new Date(tx.date);
+        return txDate.getFullYear() === selectedPeriod;
+      });
+    }
+
+    if (timeframe === "monthly") {
+      const monthIndex = options.monthly.indexOf(period);
+      return transactions.filter((tx) => {
+        const txDate = new Date(tx.date);
+        return txDate.getMonth() === monthIndex;
+      });
+    }
+
+    const weekIndex = options.weekly.indexOf(period);
+    if (weekIndex < 0) return transactions;
+
+    const baseDate = new Date();
+    const month = baseDate.getMonth();
+    const year = baseDate.getFullYear();
+    const weekStart = weekIndex * 7 + 1;
+    const weekEnd = Math.min(
+      weekStart + 6,
+      new Date(year, month + 1, 0).getDate(),
+    );
+
+    return transactions.filter((tx) => {
+      const txDate = new Date(tx.date);
+      return (
+        txDate.getFullYear() === year &&
+        txDate.getMonth() === month &&
+        txDate.getDate() >= weekStart &&
+        txDate.getDate() <= weekEnd
+      );
+    });
+  }, [period, timeframe, selectedPeriod, transactions]);
+
+  const totals = useMemo(() => {
+    return filteredTransactions.reduce(
+      (acc, tx) => {
+        if (tx.type === "income") acc.income += Number(tx.amount || 0);
+        else if (tx.type === "expense") acc.spent += Number(tx.amount || 0);
+        else acc.saved += Number(tx.amount || 0);
+        return acc;
+      },
+      { income: 0, spent: 0, saved: 0 },
+    );
+  }, [filteredTransactions]);
+
+  const formatCurrency = (value: number) =>
+    `₦${value.toLocaleString(undefined, {
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
+    })}`;
+
+  const categoryTotals = useMemo(() => {
+    const totals: Record<string, number> = {};
+    let expenseTotal = 0;
+    filteredTransactions.forEach((tx) => {
+      if (tx.type === "expense") {
+        totals[tx.category] =
+          (totals[tx.category] || 0) + Number(tx.amount || 0);
+        expenseTotal += Number(tx.amount || 0);
+      }
+    });
+    return Object.entries(totals)
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, 4)
+      .map(([name, amount]) => ({
+        name,
+        amount,
+        share: expenseTotal
+          ? `${Math.round((amount / expenseTotal) * 100)}%`
+          : "0%",
+        icon: categoryMeta[name]?.icon ?? "ellipsis-horizontal",
+        tint: categoryMeta[name]?.tint ?? "#EFEFEB",
+      }));
+  }, [filteredTransactions]);
+
+  const chartPoints = useMemo(() => {
+    if (timeframe === "yearly") {
+      return Array.from({ length: 12 }, (_, idx) => {
+        const label = options.monthly[idx];
+        const value = filteredTransactions.reduce((sum, tx) => {
+          const txDate = new Date(tx.date);
+          return txDate.getMonth() === idx ? sum + Number(tx.amount || 0) : sum;
+        }, 0);
+        return { label, value };
+      });
+    }
+
+    if (timeframe === "monthly") {
+      return Array.from({ length: 4 }, (_, idx) => {
+        const start = idx * 7 + 1;
+        const end = idx === 3 ? 31 : start + 6;
+        const value = filteredTransactions.reduce((sum, tx) => {
+          const day = new Date(tx.date).getDate();
+          return day >= start && day <= end
+            ? sum + Number(tx.amount || 0)
+            : sum;
+        }, 0);
+        return { label: `W${idx + 1}`, value };
+      });
+    }
+
+    return options.weekly.map((label, idx) => ({
+      label,
+      value: filteredTransactions
+        .filter((tx) => {
+          const txDate = new Date(tx.date);
+          const day = txDate.getDate();
+          return day >= idx * 7 + 1 && day <= idx * 7 + 7;
+        })
+        .reduce((sum, tx) => sum + Number(tx.amount || 0), 0),
+    }));
+  }, [filteredTransactions, timeframe]);
+
+  const maxPoint = Math.max(...chartPoints.map((point) => point.value), 1);
+
+  const linePath = useMemo(() => {
+    const chartHeight = 80;
+    const spacing = chartPoints.length > 1 ? 280 / (chartPoints.length - 1) : 0;
+    const points = chartPoints.map((point, index) => ({
+      x: 20 + index * spacing,
+      y: 92 - (point.value / maxPoint) * chartHeight,
+    }));
+
+    if (!points.length) return "";
+    if (points.length === 1) return `M${points[0].x} ${points[0].y}`;
+
+    return points.reduce((path, point, index, arr) => {
+      if (index === 0) return `M${point.x} ${point.y}`;
+      const prev = arr[index - 1];
+      const controlX = (prev.x + point.x) / 2;
+      return `${path} C ${controlX} ${prev.y} ${controlX} ${point.y} ${point.x} ${point.y}`;
+    }, "");
+  }, [chartPoints, maxPoint]);
+
+  const chartLabel = timeframe === "yearly" ? `${selectedPeriod}` : `${period}`;
+
   return (
     <SafeAreaView style={styles.safeArea}>
       <ScrollView
@@ -106,9 +271,11 @@ export default function AnalyticsScreen() {
           <View style={styles.cardHeader}>
             <View>
               <Text style={styles.cardLabel}>SPENDING OVERVIEW</Text>
-              <Text style={styles.cardTitle}>Your monthly flow</Text>
+              <Text style={styles.cardTitle}>Your {chartLabel} flow</Text>
             </View>
-            <Text style={styles.cardAmount}>$2,158</Text>
+            <Text style={styles.cardAmount}>
+              {formatCurrency(totals.spent)}
+            </Text>
           </View>
           <View style={styles.chart}>
             <View style={[styles.chartGuide, { top: 31 }]} />
@@ -120,108 +287,94 @@ export default function AnalyticsScreen() {
               preserveAspectRatio="none"
             >
               <Path
-                d="M0 91 C18 85 29 69 48 72 C67 75 78 51 98 57 C117 63 128 44 148 49 C167 55 181 29 201 35 C222 42 234 19 255 25 C276 31 288 12 320 17 L320 112 L0 112 Z"
+                d={`${linePath} L300 92 L20 92 Z`}
                 fill="#EEE5F0"
                 opacity={0.72}
               />
               <Path
-                d="M0 84 C18 80 29 72 48 74 C67 76 78 64 98 67 C117 71 128 58 148 60 C167 63 181 46 201 49 C222 52 234 37 255 40 C276 43 288 31 320 33"
+                d={linePath}
                 fill="none"
-                stroke="#C79A00"
+                stroke="#E74C3C"
                 strokeLinecap="round"
                 strokeLinejoin="round"
-                strokeWidth="3.5"
-              />
-              <Path
-                d="M0 73 C18 69 29 60 48 62 C67 64 78 53 98 56 C117 60 128 46 148 49 C167 53 181 38 201 41 C222 45 234 28 255 33 C276 37 288 24 320 24"
-                fill="none"
-                stroke="#2F8F4F"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth="2.6"
-              />
-              <Path
-                d="M0 95 C18 92 29 85 48 86 C67 87 78 78 98 80 C117 82 128 72 148 74 C167 76 181 64 201 66 C222 69 234 60 255 63 C276 66 288 57 320 58"
-                fill="none"
-                stroke="#20142A"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth="2.6"
-              />
-              <Circle
-                cx="255"
-                cy="40"
-                fill="#FFFFFF"
-                r="5.5"
-                stroke="#C79A00"
                 strokeWidth="3"
-              />
-              <Circle
-                cx="255"
-                cy="33"
-                fill="#FFFFFF"
-                r="4.4"
-                stroke="#2F8F4F"
-                strokeWidth="2.2"
-              />
-              <Circle
-                cx="255"
-                cy="63"
-                fill="#FFFFFF"
-                r="4.4"
-                stroke="#20142A"
-                strokeWidth="2.2"
               />
             </Svg>
           </View>
           <View style={styles.chartAxis}>
-            <Text style={styles.chartAxisText}>Week 1</Text>
-            <Text style={styles.chartAxisText}>Week 4</Text>
+            <Text style={styles.chartAxisText}>
+              {chartPoints[0]?.label ?? "Start"}
+            </Text>
+            <Text style={styles.chartAxisText}>
+              {chartPoints[chartPoints.length - 1]?.label ?? "End"}
+            </Text>
           </View>
           <View style={styles.legend}>
-            <Legend label="Spent" color="#20142A" />
-            <Legend label="Income" color="#BDAAC5" />
-            <Legend label="Saved" color="#E6DCE9" />
+            <Legend label="Spent" color="#E74C3C" />
+            <Legend label="Income" color="#8E44AD" />
+            <Legend label="Saved" color="#2ECC71" />
           </View>
         </View>
 
         <View style={styles.metrics}>
-          <Metric label="INCOME" value="₦3,450" icon="arrow-down-outline" />
+          <Metric
+            label="INCOME"
+            value={formatCurrency(totals.income)}
+            icon="arrow-down-outline"
+          />
           <View style={styles.metricDivider} />
-          <Metric label="SPENT" value="₦2,158" icon="arrow-up-outline" />
+          <Metric
+            label="SPENT"
+            value={formatCurrency(totals.spent)}
+            icon="arrow-up-outline"
+          />
           <View style={styles.metricDivider} />
-          <Metric label="SAVED" value="₦1,292" icon="leaf-outline" />
+          <Metric
+            label="SAVED"
+            value={formatCurrency(totals.saved)}
+            icon="leaf-outline"
+          />
         </View>
 
         <Heading title="Where your money went." action="See details" />
         <View style={styles.surface}>
-          {categories.map(([name, amount, share, icon, tint]) => (
-            <TouchableOpacity key={name} style={styles.categoryRow}>
-              <View
-                style={[
-                  styles.categoryIcon,
-                  { backgroundColor: tint as string },
-                ]}
-              >
-                <Ionicons name={icon as any} size={18} color="#624B6A" />
-              </View>
-              <View style={styles.categoryCopy}>
-                <Text style={styles.categoryName}>{name}</Text>
-                <View style={styles.categoryTrack}>
-                  <View
-                    style={[
-                      styles.categoryFill,
-                      { width: share as DimensionValue },
-                    ]}
-                  />
+          {categoryTotals.length > 0 ? (
+            categoryTotals.map(({ name, amount, share, icon, tint }) => (
+              <TouchableOpacity key={name} style={styles.categoryRow}>
+                <View
+                  style={[
+                    styles.categoryIcon,
+                    { backgroundColor: tint as string },
+                  ]}
+                >
+                  <Ionicons name={icon as any} size={18} color="#624B6A" />
                 </View>
-              </View>
-              <View style={styles.categoryEnd}>
-                <Text style={styles.categoryAmount}>{amount}</Text>
-                <Text style={styles.categoryShare}>{share}</Text>
-              </View>
-            </TouchableOpacity>
-          ))}
+                <View style={styles.categoryCopy}>
+                  <Text style={styles.categoryName}>{name}</Text>
+                  <View style={styles.categoryTrack}>
+                    <View
+                      style={[
+                        styles.categoryFill,
+                        { width: share as DimensionValue },
+                      ]}
+                    />
+                  </View>
+                </View>
+                <View style={styles.categoryEnd}>
+                  <Text style={styles.categoryAmount}>
+                    {formatCurrency(amount)}
+                  </Text>
+                  <Text style={styles.categoryShare}>{share}</Text>
+                </View>
+              </TouchableOpacity>
+            ))
+          ) : (
+            <View style={styles.emptyContainer}>
+              <Text style={styles.emptyText}>
+                No expenses found for this period.
+              </Text>
+            </View>
+          )}
         </View>
 
         <Heading title="Smart observations." action="View all" />
@@ -607,6 +760,14 @@ const styles = StyleSheet.create({
     paddingBottom: 15,
   },
   heatLabelsText: { color: "#A097A4", fontSize: 10 },
+  emptyContainer: {
+    paddingVertical: 40,
+    alignItems: "center",
+  },
+  emptyText: {
+    fontSize: 14,
+    color: "#888",
+  },
   overlay: {
     backgroundColor: "rgba(31,20,38,.18)",
     flex: 1,

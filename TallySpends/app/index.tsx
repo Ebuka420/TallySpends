@@ -2,13 +2,13 @@ import { FontAwesome, Ionicons } from "@expo/vector-icons";
 import { Stack, useRouter } from "expo-router";
 import React, { useState } from "react";
 import {
-  Platform,
-  SafeAreaView,
-  ScrollView,
-  StyleSheet,
-  Text,
-  TouchableOpacity,
-  View,
+    Platform,
+    SafeAreaView,
+    ScrollView,
+    StyleSheet,
+    Text,
+    TouchableOpacity,
+    View,
 } from "react-native";
 import Svg, { Circle, G, Path } from "react-native-svg";
 
@@ -128,7 +128,7 @@ export default function DashboardScreen() {
             <View style={styles.sparklineGraphContainer}>
               <Svg width="110" height="40" viewBox="0 0 110 40">
                 <Path
-                  d="M 5,30 L 32,23 L 53,13 L 73,18 L 88,14 L 102,10"
+                  d="M 5,30 C 24,22 44,12 63,18 S 95,15 102,10"
                   fill="none"
                   stroke="#6442E5"
                   strokeWidth={2}
