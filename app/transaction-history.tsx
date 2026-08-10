@@ -1,72 +1,42 @@
-import React, { useState, useRef, useEffect } from "react";
-import {
-  StyleSheet,
-  Text,
-  View,
-  SafeAreaView,
-  TouchableOpacity,
-  ScrollView,
-  TextInput,
-  Modal,
-  Pressable,
-  Platform,
-  Alert,
-  KeyboardAvoidingView,
-  PanResponder,
-} from "react-native";
-import { Stack, useLocalSearchParams, useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
-import { useAppStore, MOCK_RECIPIENTS } from "../src/store";
+import DateTimePicker, {
+    DateTimePickerEvent,
+} from "@react-native-community/datetimepicker";
+import { Stack, useLocalSearchParams, useRouter } from "expo-router";
+import React, { useEffect, useMemo, useRef, useState } from "react";
+import {
+    Modal,
+    PanResponder,
+    Platform,
+    Pressable,
+    SafeAreaView,
+    ScrollView,
+    StyleSheet,
+    Text,
+    TextInput,
+    TouchableOpacity,
+    View,
+} from "react-native";
+import { MOCK_RECIPIENTS, useAppStore } from "../src/store";
 
 export default function TransactionHistoryScreen() {
   const router = useRouter();
   const params = useLocalSearchParams<{ category?: string }>();
-  const {
-    transactions: transactionsRaw,
-    addTransaction,
-    loading,
-  } = useAppStore();
+  const { transactions: transactionsRaw, loading } = useAppStore();
   const transactions = (transactionsRaw || []) as any[];
 
   const [searchQuery, setSearchQuery] = useState("");
-  const [selectedCategory, setSelectedCategory] = useState<string | null>(params.category ?? null);
-  const [isAddModalOpen, setIsAddModalOpen] = useState(false);
-  // Form states
-  const [txTitle, setTxTitle] = useState("");
-  const [txAmount, setTxAmount] = useState("");
-  const [txType, setTxType] = useState<"income" | "expense">("expense");
-  const [txCategory, setTxCategory] = useState("Food & Dining");
-
-  // Categories list for transaction form
-  const categories = [
-    "Food & Dining",
-    "Transport",
-    "Shopping",
-    "Bills & Utilities",
-    "Entertainment",
-    "Others",
-  ];
-
-  const handleAddSubmit = () => {
-    const value = parseFloat(txAmount);
-    if (!txTitle.trim() || isNaN(value) || value <= 0) return;
-
-    addTransaction({
-      title: txTitle.trim(),
-      amount: value,
-      category: txType === "income" ? "Income" : txCategory,
-      type: txType,
-      date: new Date().toISOString().slice(0, 10),
-    });
-
-    // Reset form
-    setTxTitle("");
-    setTxAmount("");
-    setTxType("expense");
-    setTxCategory("Food & Dining");
-    setIsAddModalOpen(false);
-  };
-
+  const [selectedCategory, setSelectedCategory] = useState<string | null>(
+    params.category ?? null,
+  );
+  const [filterMode, setFilterMode] = useState<
+    "all" | "day" | "month" | "year"
+  >("all");
+  const [selectedDate, setSelectedDate] = useState(new Date());
+  const [showDatePicker, setShowDatePicker] = useState(false);
+  const [selectedTransaction, setSelectedTransaction] = useState<any | null>(
+    null,
+  );
 
   useEffect(() => {
     setSelectedCategory(params.category ?? null);
@@ -78,34 +48,81 @@ export default function TransactionHistoryScreen() {
       onStartShouldSetPanResponder: () => false,
       onMoveShouldSetPanResponder: (_, gestureState) => {
         // intercept horizontal moves larger than vertical moves
-        return Math.abs(gestureState.dx) > Math.abs(gestureState.dy) && Math.abs(gestureState.dx) > 8;
+        return (
+          Math.abs(gestureState.dx) > Math.abs(gestureState.dy) &&
+          Math.abs(gestureState.dx) > 8
+        );
       },
       onPanResponderMove: () => {},
       onPanResponderRelease: () => {},
-    })
+    }),
   ).current;
-
 
   const normalizeTransferTitle = (title: string) => {
     const transferRegex = /(Transfer to\s+)@([a-zA-Z0-9_]+)/i;
     return title.replace(transferRegex, (_, prefix, username) => {
-      const recipient = MOCK_RECIPIENTS.find((r) => r.username.toLowerCase() === username.toLowerCase());
-      return recipient ? `${prefix}${recipient.name}` : `Transfer to @${username}`;
+      const recipient = MOCK_RECIPIENTS.find(
+        (r) => r.username.toLowerCase() === username.toLowerCase(),
+      );
+      return recipient
+        ? `${prefix}${recipient.name}`
+        : `Transfer to @${username}`;
     });
   };
 
-  const filteredTransactions = transactions.filter((tx) => {
-    const normalizedTitle = normalizeTransferTitle(tx.title);
-    const matchesSearch = `${normalizedTitle} ${tx.category}`.toLowerCase().includes(searchQuery.toLowerCase());
-    const matchesCategory = !selectedCategory || tx.category === selectedCategory;
-    return matchesSearch && matchesCategory;
-  });
+  const filteredTransactions = useMemo(() => {
+    return transactions
+      .filter((tx) => {
+        const normalizedTitle = normalizeTransferTitle(tx.title);
+        const matchesSearch = `${normalizedTitle} ${tx.category}`
+          .toLowerCase()
+          .includes(searchQuery.toLowerCase());
+        const matchesCategory =
+          !selectedCategory || tx.category === selectedCategory;
+        if (!matchesSearch || !matchesCategory) return false;
+
+        if (filterMode === "day") {
+          return (
+            new Date(tx.date).toDateString() === selectedDate.toDateString()
+          );
+        }
+
+        if (filterMode === "month") {
+          const txDate = new Date(tx.date);
+          return (
+            txDate.getMonth() === selectedDate.getMonth() &&
+            txDate.getFullYear() === selectedDate.getFullYear()
+          );
+        }
+
+        if (filterMode === "year") {
+          return new Date(tx.date).getFullYear() === selectedDate.getFullYear();
+        }
+
+        return true;
+      })
+      .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+  }, [
+    transactions,
+    normalizeTransferTitle,
+    searchQuery,
+    selectedCategory,
+    filterMode,
+    selectedDate,
+  ]);
 
   const formatCurrency = (val: number) => {
     return `₦${val.toLocaleString(undefined, {
       minimumFractionDigits: 2,
       maximumFractionDigits: 2,
     })}`;
+  };
+
+  const onDateChange = (_: DateTimePickerEvent, selected?: Date) => {
+    setShowDatePicker(Platform.OS === "ios");
+    if (selected) {
+      setSelectedDate(selected);
+    }
   };
 
   const getCategoryColor = (category: string) => {
@@ -140,29 +157,88 @@ export default function TransactionHistoryScreen() {
           <Ionicons name="chevron-back" size={24} color="#1A1A1A" />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>My Transactions</Text>
-        <TouchableOpacity
-          style={styles.headerBtnAdd}
-          onPress={() => setIsAddModalOpen(true)}
-        >
-          <Ionicons name="add" size={24} color="#FFF" />
-        </TouchableOpacity>
+        <View style={styles.headerBtnPlaceholder} />
       </View>
 
-      {/* --- SEARCH BAR --- */}
-      <ScrollView
-        contentContainerStyle={styles.scrollContent}
-        showsVerticalScrollIndicator={false}
-      >
+      <View style={styles.searchContainer}>
+        <View style={styles.searchBox}>
+          <Ionicons name="search-outline" size={18} color="#999" />
+          <TextInput
+            placeholder="Search transactions"
+            value={searchQuery}
+            onChangeText={setSearchQuery}
+            style={styles.searchInput}
+            placeholderTextColor="#999"
+          />
+        </View>
+        <View style={styles.filterRow}>
+          {(["all", "day", "month", "year"] as const).map((mode) => (
+            <TouchableOpacity
+              key={mode}
+              onPress={() => setFilterMode(mode)}
+              style={[
+                styles.filterChip,
+                filterMode === mode && styles.filterChipActive,
+              ]}
+            >
+              <Text
+                style={[
+                  styles.filterChipText,
+                  filterMode === mode && styles.filterChipTextActive,
+                ]}
+              >
+                {mode === "all"
+                  ? "All"
+                  : mode === "day"
+                    ? "Day"
+                    : mode === "month"
+                      ? "Month"
+                      : "Year"}
+              </Text>
+            </TouchableOpacity>
+          ))}
+          {filterMode !== "all" && (
+            <TouchableOpacity
+              onPress={() => setShowDatePicker(true)}
+              style={styles.filterChip}
+            >
+              <Text style={styles.filterChipText}>
+                {filterMode === "day"
+                  ? selectedDate.toLocaleDateString("en-US")
+                  : filterMode === "month"
+                    ? selectedDate.toLocaleDateString("en-US", {
+                        month: "short",
+                        year: "numeric",
+                      })
+                    : selectedDate.getFullYear()}
+              </Text>
+            </TouchableOpacity>
+          )}
+        </View>
+      </View>
+
+      <ScrollView contentContainerStyle={styles.scrollContent}>
         <View style={styles.ledgerCard} {...blockPanResponder.panHandlers}>
           {filteredTransactions.length > 0 ? (
             filteredTransactions.map((tx) => {
               const catStyle = getCategoryColor(tx.category);
               const displayTitle = normalizeTransferTitle(tx.title);
               return (
-                <View key={tx.id} style={styles.row}>
-                  <View style={[styles.initialBox, { backgroundColor: catStyle.bg }]}> 
-                    <Text style={[styles.initialText, { color: catStyle.color }]}> 
-                      {tx.category ? tx.category.charAt(0) : "T"} 
+                <TouchableOpacity
+                  key={tx.id}
+                  style={styles.row}
+                  onPress={() => setSelectedTransaction(tx)}
+                >
+                  <View
+                    style={[
+                      styles.initialBox,
+                      { backgroundColor: catStyle.bg },
+                    ]}
+                  >
+                    <Text
+                      style={[styles.initialText, { color: catStyle.color }]}
+                    >
+                      {tx.category ? tx.category.charAt(0) : "T"}
                     </Text>
                   </View>
                   <View style={styles.infoCol}>
@@ -175,142 +251,85 @@ export default function TransactionHistoryScreen() {
                     <Text
                       style={[
                         styles.txAmount,
-                        tx.type === "income" ? styles.incomeText : styles.expenseText,
+                        tx.type === "income"
+                          ? styles.incomeText
+                          : styles.expenseText,
                       ]}
                     >
                       {tx.type === "income" ? "+" : "-"}
                       {formatCurrency(tx.amount)}
                     </Text>
                   </View>
-                </View>
+                </TouchableOpacity>
               );
             })
           ) : (
             <View style={styles.emptyContainer}>
               <Text style={styles.emptyText}>
-                {loading ? "Loading transactions..." : "No matching logs found."}
+                {loading
+                  ? "Loading transactions..."
+                  : "No matching logs found."}
               </Text>
             </View>
           )}
         </View>
       </ScrollView>
 
-      {/* --- ADD TRANSACTION MODAL --- */}
-      <Modal visible={isAddModalOpen} transparent animationType="slide">
+      <Modal
+        visible={Boolean(selectedTransaction)}
+        transparent
+        animationType="slide"
+      >
         <Pressable
           style={styles.modalBackdrop}
-          onPress={() => setIsAddModalOpen(false)}
+          onPress={() => setSelectedTransaction(null)}
         >
-          <KeyboardAvoidingView
-            behavior={Platform.OS === "ios" ? "padding" : undefined}
-            keyboardVerticalOffset={Platform.OS === "ios" ? 90 : 0}
-            style={styles.modalKeyboardView}
-          >
-            <ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={styles.modalScrollContent}>
-              <View style={styles.modalSheet}>
-                <View style={styles.modalHeader}>
-                  <Text style={styles.modalTitle}>Add Transaction</Text>
-                  <TouchableOpacity onPress={() => setIsAddModalOpen(false)}>
-                    <Text style={styles.cancelText}>Cancel</Text>
-                  </TouchableOpacity>
-                </View>
-
-                <View style={styles.modalBody}>
-                  <View style={styles.typeTabs}>
-                    <TouchableOpacity
-                      style={[
-                        styles.typeTab,
-                        txType === "expense" && styles.typeTabActive,
-                      ]}
-                      onPress={() => setTxType("expense")}
-                    >
-                      <Text
-                        style={[
-                          styles.typeTabText,
-                          txType === "expense" && styles.typeTabTextActive,
-                        ]}
-                      >
-                        Expense
-                      </Text>
-                    </TouchableOpacity>
-                    <TouchableOpacity
-                      style={[
-                        styles.typeTab,
-                        txType === "income" && styles.typeTabActive,
-                      ]}
-                      onPress={() => setTxType("income")}
-                    >
-                      <Text
-                        style={[
-                          styles.typeTabText,
-                          txType === "income" && styles.typeTabTextActive,
-                        ]}
-                      >
-                        Income
-                      </Text>
-                    </TouchableOpacity>
-                  </View>
-
-                  <View style={styles.inputGroup}>
-                    <Text style={styles.inputLabel}>Description / Title</Text>
-                    <TextInput
-                      placeholder="e.g. Starbucks, Groceries..."
-                      value={txTitle}
-                      onChangeText={setTxTitle}
-                      style={styles.textInput}
-                      placeholderTextColor="#888"
-                    />
-                  </View>
-
-                  <View style={styles.inputGroup}>
-                    <Text style={styles.inputLabel}>Amount (₦)</Text>
-                    <TextInput
-                      placeholder="0.00"
-                      value={txAmount}
-                      onChangeText={setTxAmount}
-                      keyboardType="numeric"
-                      style={styles.textInput}
-                      placeholderTextColor="#888"
-                    />
-                  </View>
-
-                  {txType === "expense" && (
-                    <View style={styles.inputGroup}>
-                      <Text style={styles.inputLabel}>Category</Text>
-                      <View style={styles.tagsContainer}>
-                        {categories.map((cat) => (
-                          <TouchableOpacity
-                            key={cat}
-                            onPress={() => setTxCategory(cat)}
-                            style={[
-                              styles.tagBtn,
-                              txCategory === cat && styles.tagBtnActive,
-                            ]}
-                          >
-                            <Text
-                              style={[
-                                styles.tagText,
-                                txCategory === cat && styles.tagTextActive,
-                              ]}
-                            >
-                              {cat}
-                            </Text>
-                          </TouchableOpacity>
-                        ))}
-                      </View>
-                    </View>
+          <Pressable style={styles.modalSheet}>
+            <Text style={styles.modalTitle}>Receipt</Text>
+            {selectedTransaction ? (
+              <View style={styles.receiptBody}>
+                <Text style={styles.receiptLabel}>Title</Text>
+                <Text style={styles.receiptText}>
+                  {normalizeTransferTitle(selectedTransaction.title)}
+                </Text>
+                <Text style={styles.receiptLabel}>Amount</Text>
+                <Text style={styles.receiptText}>
+                  {formatCurrency(selectedTransaction.amount)}
+                </Text>
+                <Text style={styles.receiptLabel}>Category</Text>
+                <Text style={styles.receiptText}>
+                  {selectedTransaction.category}
+                </Text>
+                <Text style={styles.receiptLabel}>Date</Text>
+                <Text style={styles.receiptText}>
+                  {new Date(selectedTransaction.date).toLocaleDateString(
+                    "en-US",
                   )}
-
-                  <TouchableOpacity style={styles.saveBtn} onPress={handleAddSubmit}>
-                    <Text style={styles.saveBtnText}>Save Transaction</Text>
-                  </TouchableOpacity>
-                </View>
+                </Text>
+                <Text style={styles.receiptLabel}>Type</Text>
+                <Text style={styles.receiptText}>
+                  {selectedTransaction.type.toUpperCase()}
+                </Text>
+                <TouchableOpacity
+                  style={styles.receiptCloseBtn}
+                  onPress={() => setSelectedTransaction(null)}
+                >
+                  <Text style={styles.receiptCloseText}>Close</Text>
+                </TouchableOpacity>
               </View>
-            </ScrollView>
-          </KeyboardAvoidingView>
+            ) : null}
+          </Pressable>
         </Pressable>
       </Modal>
 
+      {showDatePicker && (
+        <DateTimePicker
+          value={selectedDate}
+          mode="date"
+          display={Platform.OS === "ios" ? "spinner" : "default"}
+          onChange={onDateChange}
+        />
+      )}
     </SafeAreaView>
   );
 }
@@ -350,7 +369,8 @@ const styles = StyleSheet.create({
     color: "#1A1A1A",
   },
   searchContainer: {
-    padding: 16,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
     backgroundColor: "#FFF",
     borderBottomWidth: 1,
     borderBottomColor: "#F5F5F5",
@@ -359,9 +379,7 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     flexWrap: "wrap",
     gap: 8,
-    paddingHorizontal: 16,
-    paddingVertical: 10,
-    backgroundColor: "#FFF",
+    marginTop: 12,
   },
   filterChip: {
     borderWidth: 1,
@@ -599,4 +617,3 @@ const styles = StyleSheet.create({
     fontWeight: "700",
   },
 });
-

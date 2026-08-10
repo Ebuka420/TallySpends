@@ -1,16 +1,14 @@
-import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
+import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
-import React, { useMemo, useState, useRef } from "react";
+import React, { useMemo, useState } from "react";
 import {
-  Dimensions,
-  SafeAreaView,
-  ScrollView,
-  StyleSheet,
-  Text,
-  TouchableOpacity,
-  View,
-  TextInput,
-  ActivityIndicator,
+    Dimensions,
+    SafeAreaView,
+    ScrollView,
+    StyleSheet,
+    Text,
+    TouchableOpacity,
+    View,
 } from "react-native";
 import Svg, { Circle, Path } from "react-native-svg";
 
@@ -29,19 +27,6 @@ export default function InsightsScreen() {
   const [startDate, setStartDate] = useState<Date | null>(new Date(2026, 4, 1));
   const [endDate, setEndDate] = useState<Date | null>(new Date(2026, 4, 15));
 
-  // --- CHAT STATE AND LOGIC ---
-  const [messages, setMessages] = useState([
-    {
-      id: "msg-1",
-      sender: "bot",
-      text: "Hi! I am Tally, your AI financial coach. Ask me any questions about your spending habits, saving goals, or budgets!",
-      time: "Just now"
-    }
-  ]);
-  const [chatInput, setChatInput] = useState("");
-  const [isTyping, setIsTyping] = useState(false);
-  const scrollViewRef = useRef<ScrollView>(null);
-
   // Expanded tips state
   const [expandedTipId, setExpandedTipId] = useState<string | null>(null);
 
@@ -51,76 +36,23 @@ export default function InsightsScreen() {
       title: "Optimize Grocery Spending",
       short: "Cut down on food delivery by meal prepping.",
       full: "Food & Dining represents 26% of your budget (₦602.10). By meal prepping just 3 days a week, you can save an estimated ₦80-₦100 per month. Try to use grocery lists and avoid shopping while hungry!",
-      icon: "restaurant-outline"
+      icon: "restaurant-outline",
     },
     {
       id: "tip-2",
       title: "Review Subscriptions",
       short: "Audit monthly direct debits.",
       full: "Bills & Utilities stand at ₦322.00. Check for forgotten streaming services, gym memberships, or software subscriptions. Canceling just one unused ₦15 subscription saves you ₦180 a year.",
-      icon: "card-outline"
+      icon: "card-outline",
     },
     {
       id: "tip-3",
       title: "Smart Savings Allocation",
       short: "Set up auto-save rules.",
       full: "You've saved ₦1,104.00 this month. Set up a recurring ₦50 transfer to your savings goals right after your salary drops to pay yourself first and secure your laptop savings goal faster.",
-      icon: "trending-up-outline"
-    }
+      icon: "trending-up-outline",
+    },
   ];
-
-  const handleSendMessage = (text: string) => {
-    const trimmed = text.trim();
-    if (!trimmed) return;
-
-    const userMsg = {
-      id: `msg-${Date.now()}-user`,
-      sender: "user",
-      text: trimmed,
-      time: "Now"
-    };
-
-    setMessages((prev) => [...prev, userMsg]);
-    setChatInput("");
-    setIsTyping(true);
-
-    setTimeout(() => {
-      scrollViewRef.current?.scrollToEnd({ animated: true });
-    }, 50);
-
-    setTimeout(() => {
-      let replyText = "";
-      const lower = trimmed.toLowerCase();
-
-      if (lower.includes("food") || lower.includes("grocery") || lower.includes("eat")) {
-        replyText = "Food & Dining is currently your largest category at 26% of total spending (₦602.10). Limiting dining out to once a week could save you around ₦85 this month. Would you like me to suggest a food budget limit?";
-      } else if (lower.includes("category") || lower.includes("spending") || lower.includes("most")) {
-        replyText = "Your top spending categories are:\n• Food & Dining: 26% (₦602.10)\n• Transport: 20% (₦430.00)\n• Shopping: 18% (₦387.50)\n\nReducing Shopping by just 10% next month would put ₦38.75 back in your pocket!";
-      } else if (lower.includes("bill") || lower.includes("utility") || lower.includes("sub")) {
-        replyText = "Your Bills & Utilities are at ₦322.00 this month. I recommend checking for active subscriptions or memberships you haven't used in the past 30 days to easily cut back.";
-      } else if (lower.includes("save") || lower.includes("laptop") || lower.includes("goal")) {
-        replyText = "You're doing well with ₦1,104.00 saved. Your Laptop goal is at 42% (₦1,250 of ₦3,000). If you add just ₦20 more weekly from your dining savings, you will hit the goal 2.5 weeks ahead of schedule!";
-      } else if (lower.includes("hello") || lower.includes("hi") || lower.includes("hey")) {
-        replyText = "Hello! I'm here to help you make smart financial choices. Ask me about your 'top categories', 'how to save on food', or 'laptop goal'!";
-      } else {
-        replyText = "That's a good question! Based on your current balance (₦2,842.50) and recent metrics, I suggest keeping transport and shopping expenses under ₦400 this month to maintain your savings rate. Let me know if you want tips on a specific category!";
-      }
-
-      const botMsg = {
-        id: `msg-${Date.now()}-bot`,
-        sender: "bot",
-        text: replyText,
-        time: "Now"
-      };
-
-      setMessages((prev) => [...prev, botMsg]);
-      setIsTyping(false);
-
-      setTimeout(() => {
-        scrollViewRef.current?.scrollToEnd({ animated: true });
-      }, 50);
-    }, 900);
-  };
 
   const heatMapBlocks = Array(21)
     .fill(0)
@@ -194,7 +126,6 @@ export default function InsightsScreen() {
       </View>
 
       <ScrollView
-        ref={scrollViewRef}
         contentContainerStyle={styles.scrollContainer}
         showsVerticalScrollIndicator={false}
       >
@@ -475,7 +406,12 @@ export default function InsightsScreen() {
         </View>
 
         {/* --- DYNAMIC TIPS & RECOMMENDATIONS --- */}
-        <Text style={[styles.patternsWidgetHighlightTextEmphasis, { marginTop: 24 }]}>
+        <Text
+          style={[
+            styles.patternsWidgetHighlightTextEmphasis,
+            { marginTop: 24 },
+          ]}
+        >
           Premium Financial Tips
         </Text>
         <Text style={styles.patternsWidgetSubTextMeta}>
@@ -488,14 +424,38 @@ export default function InsightsScreen() {
             return (
               <TouchableOpacity
                 key={tip.id}
-                style={[styles.coachRecommendationCardItem, isExpanded && styles.coachCardExpanded]}
+                style={[
+                  styles.coachRecommendationCardItem,
+                  isExpanded && styles.coachCardExpanded,
+                ]}
                 onPress={() => setExpandedTipId(isExpanded ? null : tip.id)}
                 activeOpacity={0.8}
               >
-                <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between" }}>
-                  <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
-                    <Ionicons name={tip.icon as any} size={18} color="#4B2C40" />
-                    <Text style={[styles.patternsWidgetHighlightTextEmphasis, { marginTop: 0 }]}>
+                <View
+                  style={{
+                    flexDirection: "row",
+                    alignItems: "center",
+                    justifyContent: "space-between",
+                  }}
+                >
+                  <View
+                    style={{
+                      flexDirection: "row",
+                      alignItems: "center",
+                      gap: 8,
+                    }}
+                  >
+                    <Ionicons
+                      name={tip.icon as any}
+                      size={18}
+                      color="#4B2C40"
+                    />
+                    <Text
+                      style={[
+                        styles.patternsWidgetHighlightTextEmphasis,
+                        { marginTop: 0 },
+                      ]}
+                    >
                       {tip.title}
                     </Text>
                   </View>
@@ -505,120 +465,20 @@ export default function InsightsScreen() {
                     color="#4B2C40"
                   />
                 </View>
-                <Text style={[styles.patternsWidgetSubTextMeta, { marginTop: 4, marginBottom: 0 }]}>
+                <Text
+                  style={[
+                    styles.patternsWidgetSubTextMeta,
+                    { marginTop: 4, marginBottom: 0 },
+                  ]}
+                >
                   {tip.short}
                 </Text>
                 {isExpanded && (
-                  <Text style={styles.expandedTipBodyText}>
-                    {tip.full}
-                  </Text>
+                  <Text style={styles.expandedTipBodyText}>{tip.full}</Text>
                 )}
               </TouchableOpacity>
             );
           })}
-        </View>
-
-        {/* --- ASK TALLY AI Q&A CHAT SECTION --- */}
-        <View style={styles.chatSectionContainer}>
-          <View style={styles.chatHeader}>
-            <View style={styles.chatHeaderTitleRow}>
-              <MaterialCommunityIcons name="robot-outline" size={20} color="#FFFFFF" />
-              <Text style={styles.chatHeaderTitle}>Ask Tally AI Coach</Text>
-            </View>
-            <Text style={styles.chatHeaderSubtitle}>Get instant personal budget answers</Text>
-          </View>
-
-          {/* Messages window */}
-          <View style={styles.chatWindow}>
-            {messages.map((msg) => {
-              const isBot = msg.sender === "bot";
-              return (
-                <View
-                  key={msg.id}
-                  style={[
-                    styles.messageBubble,
-                    isBot ? styles.messageBubbleBot : styles.messageBubbleUser,
-                  ]}
-                >
-                  <Text style={[styles.messageText, isBot ? styles.messageTextBot : styles.messageTextUser]}>
-                    {msg.text}
-                  </Text>
-                </View>
-              );
-            })}
-            {isTyping && (
-              <View style={[styles.messageBubble, styles.messageBubbleBot, { flexDirection: "row", gap: 6, alignItems: "center" }]}>
-                <ActivityIndicator size="small" color="#4B2C40" />
-                <Text style={[styles.messageText, styles.messageTextBot, { fontStyle: "italic" }]}>
-                  Tally is typing...
-                </Text>
-              </View>
-            )}
-          </View>
-
-          {/* Quick Choice Question Chips */}
-          <Text style={styles.chipsLabel}>Suggested Questions:</Text>
-          <ScrollView
-            horizontal
-            showsHorizontalScrollIndicator={false}
-            contentContainerStyle={styles.chipsScrollContainer}
-          >
-            <TouchableOpacity
-              style={styles.chipButton}
-              onPress={() => handleSendMessage("How can I save on food?")}
-              activeOpacity={0.7}
-              disabled={isTyping}
-            >
-              <Text style={styles.chipText}>🍔 Food savings tips?</Text>
-            </TouchableOpacity>
-
-            <TouchableOpacity
-              style={styles.chipButton}
-              onPress={() => handleSendMessage("Analyze my top category")}
-              activeOpacity={0.7}
-              disabled={isTyping}
-            >
-              <Text style={styles.chipText}>📊 Top category info?</Text>
-            </TouchableOpacity>
-
-            <TouchableOpacity
-              style={styles.chipButton}
-              onPress={() => handleSendMessage("How to cut bills?")}
-              activeOpacity={0.7}
-              disabled={isTyping}
-            >
-              <Text style={styles.chipText}>📉 Cutting bill costs?</Text>
-            </TouchableOpacity>
-
-            <TouchableOpacity
-              style={styles.chipButton}
-              onPress={() => handleSendMessage("Laptop goal savings rate")}
-              activeOpacity={0.7}
-              disabled={isTyping}
-            >
-              <Text style={styles.chipText}>💻 Laptop saving tips?</Text>
-            </TouchableOpacity>
-          </ScrollView>
-
-          {/* Input field */}
-          <View style={styles.chatInputWrapper}>
-            <TextInput
-              style={styles.chatTextInput}
-              placeholder="Ask Tally a question..."
-              placeholderTextColor="#9CA3AF"
-              value={chatInput}
-              onChangeText={setChatInput}
-              onSubmitEditing={() => handleSendMessage(chatInput)}
-            />
-            <TouchableOpacity
-              style={[styles.chatSendButton, !chatInput.trim() && styles.chatSendButtonDisabled]}
-              onPress={() => handleSendMessage(chatInput)}
-              activeOpacity={0.7}
-              disabled={!chatInput.trim() || isTyping}
-            >
-              <Ionicons name="send" size={16} color="#FFFFFF" />
-            </TouchableOpacity>
-          </View>
         </View>
       </ScrollView>
     </SafeAreaView>
@@ -930,11 +790,11 @@ const styles = StyleSheet.create({
     color: "#4B2C40",
   },
   coachRecommendationCardItem: {
-    backgroundColor: "rgba(75, 44, 64, 0.05)",
+    backgroundColor: "#FFFFFF",
     padding: 16,
     borderRadius: 12,
     borderWidth: 1,
-    borderColor: "rgba(75, 44, 64, 0.1)",
+    borderColor: "#EAEAEA",
     marginTop: 10,
   },
   coachCardTopMainRow: {
@@ -944,8 +804,8 @@ const styles = StyleSheet.create({
     marginBottom: -4,
   },
   coachCardExpanded: {
-    borderColor: "#4B2C40",
-    backgroundColor: "rgba(75, 44, 64, 0.08)",
+    borderColor: "#6442E5",
+    backgroundColor: "#F7F5FF",
   },
   expandedTipBodyText: {
     fontSize: 12,
@@ -953,7 +813,7 @@ const styles = StyleSheet.create({
     lineHeight: 18,
     marginTop: 10,
     borderTopWidth: 1,
-    borderColor: "rgba(75, 44, 64, 0.1)",
+    borderColor: "#EAEAEA",
     paddingTop: 8,
   },
   chatSectionContainer: {
