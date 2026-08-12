@@ -5,17 +5,15 @@ import DateTimePicker, {
 import { Stack, useLocalSearchParams, useRouter } from "expo-router";
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import {
-    Modal,
     PanResponder,
     Platform,
-    Pressable,
     SafeAreaView,
     ScrollView,
     StyleSheet,
     Text,
     TextInput,
     TouchableOpacity,
-    View,
+    View
 } from "react-native";
 import { MOCK_RECIPIENTS, useAppStore } from "../src/store";
 
@@ -34,9 +32,6 @@ export default function TransactionHistoryScreen() {
   >("all");
   const [selectedDate, setSelectedDate] = useState(new Date());
   const [showDatePicker, setShowDatePicker] = useState(false);
-  const [selectedTransaction, setSelectedTransaction] = useState<any | null>(
-    null,
-  );
 
   useEffect(() => {
     setSelectedCategory(params.category ?? null);
@@ -227,7 +222,12 @@ export default function TransactionHistoryScreen() {
                 <TouchableOpacity
                   key={tx.id}
                   style={styles.row}
-                  onPress={() => setSelectedTransaction(tx)}
+                  onPress={() =>
+                    router.push({
+                      pathname: "/transaction-details",
+                      params: { id: tx.id },
+                    })
+                  }
                 >
                   <View
                     style={[
@@ -274,53 +274,6 @@ export default function TransactionHistoryScreen() {
           )}
         </View>
       </ScrollView>
-
-      <Modal
-        visible={Boolean(selectedTransaction)}
-        transparent
-        animationType="slide"
-      >
-        <Pressable
-          style={styles.modalBackdrop}
-          onPress={() => setSelectedTransaction(null)}
-        >
-          <Pressable style={styles.modalSheet}>
-            <Text style={styles.modalTitle}>Receipt</Text>
-            {selectedTransaction ? (
-              <View style={styles.receiptBody}>
-                <Text style={styles.receiptLabel}>Title</Text>
-                <Text style={styles.receiptText}>
-                  {normalizeTransferTitle(selectedTransaction.title)}
-                </Text>
-                <Text style={styles.receiptLabel}>Amount</Text>
-                <Text style={styles.receiptText}>
-                  {formatCurrency(selectedTransaction.amount)}
-                </Text>
-                <Text style={styles.receiptLabel}>Category</Text>
-                <Text style={styles.receiptText}>
-                  {selectedTransaction.category}
-                </Text>
-                <Text style={styles.receiptLabel}>Date</Text>
-                <Text style={styles.receiptText}>
-                  {new Date(selectedTransaction.date).toLocaleDateString(
-                    "en-US",
-                  )}
-                </Text>
-                <Text style={styles.receiptLabel}>Type</Text>
-                <Text style={styles.receiptText}>
-                  {selectedTransaction.type.toUpperCase()}
-                </Text>
-                <TouchableOpacity
-                  style={styles.receiptCloseBtn}
-                  onPress={() => setSelectedTransaction(null)}
-                >
-                  <Text style={styles.receiptCloseText}>Close</Text>
-                </TouchableOpacity>
-              </View>
-            ) : null}
-          </Pressable>
-        </Pressable>
-      </Modal>
 
       {showDatePicker && (
         <DateTimePicker

@@ -4,6 +4,7 @@ import {
   Modal,
   SafeAreaView,
   ScrollView,
+  Share,
   StyleSheet,
   Text,
   TouchableOpacity,
@@ -13,6 +14,7 @@ import {
 } from "react-native";
 import Svg, { Path } from "react-native-svg";
 import { useAppStore } from "../../src/store";
+import { getThemePalette } from "../../src/theme";
 
 type Timeframe = "weekly" | "monthly" | "yearly";
 const options: Record<Timeframe, string[]> = {
@@ -47,11 +49,13 @@ const categoryMeta: Record<
 };
 
 export default function AnalyticsScreen() {
-  const { transactions: rawTransactions = [] } = useAppStore();
+  const { transactions: rawTransactions = [], themePreference } = useAppStore();
   const transactions = rawTransactions as any[];
+  const theme = getThemePalette(themePreference);
   const [timeframe, setTimeframe] = useState<Timeframe>("monthly");
   const [period, setPeriod] = useState("May");
   const [showPeriods, setShowPeriods] = useState(false);
+  const [showSharePreview, setShowSharePreview] = useState(false);
 
   const chooseTimeframe = (next: Timeframe) => {
     setTimeframe(next);
@@ -208,15 +212,55 @@ export default function AnalyticsScreen() {
 
   const chartLabel = timeframe === "yearly" ? `${selectedPeriod}` : `${period}`;
 
+  const reportTitle = `TallySpends ${chartLabel} analytics report`;
+  const financialScore = 82;
+
+  const reportSummary = `${formatCurrency(totals.spent)} spent, ${formatCurrency(totals.income)} earned, and ${formatCurrency(totals.saved)} saved during ${chartLabel}.`;
+
+  const insightText =
+    "Food spending was higher this week than last month. A ₦35 weekly cap could keep your budget on track.";
+
+  const shareBody = `${reportTitle}
+
+Financial score: ${financialScore}/100
+${reportSummary}
+
+Top categories:
+${categoryTotals
+  .slice(0, 3)
+  .map(
+    (item) => `• ${item.name}: ${item.share} (${formatCurrency(item.amount)})`,
+  )
+  .join("\n")}
+
+Insight:
+${insightText}`;
+
+  const handleShareReport = async () => {
+    try {
+      await Share.share({
+        title: reportTitle,
+        message: shareBody,
+      });
+    } catch (error) {
+      console.error("Error sharing analytics report:", error);
+    }
+  };
+
   return (
-    <SafeAreaView style={[styles.safeArea, { backgroundColor: theme.background }]}> 
+    <SafeAreaView
+      style={[styles.safeArea, { backgroundColor: theme.background }]}
+    >
       <ScrollView
         contentContainerStyle={styles.content}
         showsVerticalScrollIndicator={false}
       >
         <View style={styles.header}>
           <Text style={styles.title}>Analytics</Text>
-          <TouchableOpacity style={styles.share}>
+          <TouchableOpacity
+            style={styles.share}
+            onPress={() => setShowSharePreview(true)}
+          >
             <Ionicons name="share-outline" size={19} color="#20142A" />
           </TouchableOpacity>
         </View>
@@ -251,7 +295,7 @@ export default function AnalyticsScreen() {
           </TouchableOpacity>
         </View>
 
-        <View style={[styles.hero, { backgroundColor: theme.background }]}> 
+        <View style={[styles.hero, { backgroundColor: theme.background }]}>
           <Text style={styles.overline}>FINANCIAL HEALTH</Text>
           <View style={styles.heroRow}>
             <Text style={styles.score}>82</Text>
@@ -267,7 +311,12 @@ export default function AnalyticsScreen() {
           </Text>
         </View>
 
-        <View style={[styles.trendCard, { backgroundColor: theme.surface, borderColor: theme.border }]}> 
+        <View
+          style={[
+            styles.trendCard,
+            { backgroundColor: theme.surface, borderColor: theme.border },
+          ]}
+        >
           <View style={styles.cardHeader}>
             <View>
               <Text style={styles.cardLabel}>SPENDING OVERVIEW</Text>
@@ -459,6 +508,104 @@ export default function AnalyticsScreen() {
                     )}
                   </TouchableOpacity>
                 ))}
+              </View>
+            </TouchableWithoutFeedback>
+          </View>
+        </TouchableWithoutFeedback>
+      </Modal>
+
+      <Modal
+        transparent
+        visible={showSharePreview}
+        animationType="slide"
+        onRequestClose={() => setShowSharePreview(false)}
+      >
+        <TouchableWithoutFeedback onPress={() => setShowSharePreview(false)}>
+          <View style={styles.overlay}>
+            <TouchableWithoutFeedback>
+              <View style={[styles.menu, styles.shareModal]}>
+                <View style={styles.shareHeader}>
+                  <Text style={styles.menuTitle}>Monthly Insights</Text>
+                  <TouchableOpacity onPress={() => setShowSharePreview(false)}>
+                    <Ionicons name="close" size={22} color="#20142A" />
+                  </TouchableOpacity>
+                </View>
+                <Text style={styles.shareSubtitle}>
+                  {chartLabel} financial summary
+                </Text>
+
+                <View style={styles.sharePreviewCard}>
+                  <View style={styles.sharePreviewTop}>
+                    <View style={styles.sharePreviewLogo}>
+                      <Text style={styles.sharePreviewScore}>
+                        {financialScore}
+                      </Text>
+                      <Text style={styles.sharePreviewScoreSuffix}>/100</Text>
+                    </View>
+                    <View style={styles.sharePreviewMeta}>
+                      <Text style={styles.sharePreviewMetaLabel}>
+                        Financial health
+                      </Text>
+                      <Text style={styles.sharePreviewMetaValue}>
+                        {chartLabel}
+                      </Text>
+                    </View>
+                  </View>
+
+                  <View style={styles.sharePreviewBody}>
+                    <Text style={styles.sharePreviewTitle}>{reportTitle}</Text>
+                    <Text style={styles.sharePreviewSubtitle}>
+                      {reportSummary}
+                    </Text>
+                  </View>
+
+                  <View style={styles.shareStats}>
+                    <View style={styles.shareStatCard}>
+                      <Text style={styles.shareStatLabel}>Spent</Text>
+                      <Text style={styles.shareStatValue}>
+                        {formatCurrency(totals.spent)}
+                      </Text>
+                    </View>
+                    <View style={styles.shareStatCard}>
+                      <Text style={styles.shareStatLabel}>Income</Text>
+                      <Text style={styles.shareStatValue}>
+                        {formatCurrency(totals.income)}
+                      </Text>
+                    </View>
+                    <View style={styles.shareStatCard}>
+                      <Text style={styles.shareStatLabel}>Saved</Text>
+                      <Text style={styles.shareStatValue}>
+                        {formatCurrency(totals.saved)}
+                      </Text>
+                    </View>
+                  </View>
+
+                  <View style={styles.shareDivider} />
+
+                  <Text style={styles.sectionLabel}>Top categories</Text>
+                  {categoryTotals.slice(0, 3).map((item) => (
+                    <View key={item.name} style={styles.shareCategoryRow}>
+                      <Text style={styles.shareCategoryName}>{item.name}</Text>
+                      <Text style={styles.shareCategoryValue}>
+                        {item.share}
+                      </Text>
+                    </View>
+                  ))}
+
+                  <View style={styles.shareInsightCard}>
+                    <Text style={styles.shareInsightLabel}>Insight</Text>
+                    <Text style={styles.shareInsightText}>{insightText}</Text>
+                  </View>
+                </View>
+
+                <View style={styles.shareFooter}>
+                  <TouchableOpacity
+                    style={styles.shareActionButton}
+                    onPress={handleShareReport}
+                  >
+                    <Text style={styles.shareActionText}>Share report</Text>
+                  </TouchableOpacity>
+                </View>
               </View>
             </TouchableWithoutFeedback>
           </View>
@@ -794,4 +941,177 @@ const styles = StyleSheet.create({
   },
   menuText: { color: "#7E7284", fontSize: 14 },
   menuActive: { color: "#20142A", fontWeight: "700" },
+  shareModal: {
+    borderTopLeftRadius: 25,
+    borderTopRightRadius: 25,
+    marginTop: 90,
+    paddingBottom: 30,
+  },
+  shareHeader: {
+    alignItems: "center",
+    flexDirection: "row",
+    justifyContent: "space-between",
+    marginBottom: 12,
+  },
+  shareSubtitle: {
+    color: "#624B6A",
+    fontSize: 13,
+    fontWeight: "700",
+    marginBottom: 10,
+  },
+  shareBlurb: {
+    color: "#7E7284",
+    fontSize: 13,
+    lineHeight: 20,
+    marginBottom: 18,
+  },
+  shareStats: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    gap: 10,
+    marginBottom: 18,
+  },
+  shareStatCard: {
+    backgroundColor: "#F7F0F8",
+    borderRadius: 18,
+    flex: 1,
+    padding: 14,
+  },
+  shareStatLabel: {
+    color: "#8C7D93",
+    fontSize: 10,
+    fontWeight: "700",
+    marginBottom: 6,
+  },
+  shareStatValue: {
+    color: "#20142A",
+    fontSize: 16,
+    fontWeight: "700",
+  },
+  sectionLabel: {
+    color: "#8C7D93",
+    fontSize: 11,
+    fontWeight: "700",
+    letterSpacing: 0.75,
+    marginBottom: 10,
+  },
+  shareCategoryRow: {
+    alignItems: "center",
+    flexDirection: "row",
+    justifyContent: "space-between",
+    paddingVertical: 12,
+    borderBottomColor: "#EFE9F0",
+    borderBottomWidth: 1,
+  },
+  shareCategoryName: {
+    color: "#2C2033",
+    fontSize: 14,
+    fontWeight: "600",
+  },
+  shareCategoryValue: {
+    color: "#624B6A",
+    fontSize: 14,
+    fontWeight: "700",
+  },
+  sharePreviewCard: {
+    backgroundColor: "#FFF",
+    borderRadius: 24,
+    padding: 18,
+    marginBottom: 18,
+    borderWidth: 1,
+    borderColor: "#F1ECF5",
+  },
+  sharePreviewTop: {
+    alignItems: "center",
+    flexDirection: "row",
+    justifyContent: "space-between",
+    marginBottom: 18,
+  },
+  sharePreviewLogo: {
+    alignItems: "center",
+    backgroundColor: "#F3EBF8",
+    borderRadius: 18,
+    height: 56,
+    justifyContent: "center",
+    width: 56,
+  },
+  sharePreviewScore: {
+    color: "#20142A",
+    fontSize: 20,
+    fontWeight: "800",
+  },
+  sharePreviewScoreSuffix: {
+    color: "#7D5B8A",
+    fontSize: 12,
+    fontWeight: "700",
+  },
+  sharePreviewMeta: { flex: 1, marginLeft: 16 },
+  sharePreviewMetaLabel: {
+    color: "#8B7A96",
+    fontSize: 10,
+    fontWeight: "700",
+    letterSpacing: 1,
+    textTransform: "uppercase",
+  },
+  sharePreviewMetaValue: {
+    color: "#302437",
+    fontSize: 13,
+    fontWeight: "700",
+    marginTop: 4,
+  },
+  sharePreviewBody: {
+    marginBottom: 18,
+  },
+  sharePreviewTitle: {
+    color: "#20142A",
+    fontSize: 16,
+    fontWeight: "800",
+    marginBottom: 8,
+    lineHeight: 22,
+  },
+  sharePreviewSubtitle: {
+    color: "#6D5A76",
+    fontSize: 13,
+    lineHeight: 20,
+  },
+  shareDivider: {
+    backgroundColor: "#F0EBF1",
+    height: 1,
+    marginBottom: 18,
+  },
+  shareInsightCard: {
+    backgroundColor: "#F5F0F8",
+    borderRadius: 18,
+    marginTop: 16,
+    padding: 16,
+  },
+  shareInsightLabel: {
+    color: "#7E6F90",
+    fontSize: 11,
+    fontWeight: "700",
+    letterSpacing: 0.75,
+    marginBottom: 10,
+    textTransform: "uppercase",
+  },
+  shareInsightText: {
+    color: "#20142A",
+    fontSize: 14,
+    lineHeight: 20,
+  },
+  shareFooter: {
+    alignItems: "center",
+    marginTop: 22,
+  },
+  shareActionButton: {
+    alignItems: "center",
+    backgroundColor: "#312147",
+    borderRadius: 16,
+    paddingVertical: 14,
+    width: "100%",
+  },
+  shareActionText: {
+    color: "#FFF",
+    fontSize: 14,
+    fontWeight: "700",
+  },
 });

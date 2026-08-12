@@ -2,15 +2,15 @@ import { Ionicons } from "@expo/vector-icons";
 import { Stack, useRouter } from "expo-router";
 import React from "react";
 import {
-  SafeAreaView,
-  ScrollView,
-  StyleSheet,
-  Text,
-  TouchableOpacity,
-  View,
+    SafeAreaView,
+    ScrollView,
+    StyleSheet,
+    Text,
+    TouchableOpacity,
+    View,
 } from "react-native";
 import { useAppStore } from "../../src/store";
-import { APP_COLORS } from "../../src/theme";
+import { APP_COLORS, getThemePalette } from "../../src/theme";
 
 const MENU_ITEMS = [
   {
@@ -76,7 +76,9 @@ export default function MoreScreen() {
   const theme = getThemePalette(themePreference);
 
   return (
-    <SafeAreaView style={[styles.container, { backgroundColor: theme.background }]}> 
+    <SafeAreaView
+      style={[styles.container, { backgroundColor: theme.background }]}
+    >
       {/* Hides the default native Expo navigation headers globally */}
       <Stack.Screen options={{ headerShown: false }} />
 
@@ -88,12 +90,17 @@ export default function MoreScreen() {
           onPress={() => router.push("/profile")}
           activeOpacity={0.7}
         >
-          <View style={[styles.avatarPlaceholder, { backgroundColor: theme.surfaceSoft }]}> 
+          <View
+            style={[
+              styles.avatarPlaceholder,
+              { backgroundColor: theme.surfaceSoft },
+            ]}
+          >
             <Ionicons name="person" size={28} color="#9BA3AF" />
           </View>
-          <Text style={styles.profileNameText}>{`HI ${
-            (username || "User").toUpperCase()
-          }`}</Text>
+          <Text style={styles.profileNameText}>{`HI ${(
+            username || "User"
+          ).toUpperCase()}`}</Text>
         </TouchableOpacity>
 
         {/* Tapping the gear icon takes the user to settings.tsx */}
@@ -114,7 +121,10 @@ export default function MoreScreen() {
         {MENU_ITEMS.map((item) => (
           <TouchableOpacity
             key={item.id}
-            style={[styles.menuCardRow, { backgroundColor: theme.surface, borderColor: theme.border }]}
+            style={[
+              styles.menuCardRow,
+              { backgroundColor: theme.surface, borderColor: theme.border },
+            ]}
             onPress={() => router.push(item.route as any)}
             activeOpacity={0.7}
           >

@@ -10,13 +10,76 @@ const getCustomCategoriesStorageKey = (usernameValue) =>
   `${DEFAULT_CUSTOM_CATEGORIES_STORAGE_KEY}_${(usernameValue || "default").replace(/[^a-zA-Z0-9_-]/g, "_")}`;
 
 export const MOCK_RECIPIENTS = [
-  { id: "rec-1", name: "Alief Wahya", username: "alief_w", initial: "AW", color: "#EEF2FF", textColor: "#4F46E5", bank: "Citibank - USD Account", isRecent: true },
-  { id: "rec-2", name: "Bayside Budget", username: "bayside_b", initial: "BB", color: "#FDF2F8", textColor: "#DB2777", bank: "Premium Ch - GBP Account", isRecent: true },
-  { id: "rec-3", name: "Cypress Carter", username: "cypress_c", initial: "CC", color: "#ECFDF5", textColor: "#059669", bank: "Basic Ch - EUR Account", isRecent: true },
-  { id: "rec-4", name: "Dahlia Dawn", username: "dahlia_d", initial: "DD", color: "#FFF9C4", textColor: "#F57F17", bank: "Deluxe Ch - AUD Account", isRecent: true },
-  { id: "rec-5", name: "Maya Sari", username: "maya_s", initial: "MS", color: "#F3E5F5", textColor: "#7B1FA2", bank: "Bank Mandiri - IDR Account", isRecent: false },
-  { id: "rec-6", name: "Ravi Kumar", username: "ravi_k", initial: "RK", color: "#E1F5FE", textColor: "#0288D1", bank: "HDFC Bank - INR Account", isRecent: false },
-  { id: "rec-7", name: "Sarah Jenkins", username: "sarah_j", initial: "SJ", color: "#E8F8F5", textColor: "#2ECC71", bank: "Citibank - USD Account", isRecent: false },
+  {
+    id: "rec-1",
+    name: "Alief Wahya",
+    username: "alief_w",
+    initial: "AW",
+    color: "#EEF2FF",
+    textColor: "#4F46E5",
+    bank: "Citibank - USD Account",
+    isRecent: true,
+  },
+  {
+    id: "rec-2",
+    name: "Bayside Budget",
+    username: "bayside_b",
+    initial: "BB",
+    color: "#FDF2F8",
+    textColor: "#DB2777",
+    bank: "Premium Ch - GBP Account",
+    isRecent: true,
+  },
+  {
+    id: "rec-3",
+    name: "Cypress Carter",
+    username: "cypress_c",
+    initial: "CC",
+    color: "#ECFDF5",
+    textColor: "#059669",
+    bank: "Basic Ch - EUR Account",
+    isRecent: true,
+  },
+  {
+    id: "rec-4",
+    name: "Dahlia Dawn",
+    username: "dahlia_d",
+    initial: "DD",
+    color: "#FFF9C4",
+    textColor: "#F57F17",
+    bank: "Deluxe Ch - AUD Account",
+    isRecent: true,
+  },
+  {
+    id: "rec-5",
+    name: "Maya Sari",
+    username: "maya_s",
+    initial: "MS",
+    color: "#F3E5F5",
+    textColor: "#7B1FA2",
+    bank: "Bank Mandiri - IDR Account",
+    isRecent: false,
+  },
+  {
+    id: "rec-6",
+    name: "Ravi Kumar",
+    username: "ravi_k",
+    initial: "RK",
+    color: "#E1F5FE",
+    textColor: "#0288D1",
+    bank: "HDFC Bank - INR Account",
+    isRecent: false,
+  },
+  {
+    id: "rec-7",
+    name: "Sarah Jenkins",
+    username: "sarah_j",
+    initial: "SJ",
+    color: "#E8F8F5",
+    textColor: "#2ECC71",
+    bank: "Citibank - USD Account",
+    isRecent: false,
+  },
 ];
 
 // Initial Transactions - type: 'income' or 'expense'
@@ -426,7 +489,12 @@ export function useAppStore() {
           "ts_cards",
           JSON.stringify([
             { id: "card-1", brand: "Visa", last4: "5682", holder: "EBUKA" },
-            { id: "card-2", brand: "Mastercard", last4: "1123", holder: "EBUKA" },
+            {
+              id: "card-2",
+              brand: "Mastercard",
+              last4: "1123",
+              holder: "EBUKA",
+            },
           ]),
         );
       }
@@ -500,32 +568,38 @@ export function useAppStore() {
     await AsyncStorage.setItem("ts_username", newUsername);
   }, []);
 
-  const addCustomCategory = useCallback(async (categoryName) => {
-    const trimmed = categoryName?.trim();
-    if (!trimmed) return;
-    const storageKey = getCustomCategoriesStorageKey(username || "ebuka");
-    setCustomCategoriesState((prev) => {
-      const next = prev.includes(trimmed) ? prev : [...prev, trimmed];
-      AsyncStorage.setItem(storageKey, JSON.stringify(next));
-      return next;
-    });
-  }, [username]);
+  const addCustomCategory = useCallback(
+    async (categoryName) => {
+      const trimmed = categoryName?.trim();
+      if (!trimmed) return;
+      const storageKey = getCustomCategoriesStorageKey(username || "ebuka");
+      setCustomCategoriesState((prev) => {
+        const next = prev.includes(trimmed) ? prev : [...prev, trimmed];
+        AsyncStorage.setItem(storageKey, JSON.stringify(next));
+        return next;
+      });
+    },
+    [username],
+  );
 
-  const deleteCustomCategory = useCallback(async (categoryName) => {
-    const trimmed = categoryName?.trim();
-    if (!trimmed) return;
-    const storageKey = getCustomCategoriesStorageKey(username || "ebuka");
-    setCustomCategoriesState((prev) => {
-      const next = prev.filter((item) => item !== trimmed);
-      AsyncStorage.setItem(storageKey, JSON.stringify(next));
-      return next;
-    });
-  }, [username]);
+  const deleteCustomCategory = useCallback(
+    async (categoryName) => {
+      const trimmed = categoryName?.trim();
+      if (!trimmed) return;
+      const storageKey = getCustomCategoriesStorageKey(username || "ebuka");
+      setCustomCategoriesState((prev) => {
+        const next = prev.filter((item) => item !== trimmed);
+        AsyncStorage.setItem(storageKey, JSON.stringify(next));
+        return next;
+      });
+    },
+    [username],
+  );
 
   const addTransaction = useCallback(async (newTx) => {
     const tx = {
       ...newTx,
-      id: `tx-${Date.now()}`,
+      id: newTx.id ?? `tx-${Date.now()}`,
     };
     setTransactions((prev) => {
       const next = [tx, ...prev];
@@ -618,8 +692,8 @@ export function useAppStore() {
     );
     await AsyncStorage.setItem("ts_username", "ebuka");
     await AsyncStorage.setItem(
-              savedCards,
-              setSavedCards,
+      savedCards,
+      setSavedCards,
       getCustomCategoriesStorageKey("ebuka"),
       JSON.stringify([]),
     );

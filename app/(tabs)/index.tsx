@@ -2,14 +2,15 @@ import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import {
-    Image,
-    ScrollView,
-    StyleSheet,
-    Text,
-    TouchableOpacity,
-    View,
+  Image,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
 } from "react-native";
 import { MOCK_RECIPIENTS, useAppStore } from "../../src/store";
+import { getThemePalette } from "../../src/theme";
 
 const normalizeTransferTitle = (title: string) => {
   const transferRegex = /(Transfer to\s+)@([a-zA-Z0-9_]+)/i;
@@ -223,7 +224,7 @@ export default function App() {
   }, [jointIndex]);
 
   return (
-    <View style={[styles.screen, { backgroundColor: theme.background }]}> 
+    <View style={[styles.screen, { backgroundColor: theme.background }]}>
       <ScrollView
         style={styles.container}
         contentContainerStyle={styles.contentContainer}
@@ -236,7 +237,12 @@ export default function App() {
             onPress={() => router.push("/profile")}
             activeOpacity={0.7}
           >
-            <View style={[styles.avatarWrapper, { backgroundColor: theme.accentSoft }]}> 
+            <View
+              style={[
+                styles.avatarWrapper,
+                { backgroundColor: theme.accentSoft },
+              ]}
+            >
               <Ionicons name="person" size={20} color="#333" />
             </View>
             <View>
@@ -685,6 +691,12 @@ const styles = StyleSheet.create({
     height: 36,
     justifyContent: "center",
     width: 36,
+    // subtle shadow for depth
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.06,
+    shadowRadius: 6,
+    elevation: 3,
   },
   balance: { alignItems: "center", paddingBottom: 27, paddingTop: 48 },
   balanceLabel: {

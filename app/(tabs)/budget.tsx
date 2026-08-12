@@ -7,14 +7,14 @@ import {
     StyleSheet,
     Text,
     TouchableOpacity,
-    View
+    View,
 } from "react-native";
 
 export default function BudgetScreen() {
   const router = useRouter();
 
   return (
-    <SafeAreaView style={[styles.safeArea, { backgroundColor: theme.background }]}> 
+    <SafeAreaView style={styles.safeArea}>
       <ScrollView
         style={styles.container}
         contentContainerStyle={styles.contentContainer}
