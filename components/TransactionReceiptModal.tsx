@@ -1,14 +1,15 @@
 import { Ionicons } from "@expo/vector-icons";
-import React, { useMemo } from "react";
+import * as Sharing from "expo-sharing";
+import React, { useMemo, useRef } from "react";
 import {
     Modal,
     Pressable,
-    Share,
     StyleSheet,
     Text,
     TouchableOpacity,
     View,
 } from "react-native";
+import { captureRef } from "react-native-view-shot";
 import { MOCK_RECIPIENTS } from "../src/store";
 
 type Props = {
@@ -24,11 +25,12 @@ export default function TransactionReceiptModal({
   onClose,
   onViewReceipt,
 }: Props) {
+  const receiptRef = useRef<View>(null);
   const normalizedTitle = useMemo(() => {
     if (!transaction?.title) return "Transaction Receipt";
     return transaction.title.replace(
       /(Transfer to\s+)@([a-zA-Z0-9_]+)/i,
-      (_, prefix, username) => {
+      (_: string, prefix: string, username: string) => {
         const recipient = MOCK_RECIPIENTS.find(
           (r) => r.username.toLowerCase() === username.toLowerCase(),
         );
@@ -63,18 +65,22 @@ export default function TransactionReceiptModal({
       })}`
     : "-";
 
-  const shareMessage = transaction
-    ? `TallySpends receipt\n\n${normalizedTitle}\nAmount: ${amountText}\nCategory: ${transaction.category || "-"}\nType: ${transaction.type?.toUpperCase() || "-"}\nDate: ${formattedDate}\nTime: ${formattedTime}\nTransaction ID: ${transaction.id}`
-    : "";
-
   const handleShare = async () => {
     try {
-      await Share.share({
-        title: "TallySpends Receipt",
-        message: shareMessage,
+      if (!receiptRef.current || !(await Sharing.isAvailableAsync())) return;
+      const uri = await captureRef(receiptRef.current, {
+        format: "png",
+        quality: 1,
+        result: "tmpfile",
+        width: 1080,
       });
-    } catch (error) {
-      console.error("Could not share receipt", error);
+      await Sharing.shareAsync(uri, {
+        dialogTitle: "Share TallySpends receipt",
+        mimeType: "image/png",
+        UTI: "public.png",
+      });
+    } catch {
+      // The receipt remains open if sharing is cancelled or unavailable.
     }
   };
 
@@ -88,7 +94,7 @@ export default function TransactionReceiptModal({
       onRequestClose={onClose}
     >
       <Pressable style={styles.backdrop} onPress={onClose}>
-        <Pressable style={styles.card}>
+        <Pressable ref={receiptRef} collapsable={false} style={styles.card}>
           <View style={[styles.edgeNotch, styles.edgeBottomLeft]} />
           <View style={[styles.edgeNotch, styles.edgeBottomRight]} />
 
@@ -149,6 +155,7 @@ export default function TransactionReceiptModal({
 
           <View style={styles.bottomRow}>
             <TouchableOpacity style={styles.shareButton} onPress={handleShare}>
+              <Ionicons name="share-outline" size={17} color="#FFFFFF" />
               <Text style={styles.shareButtonText}>Share receipt</Text>
             </TouchableOpacity>
             {onViewReceipt ? (
@@ -336,4 +343,23 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: "700",
   },
+  cardHeader: { flexDirection: "row", justifyContent: "space-between", alignItems: "flex-start" },
+  cardLabel: { color: "#7453B8", fontSize: 12, fontWeight: "800", letterSpacing: 1.4, textTransform: "uppercase" },
+  cardTitle: { color: "#251A2B", fontSize: 19, fontWeight: "800", marginTop: 6 },
+  statusBadge: { flexDirection: "row", alignItems: "center", backgroundColor: "#E7F6ED", paddingHorizontal: 10, paddingVertical: 7, borderRadius: 16, gap: 4 },
+  statusText: { color: "#275C4E", fontSize: 12, fontWeight: "800" },
+  amountBlock: { alignItems: "center", paddingVertical: 26 },
+  amountLabel: { color: "#83798A", fontSize: 13, fontWeight: "600" },
+  amountValue: { color: "#24182D", fontSize: 34, fontWeight: "800", marginTop: 7 },
+  amountMeta: { color: "#918999", fontSize: 11, fontWeight: "700", marginTop: 8 },
+  infoList: { borderTopWidth: 1, borderTopColor: "#F0EBF3" },
+  infoRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", paddingVertical: 13, borderBottomWidth: 1, borderBottomColor: "#F3EEF5", gap: 16 },
+  infoLabel: { color: "#8A8290", fontSize: 12, fontWeight: "600" },
+  infoValue: { color: "#2C2533", fontSize: 13, fontWeight: "700", flex: 1, textAlign: "right" },
+  divider: { height: 1, backgroundColor: "#EDE8F0", marginVertical: 18 },
+  bottomRow: { flexDirection: "row", gap: 10 },
+  shareButton: { flex: 1, minHeight: 47, backgroundColor: "#6541C7", borderRadius: 13, justifyContent: "center", alignItems: "center", flexDirection: "row", gap: 7 },
+  shareButtonText: { color: "#FFFFFF", fontSize: 13, fontWeight: "800" },
+  viewButton: { flex: 1, minHeight: 47, borderWidth: 1, borderColor: "#DCD2EF", borderRadius: 13, justifyContent: "center", alignItems: "center" },
+  viewButtonText: { color: "#6541C7", fontSize: 13, fontWeight: "800" },
 });

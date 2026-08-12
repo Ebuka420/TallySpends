@@ -1,5 +1,5 @@
 import { Ionicons } from "@expo/vector-icons";
-import React, { useMemo, useState } from "react";
+import React, { useMemo, useState, useRef } from "react";
 import {
   Modal,
   SafeAreaView,
@@ -12,6 +12,7 @@ import {
   View,
   type DimensionValue,
 } from "react-native";
+// view-shot and expo-sharing are imported dynamically at runtime
 import Svg, { Path } from "react-native-svg";
 import { useAppStore } from "../../src/store";
 import { getThemePalette } from "../../src/theme";
@@ -56,6 +57,7 @@ export default function AnalyticsScreen() {
   const [period, setPeriod] = useState("May");
   const [showPeriods, setShowPeriods] = useState(false);
   const [showSharePreview, setShowSharePreview] = useState(false);
+  const shareRef = useRef<any>(null);
 
   const chooseTimeframe = (next: Timeframe) => {
     setTimeframe(next);
@@ -238,10 +240,57 @@ ${insightText}`;
 
   const handleShareReport = async () => {
     try {
-      await Share.share({
-        title: reportTitle,
-        message: shareBody,
-      });
+      if (shareRef.current) {
+        // Try to dynamically load capture + sharing modules (optional deps)
+        let capture: any = null;
+        let SharingModule: any = null;
+        try {
+          // eslint-disable-next-line @typescript-eslint/ban-ts-comment
+          // @ts-ignore - optional dependency, require at runtime if installed
+          const vs: any = require("react-native-view-shot");
+          capture = vs?.captureRef || vs?.captureScreen || null;
+        } catch (e) {
+          // view-shot not available
+        }
+
+        try {
+          // eslint-disable-next-line @typescript-eslint/ban-ts-comment
+          // @ts-ignore - optional dependency, require at runtime if installed
+          SharingModule = require("expo-sharing");
+        } catch (e) {
+          // expo-sharing not available
+        }
+
+        if (capture) {
+          const uri = await capture(shareRef.current, {
+            format: "png",
+            quality: 0.9,
+          });
+
+          if (SharingModule && SharingModule.isAvailableAsync) {
+            try {
+              const available = await SharingModule.isAvailableAsync();
+              if (available && SharingModule.shareAsync) {
+                await SharingModule.shareAsync(uri, { dialogTitle: reportTitle });
+                return;
+              }
+            } catch (e) {
+              // fall back
+            }
+          }
+
+          // Fallback to native Share API with file URL
+          try {
+            await Share.share({ url: uri, title: reportTitle } as any);
+            return;
+          } catch (e) {
+            // fall through to text share
+          }
+        }
+      }
+
+      // Final fallback: share as text
+      await Share.share({ title: reportTitle, message: shareBody });
     } catch (error) {
       console.error("Error sharing analytics report:", error);
     }
@@ -534,7 +583,7 @@ ${insightText}`;
                   {chartLabel} financial summary
                 </Text>
 
-                <View style={styles.sharePreviewCard}>
+                <View ref={shareRef} collapsable={false} style={styles.sharePreviewCard}>
                   <View style={styles.sharePreviewTop}>
                     <View style={styles.sharePreviewLogo}>
                       <Text style={styles.sharePreviewScore}>

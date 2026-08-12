@@ -1,19 +1,21 @@
 import { Ionicons } from "@expo/vector-icons";
 import { Stack, useLocalSearchParams, useRouter } from "expo-router";
-import React, { useMemo } from "react";
+import * as Sharing from "expo-sharing";
+import React, { useMemo, useRef } from "react";
 import {
     SafeAreaView,
     ScrollView,
-    Share,
     StyleSheet,
     Text,
     TouchableOpacity,
     View,
 } from "react-native";
+import { captureRef } from "react-native-view-shot";
 import { MOCK_RECIPIENTS, useAppStore } from "../src/store";
 
 export default function TransactionDetailsScreen() {
   const router = useRouter();
+  const receiptRef = useRef<View>(null);
   const params = useLocalSearchParams<{ id?: string }>();
   const { transactions: rawTransactions = [] } = useAppStore();
   const transactions = rawTransactions as any[];
@@ -25,7 +27,7 @@ export default function TransactionDetailsScreen() {
   const normalizedTitle = transaction?.title
     ? transaction.title.replace(
         /(Transfer to\s+)@([a-zA-Z0-9_]+)/i,
-        (_, prefix, username) => {
+        (_: string, prefix: string, username: string) => {
           const recipient = MOCK_RECIPIENTS.find(
             (r) => r.username.toLowerCase() === username.toLowerCase(),
           );
@@ -35,6 +37,10 @@ export default function TransactionDetailsScreen() {
         },
       )
     : "Transaction Receipt";
+
+  const recipientUsername = transaction?.title?.match(
+    /Transfer to\s+@([a-zA-Z0-9_]+)/i,
+  )?.[1];
 
   const formatCurrency = (value: number) =>
     `₦${value.toLocaleString(undefined, {
@@ -59,15 +65,22 @@ export default function TransactionDetailsScreen() {
     : "";
 
   const handleShareDetails = async () => {
-    if (!transaction) return;
-    const message = `TallySpends receipt\n\n${normalizedTitle}\nAmount: ${formatCurrency(transaction.amount)}\nCategory: ${transaction.category ?? "-"}\nType: ${transaction.type?.toUpperCase() ?? "-"}\nDate: ${formattedDate}\nTime: ${formattedTime}\nTransaction ID: ${transaction.id}`;
+    if (!transaction || !receiptRef.current) return;
     try {
-      await Share.share({
-        title: "TallySpends Receipt",
-        message,
+      if (!(await Sharing.isAvailableAsync())) return;
+      const uri = await captureRef(receiptRef.current, {
+        format: "png",
+        quality: 1,
+        result: "tmpfile",
+        width: 1080,
       });
-    } catch (error) {
-      console.error("Unable to share receipt", error);
+      await Sharing.shareAsync(uri, {
+        dialogTitle: "Share TallySpends receipt",
+        mimeType: "image/png",
+        UTI: "public.png",
+      });
+    } catch {
+      // Keep the receipt on screen when sharing is cancelled or unavailable.
     }
   };
 
@@ -89,7 +102,7 @@ export default function TransactionDetailsScreen() {
       </View>
 
       <ScrollView contentContainerStyle={styles.content}>
-        <View style={styles.receiptCard}>
+        <View ref={receiptRef} collapsable={false} style={styles.receiptCard}>
           <View style={[styles.edgeNotch, styles.edgeBottomLeft]} />
           <View style={[styles.edgeNotch, styles.edgeBottomRight]} />
 
@@ -127,6 +140,16 @@ export default function TransactionDetailsScreen() {
               </Text>
             </View>
           </View>
+
+          {recipientUsername ? (
+            <View style={styles.detailGrid}>
+              <View style={styles.detailBlock}>
+                <Text style={styles.detailLabel}>Recipient</Text>
+                <Text style={styles.detailValue}>@{recipientUsername}</Text>
+              </View>
+              <View style={styles.detailBlock} />
+            </View>
+          ) : null}
 
           <View style={styles.detailGrid}>
             <View style={styles.detailBlock}>

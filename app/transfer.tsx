@@ -45,9 +45,10 @@ export default function TransferScreen() {
   const [scanned, setScanned] = useState(false);
   const [permission, requestPermission] = useCameraPermissions();
   const [showTransferModal, setShowTransferModal] = useState(false);
+  const [transferStep, setTransferStep] = useState<"amount" | "review" | "success">("amount");
   const [showAddRecipientModal, setShowAddRecipientModal] = useState(false);
   const [newRecipientUsername, setNewRecipientUsername] = useState("");
-  const [quickAmounts] = useState([100, 1000, 5000, 10000, 20000, 50000]);
+  const quickAmounts = [500, 2000, 10000];
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
   const [customCategory, setCustomCategory] = useState("");
   const [customCategoryInput, setCustomCategoryInput] = useState("");
@@ -130,6 +131,7 @@ export default function TransferScreen() {
     setSelectedRecipient(recipient);
     setAmount("");
     setMemo("");
+    setTransferStep("amount");
     setShowTransferModal(true);
   };
 
@@ -197,13 +199,10 @@ export default function TransferScreen() {
       return;
     }
 
-    const finalCategory =
-      selectedCategory === "Other"
-        ? customCategory.trim() || customCategoryInput.trim() || "Other"
-        : selectedCategory || "Other";
+    const finalCategory = memo.trim() || "Transfer";
     const newTx = {
       id: `tx-${Date.now()}`,
-      title: `Transfer to ${selectedRecipient.name}`,
+      title: `Transfer to @${selectedRecipient.username}`,
       amount: value,
       category: finalCategory,
       type: "expense",
@@ -213,14 +212,35 @@ export default function TransferScreen() {
 
     addTransaction(newTx);
     setReceiptTransaction(newTx);
-    setShowReceiptModal(true);
-    setShowTransferModal(false);
-    setAmount("");
-    setMemo("");
+    setTransferStep("success");
   };
 
   const parsedAmount = parseFloat(amount);
   const isOverBalance = !isNaN(parsedAmount) && parsedAmount > currentBalance;
+
+  const addQuickAmount = (increment: number) => {
+    const current = Number(amount.replace(/,/g, "")) || 0;
+    setAmount(String(current + increment));
+  };
+
+  const continueToReview = () => {
+    if (isNaN(parsedAmount) || parsedAmount <= 0) {
+      Alert.alert("Enter an amount", "Enter a valid transfer amount to continue.");
+      return;
+    }
+    if (isOverBalance) {
+      Alert.alert("Insufficient Funds", "You do not have enough funds to complete this transfer.");
+      return;
+    }
+    setTransferStep("review");
+  };
+
+  const closeTransferFlow = () => {
+    setShowTransferModal(false);
+    setTransferStep("amount");
+    setAmount("");
+    setMemo("");
+  };
 
   const handleDeleteCustomCategory = (category: string) => {
     Alert.alert(
@@ -641,29 +661,65 @@ export default function TransferScreen() {
         visible={showTransferModal}
         animationType="slide"
         transparent={true}
-        onRequestClose={() => setShowTransferModal(false)}
+        onRequestClose={closeTransferFlow}
       >
-        <View style={styles.modalBackdrop}>
+        <View style={styles.transferBackdrop}>
           <Pressable
             style={StyleSheet.absoluteFill}
-            onPress={() => setShowTransferModal(false)}
+            onPress={closeTransferFlow}
           />
 
           <KeyboardAvoidingView
             behavior={Platform.OS === "ios" ? "padding" : "height"}
           >
-            <View style={styles.modalContent}>
+            <View style={styles.transferSheet}>
               {/* Modal Pull Bar */}
               <View style={styles.modalPullBar} />
 
-              <View style={styles.modalHeader}>
+              {selectedRecipient && (
+                <>
+                  {transferStep !== "success" && <View style={styles.transferHeader}>
+                    {transferStep === "review" ? <TouchableOpacity onPress={() => setTransferStep("amount")}><Ionicons name="chevron-back" size={23} color="#201B2D" /></TouchableOpacity> : <View style={styles.transferHeaderSpacer} />}
+                    <Text style={styles.transferTitle}>{transferStep === "amount" ? "Send Money" : "Review Transfer"}</Text>
+                    <TouchableOpacity style={styles.transferCancelButton} onPress={closeTransferFlow}><Text style={styles.transferCancelText}>Cancel</Text></TouchableOpacity>
+                  </View>}
+                  {transferStep !== "success" && <View style={styles.transferRecipientCard}>
+                    <View style={[styles.transferAvatar, { backgroundColor: selectedRecipient.color }]}><Text style={[styles.transferAvatarText, { color: selectedRecipient.textColor }]}>{selectedRecipient.initial}</Text></View>
+                    <View><Text style={styles.transferRecipientName}>{selectedRecipient.name}</Text><Text style={styles.transferRecipientHandle}>@{selectedRecipient.username}</Text></View>
+                  </View>}
+                  {transferStep === "amount" && <ScrollView contentContainerStyle={styles.transferBody} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
+                    <Text style={styles.transferLabel}>You send</Text>
+                    <View style={[styles.transferAmountRow, isOverBalance && styles.transferAmountError]}><Text style={styles.transferCurrency}>₦</Text><TextInput style={styles.transferAmountInput} placeholder="0" placeholderTextColor="#CBC6D1" keyboardType="decimal-pad" autoFocus value={amount} onChangeText={setAmount} /></View>
+                    <View style={styles.transferQuickRow}>{quickAmounts.map((value) => <TouchableOpacity key={value} style={styles.transferQuickChip} onPress={() => addQuickAmount(value)}><Text style={styles.transferQuickText}>+{value.toLocaleString()}</Text></TouchableOpacity>)}</View>
+                    {isOverBalance && <Text style={styles.transferErrorText}>Amount exceeds your available balance</Text>}
+                    <Text style={styles.transferLabel}>Note <Text style={styles.transferOptional}>(optional)</Text></Text>
+                    <TextInput style={styles.transferNoteInput} placeholder="What's this for?" placeholderTextColor="#ABA5B4" value={memo} onChangeText={(text) => setMemo(text.slice(0, 40))} maxLength={40} multiline />
+                    <Text style={styles.transferCharacterCount}>{memo.length}/40</Text>
+                    <TouchableOpacity style={styles.transferPrimaryButton} onPress={continueToReview}><Text style={styles.transferPrimaryText}>Continue</Text></TouchableOpacity>
+                  </ScrollView>}
+                  {transferStep === "review" && <View style={styles.transferBody}>
+                    <View style={styles.transferReviewRow}><Text style={styles.transferLabel}>You send</Text><Text style={styles.transferReviewAmount}>₦{Number(amount || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}</Text></View>
+                    <View style={styles.transferReviewRow}><Text style={styles.transferLabel}>Note</Text><Text style={styles.transferReviewValue}>{memo || "No note"}</Text></View>
+                    <View style={styles.transferReviewRow}><Text style={styles.transferLabel}>Fee</Text><Text style={styles.transferFree}>Free</Text></View>
+                    <View style={styles.transferTotalRow}><Text style={styles.transferTotalLabel}>Total</Text><Text style={styles.transferTotalAmount}>₦{Number(amount || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}</Text></View>
+                    <View style={styles.transferSecurity}><View style={styles.transferSecurityIcon}><Ionicons name="shield-checkmark" size={18} color="#6742C8" /></View><View><Text style={styles.transferSecurityTitle}>Secure transfer</Text><Text style={styles.transferSecurityCopy}>Your money is safe with TallySpends.</Text></View></View>
+                    <TouchableOpacity style={styles.transferPrimaryButton} onPress={executeTransfer}><Text style={styles.transferPrimaryText}>Send Money</Text></TouchableOpacity>
+                  </View>}
+                  {transferStep === "success" && <View style={styles.transferSuccessBody}>
+                    <View style={styles.transferSuccessIcon}><Ionicons name="checkmark" size={54} color="#FFFFFF" /></View><Text style={styles.transferSuccessTitle}>Transfer Successful!</Text><Text style={styles.transferSuccessLabel}>You sent</Text><Text style={styles.transferSuccessAmount}>₦{Number(amount || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}</Text><Text style={styles.transferSuccessRecipient}>to {selectedRecipient.name}{`\n`}@{selectedRecipient.username}</Text>
+                    <TouchableOpacity style={styles.transferReceiptButton} onPress={() => { setShowTransferModal(false); router.push({ pathname: "/transaction-details", params: { id: receiptTransaction?.id } }); }}><Ionicons name="receipt-outline" size={19} color="#6742C8" /><Text style={styles.transferReceiptText}>View Receipt</Text></TouchableOpacity><TouchableOpacity style={styles.transferHomeButton} onPress={() => { closeTransferFlow(); router.replace("/"); }}><Text style={styles.transferHomeText}>Back to Home</Text></TouchableOpacity>
+                  </View>}
+                </>
+              )}
+
+              {false && <View style={styles.modalHeader}>
                 <Text style={styles.modalTitle}>Send Money</Text>
                 <TouchableOpacity onPress={() => setShowTransferModal(false)}>
                   <Ionicons name="close-circle" size={24} color="#CCCCCC" />
                 </TouchableOpacity>
-              </View>
+              </View>}
 
-              {selectedRecipient && (
+              {false && selectedRecipient && (
                 <ScrollView
                   style={styles.modalBody}
                   keyboardShouldPersistTaps="handled"
@@ -709,7 +765,6 @@ export default function TransferScreen() {
                       placeholder="0.00"
                       placeholderTextColor="#A0A0A0"
                       keyboardType="decimal-pad"
-                      autoFocus
                       value={amount}
                       onChangeText={setAmount}
                     />
@@ -931,6 +986,54 @@ export default function TransferScreen() {
 }
 
 const styles = StyleSheet.create({
+  transferBackdrop: { flex: 1, backgroundColor: "rgba(27, 20, 40, 0.38)", justifyContent: "flex-end" },
+  transferSheet: { backgroundColor: "#FFFFFF", borderTopLeftRadius: 30, borderTopRightRadius: 30, paddingHorizontal: 22, paddingBottom: Platform.OS === "ios" ? 30 : 22, maxHeight: "86%" },
+  transferHeader: { height: 47, flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
+  transferHeaderSpacer: { width: 23 },
+  transferCancelButton: { minWidth: 52, alignItems: "flex-end", paddingVertical: 8 },
+  transferCancelText: { color: "#6742C8", fontSize: 14, fontWeight: "800" },
+  transferTitle: { color: "#201B2D", fontSize: 16, fontWeight: "800" },
+  transferRecipientCard: { flexDirection: "row", alignItems: "center", backgroundColor: "#F6F3F9", borderRadius: 15, padding: 14, marginTop: 10 },
+  transferAvatar: { width: 46, height: 46, borderRadius: 23, justifyContent: "center", alignItems: "center", marginRight: 12 },
+  transferAvatarText: { fontSize: 17, fontWeight: "800" },
+  transferRecipientName: { color: "#241E31", fontSize: 15, fontWeight: "800" },
+  transferRecipientHandle: { color: "#817A8B", fontSize: 13, marginTop: 3 },
+  transferBody: { paddingTop: 31, paddingBottom: 14 },
+  transferLabel: { color: "#77707F", fontSize: 13, fontWeight: "600", marginBottom: 9 },
+  transferOptional: { fontWeight: "400", color: "#A09AA7" },
+  transferAmountRow: { flexDirection: "row", alignItems: "center", borderBottomWidth: 1.5, borderBottomColor: "#E7E2EB", paddingBottom: 10, marginBottom: 18 },
+  transferAmountError: { borderBottomColor: "#D86464" },
+  transferCurrency: { color: "#251B34", fontSize: 34, fontWeight: "800", marginRight: 5 },
+  transferAmountInput: { flex: 1, color: "#251B34", fontSize: 34, fontWeight: "800", padding: 0 },
+  transferQuickRow: { flexDirection: "row", gap: 10, marginBottom: 26 },
+  transferQuickChip: { borderWidth: 1, borderColor: "#E3DDE9", backgroundColor: "#FBFAFC", borderRadius: 18, paddingVertical: 8, paddingHorizontal: 17 },
+  transferQuickText: { color: "#5E5669", fontSize: 12, fontWeight: "700" },
+  transferErrorText: { color: "#C65050", fontSize: 12, marginTop: -17, marginBottom: 18 },
+  transferNoteInput: { height: 76, borderRadius: 13, backgroundColor: "#F7F5F8", color: "#292334", fontSize: 14, padding: 13, paddingTop: 13, textAlignVertical: "top" },
+  transferCharacterCount: { color: "#9B95A2", fontSize: 11, textAlign: "right", marginTop: -20, marginRight: 12, marginBottom: 26 },
+  transferPrimaryButton: { height: 54, borderRadius: 13, backgroundColor: "#6240C9", alignItems: "center", justifyContent: "center", marginTop: 8, shadowColor: "#6240C9", shadowOffset: { width: 0, height: 5 }, shadowOpacity: 0.18, shadowRadius: 10, elevation: 3 },
+  transferPrimaryText: { color: "#FFFFFF", fontSize: 15, fontWeight: "800" },
+  transferReviewRow: { minHeight: 50, flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
+  transferReviewAmount: { color: "#211A2D", fontSize: 17, fontWeight: "800" },
+  transferReviewValue: { color: "#211A2D", fontSize: 14, fontWeight: "700" },
+  transferFree: { color: "#3A9B5D", fontSize: 14, fontWeight: "800" },
+  transferTotalRow: { borderTopWidth: 1, borderTopColor: "#E9E4EC", paddingTop: 17, marginTop: 7, flexDirection: "row", justifyContent: "space-between" },
+  transferTotalLabel: { color: "#51495D", fontSize: 16, fontWeight: "700" },
+  transferTotalAmount: { color: "#211A2D", fontSize: 23, fontWeight: "800" },
+  transferSecurity: { flexDirection: "row", alignItems: "center", backgroundColor: "#F6F3FA", borderRadius: 13, padding: 13, marginTop: 31, marginBottom: 16 },
+  transferSecurityIcon: { width: 35, height: 35, borderRadius: 18, backgroundColor: "#EAE2FA", justifyContent: "center", alignItems: "center", marginRight: 11 },
+  transferSecurityTitle: { color: "#312740", fontSize: 12, fontWeight: "800" },
+  transferSecurityCopy: { color: "#827B8B", fontSize: 10, marginTop: 3 },
+  transferSuccessBody: { alignItems: "center", paddingTop: 62, minHeight: 525 },
+  transferSuccessIcon: { width: 82, height: 82, borderRadius: 41, backgroundColor: "#8FD5A9", justifyContent: "center", alignItems: "center", marginBottom: 28 },
+  transferSuccessTitle: { color: "#211A2D", fontSize: 21, fontWeight: "800" },
+  transferSuccessLabel: { color: "#8A8391", fontSize: 13, marginTop: 31 },
+  transferSuccessAmount: { color: "#20192B", fontSize: 29, fontWeight: "800", marginTop: 9 },
+  transferSuccessRecipient: { color: "#615B68", fontSize: 14, lineHeight: 22, textAlign: "center", marginTop: 11 },
+  transferReceiptButton: { width: "100%", height: 50, borderRadius: 12, backgroundColor: "#F6F3F8", flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 10, marginTop: 43 },
+  transferReceiptText: { color: "#493477", fontSize: 14, fontWeight: "800" },
+  transferHomeButton: { height: 43, paddingHorizontal: 20, justifyContent: "center", alignItems: "center", marginTop: 12, marginBottom: 2 },
+  transferHomeText: { color: "#6B45BE", fontSize: 14, fontWeight: "800" },
   safeArea: {
     flex: 1,
     backgroundColor: "#FAF9FB",
