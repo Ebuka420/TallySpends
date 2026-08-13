@@ -46,6 +46,13 @@ const insights = [
     tint: "#EEE4F0",
     color: "#4B2C40",
   },
+  {
+    icon: "card-outline" as const,
+    title: "Linked Cards",
+    text: "Your Netflix subscription is due tomorrow on your linked Access Bank card.",
+    tint: "#EAF2FF",
+    color: "#315A92",
+  },
 ];
 
 const ajoGroupCards = [

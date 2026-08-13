@@ -3,16 +3,23 @@ import { useRouter } from "expo-router";
 import React, { useState } from "react";
 import {
     Alert,
+    LayoutAnimation,
+    Platform,
     SafeAreaView,
     ScrollView,
     StyleSheet,
     Text,
     TextInput,
     TouchableOpacity,
+    UIManager,
     View,
 } from "react-native";
 import TransactionReceiptModal from "../components/TransactionReceiptModal";
 import { useAppStore } from "../src/store";
+
+if (Platform.OS === "android" && UIManager.setLayoutAnimationEnabledExperimental) {
+  UIManager.setLayoutAnimationEnabledExperimental(true);
+}
 
 const withdrawOptions = [
   {
@@ -45,6 +52,10 @@ export default function WithdrawScreen() {
     null,
   );
   const [isBalanceVisible, setIsBalanceVisible] = useState(true);
+  const selectWithdrawalOption = (optionId: string) => {
+    LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
+    setSelectedOption(optionId);
+  };
 
   const transactionsRaw = transactions || [];
   const totalIncome = transactionsRaw
@@ -137,7 +148,7 @@ export default function WithdrawScreen() {
                   styles.destinationCard,
                   selected && styles.destinationCardSelected,
                 ]}
-                onPress={() => setSelectedOption(option.id)}
+                onPress={() => selectWithdrawalOption(option.id)}
                 activeOpacity={0.85}
               >
                 <View
@@ -149,7 +160,7 @@ export default function WithdrawScreen() {
                   <Ionicons
                     name={option.icon as any}
                     size={20}
-                    color={selected ? "#4B2C40" : "#6B5B8B"}
+                    color={selected ? "#20142A" : "#6B5B8B"}
                   />
                 </View>
                 <View style={styles.destinationInfo}>
@@ -429,7 +440,7 @@ const styles = StyleSheet.create({
   },
   destinationCardSelected: {
     backgroundColor: "#FAF9FB",
-    borderColor: "#4B2C40",
+    borderColor: "#20142A",
   },
   destinationIcon: {
     width: 48,
@@ -467,13 +478,13 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   radioOuterSelected: {
-    borderColor: "#4B2C40",
+    borderColor: "#20142A",
   },
   radioInner: {
     width: 12,
     height: 12,
     borderRadius: 6,
-    backgroundColor: "#4B2C40",
+    backgroundColor: "#20142A",
   },
   summaryCard: {
     backgroundColor: "#FFFFFF",
@@ -517,15 +528,15 @@ const styles = StyleSheet.create({
   summaryTotalAmount: {
     fontSize: 16,
     fontWeight: "800",
-    color: "#4B2C40",
+    color: "#20142A",
   },
   primaryButton: {
-    backgroundColor: "#4B2C40",
+    backgroundColor: "#20142A",
     borderRadius: 20,
     height: 58,
     justifyContent: "center",
     alignItems: "center",
-    shadowColor: "#4B2C40",
+    shadowColor: "#20142A",
     shadowOffset: { width: 0, height: 8 },
     shadowOpacity: 0.15,
     shadowRadius: 16,

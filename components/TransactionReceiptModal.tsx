@@ -358,8 +358,8 @@ const styles = StyleSheet.create({
   infoValue: { color: "#2C2533", fontSize: 13, fontWeight: "700", flex: 1, textAlign: "right" },
   divider: { height: 1, backgroundColor: "#EDE8F0", marginVertical: 18 },
   bottomRow: { flexDirection: "row", gap: 10 },
-  shareButton: { flex: 1, minHeight: 47, backgroundColor: "#6541C7", borderRadius: 13, justifyContent: "center", alignItems: "center", flexDirection: "row", gap: 7 },
+  shareButton: { flex: 1, minHeight: 47, backgroundColor: "#20142A", borderRadius: 13, justifyContent: "center", alignItems: "center", flexDirection: "row", gap: 7 },
   shareButtonText: { color: "#FFFFFF", fontSize: 13, fontWeight: "800" },
   viewButton: { flex: 1, minHeight: 47, borderWidth: 1, borderColor: "#DCD2EF", borderRadius: 13, justifyContent: "center", alignItems: "center" },
-  viewButtonText: { color: "#6541C7", fontSize: 13, fontWeight: "800" },
+  viewButtonText: { color: "#20142A", fontSize: 13, fontWeight: "800" },
 });
