@@ -1,25 +1,92 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useNavigation } from "expo-router";
 import { useCallback, useEffect, useState } from "react";
+import type { ThemeId } from "./theme";
 
 const THEME_STORAGE_KEY = "ts_theme";
 const TAB_BAR_OPACITY_STORAGE_KEY = "ts_tab_bar_opacity";
 const DEFAULT_CUSTOM_CATEGORIES_STORAGE_KEY = "ts_custom_categories";
 
-const getCustomCategoriesStorageKey = (usernameValue) =>
-  `${DEFAULT_CUSTOM_CATEGORIES_STORAGE_KEY}_${(usernameValue || "default").replace(/[^a-zA-Z0-9_-]/g, "_")}`;
+const getCustomCategoriesStorageKey = (
+  usernameValue: string | null | undefined,
+) =>
+  `${DEFAULT_CUSTOM_CATEGORIES_STORAGE_KEY}_${(
+    usernameValue || "default"
+  ).replace(/[^a-zA-Z0-9_-]/g, "_")}`;
 
 export const MOCK_RECIPIENTS = [
-  { id: "rec-1", name: "Alief Wahya", username: "alief_w", initial: "AW", color: "#EEF2FF", textColor: "#4F46E5", bank: "Citibank - USD Account", isRecent: true },
-  { id: "rec-2", name: "Bayside Budget", username: "bayside_b", initial: "BB", color: "#FDF2F8", textColor: "#DB2777", bank: "Premium Ch - GBP Account", isRecent: true },
-  { id: "rec-3", name: "Cypress Carter", username: "cypress_c", initial: "CC", color: "#ECFDF5", textColor: "#059669", bank: "Basic Ch - EUR Account", isRecent: true },
-  { id: "rec-4", name: "Dahlia Dawn", username: "dahlia_d", initial: "DD", color: "#FFF9C4", textColor: "#F57F17", bank: "Deluxe Ch - AUD Account", isRecent: true },
-  { id: "rec-5", name: "Maya Sari", username: "maya_s", initial: "MS", color: "#F3E5F5", textColor: "#7B1FA2", bank: "Bank Mandiri - IDR Account", isRecent: false },
-  { id: "rec-6", name: "Ravi Kumar", username: "ravi_k", initial: "RK", color: "#E1F5FE", textColor: "#0288D1", bank: "HDFC Bank - INR Account", isRecent: false },
-  { id: "rec-7", name: "Sarah Jenkins", username: "sarah_j", initial: "SJ", color: "#E8F8F5", textColor: "#2ECC71", bank: "Citibank - USD Account", isRecent: false },
+  {
+    id: "rec-1",
+    name: "Alief Wahya",
+    username: "alief_w",
+    initial: "AW",
+    color: "#EEF2FF",
+    textColor: "#4F46E5",
+    bank: "Citibank - USD Account",
+    isRecent: true,
+  },
+  {
+    id: "rec-2",
+    name: "Bayside Budget",
+    username: "bayside_b",
+    initial: "BB",
+    color: "#FDF2F8",
+    textColor: "#DB2777",
+    bank: "Premium Ch - GBP Account",
+    isRecent: true,
+  },
+  {
+    id: "rec-3",
+    name: "Cypress Carter",
+    username: "cypress_c",
+    initial: "CC",
+    color: "#ECFDF5",
+    textColor: "#059669",
+    bank: "Basic Ch - EUR Account",
+    isRecent: true,
+  },
+  {
+    id: "rec-4",
+    name: "Dahlia Dawn",
+    username: "dahlia_d",
+    initial: "DD",
+    color: "#FFF9C4",
+    textColor: "#F57F17",
+    bank: "Deluxe Ch - AUD Account",
+    isRecent: true,
+  },
+  {
+    id: "rec-5",
+    name: "Maya Sari",
+    username: "maya_s",
+    initial: "MS",
+    color: "#F3E5F5",
+    textColor: "#7B1FA2",
+    bank: "Bank Mandiri - IDR Account",
+    isRecent: false,
+  },
+  {
+    id: "rec-6",
+    name: "Ravi Kumar",
+    username: "ravi_k",
+    initial: "RK",
+    color: "#E1F5FE",
+    textColor: "#0288D1",
+    bank: "HDFC Bank - INR Account",
+    isRecent: false,
+  },
+  {
+    id: "rec-7",
+    name: "Sarah Jenkins",
+    username: "sarah_j",
+    initial: "SJ",
+    color: "#E8F8F5",
+    textColor: "#2ECC71",
+    bank: "Citibank - USD Account",
+    isRecent: false,
+  },
 ];
 
-// Initial Transactions - type: 'income' or 'expense'
 export const DEFAULT_TRANSACTIONS = [
   {
     id: "tx-1",
@@ -331,72 +398,107 @@ export const DEFAULT_SAVINGS_GOALS = [
   },
 ];
 
-// Global shared auth state outside the component hook so it persists across renders
 let globalIsAuthenticated = false;
-let authListeners = [];
 
-const setGlobalAuth = (status) => {
+type AuthListener = (status: boolean) => void;
+
+let authListeners: AuthListener[] = [];
+
+const setGlobalAuth = (status: boolean) => {
   globalIsAuthenticated = status;
+
   authListeners.forEach((listener) => listener(status));
 };
 
 export function useAppStore() {
-  const [transactions, setTransactions] = useState([]);
-  const [budgets, setBudgets] = useState({});
-  const [savingsGoals, setSavingsGoals] = useState([]);
-  const [profileImage, setProfileImage] = useState(null);
+  const [transactions, setTransactions] = useState<any[]>([]);
+  const [budgets, setBudgets] = useState<Record<string, number>>({});
+  const [savingsGoals, setSavingsGoals] = useState<any[]>([]);
+  const [profileImage, setProfileImage] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
-  const [themePreference, setThemePreferenceState] = useState("aurora");
+
+  const [themePreference, setThemePreferenceState] =
+    useState<ThemeId>("aurora");
+
   const [tabBarOpacity, setTabBarOpacityState] = useState(0.72);
+
   const [username, setUsernameState] = useState("ebuka");
-  const [customCategories, setCustomCategoriesState] = useState([]);
-  const [savedCards, setSavedCards] = useState([
-    { id: "card-1", brand: "Visa", last4: "5682", holder: "EBUKA" },
-    { id: "card-2", brand: "Mastercard", last4: "1123", holder: "EBUKA" },
+
+  const [customCategories, setCustomCategoriesState] = useState<string[]>([]);
+
+  const [savedCards, setSavedCards] = useState<any[]>([
+    {
+      id: "card-1",
+      brand: "Visa",
+      last4: "5682",
+      holder: "EBUKA",
+    },
+    {
+      id: "card-2",
+      brand: "Mastercard",
+      last4: "1123",
+      holder: "EBUKA",
+    },
   ]);
 
-  // Sync with global auth state
   const [isAuthenticated, setIsAuthenticated] = useState(globalIsAuthenticated);
 
   const navigation = useNavigation();
 
   useEffect(() => {
     authListeners.push(setIsAuthenticated);
+
     return () => {
-      authListeners = authListeners.filter((l) => l !== setIsAuthenticated);
+      authListeners = authListeners.filter(
+        (listener) => listener !== setIsAuthenticated,
+      );
     };
   }, []);
 
   const loadData = useCallback(async () => {
     try {
       const storedTxs = await AsyncStorage.getItem("ts_txs");
+
       const storedBudgets = await AsyncStorage.getItem("ts_bgts");
+
       const storedGoals = await AsyncStorage.getItem("ts_goals");
+
       const storedTheme = await AsyncStorage.getItem(THEME_STORAGE_KEY);
+
       const storedTabBarOpacity = await AsyncStorage.getItem(
         TAB_BAR_OPACITY_STORAGE_KEY,
       );
+
       const storedUsername = await AsyncStorage.getItem("ts_username");
+
       const storedCustomCategories = await AsyncStorage.getItem(
         getCustomCategoriesStorageKey(storedUsername || "ebuka"),
       );
+
       const storedCards = await AsyncStorage.getItem("ts_cards");
 
       if (storedUsername) {
         setUsernameState(storedUsername);
       } else {
         await AsyncStorage.setItem("ts_username", "ebuka");
+
         setUsernameState("ebuka");
       }
 
-      if (storedTheme) {
-        setThemePreferenceState(storedTheme);
+      if (
+        storedTheme === "aurora" ||
+        storedTheme === "sage" ||
+        storedTheme === "sunset"
+      ) {
+        setThemePreferenceState(storedTheme as ThemeId);
       }
 
       if (storedTabBarOpacity !== null) {
         const parsedOpacity = Number(storedTabBarOpacity);
+
         if (!Number.isNaN(parsedOpacity)) {
           const clampedOpacity = Math.max(0, Math.min(1, parsedOpacity));
+
           setTabBarOpacityState(clampedOpacity);
         }
       }
@@ -404,6 +506,7 @@ export function useAppStore() {
       if (storedCustomCategories) {
         try {
           const parsedCategories = JSON.parse(storedCustomCategories);
+
           if (Array.isArray(parsedCategories)) {
             setCustomCategoriesState(parsedCategories);
           }
@@ -414,21 +517,33 @@ export function useAppStore() {
 
       if (storedCards !== null) {
         try {
-          const parsed = JSON.parse(storedCards);
-          if (Array.isArray(parsed)) {
-            setSavedCards(parsed);
+          const parsedCards = JSON.parse(storedCards);
+
+          if (Array.isArray(parsedCards)) {
+            setSavedCards(parsedCards);
           }
-        } catch (e) {
-          console.warn("Failed to parse stored cards", e);
+        } catch (error) {
+          console.warn("Failed to parse stored cards", error);
         }
       } else {
-        await AsyncStorage.setItem(
-          "ts_cards",
-          JSON.stringify([
-            { id: "card-1", brand: "Visa", last4: "5682", holder: "EBUKA" },
-            { id: "card-2", brand: "Mastercard", last4: "1123", holder: "EBUKA" },
-          ]),
-        );
+        const defaultCards = [
+          {
+            id: "card-1",
+            brand: "Visa",
+            last4: "5682",
+            holder: "EBUKA",
+          },
+          {
+            id: "card-2",
+            brand: "Mastercard",
+            last4: "1123",
+            holder: "EBUKA",
+          },
+        ];
+
+        await AsyncStorage.setItem("ts_cards", JSON.stringify(defaultCards));
+
+        setSavedCards(defaultCards);
       }
 
       if (storedTxs !== null) {
@@ -438,6 +553,7 @@ export function useAppStore() {
           "ts_txs",
           JSON.stringify(DEFAULT_TRANSACTIONS),
         );
+
         setTransactions(DEFAULT_TRANSACTIONS);
       }
 
@@ -445,6 +561,7 @@ export function useAppStore() {
         setBudgets(JSON.parse(storedBudgets));
       } else {
         await AsyncStorage.setItem("ts_bgts", JSON.stringify(DEFAULT_BUDGETS));
+
         setBudgets(DEFAULT_BUDGETS);
       }
 
@@ -455,21 +572,23 @@ export function useAppStore() {
           "ts_goals",
           JSON.stringify(DEFAULT_SAVINGS_GOALS),
         );
+
         setSavingsGoals(DEFAULT_SAVINGS_GOALS);
       }
-    } catch (e) {
-      console.error("Failed to load store data", e);
+    } catch (error) {
+      console.error("Failed to load store data", error);
     } finally {
       setLoading(false);
     }
   }, []);
 
-  // Reload data when navigation screen focuses
   useEffect(() => {
     const unsubscribe = navigation.addListener("focus", () => {
       loadData();
     });
+
     loadData();
+
     return unsubscribe;
   }, [navigation, loadData]);
 
@@ -481,152 +600,232 @@ export function useAppStore() {
     setGlobalAuth(false);
   }, []);
 
-  const setThemePreference = useCallback(async (themeId) => {
-    setThemePreferenceState(themeId);
-    await AsyncStorage.setItem(THEME_STORAGE_KEY, themeId);
+  const setThemePreference = useCallback(async (themeId: ThemeId) => {
+    const validTheme: ThemeId =
+      themeId === "sage" || themeId === "sunset" ? themeId : "aurora";
+
+    setThemePreferenceState(validTheme);
+
+    await AsyncStorage.setItem(THEME_STORAGE_KEY, validTheme);
   }, []);
 
-  const setTabBarOpacity = useCallback(async (opacity) => {
+  const setTabBarOpacity = useCallback(async (opacity: number) => {
     const nextOpacity = Math.max(0.45, Math.min(0.98, opacity));
+
     setTabBarOpacityState(nextOpacity);
+
     await AsyncStorage.setItem(
       TAB_BAR_OPACITY_STORAGE_KEY,
       String(nextOpacity),
     );
   }, []);
 
-  const setUsername = useCallback(async (newUsername) => {
+  const setUsername = useCallback(async (newUsername: string) => {
     setUsernameState(newUsername);
+
     await AsyncStorage.setItem("ts_username", newUsername);
   }, []);
 
-  const addCustomCategory = useCallback(async (categoryName) => {
-    const trimmed = categoryName?.trim();
-    if (!trimmed) return;
-    const storageKey = getCustomCategoriesStorageKey(username || "ebuka");
-    setCustomCategoriesState((prev) => {
-      const next = prev.includes(trimmed) ? prev : [...prev, trimmed];
-      AsyncStorage.setItem(storageKey, JSON.stringify(next));
-      return next;
-    });
-  }, [username]);
+  const addCustomCategory = useCallback(
+    async (categoryName: string) => {
+      const trimmed = categoryName?.trim();
 
-  const deleteCustomCategory = useCallback(async (categoryName) => {
-    const trimmed = categoryName?.trim();
-    if (!trimmed) return;
-    const storageKey = getCustomCategoriesStorageKey(username || "ebuka");
-    setCustomCategoriesState((prev) => {
-      const next = prev.filter((item) => item !== trimmed);
-      AsyncStorage.setItem(storageKey, JSON.stringify(next));
-      return next;
-    });
-  }, [username]);
+      if (!trimmed) return;
 
-  const addTransaction = useCallback(async (newTx) => {
+      const storageKey = getCustomCategoriesStorageKey(username || "ebuka");
+
+      setCustomCategoriesState((prev) => {
+        const next = prev.includes(trimmed) ? prev : [...prev, trimmed];
+
+        AsyncStorage.setItem(storageKey, JSON.stringify(next));
+
+        return next;
+      });
+    },
+    [username],
+  );
+
+  const deleteCustomCategory = useCallback(
+    async (categoryName: string) => {
+      const trimmed = categoryName?.trim();
+
+      if (!trimmed) return;
+
+      const storageKey = getCustomCategoriesStorageKey(username || "ebuka");
+
+      setCustomCategoriesState((prev) => {
+        const next = prev.filter((item) => item !== trimmed);
+
+        AsyncStorage.setItem(storageKey, JSON.stringify(next));
+
+        return next;
+      });
+    },
+    [username],
+  );
+
+  const addTransaction = useCallback(async (newTx: any) => {
     const tx = {
       ...newTx,
       id: `tx-${Date.now()}`,
     };
+
     setTransactions((prev) => {
       const next = [tx, ...prev];
+
       AsyncStorage.setItem("ts_txs", JSON.stringify(next));
+
       return next;
     });
   }, []);
 
-  const deleteTransaction = useCallback(async (id) => {
+  const deleteTransaction = useCallback(async (id: string) => {
     setTransactions((prev) => {
-      const next = prev.filter((t) => t.id !== id);
+      const next = prev.filter((transaction) => transaction.id !== id);
+
       AsyncStorage.setItem("ts_txs", JSON.stringify(next));
+
       return next;
     });
   }, []);
 
-  const updateTransaction = useCallback(async (updatedTx) => {
+  const updateTransaction = useCallback(async (updatedTx: any) => {
     setTransactions((prev) => {
-      const next = prev.map((t) => (t.id === updatedTx.id ? updatedTx : t));
+      const next = prev.map((transaction) =>
+        transaction.id === updatedTx.id ? updatedTx : transaction,
+      );
+
       AsyncStorage.setItem("ts_txs", JSON.stringify(next));
+
       return next;
     });
   }, []);
 
-  const updateBudget = useCallback(async (category, limit) => {
+  const updateBudget = useCallback(async (category: string, limit: number) => {
     setBudgets((prev) => {
-      const next = { ...prev, [category]: limit };
+      const next = {
+        ...prev,
+        [category]: limit,
+      };
+
       AsyncStorage.setItem("ts_bgts", JSON.stringify(next));
+
       return next;
     });
   }, []);
 
-  const deleteBudget = useCallback(async (category) => {
+  const deleteBudget = useCallback(async (category: string) => {
     setBudgets((prev) => {
       const next = { ...prev };
+
       delete next[category];
+
       AsyncStorage.setItem("ts_bgts", JSON.stringify(next));
+
       return next;
     });
   }, []);
 
-  const addSavingsGoal = useCallback(async (newGoal) => {
+  const addSavingsGoal = useCallback(async (newGoal: any) => {
     const goal = {
       ...newGoal,
       id: `goal-${Date.now()}`,
-      percentage: Math.min(
-        100,
-        Math.round((newGoal.saved / newGoal.target) * 100),
-      ),
+      percentage:
+        newGoal.target > 0
+          ? Math.min(100, Math.round((newGoal.saved / newGoal.target) * 100))
+          : 0,
     };
+
     setSavingsGoals((prev) => {
       const next = [...prev, goal];
+
       AsyncStorage.setItem("ts_goals", JSON.stringify(next));
+
       return next;
     });
   }, []);
 
-  const deleteSavingsGoal = useCallback(async (id) => {
+  const deleteSavingsGoal = useCallback(async (id: string) => {
     setSavingsGoals((prev) => {
-      const next = prev.filter((g) => g.id !== id);
+      const next = prev.filter((goal) => goal.id !== id);
+
       AsyncStorage.setItem("ts_goals", JSON.stringify(next));
+
       return next;
     });
   }, []);
 
-  const updateSavingsGoal = useCallback(async (id, saved, target) => {
-    setSavingsGoals((prev) => {
-      const next = prev.map((g) => {
-        if (g.id === id) {
-          return {
-            ...g,
-            saved,
-            target,
-            percentage: Math.min(100, Math.round((saved / target) * 100)),
-          };
-        }
-        return g;
+  const updateSavingsGoal = useCallback(
+    async (id: string, saved: number, target: number) => {
+      setSavingsGoals((prev) => {
+        const next = prev.map((goal) => {
+          if (goal.id === id) {
+            return {
+              ...goal,
+              saved,
+              target,
+              percentage:
+                target > 0
+                  ? Math.min(100, Math.round((saved / target) * 100))
+                  : 0,
+            };
+          }
+
+          return goal;
+        });
+
+        AsyncStorage.setItem("ts_goals", JSON.stringify(next));
+
+        return next;
       });
-      AsyncStorage.setItem("ts_goals", JSON.stringify(next));
-      return next;
-    });
-  }, []);
+    },
+    [],
+  );
 
   const resetData = useCallback(async () => {
+    const defaultCards = [
+      {
+        id: "card-1",
+        brand: "Visa",
+        last4: "5682",
+        holder: "EBUKA",
+      },
+      {
+        id: "card-2",
+        brand: "Mastercard",
+        last4: "1123",
+        holder: "EBUKA",
+      },
+    ];
+
     await AsyncStorage.setItem("ts_txs", JSON.stringify(DEFAULT_TRANSACTIONS));
+
     await AsyncStorage.setItem("ts_bgts", JSON.stringify(DEFAULT_BUDGETS));
+
     await AsyncStorage.setItem(
       "ts_goals",
       JSON.stringify(DEFAULT_SAVINGS_GOALS),
     );
+
     await AsyncStorage.setItem("ts_username", "ebuka");
+
+    await AsyncStorage.setItem("ts_cards", JSON.stringify(defaultCards));
+
     await AsyncStorage.setItem(
-              savedCards,
-              setSavedCards,
       getCustomCategoriesStorageKey("ebuka"),
       JSON.stringify([]),
     );
+
     setTransactions(DEFAULT_TRANSACTIONS);
+
     setBudgets(DEFAULT_BUDGETS);
+
     setSavingsGoals(DEFAULT_SAVINGS_GOALS);
+
     setUsernameState("ebuka");
+
+    setSavedCards(defaultCards);
+
     setCustomCategoriesState([]);
   }, []);
 
@@ -634,29 +833,44 @@ export function useAppStore() {
     transactions,
     budgets,
     savingsGoals,
+
     profileImage,
     setProfileImage,
+
     loading,
     isAuthenticated,
+
     themePreference,
+
     tabBarOpacity,
+
     setThemePreference,
     setTabBarOpacity,
+
     login,
     logout,
+
     addTransaction,
     deleteTransaction,
     updateTransaction,
+
     updateBudget,
     deleteBudget,
+
     addSavingsGoal,
     deleteSavingsGoal,
     updateSavingsGoal,
+
     username,
     setUsername,
+
     customCategories,
     addCustomCategory,
     deleteCustomCategory,
+
+    savedCards,
+    setSavedCards,
+
     resetData,
   };
 }

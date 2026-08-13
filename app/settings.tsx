@@ -9,6 +9,7 @@ import {
     Text,
     TouchableOpacity,
     View,
+    useColorScheme,
 } from "react-native";
 import { useAppStore } from "../src/store";
 import { getThemePalette } from "../src/theme";
@@ -66,18 +67,13 @@ const SETTINGS_ITEMS = [
   },
 ];
 
-const THEME_PALETTES = {
-  aurora: { accent: "#5B4E91", soft: "#F0EEFA", border: "#E7DFF8" },
-  sage: { accent: "#34A853", soft: "#EEF7F1", border: "#DCEFE2" },
-  sunset: { accent: "#C47C49", soft: "#FAF2EC", border: "#F3E1D4" },
-};
-
 export default function SettingsScreen() {
   const router = useRouter();
   const { logout, themePreference } = useAppStore();
-  const theme = THEME_PALETTES[themePreference] ?? THEME_PALETTES.aurora;
+  const colorScheme = useColorScheme() || "light";
+  const theme = getThemePalette(themePreference, colorScheme);
   const accent = theme.accent;
-  const soft = theme.soft;
+  const soft = theme.accentSoft;
 
   const handleLogout = () => {
     Alert.alert("Log out", "You’ll be returned to the sign-in flow.", [
@@ -94,8 +90,12 @@ export default function SettingsScreen() {
   };
 
   return (
-    <SafeAreaView style={[styles.container, { backgroundColor: theme.background }]}> 
-      <View style={[styles.headerContainer, { backgroundColor: theme.background }]}> 
+    <SafeAreaView
+      style={[styles.container, { backgroundColor: theme.background }]}
+    >
+      <View
+        style={[styles.headerContainer, { backgroundColor: theme.background }]}
+      >
         <TouchableOpacity
           style={styles.backButton}
           onPress={() => router.back()}
@@ -111,7 +111,12 @@ export default function SettingsScreen() {
         contentContainerStyle={styles.scrollListContainer}
         showsVerticalScrollIndicator={false}
       >
-        <View style={[styles.heroCard, { backgroundColor: theme.surface, borderColor: theme.border }]}> 
+        <View
+          style={[
+            styles.heroCard,
+            { backgroundColor: theme.surface, borderColor: theme.border },
+          ]}
+        >
           <View style={styles.heroIconCircle}>
             <Ionicons name="options-outline" size={22} color="#5B4E91" />
           </View>
