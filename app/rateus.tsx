@@ -1,6 +1,7 @@
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import React, { useState } from "react";
+import { useAppStore } from "../src/store";
 import {
     ActivityIndicator,
     KeyboardAvoidingView,
@@ -28,6 +29,8 @@ const FEEDBACK_TAGS = [
 
 export default function RateUsScreen() {
   const router = useRouter();
+  const { theme } = useAppStore();
+  const styles = React.useMemo(() => getStyles(theme), [theme]);
   const [rating, setRating] = useState<number>(0);
   const [selectedTags, setSelectedTags] = useState<string[]>([]);
   const [comments, setComments] = useState<string>("");
@@ -88,7 +91,7 @@ export default function RateUsScreen() {
             onPress={() => router.back()}
             style={styles.backButton}
           >
-            <Ionicons name="arrow-back" size={24} color="#1F2937" />
+            <Ionicons name="arrow-back" size={24} color={theme.textPrimary} />
           </TouchableOpacity>
           <Text style={styles.headerTitle}>Rate Us</Text>
           <View style={{ width: 40 }} />
@@ -120,7 +123,7 @@ export default function RateUsScreen() {
                   <Ionicons
                     name={star <= rating ? "star" : "star-outline"}
                     size={40}
-                    color={star <= rating ? "#FBBF24" : "#D1D5DB"}
+                    color={star <= rating ? theme.warning : theme.border}
                     style={{ marginHorizontal: 6 }}
                   />
                 </TouchableOpacity>
@@ -171,7 +174,7 @@ export default function RateUsScreen() {
             <TextInput
               style={styles.textArea}
               placeholder="Tell us what features you want, bugs you noticed, or changes you'd like to see..."
-              placeholderTextColor="#9CA3AF"
+              placeholderTextColor={theme.textSecondary}
               multiline={true}
               numberOfLines={5}
               value={comments}
@@ -192,7 +195,7 @@ export default function RateUsScreen() {
             onPress={handleSubmitFeedback}
           >
             {isSubmitting ? (
-              <ActivityIndicator color="#FFFFFF" />
+              <ActivityIndicator color={theme.surface} />
             ) : (
               <Text style={styles.submitButtonText}>Submit Feedback</Text>
             )}
@@ -203,143 +206,144 @@ export default function RateUsScreen() {
   );
 }
 
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: "#F9FAFB",
-  },
-  header: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    borderBottomWidth: 1,
-    borderColor: "#E5E7EB",
-    backgroundColor: "#FFFFFF",
-  },
-  backButton: {
-    padding: 8,
-  },
-  headerTitle: {
-    fontSize: 18,
-    fontWeight: "700",
-    color: "#1F2937",
-  },
-  scrollContent: {
-    padding: 16,
-  },
-  heroSection: {
-    alignItems: "center",
-    marginBottom: 24,
-    marginTop: 8,
-  },
-  heroTitle: {
-    fontSize: 22,
-    fontWeight: "700",
-    color: "#1F2937",
-    marginBottom: 8,
-  },
-  heroSubtitle: {
-    fontSize: 14,
-    color: "#6B7280",
-    textAlign: "center",
-    lineHeight: 20,
-    paddingHorizontal: 12,
-  },
-  ratingCard: {
-    backgroundColor: "#FFFFFF",
-    borderRadius: 16,
-    padding: 20,
-    alignItems: "center",
-    borderWidth: 1,
-    borderColor: "#E5E7EB",
-    marginBottom: 24,
-  },
-  cardLabel: {
-    fontSize: 14,
-    fontWeight: "600",
-    color: "#4B5563",
-    marginBottom: 12,
-  },
-  starsRow: {
-    flexDirection: "row",
-    justifyContent: "center",
-    marginBottom: 8,
-  },
-  ratingStatusText: {
-    fontSize: 14,
-    fontWeight: "600",
-    color: "#20142A",
-    marginTop: 4,
-  },
-  sectionLabel: {
-    fontSize: 13,
-    fontWeight: "600",
-    color: "#4B5563",
-    marginBottom: 12,
-    textTransform: "uppercase",
-    letterSpacing: 0.5,
-  },
-  tagsContainer: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-    gap: 8,
-    marginBottom: 24,
-  },
-  tagChip: {
-    backgroundColor: "#FFFFFF",
-    borderWidth: 1,
-    borderColor: "#E5E7EB",
-    paddingHorizontal: 14,
-    paddingVertical: 8,
-    borderRadius: 20,
-  },
-  tagChipSelected: {
-    borderColor: "#20142A",
-    backgroundColor: "#EEF2FF",
-  },
-  tagText: {
-    fontSize: 13,
-    color: "#4B5563",
-    fontWeight: "500",
-  },
-  tagTextSelected: {
-    color: "#20142A",
-    fontWeight: "600",
-  },
-  inputContainer: {
-    backgroundColor: "#FFFFFF",
-    borderRadius: 14,
-    borderWidth: 1,
-    borderColor: "#E5E7EB",
-    padding: 12,
-    marginBottom: 24,
-  },
-  textArea: {
-    fontSize: 15,
-    color: "#1F2937",
-    height: 120,
-  },
-  footer: {
-    backgroundColor: "#FFFFFF",
-    padding: 16,
-    borderTopWidth: 1,
-    borderColor: "#E5E7EB",
-  },
-  submitButton: {
-    backgroundColor: "#20142A",
-    height: 52,
-    borderRadius: 12,
-    justifyContent: "center",
-    alignItems: "center",
-  },
-  submitButtonDisabled: {
-    backgroundColor: "#9CA3AF",
-  },
-  submitButtonText: {
-    color: "#FFFFFF",
-    fontSize: 16,
-    fontWeight: "600",
-  },
-});
+const getStyles = (theme: any) =>
+  StyleSheet.create({
+    container: {
+      flex: 1,
+      backgroundColor: theme.background,
+    },
+    header: {
+      flexDirection: "row",
+      alignItems: "center",
+      justifyContent: "space-between",
+      paddingHorizontal: 16,
+      paddingVertical: 12,
+      borderBottomWidth: 1,
+      borderColor: theme.border,
+      backgroundColor: theme.surface,
+    },
+    backButton: {
+      padding: 8,
+    },
+    headerTitle: {
+      fontSize: 18,
+      fontWeight: "700",
+      color: theme.textPrimary,
+    },
+    scrollContent: {
+      padding: 16,
+    },
+    heroSection: {
+      alignItems: "center",
+      marginBottom: 24,
+      marginTop: 8,
+    },
+    heroTitle: {
+      fontSize: 22,
+      fontWeight: "700",
+      color: theme.textPrimary,
+      marginBottom: 8,
+    },
+    heroSubtitle: {
+      fontSize: 14,
+      color: theme.textSecondary,
+      textAlign: "center",
+      lineHeight: 20,
+      paddingHorizontal: 12,
+    },
+    ratingCard: {
+      backgroundColor: theme.surface,
+      borderRadius: 16,
+      padding: 20,
+      alignItems: "center",
+      borderWidth: 1,
+      borderColor: theme.border,
+      marginBottom: 24,
+    },
+    cardLabel: {
+      fontSize: 14,
+      fontWeight: "600",
+      color: theme.textSecondary,
+      marginBottom: 12,
+    },
+    starsRow: {
+      flexDirection: "row",
+      justifyContent: "center",
+      marginBottom: 8,
+    },
+    ratingStatusText: {
+      fontSize: 14,
+      fontWeight: "600",
+      color: theme.textPrimary,
+      marginTop: 4,
+    },
+    sectionLabel: {
+      fontSize: 13,
+      fontWeight: "600",
+      color: theme.textSecondary,
+      marginBottom: 12,
+      textTransform: "uppercase",
+      letterSpacing: 0.5,
+    },
+    tagsContainer: {
+      flexDirection: "row",
+      flexWrap: "wrap",
+      gap: 8,
+      marginBottom: 24,
+    },
+    tagChip: {
+      backgroundColor: theme.surface,
+      borderWidth: 1,
+      borderColor: theme.border,
+      paddingHorizontal: 14,
+      paddingVertical: 8,
+      borderRadius: 20,
+    },
+    tagChipSelected: {
+      borderColor: theme.accent,
+      backgroundColor: theme.accentSoft,
+    },
+    tagText: {
+      fontSize: 13,
+      color: theme.textSecondary,
+      fontWeight: "500",
+    },
+    tagTextSelected: {
+      color: theme.textPrimary,
+      fontWeight: "600",
+    },
+    inputContainer: {
+      backgroundColor: theme.surface,
+      borderRadius: 14,
+      borderWidth: 1,
+      borderColor: theme.border,
+      padding: 12,
+      marginBottom: 24,
+    },
+    textArea: {
+      fontSize: 15,
+      color: theme.textPrimary,
+      height: 120,
+    },
+    footer: {
+      backgroundColor: theme.surface,
+      padding: 16,
+      borderTopWidth: 1,
+      borderColor: theme.border,
+    },
+    submitButton: {
+      backgroundColor: theme.accent,
+      height: 52,
+      borderRadius: 12,
+      justifyContent: "center",
+      alignItems: "center",
+    },
+    submitButtonDisabled: {
+      backgroundColor: theme.border,
+    },
+    submitButtonText: {
+      color: theme.surface,
+      fontSize: 16,
+      fontWeight: "600",
+    },
+  });

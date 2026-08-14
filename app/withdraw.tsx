@@ -44,7 +44,8 @@ const withdrawOptions = [
 
 export default function WithdrawScreen() {
   const router = useRouter();
-  const { addTransaction, transactions } = useAppStore();
+  const { addTransaction, transactions, theme } = useAppStore();
+  const styles = React.useMemo(() => getStyles(theme), [theme]);
   const [amount, setAmount] = useState("");
   const [selectedOption, setSelectedOption] = useState<string | null>(null);
   const [showReceiptModal, setShowReceiptModal] = useState(false);
@@ -294,10 +295,10 @@ export default function WithdrawScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+const getStyles = (theme: any) => StyleSheet.create({
   safeArea: {
     flex: 1,
-    backgroundColor: "#FAF9FB",
+    backgroundColor: theme.background,
   },
   header: {
     height: 64,
@@ -311,7 +312,7 @@ const styles = StyleSheet.create({
     width: 40,
     height: 40,
     borderRadius: 14,
-    backgroundColor: "#FFFFFF",
+    backgroundColor: theme.surface,
     justifyContent: "center",
     alignItems: "center",
     shadowColor: "#000",
@@ -323,7 +324,7 @@ const styles = StyleSheet.create({
   headerTitle: {
     fontSize: 18,
     fontWeight: "700",
-    color: "#1C1C1E",
+    color: theme.textPrimary,
   },
   headerPlaceholder: {
     width: 40,
@@ -333,8 +334,8 @@ const styles = StyleSheet.create({
     paddingBottom: 32,
   },
   balanceCard: {
-    backgroundColor: "#FFFFFF",
-    borderRadius: 20,
+    backgroundColor: theme.surface,
+    borderRadius: 16,
     padding: 18,
     alignItems: "center",
     borderWidth: 1,
@@ -342,20 +343,20 @@ const styles = StyleSheet.create({
     marginBottom: 18,
   },
   balanceLabel: {
-    color: "#6F6876",
+    color: theme.textSecondary,
     fontSize: 12,
     fontWeight: "700",
     marginBottom: 8,
     letterSpacing: 0.8,
   },
   balanceAmount: {
-    fontSize: 32,
-    fontWeight: "800",
-    color: "#1C1C1E",
+    fontSize: 28,
+    fontWeight: "700",
+    color: theme.textPrimary,
   },
   cardSection: {
-    backgroundColor: "#FFFFFF",
-    borderRadius: 20,
+    backgroundColor: theme.surface,
+    borderRadius: 16,
     padding: 16,
     marginBottom: 16,
     borderWidth: 1,
@@ -364,30 +365,30 @@ const styles = StyleSheet.create({
   cardTitle: {
     fontSize: 15,
     fontWeight: "700",
-    color: "#1C1C1E",
+    color: theme.textPrimary,
     marginBottom: 16,
   },
   amountInputRow: {
     flexDirection: "row",
     alignItems: "center",
-    backgroundColor: "#FFFFFF",
-    borderRadius: 16,
+    backgroundColor: theme.surface,
+    borderRadius: 12,
     borderWidth: 1,
-    borderColor: "#EDE8F3",
+    borderColor: theme.border,
     paddingHorizontal: 14,
     height: 60,
   },
   prefix: {
     fontSize: 24,
     fontWeight: "700",
-    color: "#1C1C1E",
+    color: theme.textPrimary,
     marginRight: 10,
   },
   amountInput: {
     flex: 1,
     fontSize: 20,
     fontWeight: "700",
-    color: "#1C1C1E",
+    color: theme.textPrimary,
   },
   clearButton: {
     paddingHorizontal: 12,
@@ -396,7 +397,7 @@ const styles = StyleSheet.create({
   clearText: {
     fontSize: 13,
     fontWeight: "700",
-    color: "#5B4E91",
+    color: theme.accent,
   },
   quickAmountRow: {
     flexDirection: "row",
@@ -405,15 +406,15 @@ const styles = StyleSheet.create({
     marginTop: 12,
   },
   quickAmountButton: {
-    backgroundColor: "#FFFFFF",
+    backgroundColor: theme.surfaceSoft,
     borderRadius: 14,
     paddingHorizontal: 14,
     paddingVertical: 10,
     borderWidth: 1,
-    borderColor: "#EDE8F3",
+    borderColor: theme.border,
   },
   quickAmountText: {
-    color: "#1C1C1E",
+    color: theme.textPrimary,
     fontWeight: "700",
     fontSize: 13,
   },
@@ -426,33 +427,32 @@ const styles = StyleSheet.create({
   hintText: {
     marginTop: 10,
     fontSize: 12,
-    color: "#6F6876",
+    color: theme.textSecondary,
   },
   destinationCard: {
     flexDirection: "row",
     alignItems: "center",
     padding: 16,
-    borderRadius: 16,
-    backgroundColor: "#FFFFFF",
+    borderRadius: 20,
+    backgroundColor: theme.surfaceSoft,
     marginBottom: 12,
     borderWidth: 1,
     borderColor: "#EDE8F3",
   },
   destinationCardSelected: {
-    backgroundColor: "#FAF9FB",
-    borderColor: "#20142A",
+    backgroundColor: theme.accentSoft,
   },
   destinationIcon: {
     width: 48,
     height: 48,
-    borderRadius: 14,
-    backgroundColor: "#FAF9FB",
+    borderRadius: 16,
+    backgroundColor: theme.surface,
     justifyContent: "center",
     alignItems: "center",
     marginRight: 14,
   },
   destinationIconSelected: {
-    backgroundColor: "#F5F0F8",
+    backgroundColor: theme.accentSoft,
   },
   destinationInfo: {
     flex: 1,
@@ -460,11 +460,11 @@ const styles = StyleSheet.create({
   destinationTitle: {
     fontSize: 15,
     fontWeight: "700",
-    color: "#1C1C1E",
+    color: theme.textPrimary,
   },
   destinationSubtitle: {
     fontSize: 13,
-    color: "#6F6876",
+    color: theme.textSecondary,
     marginTop: 4,
     lineHeight: 18,
   },
@@ -473,22 +473,22 @@ const styles = StyleSheet.create({
     height: 24,
     borderRadius: 12,
     borderWidth: 2,
-    borderColor: "#D8D2E6",
+    borderColor: theme.border,
     justifyContent: "center",
     alignItems: "center",
   },
   radioOuterSelected: {
-    borderColor: "#20142A",
+    borderColor: theme.accent,
   },
   radioInner: {
     width: 12,
     height: 12,
     borderRadius: 6,
-    backgroundColor: "#20142A",
+    backgroundColor: theme.accent,
   },
   summaryCard: {
-    backgroundColor: "#FFFFFF",
-    borderRadius: 20,
+    backgroundColor: theme.surface,
+    borderRadius: 28,
     padding: 18,
     marginBottom: 18,
     borderWidth: 1,
@@ -497,7 +497,7 @@ const styles = StyleSheet.create({
   summaryLabel: {
     fontSize: 14,
     fontWeight: "700",
-    color: "#1C1C1E",
+    color: theme.textPrimary,
     marginBottom: 14,
   },
   summaryRow: {
@@ -507,12 +507,12 @@ const styles = StyleSheet.create({
   },
   summaryText: {
     fontSize: 13,
-    color: "#6F6876",
+    color: theme.textSecondary,
   },
   summaryAmount: {
     fontSize: 13,
     fontWeight: "700",
-    color: "#1C1C1E",
+    color: theme.textPrimary,
   },
   summaryRowTotal: {
     flexDirection: "row",
@@ -523,27 +523,27 @@ const styles = StyleSheet.create({
   summaryTotalLabel: {
     fontSize: 14,
     fontWeight: "700",
-    color: "#1C1C1E",
+    color: theme.textPrimary,
   },
   summaryTotalAmount: {
     fontSize: 16,
     fontWeight: "800",
-    color: "#20142A",
+    color: theme.accent,
   },
   primaryButton: {
-    backgroundColor: "#20142A",
+    backgroundColor: theme.accent,
     borderRadius: 20,
     height: 58,
     justifyContent: "center",
     alignItems: "center",
-    shadowColor: "#20142A",
+    shadowColor: theme.accent,
     shadowOffset: { width: 0, height: 8 },
     shadowOpacity: 0.15,
     shadowRadius: 16,
     elevation: 4,
   },
   primaryButtonDisabled: {
-    backgroundColor: "#D8D2E6",
+    backgroundColor: theme.border,
     shadowOpacity: 0,
     elevation: 0,
   },

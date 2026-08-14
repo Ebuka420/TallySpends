@@ -17,7 +17,8 @@ import { useAppStore } from "../src/store";
 
 export default function SettingsDashboardScreen() {
   const router = useRouter();
-  const { tabBarOpacity, setTabBarOpacity } = useAppStore();
+  const { tabBarOpacity, setTabBarOpacity, theme } = useAppStore();
+  const styles = React.useMemo(() => getStyles(theme), [theme]);
   const [showInsights, setShowInsights] = useState(true);
   const [showBudgets, setShowBudgets] = useState(true);
   const [showSavings, setShowSavings] = useState(true);
@@ -31,7 +32,7 @@ export default function SettingsDashboardScreen() {
           style={styles.backButton}
           onPress={() => router.back()}
         >
-          <Ionicons name="chevron-back" size={24} color="#1C1C1E" />
+          <Ionicons name="chevron-back" size={24} color={theme.textPrimary} />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>Dashboard Settings</Text>
         <View style={styles.headerSpacer} />
@@ -44,7 +45,7 @@ export default function SettingsDashboardScreen() {
       >
         <View style={styles.heroCard}>
           <View style={styles.heroIconCircle}>
-            <Ionicons name="grid-outline" size={22} color="#5B4E91" />
+            <Ionicons name="grid-outline" size={22} color={theme.accent} />
           </View>
           <View style={styles.heroTextWrap}>
             <Text style={styles.heroTitle}>Your dashboard, your way</Text>
@@ -89,8 +90,8 @@ export default function SettingsDashboardScreen() {
             <Switch
               value={item.value}
               onValueChange={item.onChange}
-              thumbColor="#FFFFFF"
-              trackColor={{ false: "#D9D9E3", true: "#5B4E91" }}
+              thumbColor={theme.surface}
+              trackColor={{ false: theme.border, true: theme.accent }}
             />
           </View>
         ))}
@@ -116,7 +117,7 @@ export default function SettingsDashboardScreen() {
               <Ionicons
                 name={isTransparencyExpanded ? "chevron-up" : "chevron-down"}
                 size={18}
-                color="#8E8E93"
+                color={theme.textSecondary}
               />
             </View>
           </TouchableOpacity>
@@ -141,13 +142,13 @@ export default function SettingsDashboardScreen() {
                       ]}
                     />
                     <View style={[styles.previewTab, styles.previewTabActive]}>
-                      <Ionicons name="home" size={16} color="#FFFFFF" />
+                      <Ionicons name="home" size={16} color={theme.surface} />
                     </View>
                     <View style={styles.previewTab}>
-                      <Ionicons name="wallet" size={16} color="#5B4E91" />
+                      <Ionicons name="wallet" size={16} color={theme.accent} />
                     </View>
                     <View style={styles.previewTab}>
-                      <Ionicons name="analytics" size={16} color="#5B4E91" />
+                      <Ionicons name="analytics" size={16} color={theme.accent} />
                     </View>
                   </View>
                 </View>
@@ -159,9 +160,9 @@ export default function SettingsDashboardScreen() {
                 step={0.01}
                 value={tabBarOpacity}
                 onValueChange={(value) => setTabBarOpacity(value)}
-                minimumTrackTintColor="#5B4E91"
-                maximumTrackTintColor="#E7DFF8"
-                thumbTintColor="#FFFFFF"
+                minimumTrackTintColor={theme.accent}
+                maximumTrackTintColor={theme.accentSoft}
+                thumbTintColor={theme.surface}
               />
             </>
           )}
@@ -178,149 +179,55 @@ export default function SettingsDashboardScreen() {
   );
 }
 
-const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: "#FAF9FB" },
-  scrollView: { flex: 1 },
-  scrollContent: {
-    paddingBottom: 32,
-  },
-  headerContainer: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    paddingHorizontal: 16,
-    paddingTop: 12,
-    paddingBottom: 16,
-  },
-  backButton: { padding: 4 },
-  headerTitle: { fontSize: 20, fontWeight: "700", color: "#1C1C1E" },
-  headerSpacer: { width: 32 },
-  heroCard: {
-    flexDirection: "row",
-    backgroundColor: "#FFFFFF",
-    borderRadius: 18,
-    padding: 16,
-    marginHorizontal: 20,
-    marginBottom: 16,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.06,
-    shadowRadius: 10,
-    elevation: 2,
-  },
-  heroIconCircle: {
-    width: 46,
-    height: 46,
-    borderRadius: 23,
-    backgroundColor: "#F0EEFA",
-    alignItems: "center",
-    justifyContent: "center",
-    marginRight: 12,
-  },
-  heroTextWrap: { flex: 1 },
-  heroTitle: {
-    fontSize: 15,
-    fontWeight: "700",
-    color: "#1C1C1E",
-    marginBottom: 4,
-  },
-  heroSubtitle: { fontSize: 12.5, color: "#8E8E93", lineHeight: 18 },
-  card: {
-    flexDirection: "row",
-    alignItems: "center",
-    backgroundColor: "#FFFFFF",
-    borderRadius: 16,
-    padding: 16,
-    marginHorizontal: 20,
-    marginBottom: 12,
-  },
-  controlCard: {
-    backgroundColor: "#FFFFFF",
-    borderRadius: 18,
-    padding: 16,
-    marginHorizontal: 20,
-    marginBottom: 12,
-  },
-  controlHeader: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    paddingVertical: 2,
-  },
-  controlMeta: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 8,
-  },
-  opacityBadge: {
-    backgroundColor: "#F0EEFA",
-    borderRadius: 999,
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-  },
-  opacityBadgeText: {
-    color: "#5B4E91",
-    fontSize: 12,
-    fontWeight: "700",
-  },
-  previewCard: {
-    borderRadius: 20,
-    padding: 8,
-    marginHorizontal: 6,
-    marginBottom: 12,
-    backgroundColor: "#F6F3FB",
-  },
-  previewScreen: {
-    borderRadius: 14,
-    overflow: "hidden",
-    backgroundColor: "#FBF9FF",
-    borderWidth: 1,
-    borderColor: "#E7DFF8",
-  },
-  previewContent: {
-    height: 96,
-    backgroundColor: "#F7F2FF",
-  },
-  previewTabBar: {
-    height: 50,
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-around",
-    paddingHorizontal: 10,
-    backgroundColor: "transparent",
-    borderTopWidth: 1,
-    borderTopColor: "rgba(91, 78, 145, 0.12)",
-  },
-  previewTabBarOverlay: {
-    ...StyleSheet.absoluteFillObject,
-    borderRadius: 0,
-  },
-  previewTab: {
-    width: 32,
-    height: 32,
-    borderRadius: 11,
-    alignItems: "center",
-    justifyContent: "center",
-    backgroundColor: "rgba(255,255,255,0.24)",
-  },
-  previewTabActive: {
-    backgroundColor: "rgba(91, 78, 145, 0.95)",
-    shadowColor: "#5B4E91",
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.2,
-    shadowRadius: 8,
-    elevation: 3,
-  },
-  cardTextWrap: { flex: 1 },
-  cardTitle: { fontSize: 15, fontWeight: "600", color: "#1C1C1E" },
-  cardSubtitle: { fontSize: 12.5, color: "#8E8E93", marginTop: 4 },
-  primaryAction: {
-    backgroundColor: "#5B4E91",
-    paddingVertical: 14,
-    borderRadius: 14,
-    marginHorizontal: 20,
-    marginTop: 12,
-    alignItems: "center",
-  },
-  primaryActionText: { color: "#FFFFFF", fontWeight: "700" },
-});
+const getStyles = (theme: any) =>
+  StyleSheet.create({
+    container: { flex: 1, backgroundColor: theme.background },
+    scrollView: { flex: 1 },
+    scrollContent: { paddingBottom: 32 },
+    headerContainer: {
+      flexDirection: "row",
+      alignItems: "center",
+      justifyContent: "space-between",
+      paddingHorizontal: 16,
+      paddingTop: 12,
+      paddingBottom: 16,
+    },
+    backButton: { padding: 4 },
+    headerTitle: { fontSize: 20, fontWeight: "700", color: theme.textPrimary },
+    headerSpacer: { width: 32 },
+    heroCard: {
+      flexDirection: "row",
+      backgroundColor: theme.surface,
+      borderRadius: 18,
+      padding: 16,
+      marginHorizontal: 20,
+      marginBottom: 16,
+      shadowColor: "#000",
+      shadowOffset: { width: 0, height: 2 },
+      shadowOpacity: 0.06,
+      shadowRadius: 10,
+      elevation: 2,
+    },
+    heroIconCircle: { width: 46, height: 46, borderRadius: 23, backgroundColor: theme.accentSoft, alignItems: "center", justifyContent: "center", marginRight: 12 },
+    heroTextWrap: { flex: 1 },
+    heroTitle: { fontSize: 15, fontWeight: "700", color: theme.textPrimary, marginBottom: 4 },
+    heroSubtitle: { fontSize: 12.5, color: theme.textSecondary, lineHeight: 18 },
+    card: { flexDirection: "row", alignItems: "center", backgroundColor: theme.surface, borderRadius: 16, padding: 16, marginHorizontal: 20, marginBottom: 12 },
+    controlCard: { backgroundColor: theme.surface, borderRadius: 18, padding: 16, marginHorizontal: 20, marginBottom: 12 },
+    controlHeader: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingVertical: 2 },
+    controlMeta: { flexDirection: "row", alignItems: "center", gap: 8 },
+    opacityBadge: { backgroundColor: theme.accentSoft, borderRadius: 999, paddingHorizontal: 10, paddingVertical: 6 },
+    opacityBadgeText: { color: theme.accent, fontSize: 12, fontWeight: "700" },
+    previewCard: { borderRadius: 20, padding: 8, marginHorizontal: 6, marginBottom: 12, backgroundColor: theme.mutedBackground },
+    previewScreen: { borderRadius: 14, overflow: "hidden", backgroundColor: theme.surfaceSoft, borderWidth: 1, borderColor: theme.border },
+    previewContent: { height: 96, backgroundColor: theme.surfaceSoft },
+    previewTabBar: { height: 50, flexDirection: "row", alignItems: "center", justifyContent: "space-around", paddingHorizontal: 10, backgroundColor: "transparent", borderTopWidth: 1, borderTopColor: `rgba(0,0,0,0.06)` },
+    previewTabBarOverlay: { ...StyleSheet.absoluteFillObject, borderRadius: 0 },
+    previewTab: { width: 32, height: 32, borderRadius: 11, alignItems: "center", justifyContent: "center", backgroundColor: "rgba(255,255,255,0.24)" },
+    previewTabActive: { backgroundColor: theme.accent, shadowColor: theme.accent, shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.2, shadowRadius: 8, elevation: 3 },
+    cardTextWrap: { flex: 1 },
+    cardTitle: { fontSize: 15, fontWeight: "600", color: theme.textPrimary },
+    cardSubtitle: { fontSize: 12.5, color: theme.textSecondary, marginTop: 4 },
+    primaryAction: { backgroundColor: theme.accent, paddingVertical: 14, borderRadius: 14, marginHorizontal: 20, marginTop: 12, alignItems: "center" },
+    primaryActionText: { color: theme.surface, fontWeight: "700" },
+  });

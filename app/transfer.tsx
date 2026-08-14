@@ -28,13 +28,8 @@ if (Platform.OS === "android" && UIManager.setLayoutAnimationEnabledExperimental
 
 export default function TransferScreen() {
   const router = useRouter();
-  const {
-    addTransaction,
-    transactions,
-    customCategories,
-    addCustomCategory,
-    deleteCustomCategory,
-  } = useAppStore();
+  const { addTransaction, transactions, customCategories, addCustomCategory, deleteCustomCategory, theme } = useAppStore();
+  const styles = React.useMemo(() => getStyles(theme), [theme]);
   const [amount, setAmount] = useState("");
   const [memo, setMemo] = useState("");
   const [searchQuery, setSearchQuery] = useState("");
@@ -984,60 +979,10 @@ export default function TransferScreen() {
   );
 }
 
-const styles = StyleSheet.create({
-  fullScreenModal: { flex: 1, backgroundColor: "#FFFFFF" },
-  fullScreenKeyboardAvoider: { flex: 1 },
-  fullScreenModalContent: { flex: 1, backgroundColor: "#FFFFFF", paddingHorizontal: 22, paddingBottom: Platform.OS === "ios" ? 30 : 22 },
-  transferSheet: { flex: 1, backgroundColor: "#FFFFFF", paddingHorizontal: 22, paddingBottom: Platform.OS === "ios" ? 30 : 22 },
-  transferHeader: { height: 47, flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
-  transferHeaderSpacer: { width: 23 },
-  transferCancelButton: { minWidth: 52, alignItems: "flex-end", paddingVertical: 8 },
-  transferCancelText: { color: "#20142A", fontSize: 14, fontWeight: "800" },
-  transferTitle: { color: "#201B2D", fontSize: 16, fontWeight: "800" },
-  transferRecipientCard: { flexDirection: "row", alignItems: "center", backgroundColor: "#F6F3F9", borderRadius: 15, padding: 14, marginTop: 10 },
-  transferAvatar: { width: 46, height: 46, borderRadius: 23, justifyContent: "center", alignItems: "center", marginRight: 12 },
-  transferAvatarText: { fontSize: 17, fontWeight: "800" },
-  transferRecipientName: { color: "#241E31", fontSize: 15, fontWeight: "800" },
-  transferRecipientHandle: { color: "#817A8B", fontSize: 13, marginTop: 3 },
-  transferBody: { flexGrow: 1, paddingTop: 31, paddingBottom: 24 },
-  transferLabel: { color: "#77707F", fontSize: 13, fontWeight: "600", marginBottom: 9 },
-  transferOptional: { fontWeight: "400", color: "#A09AA7" },
-  transferAmountRow: { flexDirection: "row", alignItems: "center", borderBottomWidth: 1.5, borderBottomColor: "#E7E2EB", paddingBottom: 10, marginBottom: 18 },
-  transferAmountError: { borderBottomColor: "#D86464" },
-  transferCurrency: { color: "#251B34", fontSize: 34, fontWeight: "800", marginRight: 5 },
-  transferAmountInput: { flex: 1, color: "#251B34", fontSize: 34, fontWeight: "800", padding: 0 },
-  transferQuickRow: { flexDirection: "row", flexWrap: "wrap", gap: 10, marginBottom: 26 },
-  transferQuickChip: { borderWidth: 1, borderColor: "#E3DDE9", backgroundColor: "#FBFAFC", borderRadius: 18, paddingVertical: 8, paddingHorizontal: 17 },
-  transferQuickText: { color: "#5E5669", fontSize: 12, fontWeight: "700" },
-  transferErrorText: { color: "#C65050", fontSize: 12, marginTop: -17, marginBottom: 18 },
-  transferNoteInput: { height: 76, borderRadius: 13, backgroundColor: "#F7F5F8", color: "#292334", fontSize: 14, padding: 13, paddingTop: 13, textAlignVertical: "top" },
-  transferCharacterCount: { color: "#9B95A2", fontSize: 11, textAlign: "right", marginTop: -20, marginRight: 12, marginBottom: 26 },
-  transferPrimaryButton: { height: 54, borderRadius: 13, backgroundColor: "#20142A", alignItems: "center", justifyContent: "center", marginTop: 8, shadowColor: "#20142A", shadowOffset: { width: 0, height: 5 }, shadowOpacity: 0.18, shadowRadius: 10, elevation: 3 },
-  transferPrimaryText: { color: "#FFFFFF", fontSize: 15, fontWeight: "800" },
-  transferReviewRow: { minHeight: 50, flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
-  transferReviewAmount: { color: "#211A2D", fontSize: 17, fontWeight: "800" },
-  transferReviewValue: { color: "#211A2D", fontSize: 14, fontWeight: "700" },
-  transferFree: { color: "#3A9B5D", fontSize: 14, fontWeight: "800" },
-  transferTotalRow: { borderTopWidth: 1, borderTopColor: "#E9E4EC", paddingTop: 17, marginTop: 7, flexDirection: "row", justifyContent: "space-between" },
-  transferTotalLabel: { color: "#51495D", fontSize: 16, fontWeight: "700" },
-  transferTotalAmount: { color: "#211A2D", fontSize: 23, fontWeight: "800" },
-  transferSecurity: { flexDirection: "row", alignItems: "center", backgroundColor: "#F6F3FA", borderRadius: 13, padding: 13, marginTop: 31, marginBottom: 16 },
-  transferSecurityIcon: { width: 35, height: 35, borderRadius: 18, backgroundColor: "#EAE2FA", justifyContent: "center", alignItems: "center", marginRight: 11 },
-  transferSecurityTitle: { color: "#312740", fontSize: 12, fontWeight: "800" },
-  transferSecurityCopy: { color: "#827B8B", fontSize: 10, marginTop: 3 },
-  transferSuccessBody: { flexGrow: 1, alignItems: "center", paddingTop: 62, paddingBottom: 24 },
-  transferSuccessIcon: { width: 82, height: 82, borderRadius: 41, backgroundColor: "#8FD5A9", justifyContent: "center", alignItems: "center", marginBottom: 28 },
-  transferSuccessTitle: { color: "#211A2D", fontSize: 21, fontWeight: "800" },
-  transferSuccessLabel: { color: "#8A8391", fontSize: 13, marginTop: 31 },
-  transferSuccessAmount: { color: "#20192B", fontSize: 29, fontWeight: "800", marginTop: 9 },
-  transferSuccessRecipient: { color: "#615B68", fontSize: 14, lineHeight: 22, textAlign: "center", marginTop: 11 },
-  transferReceiptButton: { width: "100%", height: 50, borderRadius: 12, backgroundColor: "#F6F3F8", flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 10, marginTop: 43 },
-  transferReceiptText: { color: "#20142A", fontSize: 14, fontWeight: "800" },
-  transferHomeButton: { height: 43, paddingHorizontal: 20, justifyContent: "center", alignItems: "center", marginTop: 12, marginBottom: 2 },
-  transferHomeText: { color: "#20142A", fontSize: 14, fontWeight: "800" },
+const getStyles = (theme: any) => StyleSheet.create({
   safeArea: {
     flex: 1,
-    backgroundColor: "#FAF9FB",
+    backgroundColor: theme.background,
   },
   header: {
     height: 56,
@@ -1046,8 +991,8 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
     paddingHorizontal: 16,
     borderBottomWidth: 1,
-    borderColor: "#EDE8F3",
-    backgroundColor: "#FFFFFF",
+    borderColor: "rgba(91, 78, 145, 0.08)",
+    backgroundColor: theme.surface,
   },
   backButton: {
     padding: 4,
@@ -1055,13 +1000,13 @@ const styles = StyleSheet.create({
   headerTitle: {
     fontSize: 16,
     fontWeight: "700",
-    color: "#1C1C1E",
+    color: theme.textPrimary,
     letterSpacing: -0.3,
   },
   headerQRButton: {
     padding: 6,
     borderRadius: 10,
-    backgroundColor: "#F3EBF1",
+    backgroundColor: theme.accentSoft,
   },
   scrollContainer: {
     padding: 20,
@@ -1070,7 +1015,7 @@ const styles = StyleSheet.create({
   sectionTitle: {
     fontSize: 14,
     fontWeight: "700",
-    color: "#6F6876",
+    color: theme.textSecondary,
     textTransform: "uppercase",
     letterSpacing: 0.8,
     marginBottom: 12,
@@ -1084,7 +1029,7 @@ const styles = StyleSheet.create({
   actionCard: {
     flex: 1,
     alignItems: "center",
-    backgroundColor: "#FFFFFF",
+    backgroundColor: theme.surface,
     borderRadius: 20,
     paddingVertical: 14,
     borderWidth: 1,
@@ -1099,7 +1044,7 @@ const styles = StyleSheet.create({
     width: 48,
     height: 48,
     borderRadius: 24,
-    backgroundColor: "#F3EBF1",
+    backgroundColor: theme.accentSoft,
     justifyContent: "center",
     alignItems: "center",
     marginBottom: 8,
@@ -1107,7 +1052,7 @@ const styles = StyleSheet.create({
   actionText: {
     fontSize: 12,
     fontWeight: "600",
-    color: "#4B2C40",
+    color: theme.textPrimary,
   },
   recentsRow: {
     gap: 12,
@@ -1115,7 +1060,7 @@ const styles = StyleSheet.create({
   },
   recentRecipientCard: {
     alignItems: "center",
-    backgroundColor: "#FFFFFF",
+    backgroundColor: theme.surface,
     borderRadius: 20,
     padding: 12,
     width: 82,
@@ -1141,13 +1086,13 @@ const styles = StyleSheet.create({
   },
   recentRecName: {
     fontSize: 11,
-    color: "#1C1C1E",
+    color: theme.textPrimary,
     fontWeight: "600",
     textAlign: "center",
   },
   recentRecSubtitle: {
     fontSize: 9,
-    color: "#6F6876",
+    color: theme.textSecondary,
     marginTop: 2,
     textAlign: "center",
   },
@@ -1163,18 +1108,18 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingVertical: 8,
     borderRadius: 18,
-    backgroundColor: "#FFFFFF",
+    backgroundColor: theme.surface,
     borderWidth: 1,
     borderColor: "#EDE8F3",
   },
   filterChipActive: {
-    backgroundColor: "#5B4E91",
-    borderColor: "#5B4E91",
+    backgroundColor: theme.accent,
+    borderColor: theme.accent,
   },
   filterChipText: {
     fontSize: 12,
     fontWeight: "600",
-    color: "#6F6876",
+    color: theme.textSecondary,
   },
   filterChipTextActive: {
     color: "#FFFFFF",
@@ -1182,7 +1127,7 @@ const styles = StyleSheet.create({
   searchBarWrapper: {
     flexDirection: "row",
     alignItems: "center",
-    backgroundColor: "#FFFFFF",
+    backgroundColor: theme.surface,
     borderWidth: 1,
     borderColor: "#EDE8F3",
     borderRadius: 16,
@@ -1195,10 +1140,10 @@ const styles = StyleSheet.create({
   searchInput: {
     flex: 1,
     fontSize: 13,
-    color: "#1C1C1E",
+    color: theme.textPrimary,
   },
   contactsContainer: {
-    backgroundColor: "#FFFFFF",
+    backgroundColor: theme.surface,
     borderRadius: 24,
     padding: 12,
     borderWidth: 1,
@@ -1231,15 +1176,15 @@ const styles = StyleSheet.create({
   contactName: {
     fontSize: 13,
     fontWeight: "600",
-    color: "#1C1C1E",
+    color: theme.textPrimary,
   },
   contactSub: {
     fontSize: 10,
-    color: "#6F6876",
+    color: theme.textSecondary,
     marginTop: 2,
   },
   emptyText: {
-    color: "#6F6876",
+    color: theme.textSecondary,
     fontSize: 12,
     textAlign: "center",
     marginVertical: 20,
@@ -1401,7 +1346,7 @@ const styles = StyleSheet.create({
     justifyContent: "flex-end",
   },
   modalContent: {
-    backgroundColor: "#FFFFFF",
+    backgroundColor: theme.surface,
     borderTopLeftRadius: 28,
     borderTopRightRadius: 28,
     paddingTop: 8,
@@ -1413,7 +1358,7 @@ const styles = StyleSheet.create({
     width: 36,
     height: 5,
     borderRadius: 2.5,
-    backgroundColor: "#E2E8F0",
+    backgroundColor: theme.border,
     alignSelf: "center",
     marginBottom: 12,
   },
@@ -1424,12 +1369,12 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
     paddingBottom: 16,
     borderBottomWidth: 1,
-    borderColor: "#EDE8F3",
+    borderColor: theme.border,
   },
   modalTitle: {
     fontSize: 16,
     fontWeight: "700",
-    color: "#1C1C1E",
+    color: theme.textPrimary,
   },
   modalBody: {
     padding: 20,
@@ -1438,11 +1383,11 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     gap: 12,
-    backgroundColor: "#F5F0F8",
+    backgroundColor: theme.mutedBackground,
     borderRadius: 20,
     padding: 14,
     borderWidth: 1,
-    borderColor: "#EDE8F3",
+    borderColor: theme.border,
     marginBottom: 16,
   },
   selectedAvatar: {
@@ -1459,17 +1404,17 @@ const styles = StyleSheet.create({
   selectedName: {
     fontSize: 14,
     fontWeight: "600",
-    color: "#1C1C1E",
+    color: theme.textPrimary,
   },
   selectedUsername: {
     fontSize: 11,
-    color: "#5B4E91",
+    color: theme.accentSecondary,
     fontWeight: "600",
     marginTop: 2,
   },
   selectedBank: {
     fontSize: 10,
-    color: "#6F6876",
+    color: theme.textSecondary,
     marginTop: 2,
   },
   modalBalanceRow: {
@@ -1480,23 +1425,23 @@ const styles = StyleSheet.create({
   },
   modalBalanceLabel: {
     fontSize: 12,
-    color: "#6F6876",
+    color: theme.textSecondary,
   },
   modalBalanceValue: {
     fontSize: 13,
     fontWeight: "700",
-    color: "#1C1C1E",
+    color: theme.textPrimary,
   },
   inputLabel: {
     fontSize: 12,
     fontWeight: "600",
-    color: "#6F6876",
+    color: theme.textSecondary,
     marginBottom: 8,
   },
   modalAmountWrapper: {
     flexDirection: "row",
     alignItems: "center",
-    backgroundColor: "#F5F0F8",
+    backgroundColor: theme.mutedBackground,
     borderRadius: 16,
     paddingHorizontal: 16,
     height: 56,
@@ -1508,14 +1453,14 @@ const styles = StyleSheet.create({
   modalCurrencySymbol: {
     fontSize: 20,
     fontWeight: "600",
-    color: "#1C1C1E",
+    color: theme.textPrimary,
     marginRight: 4,
   },
   modalAmountInput: {
     flex: 1,
     fontSize: 20,
     fontWeight: "600",
-    color: "#1C1C1E",
+    color: theme.textPrimary,
   },
   modalErrorText: {
     color: "#EF4444",
@@ -1527,7 +1472,7 @@ const styles = StyleSheet.create({
   modalMemoWrapper: {
     flexDirection: "row",
     alignItems: "center",
-    backgroundColor: "#F5F0F8",
+    backgroundColor: theme.mutedBackground,
     borderRadius: 16,
     paddingHorizontal: 14,
     height: 48,
@@ -1537,17 +1482,17 @@ const styles = StyleSheet.create({
   },
   modalHelperText: {
     fontSize: 12,
-    color: "#6F6876",
+    color: theme.textSecondary,
     marginBottom: 10,
     lineHeight: 18,
   },
   modalInputWrapper: {
     flexDirection: "row",
     alignItems: "center",
-    backgroundColor: "#F5F0F8",
+    backgroundColor: theme.mutedBackground,
     borderRadius: 16,
     borderWidth: 1,
-    borderColor: "#EDE8F3",
+    borderColor: theme.border,
     paddingHorizontal: 12,
     height: 52,
   },
@@ -1557,17 +1502,17 @@ const styles = StyleSheet.create({
   modalInputField: {
     flex: 1,
     fontSize: 14,
-    color: "#1C1C1E",
+    color: theme.textPrimary,
     paddingVertical: 0,
   },
   modalConfirmButton: {
-    backgroundColor: "#4B2C40",
+    backgroundColor: theme.accent,
     borderRadius: 18,
     height: 52,
     justifyContent: "center",
     alignItems: "center",
     marginTop: 16,
-    shadowColor: "#4B2C40",
+    shadowColor: theme.accent,
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.18,
     shadowRadius: 10,
@@ -1592,14 +1537,14 @@ const styles = StyleSheet.create({
   quickAmountChip: {
     paddingHorizontal: 12,
     paddingVertical: 8,
-    backgroundColor: "#F3EBF1",
+    backgroundColor: theme.surfaceSoft,
     borderRadius: 14,
     marginRight: 8,
   },
   quickAmountText: {
     fontSize: 12,
     fontWeight: "700",
-    color: "#4B2C40",
+    color: theme.textPrimary,
   },
   categoryRow: {
     flexDirection: "row",
@@ -1611,11 +1556,11 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
     paddingVertical: 8,
     borderRadius: 14,
-    backgroundColor: "#F5F0F8",
+    backgroundColor: theme.surfaceSoft,
     marginRight: 8,
   },
   categoryChipActive: {
-    backgroundColor: "#5B4E91",
+    backgroundColor: theme.accent,
   },
   addCustomCategoryButton: {
     marginTop: 10,
@@ -1623,10 +1568,10 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
     paddingVertical: 8,
     borderRadius: 999,
-    backgroundColor: "#F3EBF1",
+    backgroundColor: theme.accentSoft,
   },
   addCustomCategoryButtonText: {
-    color: "#5B4E91",
+    color: theme.accent,
     fontSize: 12,
     fontWeight: "700",
   },
@@ -1640,19 +1585,19 @@ const styles = StyleSheet.create({
     width: 28,
     height: 28,
     borderRadius: 14,
-    backgroundColor: "#F3F4F6",
+    backgroundColor: theme.surfaceSoft,
     justifyContent: "center",
     alignItems: "center",
     marginLeft: 8,
   },
   categoryManageButtonText: {
-    color: "#6F6876",
+    color: theme.textPrimary,
     fontSize: 16,
     fontWeight: "700",
   },
   customCategoriesList: {
     marginTop: 10,
-    backgroundColor: "#F5F0F8",
+    backgroundColor: theme.mutedBackground,
     borderRadius: 14,
     padding: 10,
   },
@@ -1664,7 +1609,7 @@ const styles = StyleSheet.create({
   },
   customCategoryText: {
     fontSize: 13,
-    color: "#1C1C1E",
+    color: theme.textPrimary,
     fontWeight: "600",
   },
   deleteCategoryButton: {
@@ -1684,28 +1629,28 @@ const styles = StyleSheet.create({
     paddingHorizontal: 10,
     paddingVertical: 6,
     borderRadius: 999,
-    backgroundColor: "#F3F4F6",
+    backgroundColor: theme.surfaceSoft,
   },
   clearSelectionButtonText: {
-    color: "#4B5563",
+    color: theme.textSecondary,
     fontSize: 11,
     fontWeight: "700",
   },
   customCategoryInputWrapper: {
     marginTop: 12,
-    backgroundColor: "#F8F8FA",
+    backgroundColor: theme.mutedBackground,
     borderRadius: 16,
     paddingHorizontal: 14,
     paddingVertical: 12,
   },
   customCategoryInput: {
     fontSize: 14,
-    color: "#1C1C1E",
+    color: theme.textPrimary,
     paddingVertical: 0,
   },
   categoryText: {
     fontSize: 12,
-    color: "#1C1C1E",
+    color: theme.textPrimary,
     fontWeight: "600",
   },
   categoryTextActive: {
