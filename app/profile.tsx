@@ -24,7 +24,7 @@ const useTypedAppStore = useAppStore as unknown as () => AppStore;
 
 export default function ProfileScreen() {
   const router = useRouter();
-  const { profileImage, setProfileImage } = useTypedAppStore();
+  const { profileImage, setProfileImage, theme } = useTypedAppStore();
 
   const pickImageFromGallery = async () => {
     // Request permission to access the media library
@@ -72,17 +72,17 @@ export default function ProfileScreen() {
   ];
 
   return (
-    <SafeAreaView style={styles.container}>
+    <SafeAreaView style={[styles.container, { backgroundColor: theme.background }]}>
       {/* --- HEADER --- */}
-      <View style={styles.header}>
+      <View style={[styles.header, { backgroundColor: theme.surface, borderColor: theme.border }]}>
         <TouchableOpacity
           style={styles.backButton}
           onPress={() => router.back()}
           activeOpacity={0.7}
         >
-          <Ionicons name="chevron-back" size={24} color="#2D232E" />
+          <Ionicons name="chevron-back" size={24} color={theme.textPrimary} />
         </TouchableOpacity>
-        <Text style={styles.headerTitle}>My Profile</Text>
+        <Text style={[styles.headerTitle, { color: theme.textPrimary }]}>My Profile</Text>
         <View style={styles.placeholderBox} />
       </View>
 
@@ -98,51 +98,51 @@ export default function ProfileScreen() {
             activeOpacity={0.8}
           >
             {profileImage ? (
-              <Image source={{ uri: profileImage }} style={styles.avatar} />
+              <Image source={{ uri: profileImage }} style={[styles.avatar, { borderColor: theme.surface }]} />
             ) : (
-              <View style={styles.avatarPlaceholder}>
-                <Ionicons name="person" size={54} color="#A6ACAF" />
+              <View style={[styles.avatarPlaceholder, { backgroundColor: theme.surfaceSoft, borderColor: theme.surface }]}>
+                <Ionicons name="person" size={54} color={theme.textSecondary} />
               </View>
             )}
-            <View style={styles.cameraBadge}>
+            <View style={[styles.cameraBadge, { backgroundColor: theme.accent, borderColor: theme.surface }]}>
               <Ionicons name="camera" size={16} color="#FFFFFF" />
             </View>
           </TouchableOpacity>
-          <Text style={styles.profileUsernameText}>EBUKA</Text>
+          <Text style={[styles.profileUsernameText, { color: theme.textPrimary }]}>EBUKA</Text>
         </View>
 
         {/* --- TOP METRICS CARD (TALLYTAG & ACCOUNT PLAN) --- */}
-        <View style={styles.card}>
+        <View style={[styles.card, { backgroundColor: theme.surface, borderColor: theme.border }]}>
           <View
             style={[
               styles.cardRow,
               {
                 borderBottomWidth: 1,
-                borderColor: "#F2F4F4",
+                borderColor: theme.border,
                 paddingBottom: 14,
               },
             ]}
           >
-            <Text style={styles.cardFieldLabel}>TallyTag</Text>
+            <Text style={[styles.cardFieldLabel, { color: theme.textSecondary }]}>TallyTag</Text>
             <View style={styles.accountNumberWrapper}>
-              <Text style={styles.accountNumberText}>@EBUKA</Text>
+              <Text style={[styles.accountNumberText, { color: theme.textPrimary }]}>@EBUKA</Text>
               <TouchableOpacity style={{ marginLeft: 6 }}>
-                <Ionicons name="copy-outline" size={14} color="#A6ACAF" />
+                <Ionicons name="copy-outline" size={14} color={theme.textSecondary} />
               </TouchableOpacity>
             </View>
           </View>
 
           <View style={[styles.cardRow, { paddingTop: 14 }]}> 
-            <Text style={styles.cardFieldLabel}>Account Plan</Text>
+            <Text style={[styles.cardFieldLabel, { color: theme.textSecondary }]}>Account Plan</Text>
             <View style={styles.badgeFlexContainer}>
-              <View style={styles.planTierBadge}>
+              <View style={[styles.planTierBadge, { backgroundColor: theme.accentSoft }]}>
                 <Ionicons
                   name="ribbon-outline"
                   size={12}
-                  color="#6442E5"
+                  color={theme.accent}
                   style={{ marginRight: 4 }}
                 />
-                <Text style={styles.planTierBadgeText}>Freemium</Text>
+                <Text style={[styles.planTierBadgeText, { color: theme.accent }]}>Freemium</Text>
               </View>
               <TouchableOpacity
                 style={styles.upgradeLinkRow}
@@ -156,25 +156,26 @@ export default function ProfileScreen() {
         </View>
 
         {/* --- DEMOGRAPHICS LIST CARD --- */}
-        <View style={styles.card}>
+        <View style={[styles.card, { backgroundColor: theme.surface, borderColor: theme.border }]}>
           {profileDetails.map((item, index) => (
             <TouchableOpacity
               key={index}
               style={[
                 styles.cardRow,
                 styles.demographicPaddingRow,
-                index !== profileDetails.length - 1 && styles.rowBorderDivider,
+                index !== profileDetails.length - 1 && [styles.rowBorderDivider, { borderColor: theme.border }],
               ]}
               disabled={!item.hasArrow}
               activeOpacity={0.7}
             >
-              <Text style={styles.cardFieldLabel}>{item.label}</Text>
+              <Text style={[styles.cardFieldLabel, { color: theme.textSecondary }]}>{item.label}</Text>
               <View style={styles.interactiveRowRightLayout}>
                 {item.value !== "" && (
                   <Text
                     style={[
                       styles.fieldValueDisplayText,
-                      item.isPlaceholder && styles.placeholderValueText,
+                      { color: theme.textPrimary },
+                      item.isPlaceholder && { color: theme.textSecondary },
                     ]}
                   >
                     {item.value}
@@ -184,7 +185,7 @@ export default function ProfileScreen() {
                   <Ionicons
                     name="chevron-forward"
                     size={14}
-                    color="#A6ACAF"
+                    color={theme.textSecondary}
                     style={{ marginLeft: 6 }}
                   />
                 )}

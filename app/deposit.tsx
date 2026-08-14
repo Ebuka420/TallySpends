@@ -37,7 +37,8 @@ const depositOptions = [
 
 export default function DepositScreen() {
   const router = useRouter();
-  const { addTransaction, transactions, savedCards = [] } = useAppStore();
+  const { addTransaction, transactions, savedCards = [], theme } = useAppStore();
+  const styles = React.useMemo(() => getStyles(theme), [theme]);
   const [amount, setAmount] = useState("");
   const [selectedOption, setSelectedOption] = useState("bank-transfer");
   const [generatedBank, setGeneratedBank] = useState<any>(null);
@@ -237,10 +238,10 @@ export default function DepositScreen() {
                     <Ionicons name="card-outline" size={20} color="#6B5B8B" />
                   </View>
                   <View style={{ flex: 1 }}>
-                    <Text style={styles.cardTitle}>{`${c.brand} •••• ${c.last4}`}</Text>
+                    <Text style={styles.cardRowTitle}>{`${c.brand} •••• ${c.last4}`}</Text>
                     <Text style={styles.cardSubtitle}>{c.holder}</Text>
                   </View>
-                  {selectedCard === c.id && <Ionicons name="checkmark-circle" size={20} color="#4B2C40" />}
+                  {selectedCard === c.id && <Ionicons name="checkmark-circle" size={20} color={theme.accent} />}
                 </TouchableOpacity>
               ))
             )}
@@ -299,10 +300,10 @@ export default function DepositScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+const getStyles = (theme: any) => StyleSheet.create({
   safeArea: {
     flex: 1,
-    backgroundColor: "#F8F9FA",
+    backgroundColor: theme.background,
   },
   header: {
     height: 64,
@@ -316,7 +317,7 @@ const styles = StyleSheet.create({
     width: 40,
     height: 40,
     borderRadius: 14,
-    backgroundColor: "#FFFFFF",
+    backgroundColor: theme.surface,
     justifyContent: "center",
     alignItems: "center",
     shadowColor: "#000",
@@ -328,7 +329,7 @@ const styles = StyleSheet.create({
   headerTitle: {
     fontSize: 18,
     fontWeight: "700",
-    color: "#2D232E",
+    color: theme.textPrimary,
   },
   headerPlaceholder: {
     width: 40,
@@ -338,7 +339,7 @@ const styles = StyleSheet.create({
     paddingBottom: 32,
   },
   balanceCard: {
-    backgroundColor: "#FFFFFF",
+    backgroundColor: theme.surface,
     borderRadius: 16,
     padding: 18,
     alignItems: "center",
@@ -350,7 +351,7 @@ const styles = StyleSheet.create({
     marginBottom: 18,
   },
   balanceLabel: {
-    color: "#7D7D7D",
+    color: theme.textSecondary,
     fontSize: 12,
     fontWeight: "600",
     marginBottom: 8,
@@ -358,10 +359,10 @@ const styles = StyleSheet.create({
   balanceAmount: {
     fontSize: 28,
     fontWeight: "700",
-    color: "#2D232E",
+    color: theme.textPrimary,
   },
   cardSection: {
-    backgroundColor: "#FFFFFF",
+    backgroundColor: theme.surface,
     borderRadius: 16,
     padding: 16,
     marginBottom: 16,
@@ -374,7 +375,7 @@ const styles = StyleSheet.create({
   cardTitle: {
     fontSize: 15,
     fontWeight: "700",
-    color: "#2D232E",
+    color: theme.textPrimary,
     marginBottom: 16,
   },
   optionCard: {
@@ -382,23 +383,23 @@ const styles = StyleSheet.create({
     alignItems: "center",
     padding: 16,
     borderRadius: 12,
-    backgroundColor: "#F8F5FF",
+    backgroundColor: theme.surfaceSoft,
     marginBottom: 12,
   },
   optionCardSelected: {
-    backgroundColor: "#F3EDFF",
+    backgroundColor: theme.accentSoft,
   },
   optionIconBox: {
     width: 48,
     height: 48,
     borderRadius: 16,
-    backgroundColor: "#FFFFFF",
+    backgroundColor: theme.surface,
     justifyContent: "center",
     alignItems: "center",
     marginRight: 14,
   },
   optionIconBoxSelected: {
-    backgroundColor: "#E5DBF7",
+    backgroundColor: theme.accentSoft,
   },
   optionInfo: {
     flex: 1,
@@ -406,11 +407,11 @@ const styles = StyleSheet.create({
   optionTitle: {
     fontSize: 15,
     fontWeight: "700",
-    color: "#1A1A1A",
+    color: theme.textPrimary,
   },
   optionSubtitle: {
     fontSize: 13,
-    color: "#7A6F8B",
+    color: theme.textSecondary,
     marginTop: 4,
     lineHeight: 18,
   },
@@ -423,14 +424,14 @@ const styles = StyleSheet.create({
   seeAllText: {
     fontSize: 13,
     fontWeight: "700",
-    color: "#7D5AF7",
+    color: theme.accent,
   },
   depositRow: {
     flexDirection: "row",
     alignItems: "center",
     paddingVertical: 14,
     borderBottomWidth: 1,
-    borderColor: "#F2EDF8",
+    borderColor: theme.border,
   },
   depositIconBox: {
     width: 44,
@@ -447,11 +448,11 @@ const styles = StyleSheet.create({
   depositTitle: {
     fontSize: 14,
     fontWeight: "700",
-    color: "#1A1A1A",
+    color: theme.textPrimary,
   },
   depositSubtitle: {
     fontSize: 12,
-    color: "#7A6F8B",
+    color: theme.textSecondary,
     marginTop: 4,
   },
   depositMeta: {
@@ -473,7 +474,7 @@ const styles = StyleSheet.create({
   },
   emptyNoticeText: {
     fontSize: 13,
-    color: "#7A6F8B",
+    color: theme.textSecondary,
   },
   noteCard: {
     flexDirection: "row",
@@ -496,10 +497,10 @@ const styles = StyleSheet.create({
   amountInputRow: {
     flexDirection: "row",
     alignItems: "center",
-    backgroundColor: "#FFFFFF",
+    backgroundColor: theme.surface,
     borderRadius: 20,
     borderWidth: 1,
-    borderColor: "#E5E1F5",
+    borderColor: theme.border,
     paddingHorizontal: 18,
     height: 68,
   },
@@ -507,21 +508,21 @@ const styles = StyleSheet.create({
     fontSize: 24,
     fontWeight: "800",
     marginRight: 10,
-    color: "#1A1A1A",
+    color: theme.textPrimary,
   },
   amountInputField: {
     flex: 1,
     fontSize: 20,
     fontWeight: "700",
-    color: "#1A1A1A",
+    color: theme.textPrimary,
   },
   primaryButton: {
-    backgroundColor: "#4B2C40",
+    backgroundColor: theme.accent,
     borderRadius: 20,
     height: 58,
     justifyContent: "center",
     alignItems: "center",
-    shadowColor: "#4B2C40",
+    shadowColor: theme.accent,
     shadowOffset: { width: 0, height: 8 },
     shadowOpacity: 0.18,
     shadowRadius: 18,
@@ -539,71 +540,78 @@ const styles = StyleSheet.create({
   amountInputRowAlt: {
     flexDirection: "row",
     alignItems: "center",
-    backgroundColor: "#FFFFFF",
+    backgroundColor: theme.surface,
     borderRadius: 12,
     borderWidth: 1,
-    borderColor: "#EDEAF6",
+    borderColor: theme.border,
     paddingHorizontal: 14,
     height: 60,
     marginTop: 8,
   },
   secondaryButton: {
-    backgroundColor: "#FFFFFF",
+    backgroundColor: theme.surface,
     borderRadius: 12,
     paddingVertical: 12,
     alignItems: "center",
     borderWidth: 1,
-    borderColor: "#EDEAF6",
+    borderColor: theme.border,
   },
   secondaryButtonText: {
-    color: "#4B2C40",
+    color: theme.accent,
     fontWeight: "700",
   },
   bankDetailsCard: {
-    backgroundColor: "#F8F9FA",
+    backgroundColor: theme.background,
     borderRadius: 12,
     padding: 12,
     marginTop: 12,
   },
   bankLineLabel: {
     fontSize: 12,
-    color: "#7D7D7D",
+    color: theme.textSecondary,
     marginTop: 8,
   },
   bankLineValue: {
     fontSize: 14,
-    color: "#2D232E",
+    color: theme.textPrimary,
     fontWeight: "700",
   },
   cardRow: {
     flexDirection: "row",
     alignItems: "center",
-    backgroundColor: "#FFFFFF",
+    backgroundColor: theme.surface,
     borderRadius: 12,
     padding: 12,
     marginBottom: 10,
   },
   cardRowSelected: {
     borderWidth: 1,
-    borderColor: "#4B2C40",
+    borderColor: theme.accent,
   },
   cardIconBox: {
     width: 44,
     height: 44,
     borderRadius: 8,
-    backgroundColor: "#F3F0FA",
+    backgroundColor: theme.surfaceSoft,
     alignItems: "center",
     justifyContent: "center",
     marginRight: 12,
   },
-  cardTitle: {
+  cardRowTitle: {
     fontSize: 14,
     fontWeight: "700",
-    color: "#2D232E",
+    color: theme.textPrimary,
   },
   cardSubtitle: {
     fontSize: 12,
-    color: "#7A6F8B",
+    color: theme.textSecondary,
     marginTop: 4,
+  },
+  sectionTitle: {
+    fontSize: 14,
+    fontWeight: "700",
+    color: theme.textSecondary,
+    marginBottom: 8,
+    marginTop: 12,
   },
 });

@@ -12,6 +12,7 @@ import {
     TouchableOpacity,
     View,
 } from "react-native";
+import { useAppStore } from "../src/store";
 
 const API_URL = process.env.EXPO_PUBLIC_API_URL;
 
@@ -51,6 +52,8 @@ const POPULAR_BANKS = [
 
 export default function LinkBankScreen() {
   const router = useRouter();
+  const { theme } = useAppStore();
+  const styles = React.useMemo(() => getStyles(theme), [theme]);
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedBank, setSelectedBank] = useState<string | null>(null);
   const [isConnecting, setIsConnecting] = useState(false);
@@ -82,9 +85,9 @@ export default function LinkBankScreen() {
           onPress={() => router.back()}
           style={styles.backButton}
         >
-          <Ionicons name="arrow-back" size={24} color="#1F2937" />
+          <Ionicons name="arrow-back" size={24} color={theme.textPrimary} />
         </TouchableOpacity>
-        <Text style={styles.headerTitle}>Link Bank Account</Text>
+        <Text style={[styles.headerTitle, { color: theme.textPrimary }]}>Link Bank Account</Text>
         <View style={{ width: 40 }} />
       </View>
 
@@ -97,7 +100,7 @@ export default function LinkBankScreen() {
           <Ionicons
             name="shield-checkmark"
             size={24}
-            color="#4F46E5"
+            color={theme.accent}
             style={styles.infoIcon}
           />
           <View style={styles.infoTextContainer}>
@@ -159,7 +162,7 @@ export default function LinkBankScreen() {
                   <Ionicons
                     name="checkmark-circle"
                     size={22}
-                    color="#4F46E5"
+                    color={theme.accent}
                     style={styles.checkIcon}
                   />
                 )}
@@ -194,10 +197,10 @@ export default function LinkBankScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+const getStyles = (theme: any) => StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#F9FAFB",
+    backgroundColor: theme.background,
   },
   header: {
     flexDirection: "row",
@@ -206,8 +209,8 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingVertical: 12,
     borderBottomWidth: 1,
-    borderColor: "#E5E7EB",
-    backgroundColor: "#FFFFFF",
+    borderColor: theme.border,
+    backgroundColor: theme.surface,
   },
   backButton: {
     padding: 8,
@@ -215,20 +218,20 @@ const styles = StyleSheet.create({
   headerTitle: {
     fontSize: 18,
     fontWeight: "700",
-    color: "#1F2937",
+    color: theme.textPrimary,
   },
   scrollContent: {
     padding: 16,
   },
   infoCard: {
     flexDirection: "row",
-    backgroundColor: "#EEF2FF",
+    backgroundColor: theme.accentSoft,
     padding: 16,
     borderRadius: 16,
     marginBottom: 24,
     alignItems: "center",
     borderWidth: 1,
-    borderColor: "#E0E7FF",
+    borderColor: theme.border,
   },
   infoIcon: {
     marginRight: 12,
@@ -239,28 +242,28 @@ const styles = StyleSheet.create({
   infoTitle: {
     fontSize: 15,
     fontWeight: "600",
-    color: "#312E81",
+    color: theme.textPrimary,
     marginBottom: 2,
   },
   infoSubtitle: {
     fontSize: 13,
-    color: "#4338CA",
+    color: theme.textSecondary,
     lineHeight: 18,
   },
   sectionLabel: {
     fontSize: 13,
     fontWeight: "600",
-    color: "#4B5563",
+    color: theme.textSecondary,
     marginBottom: 8,
     textTransform: "uppercase",
     letterSpacing: 0.5,
   },
   searchBarContainer: {
     flexDirection: "row",
-    backgroundColor: "#FFFFFF",
+    backgroundColor: theme.surface,
     borderRadius: 12,
     borderWidth: 1,
-    borderColor: "#E5E7EB",
+    borderColor: theme.border,
     alignItems: "center",
     paddingHorizontal: 12,
     marginBottom: 24,
@@ -272,7 +275,7 @@ const styles = StyleSheet.create({
   searchInput: {
     flex: 1,
     fontSize: 15,
-    color: "#1F2937",
+    color: theme.textPrimary,
   },
   bankGrid: {
     gap: 12,
@@ -280,21 +283,21 @@ const styles = StyleSheet.create({
   bankCard: {
     flexDirection: "row",
     alignItems: "center",
-    backgroundColor: "#FFFFFF",
+    backgroundColor: theme.surface,
     padding: 14,
     borderRadius: 12,
     borderWidth: 1,
-    borderColor: "#E5E7EB",
+    borderColor: theme.border,
   },
   bankCardSelected: {
-    borderColor: "#4F46E5",
-    backgroundColor: "#F5F3FF",
+    borderColor: theme.accent,
+    backgroundColor: theme.accentSoft,
   },
   iconWrapper: {
     width: 40,
     height: 40,
     borderRadius: 8,
-    backgroundColor: "#F3F4F6",
+    backgroundColor: theme.surfaceSoft,
     justifyContent: "center",
     alignItems: "center",
     marginRight: 14,
@@ -308,30 +311,30 @@ const styles = StyleSheet.create({
   bankName: {
     fontSize: 15,
     fontWeight: "600",
-    color: "#374151",
+    color: theme.textPrimary,
     flex: 1,
   },
   bankNameSelected: {
-    color: "#4F46E5",
+    color: theme.accent,
   },
   checkIcon: {
     marginLeft: 8,
   },
   footer: {
-    backgroundColor: "#FFFFFF",
+    backgroundColor: theme.surface,
     padding: 16,
     borderTopWidth: 1,
-    borderColor: "#E5E7EB",
+    borderColor: theme.border,
   },
   submitButton: {
-    backgroundColor: "#4F46E5",
+    backgroundColor: theme.accent,
     height: 52,
     borderRadius: 12,
     justifyContent: "center",
     alignItems: "center",
   },
   submitButtonDisabled: {
-    backgroundColor: "#9CA3AF",
+    backgroundColor: theme.border,
   },
   submitButtonText: {
     color: "#FFFFFF",

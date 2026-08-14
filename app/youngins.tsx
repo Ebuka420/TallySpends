@@ -1,6 +1,7 @@
 import { Ionicons } from "@expo/vector-icons";
 import { Stack, useRouter } from "expo-router";
 import React from "react";
+import { useAppStore } from "../src/store";
 import {
   Dimensions,
   Image,
@@ -74,6 +75,14 @@ const YOUNG_ACCOUNTS = [
 
 export default function YounginsScreen() {
   const router = useRouter();
+  const { theme } = useAppStore();
+  const styles = React.useMemo(() => getStyles(theme), [theme]);
+  const benefitColors: Record<string, { icon: string; bg: string }> = {
+    secure: { icon: theme.accentHighlight, bg: theme.accentSoft },
+    savings: { icon: theme.success, bg: theme.surfaceSoft },
+    limits: { icon: theme.warning, bg: theme.surfaceSoft },
+    grow: { icon: theme.danger, bg: theme.surfaceSoft },
+  };
 
   return (
     <SafeAreaView style={styles.container}>
@@ -85,13 +94,13 @@ export default function YounginsScreen() {
           headerTitleAlign: "center",
           headerTitleStyle: styles.navHeaderTitle,
           headerShadowVisible: false,
-          headerStyle: { backgroundColor: "#FAF9FB" },
+          headerStyle: { backgroundColor: theme.background },
           headerLeft: () => (
             <TouchableOpacity
               onPress={() => router.back()}
               style={styles.backButton}
             >
-              <Ionicons name="chevron-back" size={24} color="#1C1C1E" />
+              <Ionicons name="chevron-back" size={24} color={theme.textPrimary} />
             </TouchableOpacity>
           ),
         }}
@@ -114,7 +123,7 @@ export default function YounginsScreen() {
               <Ionicons
                 name="add"
                 size={18}
-                color="#FFFFFF"
+                color={theme.surface}
                 style={styles.heroButtonIcon}
               />
               <Text style={styles.heroButtonText}>Open Youngins Account</Text>
@@ -139,17 +148,8 @@ export default function YounginsScreen() {
           <View style={styles.gridContainer}>
             {BENEFITS.map((benefit) => (
               <View key={benefit.id} style={styles.benefitItem}>
-                <View
-                  style={[
-                    styles.iconCircle,
-                    { backgroundColor: benefit.bgColor },
-                  ]}
-                >
-                  <Ionicons
-                    name={benefit.icon as any}
-                    size={20}
-                    color={benefit.iconColor}
-                  />
+                <View style={[styles.iconCircle, { backgroundColor: benefitColors[benefit.id].bg }]}>
+                  <Ionicons name={benefit.icon as any} size={20} color={benefitColors[benefit.id].icon} />
                 </View>
                 <View style={styles.benefitTextFrame}>
                   <Text style={styles.benefitTitle}>{benefit.title}</Text>
@@ -185,12 +185,7 @@ export default function YounginsScreen() {
                     <Text style={styles.balanceLabel}>Account Balance</Text>
                     <Text style={styles.balanceValue}>{account.balance}</Text>
                   </View>
-                  <Ionicons
-                    name="chevron-forward"
-                    size={18}
-                    color="#C7C7CC"
-                    style={styles.rowChevron}
-                  />
+                  <Ionicons name="chevron-forward" size={18} color={theme.textSecondary} style={styles.rowChevron} />
                 </TouchableOpacity>
                 {index < YOUNG_ACCOUNTS.length - 1 && (
                   <View style={styles.divider} />
@@ -202,12 +197,7 @@ export default function YounginsScreen() {
 
         {/* 4. Trust & Security Banner */}
         <View style={styles.securityBanner}>
-          <Ionicons
-            name="shield-checkmark"
-            size={20}
-            color="#27AE60"
-            style={styles.securityIcon}
-          />
+          <Ionicons name="shield-checkmark" size={20} color={theme.success} style={styles.securityIcon} />
           <Text style={styles.securityText}>
             Youngins accounts follow strict security and privacy standards to
             keep your child&apos;s money safe.
@@ -218,16 +208,17 @@ export default function YounginsScreen() {
   );
 }
 
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: "#FAF9FB",
-  },
-  navHeaderTitle: {
-    fontSize: 18,
-    fontWeight: "700",
-    color: "#1C1C1E",
-  },
+const getStyles = (theme: any) =>
+  StyleSheet.create({
+    container: {
+      flex: 1,
+      backgroundColor: theme.background,
+    },
+    navHeaderTitle: {
+      fontSize: 18,
+      fontWeight: "700",
+      color: theme.textPrimary,
+    },
   backButton: {
     padding: 4,
   },
@@ -236,9 +227,9 @@ const styles = StyleSheet.create({
     paddingBottom: 40,
   },
   /* Hero Promo Banner Box */
-  heroCard: {
-    position: "relative",
-    backgroundColor: "#F6F5FB",
+    heroCard: {
+      position: "relative",
+      backgroundColor: theme.surface,
     borderRadius: 24,
     padding: 20,
     marginTop: 10,
@@ -253,18 +244,18 @@ const styles = StyleSheet.create({
   heroTitle: {
     fontSize: 20,
     fontWeight: "700",
-    color: "#1C1C1E",
+    color: theme.textPrimary,
     lineHeight: 26,
   },
   heroSubtitle: {
     fontSize: 12,
-    color: "#636366",
+    color: theme.textSecondary,
     marginTop: 8,
     marginBottom: 16,
     lineHeight: 18,
   },
   heroButton: {
-    backgroundColor: "#20142A",
+    backgroundColor: theme.accent,
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
@@ -277,7 +268,7 @@ const styles = StyleSheet.create({
     marginRight: 4,
   },
   heroButtonText: {
-    color: "#FFFFFF",
+    color: theme.surface,
     fontSize: 11,
     fontWeight: "700",
   },
@@ -295,12 +286,12 @@ const styles = StyleSheet.create({
   benefitsContainer: {
     marginBottom: 24,
   },
-  sectionHeaderTitle: {
-    fontSize: 14,
-    fontWeight: "700",
-    color: "#2C2C2E",
-    marginBottom: 16,
-  },
+    sectionHeaderTitle: {
+      fontSize: 14,
+      fontWeight: "700",
+      color: theme.textPrimary,
+      marginBottom: 16,
+    },
   gridContainer: {
     flexDirection: "row",
     flexWrap: "wrap",
@@ -323,17 +314,17 @@ const styles = StyleSheet.create({
   benefitTextFrame: {
     flex: 1,
   },
-  benefitTitle: {
-    fontSize: 12,
-    fontWeight: "700",
-    color: "#1C1C1E",
-    marginBottom: 2,
-  },
-  benefitSubtitle: {
-    fontSize: 10,
-    color: "#8E8E93",
-    lineHeight: 13,
-  },
+    benefitTitle: {
+      fontSize: 12,
+      fontWeight: "700",
+      color: theme.textPrimary,
+      marginBottom: 2,
+    },
+    benefitSubtitle: {
+      fontSize: 10,
+      color: theme.textSecondary,
+      lineHeight: 13,
+    },
   /* Reusable Sections */
   sectionWrapper: {
     marginBottom: 24,
@@ -344,26 +335,26 @@ const styles = StyleSheet.create({
     alignItems: "center",
     marginBottom: 12,
   },
-  sectionTitle: {
-    fontSize: 15,
-    fontWeight: "700",
-    color: "#1C1C1E",
-  },
-  viewAllText: {
-    fontSize: 12,
-    fontWeight: "600",
-    color: "#5B4E91",
-  },
-  cardContainer: {
-    backgroundColor: "#FFFFFF",
-    borderRadius: 16,
-    paddingHorizontal: 16,
-    shadowColor: "#000000",
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.03,
-    shadowRadius: 8,
-    elevation: 1,
-  },
+    sectionTitle: {
+      fontSize: 15,
+      fontWeight: "700",
+      color: theme.textPrimary,
+    },
+    viewAllText: {
+      fontSize: 12,
+      fontWeight: "600",
+      color: theme.accentHighlight,
+    },
+    cardContainer: {
+      backgroundColor: theme.surface,
+      borderRadius: 16,
+      paddingHorizontal: 16,
+      shadowColor: "#000000",
+      shadowOffset: { width: 0, height: 1 },
+      shadowOpacity: 0.03,
+      shadowRadius: 8,
+      elevation: 1,
+    },
   /* Individual Account Rows */
   accountRow: {
     flexDirection: "row",
@@ -374,60 +365,60 @@ const styles = StyleSheet.create({
     width: 44,
     height: 44,
     borderRadius: 22,
-    backgroundColor: "#EBE9F5",
+    backgroundColor: theme.surfaceSoft,
   },
   accountDetails: {
     flex: 1,
     marginLeft: 12,
   },
-  accountName: {
-    fontSize: 15,
-    fontWeight: "700",
-    color: "#1C1C1E",
-  },
-  accountAge: {
-    fontSize: 11,
-    color: "#8E8E93",
-    marginTop: 2,
-  },
+    accountName: {
+      fontSize: 15,
+      fontWeight: "700",
+      color: theme.textPrimary,
+    },
+    accountAge: {
+      fontSize: 11,
+      color: theme.textSecondary,
+      marginTop: 2,
+    },
   balanceDetails: {
     alignItems: "flex-end",
     marginRight: 10,
   },
   balanceLabel: {
     fontSize: 9,
-    color: "#8E8E93",
+    color: theme.textSecondary,
     marginBottom: 2,
   },
-  balanceValue: {
-    fontSize: 14,
-    fontWeight: "700",
-    color: "#1C1C1E",
-  },
+    balanceValue: {
+      fontSize: 14,
+      fontWeight: "700",
+      color: theme.textPrimary,
+    },
   rowChevron: {
     marginLeft: 2,
   },
-  divider: {
-    height: 1,
-    backgroundColor: "#F2F2F7",
-  },
+    divider: {
+      height: 1,
+      backgroundColor: theme.border,
+    },
   /* Guardrail Security Badge info banner */
-  securityBanner: {
-    flexDirection: "row",
-    backgroundColor: "#EEF7F1",
-    borderRadius: 12,
-    padding: 12,
-    alignItems: "center",
-    marginTop: 10,
-  },
+    securityBanner: {
+      flexDirection: "row",
+      backgroundColor: theme.accentSoft,
+      borderRadius: 12,
+      padding: 12,
+      alignItems: "center",
+      marginTop: 10,
+    },
   securityIcon: {
     marginRight: 12,
   },
-  securityText: {
-    flex: 1,
-    fontSize: 11,
-    color: "#1E5E3A",
-    lineHeight: 16,
-    fontWeight: "500",
-  },
-});
+    securityText: {
+      flex: 1,
+      fontSize: 11,
+      color: theme.textPrimary,
+      lineHeight: 16,
+      fontWeight: "500",
+    },
+  });

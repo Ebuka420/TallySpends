@@ -12,6 +12,7 @@ import {
     UIManager,
     View,
 } from "react-native";
+import { useAppStore } from "../src/store";
 
 // Enable smooth layout animations for Android devices
 if (
@@ -29,6 +30,8 @@ interface FAQItem {
 
 export default function CustomerServiceScreen() {
   const router = useRouter();
+  const { theme } = useAppStore();
+  const styles = React.useMemo(() => getStyles(theme), [theme]);
   const [expandedId, setExpandedId] = useState<number | null>(null);
 
   const faqs: FAQItem[] = [
@@ -79,9 +82,9 @@ export default function CustomerServiceScreen() {
           onPress={() => router.back()}
           activeOpacity={0.7}
         >
-          <Ionicons name="chevron-back" size={24} color="#2D232E" />
+          <Ionicons name="chevron-back" size={24} color={theme.textPrimary} />
         </TouchableOpacity>
-        <Text style={styles.headerTitle}>Support Center</Text>
+        <Text style={[styles.headerTitle, { color: theme.textPrimary }]}>Support Center</Text>
         <View style={styles.placeholderBox} />
       </View>
 
@@ -123,7 +126,7 @@ export default function CustomerServiceScreen() {
                 <Ionicons
                   name={isExpanded ? "chevron-up" : "chevron-down"}
                   size={18}
-                  color={isExpanded ? "#6442E5" : "#534B52"}
+                  color={isExpanded ? theme.accent : theme.textSecondary}
                 />
               </TouchableOpacity>
 
@@ -155,10 +158,10 @@ export default function CustomerServiceScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+const getStyles = (theme: any) => StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#F8F9FA",
+    backgroundColor: theme.background,
   },
   scrollContainer: {
     paddingBottom: 40,
@@ -170,9 +173,9 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "space-between",
     paddingHorizontal: 16,
-    backgroundColor: "#FFFFFF",
+    backgroundColor: theme.surface,
     borderBottomWidth: 1,
-    borderColor: "#EFEFEF",
+    borderColor: theme.border,
   },
   backButton: {
     width: 40,
@@ -183,13 +186,13 @@ const styles = StyleSheet.create({
   headerTitle: {
     fontSize: 17,
     fontWeight: "700",
-    color: "#2D232E",
+    color: theme.textPrimary,
   },
   placeholderBox: {
     width: 40,
   },
   introCard: {
-    backgroundColor: "#2D232E",
+    backgroundColor: theme.accent,
     borderRadius: 16,
     padding: 20,
     marginTop: 16,
@@ -209,20 +212,20 @@ const styles = StyleSheet.create({
   sectionHeading: {
     fontSize: 15,
     fontWeight: "700",
-    color: "#2D232E",
+    color: theme.textPrimary,
     marginBottom: 12,
     paddingLeft: 2,
   },
   faqCard: {
-    backgroundColor: "#FFFFFF",
+    backgroundColor: theme.surface,
     borderRadius: 12,
     borderWidth: 1,
-    borderColor: "#EAEAEA",
+    borderColor: theme.border,
     marginBottom: 10,
     overflow: "hidden",
   },
   faqCardExpanded: {
-    borderColor: "#6442E5",
+    borderColor: theme.accent,
   },
   faqHeaderTrigger: {
     flexDirection: "row",
@@ -234,13 +237,13 @@ const styles = StyleSheet.create({
   faqQuestionText: {
     fontSize: 13,
     fontWeight: "600",
-    color: "#2D232E",
+    color: theme.textPrimary,
     flex: 1,
     paddingRight: 12,
     lineHeight: 18,
   },
   faqQuestionTextActive: {
-    color: "#6442E5",
+    color: theme.accent,
     fontWeight: "700",
   },
   faqAnswerContentBlock: {
@@ -249,21 +252,21 @@ const styles = StyleSheet.create({
   },
   dividerLine: {
     height: 1,
-    backgroundColor: "#F0F0F2",
+    backgroundColor: theme.border,
     marginBottom: 12,
   },
   faqAnswerText: {
     fontSize: 12,
-    color: "#534B52",
+    color: theme.textSecondary,
     lineHeight: 18,
   },
   contactCard: {
     flexDirection: "row",
     alignItems: "center",
-    backgroundColor: "#FFFFFF",
+    backgroundColor: theme.surface,
     borderRadius: 12,
     borderWidth: 1,
-    borderColor: "#EAEAEA",
+    borderColor: theme.border,
     padding: 16,
     marginTop: 20,
   },
@@ -274,15 +277,15 @@ const styles = StyleSheet.create({
   contactTitle: {
     fontSize: 13,
     fontWeight: "700",
-    color: "#2D232E",
+    color: theme.textPrimary,
   },
   contactSubtitle: {
     fontSize: 11,
-    color: "#534B52",
+    color: theme.textSecondary,
     marginTop: 2,
   },
   chatButton: {
-    backgroundColor: "#4B2C40",
+    backgroundColor: theme.accent,
     paddingHorizontal: 14,
     paddingVertical: 8,
     borderRadius: 8,

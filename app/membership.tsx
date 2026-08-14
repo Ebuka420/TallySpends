@@ -9,6 +9,7 @@ import {
     TouchableOpacity,
     View,
 } from "react-native";
+import { useAppStore } from "../src/store";
 
 // Mock data representing the list of features for each plan
 const FREEMIUM_FEATURES = [
@@ -70,6 +71,8 @@ const MVP_INCLUSIONS = [
 
 export default function MembershipScreen() {
   const router = useRouter();
+  const { theme } = useAppStore();
+  const styles = React.useMemo(() => getStyles(theme), [theme]);
 
   return (
     <SafeAreaView style={styles.container}>
@@ -81,13 +84,13 @@ export default function MembershipScreen() {
           headerTitleAlign: "center",
           headerTitleStyle: styles.navHeaderTitle,
           headerShadowVisible: false,
-          headerStyle: { backgroundColor: "#FAF9FB" },
+          headerStyle: { backgroundColor: theme.background },
           headerLeft: () => (
             <TouchableOpacity
               onPress={() => router.back()}
               style={styles.backButton}
             >
-              <Ionicons name="chevron-back" size={24} color="#1C1C1E" />
+              <Ionicons name="chevron-back" size={24} color={theme.textPrimary} />
             </TouchableOpacity>
           ),
         }}
@@ -268,15 +271,15 @@ export default function MembershipScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+const getStyles = (theme: any) => StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#FAF9FB",
+    backgroundColor: theme.background,
   },
   navHeaderTitle: {
     fontSize: 18,
     fontWeight: "700",
-    color: "#1C1C1E",
+    color: theme.textPrimary,
   },
   backButton: {
     padding: 4,
@@ -288,7 +291,7 @@ const styles = StyleSheet.create({
   /* Premium Dark Status Card Styles */
   currentPlanCard: {
     position: "relative",
-    backgroundColor: "#20142A",
+    backgroundColor: theme.accent,
     borderRadius: 20,
     padding: 20,
     marginTop: 8,
@@ -362,18 +365,18 @@ const styles = StyleSheet.create({
   },
   tierCard: {
     flex: 1,
-    backgroundColor: "#FFFFFF",
+    backgroundColor: theme.surface,
     borderRadius: 20,
     padding: 16,
     borderWidth: 1.5,
-    borderColor: "#E5E5EA",
+    borderColor: theme.border,
     justifyContent: "space-between",
   },
   mvpCard: {
-    borderColor: "#20142A", // Highlight wrapper outline for recommended item
+    borderColor: theme.accent, // Highlight wrapper outline for recommended item
   },
   freemiumCard: {
-    borderColor: "#F2F2F7",
+    borderColor: theme.border,
   },
   tierHeader: {
     flexDirection: "row",
@@ -384,7 +387,7 @@ const styles = StyleSheet.create({
     width: 32,
     height: 32,
     borderRadius: 16,
-    backgroundColor: "#EEF0FC",
+    backgroundColor: theme.accentSoft,
     alignItems: "center",
     justifyContent: "center",
     marginRight: 8,
@@ -393,7 +396,7 @@ const styles = StyleSheet.create({
     width: 32,
     height: 32,
     borderRadius: 16,
-    backgroundColor: "#EBE9F5",
+    backgroundColor: theme.accentSoft,
     alignItems: "center",
     justifyContent: "center",
     marginRight: 8,
@@ -404,10 +407,10 @@ const styles = StyleSheet.create({
   tierTitle: {
     fontSize: 15,
     fontWeight: "800",
-    color: "#1C1C1E",
+    color: theme.textPrimary,
   },
   currentPlanBadge: {
-    backgroundColor: "#EBEBEF",
+    backgroundColor: theme.surfaceSoft,
     paddingVertical: 2,
     paddingHorizontal: 4,
     borderRadius: 4,
@@ -417,10 +420,10 @@ const styles = StyleSheet.create({
   currentPlanBadgeText: {
     fontSize: 8,
     fontWeight: "700",
-    color: "#8E8E93",
+    color: theme.textSecondary,
   },
   recommendedBadge: {
-    backgroundColor: "#20142A",
+    backgroundColor: theme.accent,
     paddingVertical: 2,
     paddingHorizontal: 4,
     borderRadius: 4,
@@ -434,7 +437,7 @@ const styles = StyleSheet.create({
   },
   tierDescription: {
     fontSize: 11,
-    color: "#636366",
+    color: theme.textSecondary,
     lineHeight: 15,
     marginBottom: 16,
   },
@@ -449,7 +452,7 @@ const styles = StyleSheet.create({
   featureText: {
     fontSize: 11,
     fontWeight: "600",
-    color: "#2C2C2E",
+    color: theme.textPrimary,
     marginLeft: 6,
     flex: 1,
   },
@@ -458,7 +461,7 @@ const styles = StyleSheet.create({
     textDecorationLine: "line-through",
   },
   disabledButton: {
-    backgroundColor: "#F2F2F7",
+    backgroundColor: theme.surfaceSoft,
     paddingVertical: 10,
     borderRadius: 10,
     alignItems: "center",
@@ -469,7 +472,7 @@ const styles = StyleSheet.create({
     fontWeight: "700",
   },
   mvpActionButton: {
-    backgroundColor: "#20142A",
+    backgroundColor: theme.accent,
     paddingVertical: 10,
     borderRadius: 10,
     alignItems: "center",
@@ -483,7 +486,7 @@ const styles = StyleSheet.create({
   sectionHeaderTitle: {
     fontSize: 14,
     fontWeight: "700",
-    color: "#1C1C1E",
+    color: theme.textPrimary,
     marginBottom: 12,
   },
   horizontalGridContainer: {
@@ -493,11 +496,11 @@ const styles = StyleSheet.create({
   },
   inclusionCard: {
     width: 140,
-    backgroundColor: "#FFFFFF",
+    backgroundColor: theme.surface,
     borderRadius: 16,
     padding: 14,
     borderWidth: 1,
-    borderColor: "#F2F2F7",
+    borderColor: theme.border,
   },
   iconCircle: {
     width: 36,
@@ -510,30 +513,30 @@ const styles = StyleSheet.create({
   inclusionTitle: {
     fontSize: 12,
     fontWeight: "700",
-    color: "#1C1C1E",
+    color: theme.textPrimary,
     marginBottom: 4,
   },
   inclusionDesc: {
     fontSize: 10,
-    color: "#8E8E93",
+    color: theme.textSecondary,
     lineHeight: 14,
   },
   /* History Billing Styles */
   billingCard: {
     flexDirection: "row",
     alignItems: "center",
-    backgroundColor: "#FFFFFF",
+    backgroundColor: theme.surface,
     borderRadius: 16,
     padding: 14,
     borderWidth: 1,
-    borderColor: "#F2F2F7",
+    borderColor: theme.border,
     marginBottom: 10,
   },
   billingIconFrame: {
     width: 38,
     height: 38,
     borderRadius: 10,
-    backgroundColor: "#EEF0FC",
+    backgroundColor: theme.accentSoft,
     alignItems: "center",
     justifyContent: "center",
     marginRight: 12,
@@ -544,11 +547,11 @@ const styles = StyleSheet.create({
   billingTitle: {
     fontSize: 13,
     fontWeight: "700",
-    color: "#1C1C1E",
+    color: theme.textPrimary,
   },
   billingSubtitle: {
     fontSize: 11,
-    color: "#8E8E93",
+    color: theme.textSecondary,
     marginTop: 2,
   },
   viewHistoryButton: {
@@ -559,7 +562,7 @@ const styles = StyleSheet.create({
   viewHistoryText: {
     fontSize: 11,
     fontWeight: "600",
-    color: "#8E8E93",
+    color: theme.textSecondary,
   },
   /* Fixed Lower Core Banner Callout Action Button */
   bottomStickyContainer: {
@@ -567,15 +570,15 @@ const styles = StyleSheet.create({
     bottom: 0,
     left: 0,
     right: 0,
-    backgroundColor: "#FFFFFF",
+    backgroundColor: theme.surface,
     paddingHorizontal: 16,
     paddingTop: 12,
     paddingBottom: 28,
     borderTopWidth: 1,
-    borderColor: "#F2F2F7",
+    borderColor: theme.border,
   },
   primaryUpgradeButton: {
-    backgroundColor: "#20142A",
+    backgroundColor: theme.accent,
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
@@ -599,13 +602,13 @@ const styles = StyleSheet.create({
   },
   securityMetaText: {
     fontSize: 10,
-    color: "#8E8E93",
+    color: theme.textSecondary,
     fontWeight: "500",
   },
   metaDot: {
     width: 3,
     height: 3,
     borderRadius: 1.5,
-    backgroundColor: "#C7C7CC",
+    backgroundColor: theme.border,
   },
 });
