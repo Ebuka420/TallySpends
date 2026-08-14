@@ -18,10 +18,9 @@ const { width: SCREEN_WIDTH } = Dimensions.get("window");
 
 export default function InsightsScreen() {
   const router = useRouter();
-  const { themePreference } = useAppStore();
+  const { themePreference, themeMode } = useAppStore();
 
-  const colorScheme = useColorScheme() || "light";
-  const theme = getThemePalette(themePreference, colorScheme);
+  const theme = getThemePalette(themePreference, themeMode);
   const [activeTab, setActiveTab] = useState<"week" | "month" | "custom">(
     "month",
   );

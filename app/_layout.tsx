@@ -13,6 +13,9 @@ export default function RootLayout() {
   const hasPasscode = false;
   const isPasscodeVerified = false;
 
+  const topLevelGroup = segments && segments.length > 0 ? String(segments[0]) : "";
+  const showSmartCoach = topLevelGroup !== "auth";
+
   useEffect(() => {
     // Wait until Expo Router segments are populated
     if (!segments || !segments.length) return;
@@ -82,7 +85,7 @@ export default function RootLayout() {
       </Stack>
 
       {/* Floating Global Bot Overlay */}
-      <RadialFloatingBot />
+      {showSmartCoach && <RadialFloatingBot />}
     </View>
   );
 }

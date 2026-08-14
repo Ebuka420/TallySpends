@@ -2,199 +2,209 @@ import { Ionicons } from "@expo/vector-icons";
 import { BlurView } from "expo-blur";
 import { Tabs } from "expo-router";
 import React from "react";
-import { Pressable, StyleSheet, View } from "react-native";
+import {
+  Pressable,
+  StyleSheet,
+  View,
+  Dimensions,
+  Animated,
+  Text,
+} from "react-native";
 import { useAppStore } from "../../src/store";
 
-const TabBarBackground = ({ opacity }: { opacity: number }) => (
-  <View style={styles.tabBarBackground}>
-    <BlurView intensity={70} tint="light" style={StyleSheet.absoluteFill} />
-    <View
-      style={[
-        styles.tabBarOverlay,
-        {
-          backgroundColor: `rgba(255, 255, 255, ${Math.max(0.02, opacity * 0.96)})`,
-        },
-      ]}
-    />
-  </View>
-);
+function CustomTabBar({ state, descriptors, navigation, themeMode, theme, tabBarAlpha }: any) {
+  const slideAnim = React.useRef(new Animated.Value(state.index)).current;
 
-const GlassTabButton = ({
-  children,
-  onPress,
-  accessibilityState,
-  barOpacity,
-}: any) => {
-  const isActive = accessibilityState?.selected;
+  React.useEffect(() => {
+    Animated.spring(slideAnim, {
+      toValue: state.index,
+      useNativeDriver: true,
+      friction: 9,
+      tension: 50,
+    }).start();
+  }, [state.index]);
+
+  const { width: screenWidth } = Dimensions.get("window");
+  const containerWidth = screenWidth - 36;
+  const padding = 6;
+  const tabWidth = (containerWidth - padding * 2) / state.routes.length;
+
+  const translateX = slideAnim.interpolate({
+    inputRange: [0, state.routes.length - 1],
+    outputRange: [0, (state.routes.length - 1) * tabWidth],
+  });
 
   return (
-    <Pressable
-      onPress={onPress}
-      style={({ pressed }) => [
-        styles.tabButton,
-        pressed && styles.tabButtonPressed,
-      ]}
-    >
-      <BlurView
-        tint="light"
-        intensity={isActive ? 90 : 54}
+    <View style={[styles.tabBarContainer, { width: containerWidth, borderColor: theme.border }]}>
+      {/* Background glass blur */}
+      <BlurView intensity={80} tint={themeMode === "dark" ? "dark" : "light"} style={StyleSheet.absoluteFill} />
+      <View
         style={[
-          styles.tabButtonGlass,
-          isActive && {
-            backgroundColor: "rgba(244, 239, 241, 0.96)",
-            borderColor: "rgba(75, 44, 64, 0.28)",
-            shadowColor: "#4B2C40",
-            shadowOffset: { width: 0, height: 5 },
-            shadowOpacity: 0.22,
-            shadowRadius: 10,
-            elevation: 6,
+          styles.tabBarOverlay,
+          {
+            backgroundColor: themeMode === "dark"
+              ? `rgba(26, 24, 29, ${Math.max(0.2, tabBarAlpha * 0.85)})`
+              : `rgba(255, 255, 255, ${Math.max(0.1, tabBarAlpha * 0.95)})`,
+          },
+        ]}
+      />
+
+      {/* Sliding Glass Pill */}
+      <Animated.View
+        style={[
+          styles.slidingIndicator,
+          {
+            width: tabWidth,
+            transform: [{ translateX }],
+            backgroundColor: themeMode === "dark"
+              ? "rgba(255, 255, 255, 0.08)"
+              : "rgba(0, 0, 0, 0.05)",
+            borderColor: themeMode === "dark"
+              ? "rgba(255, 255, 255, 0.12)"
+              : "rgba(0, 0, 0, 0.08)",
           },
         ]}
       >
-        {children}
-      </BlurView>
-    </Pressable>
-  );
-};
+        <BlurView
+          tint={themeMode === "dark" ? "light" : "dark"}
+          intensity={themeMode === "dark" ? 15 : 10}
+          style={StyleSheet.absoluteFill}
+        />
+      </Animated.View>
 
-const styles = StyleSheet.create({
-  tabBarBackground: {
-    flex: 1,
-    borderRadius: 20,
-    overflow: "hidden",
-    borderWidth: 1,
-    borderColor: "rgba(91, 78, 145, 0.16)",
-    shadowColor: "#3B2A58",
-    shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.16,
-    shadowRadius: 16,
-    elevation: 8,
-  },
-  tabBarOverlay: {
-    ...StyleSheet.absoluteFillObject,
-    borderRadius: 20,
-  },
-  tabButton: {
-    flex: 1,
-    justifyContent: "center",
-    alignItems: "center",
-    paddingHorizontal: 4,
-    paddingVertical: 2,
-  },
-  tabButtonGlass: {
-    flex: 1,
-    width: "100%",
-    justifyContent: "center",
-    alignItems: "center",
-    borderRadius: 12,
-    paddingVertical: 6,
-    backgroundColor: "rgba(255, 255, 255, 0.18)",
-    borderWidth: 1,
-    borderColor: "rgba(255, 255, 255, 0.22)",
-  },
-  tabButtonPressed: {
-    transform: [{ scale: 0.97 }],
-  },
-});
+      {/* Tabs */}
+      {state.routes.map((route: any, index: number) => {
+        const { options } = descriptors[route.key];
+        const isFocused = state.index === index;
+
+        const onPress = () => {
+          const event = navigation.emit({
+            type: "tabPress",
+            target: route.key,
+            canPreventDefault: true,
+          });
+
+          if (!isFocused && !event.defaultPrevented) {
+            navigation.navigate(route.name);
+          }
+        };
+
+        const onLongPress = () => {
+          navigation.emit({
+            type: "tabLongPress",
+            target: route.key,
+          });
+        };
+
+        // Determine icon name
+        let iconName = "home-outline";
+        if (route.name === "index") iconName = isFocused ? "home" : "home-outline";
+        else if (route.name === "expenses") iconName = isFocused ? "document-text" : "document-text-outline";
+        else if (route.name === "budget") iconName = isFocused ? "wallet" : "wallet-outline";
+        else if (route.name === "analytics") iconName = isFocused ? "bar-chart" : "bar-chart-outline";
+        else if (route.name === "more") iconName = isFocused ? "ellipsis-horizontal" : "ellipsis-horizontal-outline";
+
+        const label = options.title !== undefined ? options.title : route.name;
+
+        return (
+          <Pressable
+            key={route.key}
+            accessibilityRole="button"
+            accessibilityState={isFocused ? { selected: true } : {}}
+            accessibilityLabel={options.tabBarAccessibilityLabel}
+            testID={options.tabBarTestID}
+            onPress={onPress}
+            onLongPress={onLongPress}
+            style={styles.tabItem}
+          >
+            <Ionicons
+              name={iconName as any}
+              size={20}
+              color={isFocused ? theme.accent : theme.textSecondary}
+              style={{ marginBottom: 2 }}
+            />
+            <Text
+              style={[
+                styles.tabLabel,
+                {
+                  color: isFocused ? theme.accent : theme.textSecondary,
+                  fontWeight: isFocused ? "700" : "500",
+                },
+              ]}
+            >
+              {label}
+            </Text>
+          </Pressable>
+        );
+      })}
+    </View>
+  );
+}
 
 export default function TabLayout() {
-  const { tabBarOpacity } = useAppStore();
+  const { tabBarOpacity, themeMode, theme } = useAppStore();
   const tabBarAlpha = Math.max(0, Math.min(1, tabBarOpacity ?? 0.72));
 
   return (
     <Tabs
+      tabBar={(props) => (
+        <CustomTabBar
+          {...props}
+          themeMode={themeMode}
+          theme={theme}
+          tabBarAlpha={tabBarAlpha}
+        />
+      )}
       screenOptions={{
         headerShown: false,
-        tabBarBackground: () => <TabBarBackground opacity={tabBarAlpha} />,
-        tabBarStyle: {
-          position: "absolute",
-          left: 18,
-          right: 18,
-          bottom: 8,
-          height: 62,
-          borderRadius: 20,
-          paddingBottom: 6,
-          paddingTop: 4,
-          paddingHorizontal: 4,
-          backgroundColor: "transparent",
-          borderWidth: 0,
-          elevation: 0,
-          shadowOpacity: 0,
-        },
-        tabBarActiveTintColor: "#4B2C40",
-        tabBarInactiveTintColor: "#8E7B95",
-        tabBarLabelStyle: {
-          fontSize: 11,
-          fontWeight: "600",
-          marginTop: 2,
-        },
-        tabBarItemStyle: {
-          borderRadius: 14,
-          marginHorizontal: 1,
-        },
       }}
     >
-      <View pointerEvents="none" style={StyleSheet.absoluteFill} />
-      <Tabs.Screen
-        name="index"
-        options={{
-          title: "Home",
-          tabBarButton: (props) => (
-            <GlassTabButton {...props} barOpacity={tabBarAlpha} />
-          ),
-          tabBarIcon: ({ color, size }) => (
-            <Ionicons name="home-outline" size={size} color={color} />
-          ),
-        }}
-      />
-      <Tabs.Screen
-        name="expenses"
-        options={{
-          title: "Expenses",
-          tabBarButton: (props) => (
-            <GlassTabButton {...props} barOpacity={tabBarAlpha} />
-          ),
-          tabBarIcon: ({ color, size }) => (
-            <Ionicons name="document-text-sharp" size={size} color={color} />
-          ),
-        }}
-      />
-      <Tabs.Screen
-        name="budget"
-        options={{
-          title: "Budget",
-          tabBarButton: (props) => (
-            <GlassTabButton {...props} barOpacity={tabBarAlpha} />
-          ),
-          tabBarIcon: ({ color, size }) => (
-            <Ionicons name="wallet-outline" size={size} color={color} />
-          ),
-        }}
-      />
-      <Tabs.Screen
-        name="analytics"
-        options={{
-          title: "Analytics",
-          tabBarButton: (props) => (
-            <GlassTabButton {...props} barOpacity={tabBarAlpha} />
-          ),
-          tabBarIcon: ({ color, size }) => (
-            <Ionicons name="bar-chart-outline" size={size} color={color} />
-          ),
-        }}
-      />
-      <Tabs.Screen
-        name="more"
-        options={{
-          title: "More",
-          tabBarButton: (props) => (
-            <GlassTabButton {...props} barOpacity={tabBarAlpha} />
-          ),
-          tabBarIcon: ({ color, size }) => (
-            <Ionicons name="ellipsis-horizontal" size={size} color={color} />
-          ),
-        }}
-      />
+      <Tabs.Screen name="index" options={{ title: "Home" }} />
+      <Tabs.Screen name="expenses" options={{ title: "Expenses" }} />
+      <Tabs.Screen name="budget" options={{ title: "Budget" }} />
+      <Tabs.Screen name="analytics" options={{ title: "Analytics" }} />
+      <Tabs.Screen name="more" options={{ title: "More" }} />
     </Tabs>
   );
 }
+
+const styles = StyleSheet.create({
+  tabBarContainer: {
+    position: "absolute",
+    left: 18,
+    bottom: 12,
+    height: 60,
+    borderRadius: 22,
+    flexDirection: "row",
+    alignItems: "center",
+    paddingHorizontal: 6,
+    borderWidth: 1,
+    overflow: "hidden",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.1,
+    shadowRadius: 12,
+    elevation: 8,
+  },
+  tabBarOverlay: {
+    ...StyleSheet.absoluteFillObject,
+  },
+  slidingIndicator: {
+    position: "absolute",
+    height: 48,
+    left: 6,
+    borderRadius: 16,
+    borderWidth: 0.5,
+    overflow: "hidden",
+  },
+  tabItem: {
+    flex: 1,
+    height: "100%",
+    justifyContent: "center",
+    alignItems: "center",
+    zIndex: 2,
+  },
+  tabLabel: {
+    fontSize: 10.5,
+  },
+});

@@ -69,9 +69,8 @@ const SETTINGS_ITEMS = [
 
 export default function SettingsScreen() {
   const router = useRouter();
-  const { logout, themePreference } = useAppStore();
-  const colorScheme = useColorScheme() || "light";
-  const theme = getThemePalette(themePreference, colorScheme);
+  const { logout, themePreference, themeMode } = useAppStore();
+  const theme = getThemePalette(themePreference, themeMode);
   const accent = theme.accent;
   const soft = theme.accentSoft;
 
@@ -101,9 +100,9 @@ export default function SettingsScreen() {
           onPress={() => router.back()}
           activeOpacity={0.7}
         >
-          <Ionicons name="chevron-back" size={24} color="#1C1C1E" />
+          <Ionicons name="chevron-back" size={24} color={theme.textPrimary} />
         </TouchableOpacity>
-        <Text style={styles.headerTitle}>Settings</Text>
+        <Text style={[styles.headerTitle, { color: theme.textPrimary }]}>Settings</Text>
         <View style={styles.headerSpacer} />
       </View>
 
@@ -117,12 +116,12 @@ export default function SettingsScreen() {
             { backgroundColor: theme.surface, borderColor: theme.border },
           ]}
         >
-          <View style={styles.heroIconCircle}>
-            <Ionicons name="options-outline" size={22} color="#5B4E91" />
+          <View style={[styles.heroIconCircle, { backgroundColor: theme.accentSoft }]}>
+            <Ionicons name="options-outline" size={22} color={theme.accent} />
           </View>
           <View style={styles.heroTextWrap}>
-            <Text style={styles.heroTitle}>Make TallySpends yours</Text>
-            <Text style={styles.heroSubtitle}>
+            <Text style={[styles.heroTitle, { color: theme.textPrimary }]}>Make TallySpends yours</Text>
+            <Text style={[styles.heroSubtitle, { color: theme.textSecondary }]}>
               Tweak the details that make the app feel calm, useful, and truly
               personal.
             </Text>
@@ -132,37 +131,37 @@ export default function SettingsScreen() {
         {SETTINGS_ITEMS.map((item) => (
           <TouchableOpacity
             key={item.id}
-            style={styles.menuCardRow}
+            style={[styles.menuCardRow, { backgroundColor: theme.surface }]}
             activeOpacity={0.9}
             onPress={() => router.push(item.route as any)}
           >
             <View
-              style={[styles.iconCircleWrapper, { backgroundColor: "#F0EEFA" }]}
+              style={[styles.iconCircleWrapper, { backgroundColor: theme.accentSoft }]}
             >
-              <Ionicons name={item.icon as any} size={22} color="#5B4E91" />
+              <Ionicons name={item.icon as any} size={22} color={theme.accent} />
             </View>
 
             <View style={styles.textDetailsColumn}>
-              <Text style={styles.itemTitleText}>{item.title}</Text>
-              <Text style={styles.itemSubtitleText}>{item.subtitle}</Text>
+              <Text style={[styles.itemTitleText, { color: theme.textPrimary }]}>{item.title}</Text>
+              <Text style={[styles.itemSubtitleText, { color: theme.textSecondary }]}>{item.subtitle}</Text>
             </View>
 
             <View style={styles.rightActionWrapper}>
               {item.hasVersion && (
-                <Text style={styles.versionText}>Version 1.0.0</Text>
+                <Text style={[styles.versionText, { color: theme.textSecondary }]}>Version 1.0.0</Text>
               )}
-              <Ionicons name="chevron-forward" size={18} color="#C7C7CC" />
+              <Ionicons name="chevron-forward" size={18} color={theme.textSecondary} />
             </View>
           </TouchableOpacity>
         ))}
 
         <TouchableOpacity
-          style={[styles.actionCard, styles.secondaryActionCard]}
+          style={[styles.actionCard, styles.secondaryActionCard, { backgroundColor: theme.surface }]}
           activeOpacity={0.85}
           onPress={handleLogout}
         >
-          <Ionicons name="log-out-outline" size={18} color="#5B4E91" />
-          <Text style={styles.actionCardText}>Log Out</Text>
+          <Ionicons name="log-out-outline" size={18} color={theme.accent} />
+          <Text style={[styles.actionCardText, { color: theme.accent }]}>Log Out</Text>
         </TouchableOpacity>
       </ScrollView>
     </SafeAreaView>

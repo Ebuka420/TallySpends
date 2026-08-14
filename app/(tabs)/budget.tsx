@@ -8,20 +8,17 @@ import {
   Text,
   TouchableOpacity,
   View,
-  useColorScheme,
 } from "react-native";
 
 import { useAppStore } from "../../src/store";
 import { getThemePalette } from "../../src/theme";
 
 export default function BudgetScreen() {
-  const router = useRouter();
-  const { themePreference } = useAppStore();
+  const { themePreference, themeMode } = useAppStore();
 
-  const colorScheme = useColorScheme() || "light";
-  const theme = getThemePalette(themePreference, colorScheme);
+  const theme = getThemePalette(themePreference, themeMode);
 
-  const isDark = colorScheme === "dark";
+  const isDark = themeMode === "dark";
 
   const colors = {
     background: theme.background,

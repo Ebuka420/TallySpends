@@ -9,7 +9,6 @@ import {
   TouchableOpacity,
   TouchableWithoutFeedback,
   View,
-  useColorScheme,
   type DimensionValue,
 } from "react-native";
 import Svg, { Path } from "react-native-svg";
@@ -75,12 +74,11 @@ const categoryMeta: Record<
 };
 
 export default function AnalyticsScreen() {
-  const { transactions: rawTransactions = [], themePreference } = useAppStore();
+  const { transactions: rawTransactions = [], themePreference, themeMode } = useAppStore();
 
   const transactions = rawTransactions as any[];
 
-  const colorScheme = useColorScheme() || "light";
-  const theme = getThemePalette(themePreference, colorScheme);
+  const theme = getThemePalette(themePreference, themeMode);
 
   /*
    * Keep all screen colors tied to the active theme.
@@ -89,7 +87,7 @@ export default function AnalyticsScreen() {
    * so these derived values let this screen stay theme-aware without
    * assuming additional properties that may not exist in src/theme.
    */
-  const isDark = colorScheme === "dark";
+  const isDark = themeMode === "dark";
 
   const colors = useMemo(
     () => ({

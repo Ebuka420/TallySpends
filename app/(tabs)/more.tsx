@@ -74,11 +74,10 @@ const MENU_ITEMS = [
 
 export default function MoreScreen() {
   const router = useRouter();
-  const colorScheme = useColorScheme() ?? "light";
 
-  const { username = "User", themePreference = "aurora" } = useAppStore();
+  const { username = "User", themePreference = "aurora", themeMode } = useAppStore();
 
-  const theme = getThemePalette(themePreference, colorScheme);
+  const theme = getThemePalette(themePreference, themeMode);
 
   return (
     <SafeAreaView

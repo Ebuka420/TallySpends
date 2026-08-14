@@ -1,9 +1,12 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useNavigation } from "expo-router";
 import { useCallback, useEffect, useState } from "react";
-import type { ThemeId } from "./theme";
+import { useColorScheme } from "react-native";
+import type { ThemeId, ThemeMode, ThemePalette } from "./theme";
+import { getThemePalette } from "./theme";
 
 const THEME_STORAGE_KEY = "ts_theme";
+const DARK_MODE_PREFERENCE_STORAGE_KEY = "ts_dark_mode_preference";
 const TAB_BAR_OPACITY_STORAGE_KEY = "ts_tab_bar_opacity";
 const DEFAULT_CUSTOM_CATEGORIES_STORAGE_KEY = "ts_custom_categories";
 
@@ -420,6 +423,18 @@ export function useAppStore() {
   const [themePreference, setThemePreferenceState] =
     useState<ThemeId>("aurora");
 
+  const [darkModePreference, setDarkModePreferenceState] =
+    useState<"light" | "dark" | "system">("system");
+
+  const systemColorScheme = useColorScheme();
+
+  const themeMode: ThemeMode =
+    darkModePreference === "system"
+      ? (systemColorScheme ?? "light")
+      : darkModePreference;
+
+  const theme: ThemePalette = getThemePalette(themePreference, themeMode);
+
   const [tabBarOpacity, setTabBarOpacityState] = useState(0.72);
 
   const [username, setUsernameState] = useState("ebuka");
@@ -465,6 +480,8 @@ export function useAppStore() {
 
       const storedTheme = await AsyncStorage.getItem(THEME_STORAGE_KEY);
 
+      const storedDarkMode = await AsyncStorage.getItem(DARK_MODE_PREFERENCE_STORAGE_KEY);
+
       const storedTabBarOpacity = await AsyncStorage.getItem(
         TAB_BAR_OPACITY_STORAGE_KEY,
       );
@@ -491,6 +508,14 @@ export function useAppStore() {
         storedTheme === "sunset"
       ) {
         setThemePreferenceState(storedTheme as ThemeId);
+      }
+
+      if (
+        storedDarkMode === "light" ||
+        storedDarkMode === "dark" ||
+        storedDarkMode === "system"
+      ) {
+        setDarkModePreferenceState(storedDarkMode);
       }
 
       if (storedTabBarOpacity !== null) {
@@ -607,6 +632,14 @@ export function useAppStore() {
     setThemePreferenceState(validTheme);
 
     await AsyncStorage.setItem(THEME_STORAGE_KEY, validTheme);
+  }, []);
+
+  const setDarkModePreference = useCallback(async (mode: "light" | "dark" | "system") => {
+    const validMode = mode === "light" || mode === "dark" || mode === "system" ? mode : "system";
+
+    setDarkModePreferenceState(validMode);
+
+    await AsyncStorage.setItem(DARK_MODE_PREFERENCE_STORAGE_KEY, validMode);
   }, []);
 
   const setTabBarOpacity = useCallback(async (opacity: number) => {
@@ -809,6 +842,8 @@ export function useAppStore() {
 
     await AsyncStorage.setItem("ts_username", "ebuka");
 
+    await AsyncStorage.setItem(DARK_MODE_PREFERENCE_STORAGE_KEY, "system");
+
     await AsyncStorage.setItem("ts_cards", JSON.stringify(defaultCards));
 
     await AsyncStorage.setItem(
@@ -823,6 +858,8 @@ export function useAppStore() {
     setSavingsGoals(DEFAULT_SAVINGS_GOALS);
 
     setUsernameState("ebuka");
+
+    setDarkModePreferenceState("system");
 
     setSavedCards(defaultCards);
 
@@ -841,10 +878,14 @@ export function useAppStore() {
     isAuthenticated,
 
     themePreference,
+    darkModePreference,
+    themeMode,
+    theme,
 
     tabBarOpacity,
 
     setThemePreference,
+    setDarkModePreference,
     setTabBarOpacity,
 
     login,

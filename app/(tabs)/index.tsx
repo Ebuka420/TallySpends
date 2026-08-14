@@ -177,9 +177,9 @@ const getTimeLabel = (value?: string) => {
 export default function App() {
   const router = useRouter();
 
-  const { transactions, themePreference } = useAppStore();
+  const { transactions, themePreference, themeMode } = useAppStore();
 
-  const theme = getThemePalette(themePreference);
+  const theme = getThemePalette(themePreference, themeMode);
 
   const [balanceVisible, setBalanceVisible] = useState(true);
   const [activeInsight, setActiveInsight] = useState(0);
@@ -586,9 +586,13 @@ export default function App() {
                 styles.insightCard,
                 {
                   backgroundColor:
-                    themePreference === "aurora"
+                    themeMode === "dark"
+                      ? theme.surface
+                      : themePreference === "aurora"
                       ? insight.tint
                       : theme.surfaceSoft,
+                  borderWidth: themeMode === "dark" ? 1 : 0,
+                  borderColor: theme.border,
                 },
               ]}
               onPress={() => router.push("/insights")}
@@ -597,7 +601,7 @@ export default function App() {
                 style={[
                   styles.insightIcon,
                   {
-                    backgroundColor: theme.surface,
+                    backgroundColor: themeMode === "dark" ? theme.surfaceSoft : theme.surface,
                   },
                 ]}
               >
@@ -605,7 +609,9 @@ export default function App() {
                   name={insight.icon}
                   size={18}
                   color={
-                    themePreference === "aurora"
+                    themeMode === "dark"
+                      ? theme.accent
+                      : themePreference === "aurora"
                       ? insight.color
                       : theme.accentSecondary
                   }
