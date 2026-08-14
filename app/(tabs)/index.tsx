@@ -49,6 +49,13 @@ const insights = [
     tint: "#EEE4F0",
     color: "#4B2C40",
   },
+  {
+    icon: "card-outline" as const,
+    title: "Linked Cards",
+    text: "Your Netflix subscription is due tomorrow on your linked Access Bank card.",
+    tint: "#EAF2FF",
+    color: "#315A92",
+  },
 ];
 
 const ajoGroupCards = [
@@ -177,9 +184,9 @@ const getTimeLabel = (value?: string) => {
 export default function App() {
   const router = useRouter();
 
-  const { transactions, themePreference } = useAppStore();
+  const { transactions, themePreference, themeMode } = useAppStore();
 
-  const theme = getThemePalette(themePreference);
+  const theme = getThemePalette(themePreference, themeMode);
 
   const [balanceVisible, setBalanceVisible] = useState(true);
   const [activeInsight, setActiveInsight] = useState(0);
@@ -586,9 +593,13 @@ export default function App() {
                 styles.insightCard,
                 {
                   backgroundColor:
-                    themePreference === "aurora"
+                    themeMode === "dark"
+                      ? theme.surface
+                      : themePreference === "aurora"
                       ? insight.tint
                       : theme.surfaceSoft,
+                  borderWidth: themeMode === "dark" ? 1 : 0,
+                  borderColor: theme.border,
                 },
               ]}
               onPress={() => router.push("/insights")}
@@ -597,7 +608,7 @@ export default function App() {
                 style={[
                   styles.insightIcon,
                   {
-                    backgroundColor: theme.surface,
+                    backgroundColor: themeMode === "dark" ? theme.surfaceSoft : theme.surface,
                   },
                 ]}
               >
@@ -605,7 +616,9 @@ export default function App() {
                   name={insight.icon}
                   size={18}
                   color={
-                    themePreference === "aurora"
+                    themeMode === "dark"
+                      ? theme.accent
+                      : themePreference === "aurora"
                       ? insight.color
                       : theme.accentSecondary
                   }
@@ -1206,6 +1219,12 @@ const styles = StyleSheet.create({
     height: 36,
     justifyContent: "center",
     width: 36,
+    // subtle shadow for depth
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.06,
+    shadowRadius: 6,
+    elevation: 3,
   },
 
   balance: {

@@ -1,6 +1,7 @@
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import React from "react";
+import { useAppStore } from "../src/store";
 import {
     SafeAreaView,
     StyleSheet,
@@ -11,6 +12,8 @@ import {
 
 export default function SettingsAboutScreen() {
   const router = useRouter();
+  const { theme } = useAppStore();
+  const styles = React.useMemo(() => getStyles(theme), [theme]);
 
   return (
     <SafeAreaView style={styles.container}>
@@ -19,7 +22,7 @@ export default function SettingsAboutScreen() {
           style={styles.backButton}
           onPress={() => router.back()}
         >
-          <Ionicons name="chevron-back" size={24} color="#1C1C1E" />
+          <Ionicons name="chevron-back" size={24} color={theme.textPrimary} />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>About</Text>
         <View style={styles.headerSpacer} />
@@ -30,7 +33,7 @@ export default function SettingsAboutScreen() {
           <Ionicons
             name="information-circle-outline"
             size={22}
-            color="#5B4E91"
+            color={theme.accent}
           />
         </View>
         <View style={styles.heroTextWrap}>
@@ -57,61 +60,45 @@ export default function SettingsAboutScreen() {
   );
 }
 
-const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: "#FAF9FB" },
-  headerContainer: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    paddingHorizontal: 16,
-    paddingTop: 12,
-    paddingBottom: 16,
-  },
-  backButton: { padding: 4 },
-  headerTitle: { fontSize: 20, fontWeight: "700", color: "#1C1C1E" },
-  headerSpacer: { width: 32 },
-  heroCard: {
-    flexDirection: "row",
-    backgroundColor: "#FFFFFF",
-    borderRadius: 18,
-    padding: 16,
-    marginHorizontal: 20,
-    marginBottom: 16,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.06,
-    shadowRadius: 10,
-    elevation: 2,
-  },
-  heroIconCircle: {
-    width: 46,
-    height: 46,
-    borderRadius: 23,
-    backgroundColor: "#F0EEFA",
-    alignItems: "center",
-    justifyContent: "center",
-    marginRight: 12,
-  },
-  heroTextWrap: { flex: 1 },
-  heroTitle: {
-    fontSize: 15,
-    fontWeight: "700",
-    color: "#1C1C1E",
-    marginBottom: 4,
-  },
-  heroSubtitle: { fontSize: 12.5, color: "#8E8E93", lineHeight: 18 },
-  card: {
-    backgroundColor: "#FFFFFF",
-    borderRadius: 16,
-    padding: 16,
-    marginHorizontal: 20,
-    marginBottom: 12,
-  },
-  cardTitle: {
-    fontSize: 14,
-    fontWeight: "600",
-    color: "#1C1C1E",
-    marginBottom: 4,
-  },
-  cardValue: { fontSize: 13.5, color: "#8E8E93" },
-});
+const getStyles = (theme: any) =>
+  StyleSheet.create({
+    container: { flex: 1, backgroundColor: theme.background },
+    headerContainer: {
+      flexDirection: "row",
+      alignItems: "center",
+      justifyContent: "space-between",
+      paddingHorizontal: 16,
+      paddingTop: 12,
+      paddingBottom: 16,
+    },
+    backButton: { padding: 4 },
+    headerTitle: { fontSize: 20, fontWeight: "700", color: theme.textPrimary },
+    headerSpacer: { width: 32 },
+    heroCard: {
+      flexDirection: "row",
+      backgroundColor: theme.surface,
+      borderRadius: 18,
+      padding: 16,
+      marginHorizontal: 20,
+      marginBottom: 16,
+      shadowColor: "#000",
+      shadowOffset: { width: 0, height: 2 },
+      shadowOpacity: 0.06,
+      shadowRadius: 10,
+      elevation: 2,
+    },
+    heroIconCircle: {
+      width: 46,
+      height: 46,
+      backgroundColor: theme.accentSoft,
+      alignItems: "center",
+      justifyContent: "center",
+      marginRight: 12,
+    },
+    heroTextWrap: { flex: 1 },
+    heroTitle: { fontSize: 15, fontWeight: "700", color: theme.textPrimary, marginBottom: 4 },
+    heroSubtitle: { fontSize: 12.5, color: theme.textSecondary, lineHeight: 18 },
+    card: { backgroundColor: theme.surface, borderRadius: 16, padding: 16, marginHorizontal: 20, marginBottom: 12 },
+    cardTitle: { fontSize: 14, fontWeight: "600", color: theme.textPrimary, marginBottom: 4 },
+    cardValue: { fontSize: 13.5, color: theme.textSecondary },
+  });

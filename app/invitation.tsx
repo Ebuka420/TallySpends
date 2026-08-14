@@ -1,6 +1,7 @@
 import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import React, { useState } from "react";
+import { useAppStore } from "../src/store";
 import {
     SafeAreaView,
     ScrollView,
@@ -50,6 +51,9 @@ const MISSIONS = [
 export default function InvitationScreen() {
   const router = useRouter();
 
+  const { theme } = useAppStore();
+  const styles = React.useMemo(() => getStyles(theme), [theme]);
+
   // Track mock invites (up to 5 max)
   const [completedInvites, setCompletedInvites] = useState(3);
   const maxInvites = 5;
@@ -74,7 +78,7 @@ export default function InvitationScreen() {
           onPress={() => router.back()}
           style={styles.backButton}
         >
-          <Ionicons name="arrow-back" size={24} color="#1F2937" />
+          <Ionicons name="arrow-back" size={24} color={theme.textPrimary} />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>Rewards & Missions</Text>
         <View style={{ width: 40 }} />
@@ -87,9 +91,9 @@ export default function InvitationScreen() {
         {/* Main Hero Card */}
         <View style={styles.heroCard}>
           <View style={styles.giftIconContainer}>
-            <Ionicons name="gift" size={32} color="#FFFFFF" />
+              <Ionicons name="gift" size={32} color={theme.surface} />
           </View>
-          <Text style={styles.heroTitle}>Invite Friends, Earn Cash</Text>
+            <Text style={styles.heroTitle}>Invite Friends, Earn Cash</Text>
           <Text style={styles.heroSubtitle}>
             Get ₦{rewardPerFriend.toLocaleString()} for every friend who
             registers using your unique token. Valid for up to {maxInvites}{" "}
@@ -164,7 +168,7 @@ export default function InvitationScreen() {
                   <MaterialCommunityIcons
                     name={mission.icon as any}
                     size={26}
-                    color={mission.completed ? "#10B981" : "#20142A"}
+                    color={mission.completed ? theme.success : theme.textPrimary}
                   />
                 </View>
                 <View style={styles.missionTextContent}>
@@ -208,7 +212,7 @@ export default function InvitationScreen() {
           <Ionicons
             name="share-social"
             size={20}
-            color="#FFFFFF"
+            color={theme.surface}
             style={{ marginRight: 8 }}
           />
           <Text style={styles.inviteButtonText}>Share Invite Link</Text>
@@ -218,108 +222,109 @@ export default function InvitationScreen() {
   );
 }
 
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: "#F9FAFB",
-  },
-  header: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    borderBottomWidth: 1,
-    borderColor: "#E5E7EB",
-    backgroundColor: "#FFFFFF",
-  },
+const getStyles = (theme: any) =>
+    StyleSheet.create({
+      container: {
+        flex: 1,
+        backgroundColor: theme.background,
+      },
+      header: {
+        flexDirection: "row",
+        alignItems: "center",
+        justifyContent: "space-between",
+        paddingHorizontal: 16,
+        paddingVertical: 12,
+        borderBottomWidth: 1,
+        borderColor: theme.border,
+        backgroundColor: theme.surface,
+      },
   backButton: {
     padding: 8,
   },
-  headerTitle: {
-    fontSize: 18,
-    fontWeight: "700",
-    color: "#1F2937",
-  },
+      headerTitle: {
+        fontSize: 18,
+        fontWeight: "700",
+        color: theme.textPrimary,
+      },
   scrollContent: {
     padding: 16,
   },
-  heroCard: {
-    backgroundColor: "#20142A",
-    borderRadius: 20,
-    padding: 24,
-    alignItems: "center",
-    textAlign: "center",
-    marginBottom: 24,
-    shadowColor: "#20142A",
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.15,
-    shadowRadius: 12,
-  },
-  giftIconContainer: {
-    width: 60,
-    height: 60,
-    borderRadius: 30,
-    backgroundColor: "rgba(255, 255, 255, 0.2)",
-    justifyContent: "center",
-    alignItems: "center",
-    marginBottom: 16,
-  },
-  heroTitle: {
-    color: "#FFFFFF",
-    fontSize: 20,
-    fontWeight: "700",
-    marginBottom: 8,
-  },
-  heroSubtitle: {
-    color: "#E0E7FF",
-    fontSize: 13,
-    textAlign: "center",
-    lineHeight: 18,
-  },
-  sectionLabel: {
-    fontSize: 14,
-    fontWeight: "600",
-    color: "#4B5563",
-    marginBottom: 12,
-    textTransform: "uppercase",
-    letterSpacing: 0.5,
-  },
-  trackerCard: {
-    backgroundColor: "#FFFFFF",
-    borderRadius: 16,
-    padding: 16,
-    borderWidth: 1,
-    borderColor: "#E5E7EB",
-    marginBottom: 24,
-  },
+      heroCard: {
+        backgroundColor: theme.accent,
+        borderRadius: 20,
+        padding: 24,
+        alignItems: "center",
+        textAlign: "center",
+        marginBottom: 24,
+        shadowColor: theme.accent,
+        shadowOffset: { width: 0, height: 4 },
+        shadowOpacity: 0.15,
+        shadowRadius: 12,
+      },
+      giftIconContainer: {
+        width: 60,
+        height: 60,
+        borderRadius: 30,
+        backgroundColor: theme.accentSoft,
+        justifyContent: "center",
+        alignItems: "center",
+        marginBottom: 16,
+      },
+      heroTitle: {
+        color: theme.surface,
+        fontSize: 20,
+        fontWeight: "700",
+        marginBottom: 8,
+      },
+      heroSubtitle: {
+        color: theme.surfaceSoft,
+        fontSize: 13,
+        textAlign: "center",
+        lineHeight: 18,
+      },
+      sectionLabel: {
+        fontSize: 14,
+        fontWeight: "600",
+        color: theme.textSecondary,
+        marginBottom: 12,
+        textTransform: "uppercase",
+        letterSpacing: 0.5,
+      },
+      trackerCard: {
+        backgroundColor: theme.surface,
+        borderRadius: 16,
+        padding: 16,
+        borderWidth: 1,
+        borderColor: theme.border,
+        marginBottom: 24,
+      },
   trackerTextRow: {
     flexDirection: "row",
     justifyContent: "space-between",
     marginBottom: 12,
   },
-  progressText: {
-    fontSize: 14,
-    fontWeight: "600",
-    color: "#374151",
-  },
-  earningsText: {
-    fontSize: 14,
-    fontWeight: "700",
-    color: "#10B981",
-  },
-  progressTrack: {
-    height: 8,
-    backgroundColor: "#E5E7EB",
-    borderRadius: 4,
-    marginBottom: 16,
-    overflow: "hidden",
-  },
-  progressFill: {
-    height: "100%",
-    backgroundColor: "#10B981",
-    borderRadius: 4,
-  },
+      progressText: {
+        fontSize: 14,
+        fontWeight: "600",
+        color: theme.textPrimary,
+      },
+      earningsText: {
+        fontSize: 14,
+        fontWeight: "700",
+        color: theme.success,
+      },
+      progressTrack: {
+        height: 8,
+        backgroundColor: theme.border,
+        borderRadius: 4,
+        marginBottom: 16,
+        overflow: "hidden",
+      },
+      progressFill: {
+        height: "100%",
+        backgroundColor: theme.success,
+        borderRadius: 4,
+      },
   nodeRow: {
     flexDirection: "row",
     justifyContent: "space-between",
@@ -327,126 +332,126 @@ const styles = StyleSheet.create({
   nodeContainer: {
     alignItems: "center",
   },
-  nodeCircle: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    backgroundColor: "#F3F4F6",
-    justifyContent: "center",
-    alignItems: "center",
-    borderWidth: 1,
-    borderColor: "#E5E7EB",
-    marginBottom: 4,
-  },
+      nodeCircle: {
+        width: 36,
+        height: 36,
+        borderRadius: 18,
+        backgroundColor: theme.mutedBackground,
+        justifyContent: "center",
+        alignItems: "center",
+        borderWidth: 1,
+        borderColor: theme.border,
+        marginBottom: 4,
+      },
   nodeCircleActive: {
     backgroundColor: "#D1FAE5",
     borderColor: "#10B981",
   },
-  nodeText: {
-    fontSize: 11,
-    fontWeight: "600",
-    color: "#9CA3AF",
-  },
-  nodeTextActive: {
-    color: "#065F46",
-  },
-  nodeLabel: {
-    fontSize: 10,
-    color: "#6B7280",
-  },
+      nodeText: {
+        fontSize: 11,
+        fontWeight: "600",
+        color: theme.textSecondary,
+      },
+      nodeTextActive: {
+        color: theme.success,
+      },
+      nodeLabel: {
+        fontSize: 10,
+        color: theme.textSecondary,
+      },
   missionsContainer: {
     gap: 12,
   },
-  missionCard: {
-    flexDirection: "row",
-    backgroundColor: "#FFFFFF",
-    borderRadius: 16,
-    borderWidth: 1,
-    borderColor: "#E5E7EB",
-    padding: 14,
-    alignItems: "center",
-    justifyContent: "space-between",
-  },
+      missionCard: {
+        flexDirection: "row",
+        backgroundColor: theme.surface,
+        borderRadius: 16,
+        borderWidth: 1,
+        borderColor: theme.border,
+        padding: 14,
+        alignItems: "center",
+        justifyContent: "space-between",
+      },
   missionLeft: {
     flexDirection: "row",
     flex: 1,
     marginRight: 12,
   },
-  missionIconWrapper: {
-    width: 44,
-    height: 44,
-    borderRadius: 12,
-    backgroundColor: "#EEF2FF",
-    justifyContent: "center",
-    alignItems: "center",
-    marginRight: 12,
-  },
+      missionIconWrapper: {
+        width: 44,
+        height: 44,
+        borderRadius: 12,
+        backgroundColor: theme.accentSoft,
+        justifyContent: "center",
+        alignItems: "center",
+        marginRight: 12,
+      },
   missionIconCompleted: {
     backgroundColor: "#D1FAE5",
   },
   missionTextContent: {
     flex: 1,
   },
-  missionTitle: {
-    fontSize: 15,
-    fontWeight: "600",
-    color: "#1F2937",
-    marginBottom: 2,
-  },
-  missionDescription: {
-    fontSize: 12,
-    color: "#6B7280",
-    lineHeight: 16,
-    marginBottom: 6,
-  },
-  rewardBadge: {
-    alignSelf: "flex-start",
-    backgroundColor: "#F3F4F6",
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 6,
-    borderWidth: 1,
-    borderColor: "#E5E7EB",
-  },
-  rewardBadgeText: {
-    fontSize: 11,
-    fontWeight: "700",
-    color: "#20142A",
-  },
-  missionActionButton: {
-    backgroundColor: "#20142A",
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    borderRadius: 10,
-  },
-  missionButtonCompleted: {
-    backgroundColor: "#F3F4F6",
-  },
-  missionActionText: {
-    color: "#FFFFFF",
-    fontSize: 13,
-    fontWeight: "600",
-  },
-  missionActionTextCompleted: {
-    color: "#9CA3AF",
-  },
-  footer: {
-    backgroundColor: "#FFFFFF",
-    padding: 16,
-    borderTopWidth: 1,
-    borderColor: "#E5E7EB",
-  },
-  inviteButton: {
-    backgroundColor: "#20142A",
-    height: 52,
-    borderRadius: 12,
-    flexDirection: "row",
-    justifyContent: "center",
-    alignItems: "center",
-  },
-  inviteButtonText: {
-    color: "#FFFFFF",
-    fontSize: 16,
-    fontWeight: "600",
-  },
-});
+      missionTitle: {
+        fontSize: 15,
+        fontWeight: "600",
+        color: theme.textPrimary,
+        marginBottom: 2,
+      },
+      missionDescription: {
+        fontSize: 12,
+        color: theme.textSecondary,
+        lineHeight: 16,
+        marginBottom: 6,
+      },
+      rewardBadge: {
+        alignSelf: "flex-start",
+        backgroundColor: theme.mutedBackground,
+        paddingHorizontal: 8,
+        paddingVertical: 4,
+        borderRadius: 6,
+        borderWidth: 1,
+        borderColor: theme.border,
+      },
+      rewardBadgeText: {
+        fontSize: 11,
+        fontWeight: "700",
+        color: theme.textPrimary,
+      },
+      missionActionButton: {
+        backgroundColor: theme.accent,
+        paddingHorizontal: 16,
+        paddingVertical: 8,
+        borderRadius: 10,
+      },
+      missionButtonCompleted: {
+        backgroundColor: theme.mutedBackground,
+      },
+      missionActionText: {
+        color: theme.surface,
+        fontSize: 13,
+        fontWeight: "600",
+      },
+      missionActionTextCompleted: {
+        color: theme.textSecondary,
+      },
+      footer: {
+        backgroundColor: theme.surface,
+        padding: 16,
+        borderTopWidth: 1,
+        borderColor: theme.border,
+      },
+      inviteButton: {
+        backgroundColor: theme.accent,
+        height: 52,
+        borderRadius: 12,
+        flexDirection: "row",
+        justifyContent: "center",
+        alignItems: "center",
+      },
+      inviteButtonText: {
+        color: theme.surface,
+        fontSize: 16,
+        fontWeight: "600",
+      },
+    });

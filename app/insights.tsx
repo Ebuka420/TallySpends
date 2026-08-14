@@ -3,6 +3,8 @@ import { useRouter } from "expo-router";
 import React, { useMemo, useState } from "react";
 import {
     Dimensions,
+    LayoutAnimation,
+    Platform,
     SafeAreaView,
     ScrollView,
     StyleSheet,
@@ -16,12 +18,19 @@ import { useAppStore } from "../src/store";
 import { getThemePalette } from "../src/theme";
 const { width: SCREEN_WIDTH } = Dimensions.get("window");
 
+// Match the smooth expand/collapse behaviour used in Customer Service.
+if (
+  Platform.OS === "android" &&
+  UIManager.setLayoutAnimationEnabledExperimental
+) {
+  UIManager.setLayoutAnimationEnabledExperimental(true);
+}
+
 export default function InsightsScreen() {
   const router = useRouter();
-  const { themePreference } = useAppStore();
+  const { themePreference, themeMode } = useAppStore();
 
-  const colorScheme = useColorScheme() || "light";
-  const theme = getThemePalette(themePreference, colorScheme);
+  const theme = getThemePalette(themePreference, themeMode);
   const [activeTab, setActiveTab] = useState<"week" | "month" | "custom">(
     "month",
   );
@@ -35,6 +44,11 @@ export default function InsightsScreen() {
 
   // Expanded tips state
   const [expandedTipId, setExpandedTipId] = useState<string | null>(null);
+
+  const toggleTip = (id: string) => {
+    LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
+    setExpandedTipId((currentId) => (currentId === id ? null : id));
+  };
 
   const tipsLibrary = [
     {
@@ -451,7 +465,7 @@ export default function InsightsScreen() {
                   styles.coachRecommendationCardItem,
                   isExpanded && styles.coachCardExpanded,
                 ]}
-                onPress={() => setExpandedTipId(isExpanded ? null : tip.id)}
+                onPress={() => toggleTip(tip.id)}
                 activeOpacity={0.8}
               >
                 <View

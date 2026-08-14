@@ -13,17 +13,10 @@ import {
 } from "react-native";
 import { useAppStore } from "../src/store";
 
-const THEME_PALETTES = {
-  aurora: { accent: "#5B4E91", soft: "#F0EEFA", border: "#E7DFF8" },
-  sage: { accent: "#34A853", soft: "#EEF7F1", border: "#DCEFE2" },
-  sunset: { accent: "#C47C49", soft: "#FAF2EC", border: "#F3E1D4" },
-};
-
 export default function SettingsSecurityScreen() {
   const router = useRouter();
-  const { themePreference } = useAppStore();
-  const theme = THEME_PALETTES[themePreference] ?? THEME_PALETTES.aurora;
-  const accent = theme.accent;
+  const { theme } = useAppStore();
+  const styles = React.useMemo(() => getStyles(theme), [theme]);
   const [privateMode, setPrivateMode] = useState(false);
   const [deviceTrust, setDeviceTrust] = useState(true);
   const [screenLockTips, setScreenLockTips] = useState(true);
@@ -33,7 +26,7 @@ export default function SettingsSecurityScreen() {
     <SafeAreaView style={styles.container}>
       <View style={styles.headerContainer}>
         <Pressable style={styles.backButton} onPress={() => router.back()}>
-          <Ionicons name="chevron-back" size={24} color="#1C1C1E" />
+          <Ionicons name="chevron-back" size={24} color={theme.textPrimary} />
         </Pressable>
         <Text style={styles.headerTitle}>Security Center</Text>
         <View style={styles.headerSpacer} />
@@ -48,7 +41,7 @@ export default function SettingsSecurityScreen() {
             <Ionicons
               name="shield-checkmark-outline"
               size={22}
-              color="#5B4E91"
+              color={theme.accent}
             />
           </View>
           <View style={styles.heroTextWrap}>
@@ -100,8 +93,8 @@ export default function SettingsSecurityScreen() {
             <Switch
               value={item.value}
               onValueChange={item.onChange}
-              thumbColor="#FFFFFF"
-              trackColor={{ false: "#D9D9E3", true: "#5B4E91" }}
+              thumbColor={theme.surface}
+              trackColor={{ false: theme.border, true: theme.accent }}
             />
           </Pressable>
         ))}
@@ -119,68 +112,43 @@ export default function SettingsSecurityScreen() {
     </SafeAreaView>
   );
 }
-
-const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: "#FAF9FB" },
-  headerContainer: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    paddingHorizontal: 16,
-    paddingTop: 12,
-    paddingBottom: 16,
-  },
-  backButton: { padding: 4 },
-  headerTitle: { fontSize: 20, fontWeight: "700", color: "#1C1C1E" },
-  headerSpacer: { width: 32 },
-  scrollContent: { paddingBottom: 28, paddingHorizontal: 20 },
-  heroCard: {
-    flexDirection: "row",
-    backgroundColor: "#FFFFFF",
-    borderRadius: 18,
-    padding: 16,
-    marginBottom: 16,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.05,
-    shadowRadius: 8,
-    elevation: 1,
-  },
-  heroIconCircle: {
-    width: 46,
-    height: 46,
-    borderRadius: 23,
-    alignItems: "center",
-    justifyContent: "center",
-    marginRight: 12,
-  },
-  heroTextWrap: { flex: 1 },
-  heroTitle: {
-    fontSize: 15,
-    fontWeight: "700",
-    color: "#1C1C1E",
-    marginBottom: 4,
-  },
-  heroSubtitle: { fontSize: 12.5, color: "#8E8E93", lineHeight: 18 },
-  card: {
-    flexDirection: "row",
-    alignItems: "center",
-    backgroundColor: "#FFFFFF",
-    borderRadius: 16,
-    padding: 16,
-    marginBottom: 12,
-  },
-  cardPressed: { opacity: 0.9, transform: [{ scale: 0.995 }] },
-  cardTextWrap: { flex: 1 },
-  cardTitle: { fontSize: 15, fontWeight: "600", color: "#1C1C1E" },
-  cardSubtitle: { fontSize: 12.5, color: "#8E8E93", marginTop: 4 },
-  primaryAction: {
-    backgroundColor: "#5B4E91",
-    paddingVertical: 14,
-    borderRadius: 14,
-    marginTop: 10,
-    alignItems: "center",
-  },
-  primaryActionPressed: { opacity: 0.9, transform: [{ scale: 0.995 }] },
-  primaryActionText: { color: "#FFFFFF", fontWeight: "700" },
-});
+const getStyles = (theme: any) =>
+  StyleSheet.create({
+    container: { flex: 1, backgroundColor: theme.background },
+    headerContainer: {
+      flexDirection: "row",
+      alignItems: "center",
+      justifyContent: "space-between",
+      paddingHorizontal: 16,
+      paddingTop: 12,
+      paddingBottom: 16,
+    },
+    backButton: { padding: 4 },
+    headerTitle: { fontSize: 20, fontWeight: "700", color: theme.textPrimary },
+    headerSpacer: { width: 32 },
+    scrollContent: { paddingBottom: 28, paddingHorizontal: 20 },
+    heroCard: {
+      flexDirection: "row",
+      backgroundColor: theme.surface,
+      borderRadius: 18,
+      padding: 16,
+      marginBottom: 16,
+      shadowColor: "#000",
+      shadowOffset: { width: 0, height: 2 },
+      shadowOpacity: 0.05,
+      shadowRadius: 8,
+      elevation: 1,
+    },
+    heroIconCircle: { width: 46, height: 46, borderRadius: 23, alignItems: "center", justifyContent: "center", marginRight: 12 },
+    heroTextWrap: { flex: 1 },
+    heroTitle: { fontSize: 15, fontWeight: "700", color: theme.textPrimary, marginBottom: 4 },
+    heroSubtitle: { fontSize: 12.5, color: theme.textSecondary, lineHeight: 18 },
+    card: { flexDirection: "row", alignItems: "center", backgroundColor: theme.surface, borderRadius: 16, padding: 16, marginBottom: 12 },
+    cardPressed: { opacity: 0.9, transform: [{ scale: 0.995 }] },
+    cardTextWrap: { flex: 1 },
+    cardTitle: { fontSize: 15, fontWeight: "600", color: theme.textPrimary },
+    cardSubtitle: { fontSize: 12.5, color: theme.textSecondary, marginTop: 4 },
+    primaryAction: { backgroundColor: theme.accent, paddingVertical: 14, borderRadius: 14, marginTop: 10, alignItems: "center" },
+    primaryActionPressed: { opacity: 0.9, transform: [{ scale: 0.995 }] },
+    primaryActionText: { color: theme.surface, fontWeight: "700" },
+  });

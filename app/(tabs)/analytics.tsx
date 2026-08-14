@@ -1,17 +1,18 @@
 import { Ionicons } from "@expo/vector-icons";
-import React, { useMemo, useState } from "react";
+import React, { useMemo, useState, useRef } from "react";
 import {
   Modal,
   SafeAreaView,
   ScrollView,
+  Share,
   StyleSheet,
   Text,
   TouchableOpacity,
   TouchableWithoutFeedback,
   View,
-  useColorScheme,
   type DimensionValue,
 } from "react-native";
+// view-shot and expo-sharing are imported dynamically at runtime
 import Svg, { Path } from "react-native-svg";
 import { useAppStore } from "../../src/store";
 import { getThemePalette } from "../../src/theme";
@@ -75,12 +76,11 @@ const categoryMeta: Record<
 };
 
 export default function AnalyticsScreen() {
-  const { transactions: rawTransactions = [], themePreference } = useAppStore();
+  const { transactions: rawTransactions = [], themePreference, themeMode } = useAppStore();
 
   const transactions = rawTransactions as any[];
 
-  const colorScheme = useColorScheme() || "light";
-  const theme = getThemePalette(themePreference, colorScheme);
+  const theme = getThemePalette(themePreference, themeMode);
 
   /*
    * Keep all screen colors tied to the active theme.
@@ -89,7 +89,7 @@ export default function AnalyticsScreen() {
    * so these derived values let this screen stay theme-aware without
    * assuming additional properties that may not exist in src/theme.
    */
-  const isDark = colorScheme === "dark";
+  const isDark = themeMode === "dark";
 
   const colors = useMemo(
     () => ({
@@ -140,6 +140,8 @@ export default function AnalyticsScreen() {
   });
 
   const [showPeriods, setShowPeriods] = useState(false);
+  const [showSharePreview, setShowSharePreview] = useState(false);
+  const shareRef = useRef<any>(null);
 
   const chooseTimeframe = (next: Timeframe) => {
     setTimeframe(next);
@@ -389,6 +391,88 @@ export default function AnalyticsScreen() {
   }, [chartPoints, maxPoint]);
 
   const chartLabel = timeframe === "yearly" ? `${selectedPeriod}` : `${period}`;
+
+  const reportTitle = `TallySpends ${chartLabel} analytics report`;
+  const financialScore = 82;
+
+  const reportSummary = `${formatCurrency(totals.spent)} spent, ${formatCurrency(totals.income)} earned, and ${formatCurrency(totals.saved)} saved during ${chartLabel}.`;
+
+  const insightText =
+    "Food spending was higher this week than last month. A ₦35 weekly cap could keep your budget on track.";
+
+  const shareBody = `${reportTitle}
+
+Financial score: ${financialScore}/100
+${reportSummary}
+
+Top categories:
+${categoryTotals
+  .slice(0, 3)
+  .map(
+    (item) => `• ${item.name}: ${item.share} (${formatCurrency(item.amount)})`,
+  )
+  .join("\n")}
+
+Insight:
+${insightText}`;
+
+  const handleShareReport = async () => {
+    try {
+      if (shareRef.current) {
+        // Try to dynamically load capture + sharing modules (optional deps)
+        let capture: any = null;
+        let SharingModule: any = null;
+        try {
+          // eslint-disable-next-line @typescript-eslint/ban-ts-comment
+          // @ts-ignore - optional dependency, require at runtime if installed
+          const vs: any = require("react-native-view-shot");
+          capture = vs?.captureRef || vs?.captureScreen || null;
+        } catch (e) {
+          // view-shot not available
+        }
+
+        try {
+          // eslint-disable-next-line @typescript-eslint/ban-ts-comment
+          // @ts-ignore - optional dependency, require at runtime if installed
+          SharingModule = require("expo-sharing");
+        } catch (e) {
+          // expo-sharing not available
+        }
+
+        if (capture) {
+          const uri = await capture(shareRef.current, {
+            format: "png",
+            quality: 0.9,
+          });
+
+          if (SharingModule && SharingModule.isAvailableAsync) {
+            try {
+              const available = await SharingModule.isAvailableAsync();
+              if (available && SharingModule.shareAsync) {
+                await SharingModule.shareAsync(uri, { dialogTitle: reportTitle });
+                return;
+              }
+            } catch (e) {
+              // fall back
+            }
+          }
+
+          // Fallback to native Share API with file URL
+          try {
+            await Share.share({ url: uri, title: reportTitle } as any);
+            return;
+          } catch (e) {
+            // fall through to text share
+          }
+        }
+      }
+
+      // Final fallback: share as text
+      await Share.share({ title: reportTitle, message: shareBody });
+    } catch (error) {
+      console.error("Error sharing analytics report:", error);
+    }
+  };
 
   return (
     <SafeAreaView
@@ -1079,6 +1163,104 @@ export default function AnalyticsScreen() {
                     )}
                   </TouchableOpacity>
                 ))}
+              </View>
+            </TouchableWithoutFeedback>
+          </View>
+        </TouchableWithoutFeedback>
+      </Modal>
+
+      <Modal
+        transparent
+        visible={showSharePreview}
+        animationType="slide"
+        onRequestClose={() => setShowSharePreview(false)}
+      >
+        <TouchableWithoutFeedback onPress={() => setShowSharePreview(false)}>
+          <View style={styles.overlay}>
+            <TouchableWithoutFeedback>
+              <View style={[styles.menu, styles.shareModal]}>
+                <View style={styles.shareHeader}>
+                  <Text style={styles.menuTitle}>Monthly Insights</Text>
+                  <TouchableOpacity onPress={() => setShowSharePreview(false)}>
+                    <Ionicons name="close" size={22} color="#20142A" />
+                  </TouchableOpacity>
+                </View>
+                <Text style={styles.shareSubtitle}>
+                  {chartLabel} financial summary
+                </Text>
+
+                <View ref={shareRef} collapsable={false} style={styles.sharePreviewCard}>
+                  <View style={styles.sharePreviewTop}>
+                    <View style={styles.sharePreviewLogo}>
+                      <Text style={styles.sharePreviewScore}>
+                        {financialScore}
+                      </Text>
+                      <Text style={styles.sharePreviewScoreSuffix}>/100</Text>
+                    </View>
+                    <View style={styles.sharePreviewMeta}>
+                      <Text style={styles.sharePreviewMetaLabel}>
+                        Financial health
+                      </Text>
+                      <Text style={styles.sharePreviewMetaValue}>
+                        {chartLabel}
+                      </Text>
+                    </View>
+                  </View>
+
+                  <View style={styles.sharePreviewBody}>
+                    <Text style={styles.sharePreviewTitle}>{reportTitle}</Text>
+                    <Text style={styles.sharePreviewSubtitle}>
+                      {reportSummary}
+                    </Text>
+                  </View>
+
+                  <View style={styles.shareStats}>
+                    <View style={styles.shareStatCard}>
+                      <Text style={styles.shareStatLabel}>Spent</Text>
+                      <Text style={styles.shareStatValue}>
+                        {formatCurrency(totals.spent)}
+                      </Text>
+                    </View>
+                    <View style={styles.shareStatCard}>
+                      <Text style={styles.shareStatLabel}>Income</Text>
+                      <Text style={styles.shareStatValue}>
+                        {formatCurrency(totals.income)}
+                      </Text>
+                    </View>
+                    <View style={styles.shareStatCard}>
+                      <Text style={styles.shareStatLabel}>Saved</Text>
+                      <Text style={styles.shareStatValue}>
+                        {formatCurrency(totals.saved)}
+                      </Text>
+                    </View>
+                  </View>
+
+                  <View style={styles.shareDivider} />
+
+                  <Text style={styles.sectionLabel}>Top categories</Text>
+                  {categoryTotals.slice(0, 3).map((item) => (
+                    <View key={item.name} style={styles.shareCategoryRow}>
+                      <Text style={styles.shareCategoryName}>{item.name}</Text>
+                      <Text style={styles.shareCategoryValue}>
+                        {item.share}
+                      </Text>
+                    </View>
+                  ))}
+
+                  <View style={styles.shareInsightCard}>
+                    <Text style={styles.shareInsightLabel}>Insight</Text>
+                    <Text style={styles.shareInsightText}>{insightText}</Text>
+                  </View>
+                </View>
+
+                <View style={styles.shareFooter}>
+                  <TouchableOpacity
+                    style={styles.shareActionButton}
+                    onPress={handleShareReport}
+                  >
+                    <Text style={styles.shareActionText}>Share report</Text>
+                  </TouchableOpacity>
+                </View>
               </View>
             </TouchableWithoutFeedback>
           </View>

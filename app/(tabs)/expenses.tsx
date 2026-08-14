@@ -15,7 +15,6 @@ import {
     Text,
     TouchableOpacity,
     View,
-    useColorScheme,
 } from "react-native";
 import Svg, { Path } from "react-native-svg";
 import { MOCK_RECIPIENTS, useAppStore } from "../../src/store";
@@ -79,10 +78,9 @@ type ChartStyle = "line" | "area";
 export default function ExpensesScreen() {
   const router = useRouter();
 
-  const { transactions: rawTransactions = [], themePreference } = useAppStore();
+  const { transactions: rawTransactions = [], themePreference, themeMode } = useAppStore();
 
-  const colorScheme = useColorScheme() || "light";
-  const theme = getThemePalette(themePreference, colorScheme);
+  const theme = getThemePalette(themePreference, themeMode);
 
   const [date, setDate] = useState(new Date());
   const [showCalendar, setShowCalendar] = useState(false);
@@ -874,7 +872,7 @@ export default function ExpensesScreen() {
             mode="date"
             display={Platform.OS === "ios" ? "spinner" : "default"}
             onChange={onDateChange}
-            themeVariant={colorScheme}
+            themeVariant={themeMode}
             accentColor={pickerAccentColor}
             textColor={pickerTextColor}
           />
