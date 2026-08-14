@@ -1,7 +1,7 @@
 {
   "name": "tallyspends-native",
   "version": "1.0.0",
-  "main": "index.js",
+  "main": "node_modules/expo/AppEntry.js",
   "dependencies": {
     "expo": "^54.0.35",
     "expo-status-bar": "~3.0.9",
