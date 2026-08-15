@@ -1819,4 +1819,173 @@ const styles = StyleSheet.create({
   menuText: {
     fontSize: 14,
   },
+  shareModal: {
+    backgroundColor: "#FFF",
+    borderTopLeftRadius: 25,
+    borderTopRightRadius: 25,
+    padding: 20,
+    paddingBottom: 35,
+  },
+
+  shareHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: 10,
+  },
+
+  shareSubtitle: {
+    fontSize: 12,
+    color: "#666",
+    marginBottom: 12,
+  },
+
+  sharePreviewCard: {
+    backgroundColor: "#FFF",
+    borderRadius: 18,
+    borderWidth: 1,
+    borderColor: "#EEE",
+    padding: 16,
+    marginBottom: 12,
+  },
+
+  sharePreviewTop: {
+    flexDirection: "row",
+    alignItems: "center",
+  },
+
+  sharePreviewLogo: {
+    alignItems: "center",
+    justifyContent: "center",
+    borderRadius: 12,
+    backgroundColor: "#F6F2FC",
+    padding: 12,
+    marginRight: 12,
+  },
+
+  sharePreviewScore: {
+    fontSize: 28,
+    fontWeight: "700",
+  },
+
+  sharePreviewScoreSuffix: {
+    fontSize: 12,
+    marginTop: 4,
+  },
+
+  sharePreviewMeta: {
+    flex: 1,
+  },
+
+  sharePreviewMetaLabel: {
+    fontSize: 10,
+    color: "#777",
+    fontWeight: "700",
+  },
+
+  sharePreviewMetaValue: {
+    fontSize: 14,
+    fontWeight: "700",
+    marginTop: 4,
+  },
+
+  sharePreviewBody: {
+    marginTop: 12,
+  },
+
+  sharePreviewTitle: {
+    fontSize: 16,
+    fontWeight: "700",
+  },
+
+  sharePreviewSubtitle: {
+    fontSize: 12,
+    color: "#666",
+    marginTop: 6,
+  },
+
+  shareStats: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    marginTop: 12,
+  },
+
+  shareStatCard: {
+    flex: 1,
+    alignItems: "center",
+  },
+
+  shareStatLabel: {
+    fontSize: 10,
+    color: "#777",
+  },
+
+  shareStatValue: {
+    fontSize: 14,
+    fontWeight: "700",
+    marginTop: 6,
+  },
+
+  shareDivider: {
+    height: 1,
+    backgroundColor: "#EEE",
+    marginVertical: 14,
+  },
+
+  sectionLabel: {
+    fontSize: 14,
+    fontWeight: "700",
+    marginBottom: 8,
+  },
+
+  shareCategoryRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    paddingVertical: 8,
+  },
+
+  shareCategoryName: {
+    fontSize: 14,
+  },
+
+  shareCategoryValue: {
+    fontSize: 13,
+    color: "#666",
+  },
+
+  shareInsightCard: {
+    backgroundColor: "#F6F2FC",
+    borderRadius: 12,
+    padding: 12,
+    marginTop: 10,
+  },
+
+  shareInsightLabel: {
+    fontSize: 12,
+    fontWeight: "700",
+  },
+
+  shareInsightText: {
+    fontSize: 12,
+    color: "#444",
+    marginTop: 6,
+  },
+
+  shareFooter: {
+    alignItems: "center",
+    marginTop: 12,
+  },
+
+  shareActionButton: {
+    backgroundColor: "#4B2C40",
+    paddingVertical: 12,
+    borderRadius: 12,
+    alignItems: "center",
+    paddingHorizontal: 24,
+  },
+
+  shareActionText: {
+    color: "#FFF",
+    fontWeight: "700",
+  },
 });

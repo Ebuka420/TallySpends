@@ -1,5 +1,5 @@
 import { Ionicons } from "@expo/vector-icons";
-import { BlurView } from "expo-blur";
+// Fallback: avoid requiring `expo-blur` so builds succeed when it's not installed
 import { Tabs } from "expo-router";
 import React from "react";
 import {
@@ -36,8 +36,8 @@ function CustomTabBar({ state, descriptors, navigation, themeMode, theme, tabBar
 
   return (
     <View style={[styles.tabBarContainer, { width: containerWidth, borderColor: theme.border }]}>
-      {/* Background glass blur */}
-      <BlurView intensity={80} tint={themeMode === "dark" ? "dark" : "light"} style={StyleSheet.absoluteFill} />
+      {/* Background glass blur (fallback view when expo-blur isn't installed) */}
+      <View style={StyleSheet.absoluteFill} />
       <View
         style={[
           styles.tabBarOverlay,
@@ -65,11 +65,8 @@ function CustomTabBar({ state, descriptors, navigation, themeMode, theme, tabBar
           },
         ]}
       >
-        <BlurView
-          tint={themeMode === "dark" ? "light" : "dark"}
-          intensity={themeMode === "dark" ? 15 : 10}
-          style={StyleSheet.absoluteFill}
-        />
+        {/* inner blur fallback */}
+        <View style={StyleSheet.absoluteFill} />
       </Animated.View>
 
       {/* Tabs */}

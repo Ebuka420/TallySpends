@@ -1,6 +1,6 @@
 import { Ionicons } from "@expo/vector-icons";
 import Slider from "@react-native-community/slider";
-import { BlurView } from "expo-blur";
+// Fallback: avoid requiring `expo-blur` so builds succeed when it's not installed
 import { useRouter } from "expo-router";
 import React, { useState } from "react";
 import {
@@ -128,11 +128,7 @@ export default function SettingsDashboardScreen() {
                 <View style={styles.previewScreen}>
                   <View style={styles.previewContent} />
                   <View style={styles.previewTabBar}>
-                    <BlurView
-                      tint="light"
-                      intensity={90}
-                      style={StyleSheet.absoluteFill}
-                    />
+                    <View style={StyleSheet.absoluteFill} />
                     <View
                       style={[
                         styles.previewTabBarOverlay,
