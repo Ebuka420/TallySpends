@@ -1,15 +1,15 @@
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import React, { useState } from "react";
-import { useAppStore } from "../src/store";
 import {
-    SafeAreaView,
-    StyleSheet,
-    Text,
-    TouchableOpacity,
-    View,
-    ScrollView,
+  SafeAreaView,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
 } from "react-native";
+import { useAppStore } from "../src/store";
 
 const themes = [
   {
@@ -44,7 +44,9 @@ export default function SettingsThemesScreen() {
   const [selected, setSelected] = useState(themePreference || "aurora");
 
   return (
-    <SafeAreaView style={[styles.container, { backgroundColor: theme.background }]}>
+    <SafeAreaView
+      style={[styles.container, { backgroundColor: theme.background }]}
+    >
       <View style={styles.headerContainer}>
         <TouchableOpacity
           style={styles.backButton}
@@ -52,17 +54,33 @@ export default function SettingsThemesScreen() {
         >
           <Ionicons name="chevron-back" size={24} color={theme.textPrimary} />
         </TouchableOpacity>
-        <Text style={[styles.headerTitle, { color: theme.textPrimary }]}>Themes</Text>
+        <Text style={[styles.headerTitle, { color: theme.textPrimary }]}>
+          Themes
+        </Text>
         <View style={styles.headerSpacer} />
       </View>
 
-      <ScrollView contentContainerStyle={styles.scrollContainer} showsVerticalScrollIndicator={false}>
+      <ScrollView
+        contentContainerStyle={styles.scrollContainer}
+        showsVerticalScrollIndicator={false}
+      >
         <View style={[styles.heroCard, { backgroundColor: theme.surface }]}>
-          <View style={[styles.heroIconCircle, { backgroundColor: theme.accentSoft }]}>
-            <Ionicons name="color-palette-outline" size={22} color={theme.accent} />
+          <View
+            style={[
+              styles.heroIconCircle,
+              { backgroundColor: theme.accentSoft },
+            ]}
+          >
+            <Ionicons
+              name="color-palette-outline"
+              size={22}
+              color={theme.accent}
+            />
           </View>
           <View style={styles.heroTextWrap}>
-            <Text style={[styles.heroTitle, { color: theme.textPrimary }]}>Choose a look</Text>
+            <Text style={[styles.heroTitle, { color: theme.textPrimary }]}>
+              Choose a look
+            </Text>
             <Text style={[styles.heroSubtitle, { color: theme.textSecondary }]}>
               Pick an aesthetic that suits your mood and style.
             </Text>
@@ -75,22 +93,33 @@ export default function SettingsThemesScreen() {
             style={[
               styles.card,
               { backgroundColor: theme.surface },
-              selected === t.id && [styles.cardActive, { borderColor: theme.accent }]
+              selected === t.id && [
+                styles.cardActive,
+                { borderColor: theme.accent },
+              ],
             ]}
             onPress={async () => {
               setSelected(t.id as any);
               await setThemePreference(t.id as any);
             }}
           >
-            <View
-              style={[styles.colorSwatch, { backgroundColor: t.accent }]}
-            />
+            <View style={[styles.colorSwatch, { backgroundColor: t.accent }]} />
             <View style={styles.cardTextWrap}>
-              <Text style={[styles.cardTitle, { color: theme.textPrimary }]}>{t.title}</Text>
-              <Text style={[styles.cardSubtitle, { color: theme.textSecondary }]}>{t.subtitle}</Text>
+              <Text style={[styles.cardTitle, { color: theme.textPrimary }]}>
+                {t.title}
+              </Text>
+              <Text
+                style={[styles.cardSubtitle, { color: theme.textSecondary }]}
+              >
+                {t.subtitle}
+              </Text>
             </View>
             {selected === t.id ? (
-              <Ionicons name="checkmark-circle" size={22} color={theme.accent} />
+              <Ionicons
+                name="checkmark-circle"
+                size={22}
+                color={theme.accent}
+              />
             ) : (
               <Ionicons name="ellipse-outline" size={22} color={theme.border} />
             )}
@@ -99,7 +128,9 @@ export default function SettingsThemesScreen() {
 
         {/* Appearance Section */}
         <View style={styles.sectionHeader}>
-          <Text style={[styles.sectionTitle, { color: theme.textSecondary }]}>APPEARANCE</Text>
+          <Text style={[styles.sectionTitle, { color: theme.textSecondary }]}>
+            APPEARANCE
+          </Text>
         </View>
 
         <View style={styles.appearanceContainer}>
@@ -109,7 +140,10 @@ export default function SettingsThemesScreen() {
               style={[
                 styles.appearanceCard,
                 { backgroundColor: theme.surface, borderColor: theme.border },
-                darkModePreference === mode && { borderColor: theme.accent, borderWidth: 1 }
+                darkModePreference === mode && {
+                  borderColor: theme.accent,
+                  borderWidth: 1,
+                },
               ]}
               onPress={() => setDarkModePreference(mode)}
             >
@@ -119,30 +153,45 @@ export default function SettingsThemesScreen() {
                     mode === "light"
                       ? "sunny-outline"
                       : mode === "dark"
-                      ? "moon-outline"
-                      : "phone-portrait-outline"
+                        ? "moon-outline"
+                        : "phone-portrait-outline"
                   }
                   size={20}
-                  color={darkModePreference === mode ? theme.accent : theme.textSecondary}
+                  color={
+                    darkModePreference === mode
+                      ? theme.accent
+                      : theme.textSecondary
+                  }
                 />
                 <Text
                   style={[
                     styles.appearanceText,
                     { color: theme.textPrimary },
-                    darkModePreference === mode && { fontWeight: "700", color: theme.accent }
+                    darkModePreference === mode && {
+                      fontWeight: "700",
+                      color: theme.accent,
+                    },
                   ]}
                 >
                   {mode === "light"
                     ? "Light mode"
                     : mode === "dark"
-                    ? "Dark mode"
-                    : "System default"}
+                      ? "Dark mode"
+                      : "System default"}
                 </Text>
               </View>
               {darkModePreference === mode ? (
-                <Ionicons name="checkmark-circle" size={20} color={theme.accent} />
+                <Ionicons
+                  name="checkmark-circle"
+                  size={20}
+                  color={theme.accent}
+                />
               ) : (
-                <Ionicons name="ellipse-outline" size={20} color={theme.border} />
+                <Ionicons
+                  name="ellipse-outline"
+                  size={20}
+                  color={theme.border}
+                />
               )}
             </TouchableOpacity>
           ))}

@@ -45,7 +45,9 @@
         {
           "cameraPermission": "Allow TallySpends to access your camera to scan QR codes."
         }
-      ]
+      ],
+      "expo-font",
+      "expo-web-browser"
     ],
     "experiments": {
       "typedRoutes": true,
