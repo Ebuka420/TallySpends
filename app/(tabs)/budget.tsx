@@ -14,6 +14,7 @@ import { useAppStore } from "../../src/store";
 import { getThemePalette } from "../../src/theme";
 
 export default function BudgetScreen() {
+  const router = useRouter();
   const { themePreference, themeMode } = useAppStore();
 
   const theme = getThemePalette(themePreference, themeMode);
@@ -649,6 +650,24 @@ export default function BudgetScreen() {
           </View>
         </ScrollView>
 
+        <TouchableOpacity
+          activeOpacity={0.82}
+          onPress={() => router.push("/ajo")}
+          style={[
+            styles.ajoEntry,
+            { backgroundColor: colors.softAccent, borderColor: colors.border },
+          ]}
+        >
+          <View style={[styles.ajoEntryIcon, { backgroundColor: colors.white, borderColor: colors.border }]}>
+            <Ionicons name="people-outline" size={21} color={colors.accent} />
+          </View>
+          <View style={styles.ajoEntryCopy}>
+            <Text style={[styles.ajoEntryTitle, { color: colors.textPrimary }]}>Ajo circles</Text>
+            <Text style={[styles.ajoEntrySub, { color: colors.textSecondary }]}>Save together with your community</Text>
+          </View>
+          <Ionicons name="chevron-forward" size={19} color={colors.accent} />
+        </TouchableOpacity>
+
         {/* Savings Goals */}
         <View style={styles.sectionHeader}>
           <Text
@@ -1028,6 +1047,27 @@ const styles = StyleSheet.create({
     marginBottom: 12,
     marginTop: 20,
   },
+
+  ajoEntry: {
+    flexDirection: "row",
+    alignItems: "center",
+    borderWidth: 1,
+    borderRadius: 20,
+    padding: 14,
+    marginTop: 24,
+  },
+  ajoEntryIcon: {
+    width: 44,
+    height: 44,
+    borderRadius: 15,
+    borderWidth: 1,
+    alignItems: "center",
+    justifyContent: "center",
+    marginRight: 12,
+  },
+  ajoEntryCopy: { flex: 1 },
+  ajoEntryTitle: { fontSize: 15, fontWeight: "700", marginBottom: 3 },
+  ajoEntrySub: { fontSize: 12, fontWeight: "500" },
 
   sectionTitle: {
     fontSize: 16,

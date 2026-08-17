@@ -62,6 +62,7 @@ const ajoGroupCards = [
   {
     id: "ajo-1",
     groupName: "Mama Ajo Circle",
+    ajoGroupId: "mama",
     memberName: "Ada",
     contribution: "₦25,000",
     image: "https://i.pravatar.cc/100?img=12",
@@ -69,6 +70,7 @@ const ajoGroupCards = [
   {
     id: "ajo-2",
     groupName: "Family Lift",
+    ajoGroupId: "family",
     memberName: "Tosin",
     contribution: "₦18,000",
     image: "https://i.pravatar.cc/100?img=32",
@@ -76,6 +78,7 @@ const ajoGroupCards = [
   {
     id: "ajo-3",
     groupName: "Weekend Savers",
+    ajoGroupId: "weekend",
     memberName: "Mina",
     contribution: "₦10,000",
     image: "https://i.pravatar.cc/100?img=47",
@@ -698,7 +701,7 @@ export default function App() {
             </Text>
 
             <TouchableOpacity
-              onPress={() => router.push("/budget")}
+              onPress={() => router.push("/ajo")}
               activeOpacity={0.7}
             >
               <Text
@@ -753,7 +756,7 @@ export default function App() {
                     borderColor: theme.border,
                   },
                 ]}
-                onPress={() => router.push("/budget")}
+                onPress={() => router.push({ pathname: "/ajo-details", params: { groupId: card.ajoGroupId } })}
                 activeOpacity={0.84}
               >
                 <Image
