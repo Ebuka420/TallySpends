@@ -1,6 +1,6 @@
 export type ThemeMode = "light" | "dark";
 
-export type ThemeId = "aurora" | "sage" | "sunset" | "ocean" | "forest" | "crimson" | "midnight";
+export type ThemeId = "aurora" | "sage" | "sunset" | "ocean" | "forest" | "crimson" | "midnight" | "pink";
 
 export type ThemePalette = {
   background: string;
@@ -171,6 +171,24 @@ export const THEME_PALETTES: Record<
       accentSoft: "#451A03",
       accentSecondary: "#D97706",
       accentHighlight: "#F59E0B",
+    },
+  },
+
+  pink: {
+    light: {
+      ...LIGHT_COLORS,
+      accent: "#DB2777",
+      accentSoft: "#FDF2F8",
+      accentSecondary: "#F472B6",
+      accentHighlight: "#EC4899",
+    },
+
+    dark: {
+      ...DARK_COLORS,
+      accent: "#F472B6",
+      accentSoft: "#500724",
+      accentSecondary: "#EC4899",
+      accentHighlight: "#F472B6",
     },
   },
 };

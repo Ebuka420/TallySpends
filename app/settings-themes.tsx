@@ -54,6 +54,12 @@ const themes = [
     subtitle: "Deep obsidian with gold accents",
     accent: "#F59E0B",
   },
+  {
+    id: "pink",
+    title: "Blossom Pink",
+    subtitle: "Sweet and vibrant pink",
+    accent: "#DB2777",
+  },
 ];
 
 export default function SettingsThemesScreen() {

@@ -502,7 +502,7 @@ export function useAppStore() {
         setUsernameState("ebuka");
       }
 
-      const validThemes = ["aurora", "sage", "sunset", "ocean", "forest", "crimson", "midnight"];
+      const validThemes = ["aurora", "sage", "sunset", "ocean", "forest", "crimson", "midnight", "pink"];
       if (validThemes.includes(storedTheme || "")) {
         setThemePreferenceState(storedTheme as ThemeId);
       }
@@ -623,7 +623,7 @@ export function useAppStore() {
   }, []);
 
   const setThemePreference = useCallback(async (themeId: ThemeId) => {
-    const validThemes: ThemeId[] = ["aurora", "sage", "sunset", "ocean", "forest", "crimson", "midnight"];
+    const validThemes: ThemeId[] = ["aurora", "sage", "sunset", "ocean", "forest", "crimson", "midnight", "pink"];
     const validTheme = validThemes.includes(themeId) ? themeId : "aurora";
 
     setThemePreferenceState(validTheme);
