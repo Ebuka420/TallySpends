@@ -839,7 +839,16 @@ export default function TransferScreen() {
                       <Text style={styles.transferSuccessAmount}>₦{Number(amount || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}</Text>
                       <Text style={styles.transferSuccessRecipient}>to {selectedRecipient.name}{`\n`}@{selectedRecipient.username}</Text>
                       
-                      <TouchableOpacity style={styles.transferReceiptButton} onPress={() => setShowReceiptModal(true)}>
+                      <TouchableOpacity
+                        style={styles.transferReceiptButton}
+                        onPress={() => {
+                          closeTransferFlow();
+                          router.push({
+                            pathname: "/transaction-details",
+                            params: { id: receiptTransaction?.id },
+                          });
+                        }}
+                      >
                         <Ionicons name="receipt-outline" size={19} color={theme.accent} />
                         <Text style={styles.transferReceiptText}>View Receipt</Text>
                       </TouchableOpacity>
