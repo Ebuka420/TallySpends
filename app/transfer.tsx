@@ -58,6 +58,9 @@ export default function TransferScreen() {
   // Animation for scanner line
   const scannerAnim = useRef(new Animated.Value(0)).current;
 
+  // Animation for slide-up review screen
+  const slideAnim = useRef(new Animated.Value(800)).current;
+
   const setTransferStepWithAnimation = (
     nextStep: "amount" | "review" | "success",
   ) => {
@@ -214,12 +217,12 @@ export default function TransferScreen() {
       category: finalCategory,
       type: "expense",
       memo: memo || finalCategory,
-      date: new Date().toISOString().slice(0, 10),
+      date: new Date().toISOString(),
     };
 
     addTransaction(newTx);
     setReceiptTransaction(newTx);
-    setTransferStepWithAnimation("success");
+    setTransferStep("success");
   };
 
   const parsedAmount = parseFloat(amount);
@@ -239,7 +242,25 @@ export default function TransferScreen() {
       Alert.alert("Insufficient Funds", "You do not have enough funds to complete this transfer.");
       return;
     }
-    setTransferStepWithAnimation("review");
+    
+    setTransferStep("review");
+    
+    Animated.spring(slideAnim, {
+      toValue: 0,
+      tension: 55,
+      friction: 9,
+      useNativeDriver: true,
+    }).start();
+  };
+
+  const backToAmount = () => {
+    Animated.timing(slideAnim, {
+      toValue: 800,
+      duration: 250,
+      useNativeDriver: true,
+    }).start(() => {
+      setTransferStep("amount");
+    });
   };
 
   const closeTransferFlow = () => {
@@ -247,6 +268,7 @@ export default function TransferScreen() {
     setTransferStep("amount");
     setAmount("");
     setMemo("");
+    slideAnim.setValue(800);
   };
 
   const handleDeleteCustomCategory = (category: string) => {
@@ -672,304 +694,162 @@ export default function TransferScreen() {
             <View style={styles.transferSheet}>
               {selectedRecipient && (
                 <>
-                  {transferStep !== "success" && <View style={styles.transferHeader}>
-                    {transferStep === "review" ? <TouchableOpacity onPress={() => setTransferStepWithAnimation("amount")}><Ionicons name="chevron-back" size={23} color="#201B2D" /></TouchableOpacity> : <View style={styles.transferHeaderSpacer} />}
-                    <Text style={styles.transferTitle}>{transferStep === "amount" ? "Send Money" : "Review Transfer"}</Text>
-                    <TouchableOpacity style={styles.transferCancelButton} onPress={closeTransferFlow}><Text style={styles.transferCancelText}>Cancel</Text></TouchableOpacity>
-                  </View>}
-                  {transferStep !== "success" && <View style={styles.transferRecipientCard}>
-                    <View style={[styles.transferAvatar, { backgroundColor: selectedRecipient.color }]}><Text style={[styles.transferAvatarText, { color: selectedRecipient.textColor }]}>{selectedRecipient.initial}</Text></View>
-                    <View><Text style={styles.transferRecipientName}>{selectedRecipient.name}</Text><Text style={styles.transferRecipientHandle}>@{selectedRecipient.username}</Text></View>
-                  </View>}
-                  {transferStep === "amount" && <ScrollView contentContainerStyle={styles.transferBody} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
-                    <Text style={styles.transferLabel}>You send</Text>
-                    <View style={[styles.transferAmountRow, isOverBalance && styles.transferAmountError]}><Text style={styles.transferCurrency}>₦</Text><TextInput style={styles.transferAmountInput} placeholder="0" placeholderTextColor="#CBC6D1" keyboardType="decimal-pad" autoFocus value={amount} onChangeText={setAmount} /></View>
-                    <View style={styles.transferQuickRow}>{quickAmounts.map((value) => <TouchableOpacity key={value} style={styles.transferQuickChip} onPress={() => addQuickAmount(value)}><Text style={styles.transferQuickText}>+{value.toLocaleString()}</Text></TouchableOpacity>)}</View>
-                    {isOverBalance && <Text style={styles.transferErrorText}>Amount exceeds your available balance</Text>}
-                    <Text style={styles.transferLabel}>Note <Text style={styles.transferOptional}>(optional)</Text></Text>
-                    <TextInput style={styles.transferNoteInput} placeholder="What's this for?" placeholderTextColor="#ABA5B4" value={memo} onChangeText={(text) => setMemo(text.slice(0, 40))} maxLength={40} multiline />
-                    <Text style={styles.transferCharacterCount}>{memo.length}/40</Text>
-                    <TouchableOpacity style={styles.transferPrimaryButton} onPress={continueToReview}><Text style={styles.transferPrimaryText}>Continue</Text></TouchableOpacity>
-                  </ScrollView>}
-                  {transferStep === "review" && <View style={styles.transferBody}>
-                    <View style={styles.transferReviewRow}><Text style={styles.transferLabel}>You send</Text><Text style={styles.transferReviewAmount}>₦{Number(amount || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}</Text></View>
-                    <View style={styles.transferReviewRow}><Text style={styles.transferLabel}>Note</Text><Text style={styles.transferReviewValue}>{memo || "No note"}</Text></View>
-                    <View style={styles.transferReviewRow}><Text style={styles.transferLabel}>Fee</Text><Text style={styles.transferFree}>Free</Text></View>
-                    <View style={styles.transferTotalRow}><Text style={styles.transferTotalLabel}>Total</Text><Text style={styles.transferTotalAmount}>₦{Number(amount || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}</Text></View>
-                    <View style={styles.transferSecurity}><View style={styles.transferSecurityIcon}><Ionicons name="shield-checkmark" size={18} color="#20142A" /></View><View><Text style={styles.transferSecurityTitle}>Secure transfer</Text><Text style={styles.transferSecurityCopy}>Your money is safe with TallySpends.</Text></View></View>
-                    <TouchableOpacity style={styles.transferPrimaryButton} onPress={executeTransfer}><Text style={styles.transferPrimaryText}>Send Money</Text></TouchableOpacity>
-                  </View>}
-                  {transferStep === "success" && <ScrollView contentContainerStyle={styles.transferSuccessBody} showsVerticalScrollIndicator={false}>
-                    <View style={styles.transferSuccessIcon}><Ionicons name="checkmark" size={54} color="#FFFFFF" /></View><Text style={styles.transferSuccessTitle}>Transfer Successful!</Text><Text style={styles.transferSuccessLabel}>You sent</Text><Text style={styles.transferSuccessAmount}>₦{Number(amount || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}</Text><Text style={styles.transferSuccessRecipient}>to {selectedRecipient.name}{`\n`}@{selectedRecipient.username}</Text>
-                    <TouchableOpacity style={styles.transferReceiptButton} onPress={() => { setShowTransferModal(false); router.push({ pathname: "/transaction-details", params: { id: receiptTransaction?.id } }); }}><Ionicons name="receipt-outline" size={19} color="#20142A" /><Text style={styles.transferReceiptText}>View Receipt</Text></TouchableOpacity><TouchableOpacity style={styles.transferHomeButton} onPress={() => { closeTransferFlow(); router.replace("/"); }}><Text style={styles.transferHomeText}>Back to Home</Text></TouchableOpacity>
-                  </ScrollView>}
-                </>
-              )}
-
-              {false && <View style={styles.modalHeader}>
-                <Text style={styles.modalTitle}>Send Money</Text>
-                <TouchableOpacity onPress={() => setShowTransferModal(false)}>
-                  <Ionicons name="close-circle" size={24} color="#CCCCCC" />
-                </TouchableOpacity>
-              </View>}
-
-              {false && selectedRecipient && (
-                <ScrollView
-                  style={styles.modalBody}
-                  keyboardShouldPersistTaps="handled"
-                >
-                  {/* Selected Recipient Card */}
-                  <View style={styles.selectedRecipientHeader}>
-                    <View
-                      style={[
-                        styles.selectedAvatar,
-                        { backgroundColor: selectedRecipient.color },
-                      ]}
-                    >
-                      <Text
-                        style={[
-                          styles.selectedAvatarText,
-                          { color: selectedRecipient.textColor },
-                        ]}
-                      >
-                        {selectedRecipient.initial}
-                      </Text>
-                    </View>
+                  {transferStep !== "success" ? (
                     <View style={{ flex: 1 }}>
-                      <Text style={styles.selectedName}>
-                        {selectedRecipient.name}
-                      </Text>
-                      <Text style={styles.selectedUsername}>
-                        {selectedRecipient.bank}
-                      </Text>
-                    </View>
-                  </View>
-
-                  {/* Amount Input */}
-                  <Text style={styles.inputLabel}>Enter Transfer Amount</Text>
-                  <View
-                    style={[
-                      styles.modalAmountWrapper,
-                      isOverBalance && styles.modalAmountWrapperError,
-                    ]}
-                  >
-                    <Text style={styles.modalCurrencySymbol}>₦</Text>
-                    <TextInput
-                      style={styles.modalAmountInput}
-                      placeholder="0.00"
-                      placeholderTextColor="#A0A0A0"
-                      keyboardType="decimal-pad"
-                      value={amount}
-                      onChangeText={setAmount}
-                    />
-                  </View>
-
-                  {/* Quick amount buttons */}
-                  <View style={styles.quickAmountsRow}>
-                    {quickAmounts.map((a) => (
-                      <TouchableOpacity
-                        key={a}
-                        style={styles.quickAmountChip}
-                        onPress={() => setAmount(String(a))}
-                      >
-                        <Text style={styles.quickAmountText}>
-                          ₦{a.toLocaleString()}
-                        </Text>
-                      </TouchableOpacity>
-                    ))}
-                  </View>
-                  {isOverBalance && (
-                    <Text style={styles.modalErrorText}>
-                      ⚠️ Amount exceeds available balance
-                    </Text>
-                  )}
-
-                  {/* Memo / Category Input (required) */}
-                  <View style={styles.categoryLabelRow}>
-                    <Text style={[styles.inputLabel, { marginTop: 16 }]}>
-                      Category (choose one)
-                    </Text>
-                    {(customCategories || []).length > 0 ? (
-                      <TouchableOpacity
-                        style={styles.categoryManageButton}
-                        onPress={() =>
-                          setShowCustomCategoryManager((prev) => !prev)
-                        }
-                        activeOpacity={0.8}
-                      >
-                        <Text style={styles.categoryManageButtonText}>×</Text>
-                      </TouchableOpacity>
-                    ) : null}
-                  </View>
-                  <View style={styles.categoryRow}>
-                    {[
-                      "Food",
-                      "Utility",
-                      "Purchase",
-                      "Transport",
-                      "Rent",
-                      ...(customCategories || []),
-                      "Other",
-                      "Add Category",
-                    ].map((cat) => {
-                      const isCustomCategory = (
-                        customCategories || []
-                      ).includes(cat);
-                      return (
-                        <TouchableOpacity
-                          key={cat}
-                          style={[
-                            styles.categoryChip,
-                            cat === "Add Category" && styles.addCategoryChip,
-                            selectedCategory === cat &&
-                              styles.categoryChipActive,
-                            cat === "Add Category" &&
-                              selectedCategory === cat &&
-                              styles.addCategoryChipActive,
-                          ]}
-                          onPress={() => {
-                            setSelectedCategory(cat);
-                            setCustomCategory("");
-                            setCustomCategoryInput("");
-                            setMemo(
-                              cat === "Other" || cat === "Add Category"
-                                ? ""
-                                : cat,
-                            );
-                          }}
-                          onLongPress={() => {
-                            if (isCustomCategory) {
-                              handleDeleteCustomCategory(cat);
-                            }
-                          }}
-                        >
-                          <Text
-                            style={[
-                              styles.categoryText,
-                              selectedCategory === cat &&
-                                styles.categoryTextActive,
-                              cat === "Add Category" &&
-                                styles.addCategoryChipText,
-                              cat === "Add Category" &&
-                                selectedCategory === cat &&
-                                styles.addCategoryChipTextActive,
-                            ]}
-                          >
-                            {cat === "Add Category" ? "＋" : cat}
-                          </Text>
-                        </TouchableOpacity>
-                      );
-                    })}
-                  </View>
-
-                  {(customCategories || []).length > 0 &&
-                  showCustomCategoryManager ? (
-                    <View style={styles.customCategoriesList}>
-                      {(customCategories || []).map((category) => (
-                        <View key={category} style={styles.customCategoryRow}>
-                          <Text style={styles.customCategoryText}>
-                            {category}
-                          </Text>
-                          <TouchableOpacity
-                            style={styles.deleteCategoryButton}
-                            onPress={() => handleDeleteCustomCategory(category)}
-                            activeOpacity={0.8}
-                          >
-                            <Text style={styles.deleteCategoryButtonText}>
-                              ×
-                            </Text>
+                      {/* STAGE 1: Enter Amount (Send Money) */}
+                      <View style={{ flex: 1, display: transferStep === "amount" || transferStep === "review" ? "flex" : "none" }}>
+                        <View style={styles.transferHeader}>
+                          <View style={styles.transferHeaderSpacer} />
+                          <Text style={styles.transferTitle}>Send Money</Text>
+                          <TouchableOpacity style={styles.transferCancelButton} onPress={closeTransferFlow}>
+                            <Ionicons name="close" size={24} color="#1C1C1E" />
                           </TouchableOpacity>
                         </View>
-                      ))}
+
+                        <View style={styles.transferRecipientCard}>
+                          <View style={[styles.transferAvatar, { backgroundColor: selectedRecipient.color }]}>
+                            <Text style={[styles.transferAvatarText, { color: selectedRecipient.textColor }]}>
+                              {selectedRecipient.initial}
+                            </Text>
+                          </View>
+                          <View>
+                            <Text style={styles.transferRecipientName}>{selectedRecipient.name}</Text>
+                            <Text style={styles.transferRecipientHandle}>@{selectedRecipient.username}</Text>
+                          </View>
+                        </View>
+
+                        <ScrollView contentContainerStyle={styles.transferBody} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
+                          <Text style={styles.transferLabel}>You send</Text>
+                          <View style={[styles.transferAmountRow, isOverBalance && styles.transferAmountError]}>
+                            <Text style={styles.transferCurrency}>₦</Text>
+                            <TextInput
+                              style={styles.transferAmountInput}
+                              placeholder="0"
+                              placeholderTextColor="#CBC6D1"
+                              keyboardType="decimal-pad"
+                              autoFocus
+                              value={amount}
+                              onChangeText={setAmount}
+                            />
+                          </View>
+                          
+                          <View style={styles.transferQuickRow}>
+                            {quickAmounts.slice(0, 3).map((value) => (
+                              <TouchableOpacity key={value} style={styles.transferQuickChip} onPress={() => addQuickAmount(value)}>
+                                <Text style={styles.transferQuickText}>+{value.toLocaleString()}</Text>
+                              </TouchableOpacity>
+                            ))}
+                          </View>
+                          
+                          {isOverBalance && <Text style={styles.transferErrorText}>Amount exceeds your available balance</Text>}
+                          
+                          <Text style={styles.transferLabel}>Note <Text style={styles.transferOptional}>(optional)</Text></Text>
+                          <TextInput
+                            style={styles.transferNoteInput}
+                            placeholder="What's this for?"
+                            placeholderTextColor="#ABA5B4"
+                            value={memo}
+                            onChangeText={(text) => setMemo(text.slice(0, 40))}
+                            maxLength={40}
+                            multiline
+                          />
+                          <Text style={styles.transferCharacterCount}>{memo.length}/40</Text>
+                          
+                          <TouchableOpacity style={styles.transferPrimaryButton} onPress={continueToReview}>
+                            <Text style={styles.transferPrimaryText}>Continue</Text>
+                          </TouchableOpacity>
+                        </ScrollView>
+                      </View>
+
+                      {/* STAGE 2: Review (slides up over Stage 1) */}
+                      <Animated.View style={[styles.reviewContainer, { transform: [{ translateY: slideAnim }] }]}>
+                        <View style={styles.transferHeader}>
+                          <TouchableOpacity onPress={backToAmount}>
+                            <Ionicons name="chevron-back" size={24} color="#1C1C1E" />
+                          </TouchableOpacity>
+                          <Text style={styles.transferTitle}>Review Transfer</Text>
+                          <TouchableOpacity style={styles.transferCancelButton} onPress={closeTransferFlow}>
+                            <Ionicons name="close" size={24} color="#1C1C1E" />
+                          </TouchableOpacity>
+                        </View>
+
+                        <View style={styles.transferRecipientCard}>
+                          <View style={[styles.transferAvatar, { backgroundColor: selectedRecipient.color }]}>
+                            <Text style={[styles.transferAvatarText, { color: selectedRecipient.textColor }]}>
+                              {selectedRecipient.initial}
+                            </Text>
+                          </View>
+                          <View>
+                            <Text style={styles.transferRecipientName}>{selectedRecipient.name}</Text>
+                            <Text style={styles.transferRecipientHandle}>@{selectedRecipient.username}</Text>
+                          </View>
+                        </View>
+
+                        <View style={styles.transferBody}>
+                          <View style={styles.transferReviewRow}>
+                            <Text style={styles.transferLabel}>You send</Text>
+                            <Text style={styles.transferReviewAmount}>₦{Number(amount || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}</Text>
+                          </View>
+                          <View style={styles.transferReviewRow}>
+                            <Text style={styles.transferLabel}>Note</Text>
+                            <Text style={styles.transferReviewValue}>{memo || "No note"}</Text>
+                          </View>
+                          <View style={styles.transferReviewRow}>
+                            <Text style={styles.transferLabel}>Fee</Text>
+                            <Text style={styles.transferFree}>Free</Text>
+                          </View>
+                          
+                          <View style={styles.transferTotalRow}>
+                            <Text style={styles.transferTotalLabel}>Total</Text>
+                            <Text style={styles.transferTotalAmount}>₦{Number(amount || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}</Text>
+                          </View>
+
+                          <View style={styles.transferSecurity}>
+                            <View style={styles.transferSecurityIcon}>
+                              <Ionicons name="shield-checkmark" size={18} color={theme.accent} />
+                            </View>
+                            <View>
+                              <Text style={styles.transferSecurityTitle}>Secure transfer</Text>
+                              <Text style={styles.transferSecurityCopy}>Your money is safe with TallySpends.</Text>
+                            </View>
+                          </View>
+
+                          <TouchableOpacity style={styles.transferPrimaryButton} onPress={executeTransfer}>
+                            <Text style={styles.transferPrimaryText}>Send Money</Text>
+                          </TouchableOpacity>
+                        </View>
+                      </Animated.View>
                     </View>
-                  ) : null}
-
-                  {selectedCategory ? (
-                    <TouchableOpacity
-                      style={styles.clearSelectionButton}
-                      onPress={() => {
-                        setSelectedCategory(null);
-                        setCustomCategory("");
-                        setCustomCategoryInput("");
-                        setMemo("");
-                      }}
-                      activeOpacity={0.8}
-                    >
-                      <Text style={styles.clearSelectionButtonText}>Clear</Text>
-                    </TouchableOpacity>
-                  ) : null}
-
-                  {selectedCategory === "Other" ||
-                  selectedCategory === "Add Category" ? (
-                    <View style={styles.customCategoryInputWrapper}>
-                      <Text style={styles.inputLabel}>
-                        {selectedCategory === "Other"
-                          ? "Other category"
-                          : "New category"}
-                      </Text>
-                      <TextInput
-                        style={styles.customCategoryInput}
-                        placeholder={
-                          selectedCategory === "Other"
-                            ? "Type a custom category"
-                            : "Type a new category name"
-                        }
-                        placeholderTextColor="#A0A0A0"
-                        value={customCategoryInput}
-                        onChangeText={setCustomCategoryInput}
-                      />
-                    </View>
-                  ) : null}
-
-                  {selectedCategory === "Add Category" ? (
-                    <TouchableOpacity
-                      style={styles.addCustomCategoryButton}
-                      onPress={() => {
-                        const trimmed = customCategoryInput.trim();
-                        if (!trimmed) return;
-                        addCustomCategory(trimmed);
-                        setCustomCategory(trimmed);
-                        setSelectedCategory(trimmed);
-                        setMemo(trimmed);
-                      }}
-                      activeOpacity={0.8}
-                    >
-                      <Text style={styles.addCustomCategoryButtonText}>
-                        Save this as my category
-                      </Text>
-                    </TouchableOpacity>
-                  ) : null}
-
-                  {/* Confirm Button */}
-                  <TouchableOpacity
-                    style={[
-                      styles.modalConfirmButton,
-                      (isOverBalance ||
-                        !amount ||
-                        parseFloat(amount) <= 0 ||
-                        !selectedCategory) &&
-                        styles.modalConfirmButtonDisabled,
-                    ]}
-                    onPress={executeTransfer}
-                    activeOpacity={0.8}
-                    disabled={
-                      isOverBalance ||
-                      !amount ||
-                      parseFloat(amount) <= 0 ||
-                      !selectedCategory
-                    }
-                  >
-                    <Text style={styles.modalConfirmButtonText}>
-                      Confirm Send ₦
-                      {amount
-                        ? Number(amount).toLocaleString(undefined, {
-                            minimumFractionDigits: 2,
-                            maximumFractionDigits: 2,
-                          })
-                        : "0.00"}
-                    </Text>
-                  </TouchableOpacity>
-                </ScrollView>
+                  ) : (
+                    /* STAGE 3: Done (Instant confirmation) */
+                    <ScrollView contentContainerStyle={styles.transferSuccessBody} showsVerticalScrollIndicator={false}>
+                      <View style={styles.transferSuccessIconContainer}>
+                        <View style={styles.successCircle}>
+                          <Ionicons name="checkmark" size={48} color="#FFFFFF" />
+                        </View>
+                        {/* Confetti Sparkles */}
+                        <Ionicons name="star" size={14} color="#FFD700" style={[styles.sparkle, { top: 0, left: 0 }]} />
+                        <Ionicons name="star" size={10} color="#FF69B4" style={[styles.sparkle, { top: 20, right: 0 }]} />
+                        <Ionicons name="ellipse" size={8} color="#00FFFF" style={[styles.sparkle, { bottom: 10, left: -5 }]} />
+                      </View>
+                      
+                      <Text style={styles.transferSuccessTitle}>Transfer Successful!</Text>
+                      
+                      <Text style={styles.transferSuccessLabel}>You sent</Text>
+                      <Text style={styles.transferSuccessAmount}>₦{Number(amount || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}</Text>
+                      <Text style={styles.transferSuccessRecipient}>to {selectedRecipient.name}{`\n`}@{selectedRecipient.username}</Text>
+                      
+                      <TouchableOpacity style={styles.transferReceiptButton} onPress={() => setShowReceiptModal(true)}>
+                        <Ionicons name="receipt-outline" size={19} color={theme.accent} />
+                        <Text style={styles.transferReceiptText}>View Receipt</Text>
+                      </TouchableOpacity>
+                      
+                      <TouchableOpacity style={styles.transferHomeButton} onPress={() => { closeTransferFlow(); router.replace("/"); }}>
+                        <Text style={styles.transferHomeText}>Back to Home</Text>
+                      </TouchableOpacity>
+                    </ScrollView>
+                  )}
+                </>
               )}
             </View>
           </KeyboardAvoidingView>
@@ -1672,5 +1552,341 @@ const getStyles = (theme: any) => StyleSheet.create({
   },
   addCategoryChipTextActive: {
     color: "#FFFFFF",
+  },
+  fullScreenModal: {
+    flex: 1,
+    backgroundColor: theme.background,
+  },
+  fullScreenKeyboardAvoider: {
+    flex: 1,
+  },
+  transferSheet: {
+    flex: 1,
+    backgroundColor: theme.background,
+  },
+  transferHeader: {
+    height: 56,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingHorizontal: 16,
+    borderBottomWidth: 1,
+    borderColor: theme.border,
+    backgroundColor: theme.surface,
+  },
+  transferHeaderSpacer: {
+    width: 32,
+  },
+  transferTitle: {
+    fontSize: 16,
+    fontWeight: "700",
+    color: theme.textPrimary,
+  },
+  transferCancelButton: {
+    padding: 8,
+  },
+  transferCancelText: {
+    fontSize: 14,
+    fontWeight: "600",
+    color: theme.textSecondary,
+  },
+  transferRecipientCard: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+    marginHorizontal: 20,
+    marginTop: 16,
+    padding: 14,
+    backgroundColor: theme.surface,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: theme.border,
+  },
+  transferAvatar: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  transferAvatarText: {
+    fontSize: 15,
+    fontWeight: "700",
+  },
+  transferRecipientName: {
+    fontSize: 14,
+    fontWeight: "700",
+    color: theme.textPrimary,
+  },
+  transferRecipientHandle: {
+    fontSize: 11,
+    fontWeight: "600",
+    color: theme.textSecondary,
+    marginTop: 2,
+  },
+  transferBody: {
+    padding: 20,
+    flex: 1,
+  },
+  transferLabel: {
+    fontSize: 13,
+    fontWeight: "600",
+    color: theme.textSecondary,
+    marginBottom: 8,
+  },
+  transferAmountRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: theme.surface,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: theme.border,
+    paddingHorizontal: 16,
+    height: 64,
+    marginBottom: 12,
+  },
+  transferAmountError: {
+    borderColor: theme.danger || "#EF4444",
+  },
+  transferCurrency: {
+    fontSize: 24,
+    fontWeight: "700",
+    color: theme.textPrimary,
+    marginRight: 6,
+  },
+  transferAmountInput: {
+    flex: 1,
+    fontSize: 24,
+    fontWeight: "700",
+    color: theme.textPrimary,
+  },
+  transferQuickRow: {
+    flexDirection: "row",
+    gap: 8,
+    marginBottom: 16,
+  },
+  transferQuickChip: {
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    backgroundColor: theme.surfaceSoft,
+    borderRadius: 12,
+  },
+  transferQuickText: {
+    fontSize: 12,
+    fontWeight: "700",
+    color: theme.textPrimary,
+  },
+  transferErrorText: {
+    color: theme.danger || "#EF4444",
+    fontSize: 11,
+    fontWeight: "600",
+    marginTop: -8,
+    marginBottom: 16,
+    marginLeft: 4,
+  },
+  transferOptional: {
+    fontWeight: "400",
+    color: theme.textSecondary,
+  },
+  transferNoteInput: {
+    backgroundColor: theme.surface,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: theme.border,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    fontSize: 14,
+    color: theme.textPrimary,
+    minHeight: 80,
+    textAlignVertical: "top",
+  },
+  transferCharacterCount: {
+    fontSize: 10,
+    fontWeight: "600",
+    color: theme.textSecondary,
+    textAlign: "right",
+    marginTop: 4,
+    marginBottom: 20,
+  },
+  transferPrimaryButton: {
+    backgroundColor: theme.accent,
+    borderRadius: 16,
+    height: 52,
+    justifyContent: "center",
+    alignItems: "center",
+    marginTop: 10,
+    shadowColor: theme.accent,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.15,
+    shadowRadius: 8,
+    elevation: 3,
+  },
+  transferPrimaryText: {
+    color: "#FFFFFF",
+    fontSize: 15,
+    fontWeight: "700",
+  },
+  transferReviewRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    paddingVertical: 14,
+    borderBottomWidth: 1,
+    borderColor: theme.border,
+  },
+  transferReviewAmount: {
+    fontSize: 15,
+    fontWeight: "700",
+    color: theme.textPrimary,
+  },
+  transferReviewValue: {
+    fontSize: 14,
+    fontWeight: "600",
+    color: theme.textPrimary,
+  },
+  transferFree: {
+    fontSize: 14,
+    fontWeight: "700",
+    color: theme.success || "#22C55E",
+  },
+  transferTotalRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    paddingVertical: 20,
+    marginBottom: 16,
+  },
+  transferTotalLabel: {
+    fontSize: 15,
+    fontWeight: "700",
+    color: theme.textPrimary,
+  },
+  transferTotalAmount: {
+    fontSize: 22,
+    fontWeight: "800",
+    color: theme.textPrimary,
+  },
+  transferSecurity: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+    backgroundColor: theme.accentSoft,
+    padding: 14,
+    borderRadius: 16,
+    marginBottom: 24,
+  },
+  transferSecurityIcon: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: theme.surface,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  transferSecurityTitle: {
+    fontSize: 13,
+    fontWeight: "700",
+    color: theme.accent,
+  },
+  transferSecurityCopy: {
+    fontSize: 11,
+    fontWeight: "500",
+    color: theme.textSecondary,
+    marginTop: 2,
+  },
+  transferSuccessBody: {
+    flexGrow: 1,
+    alignItems: "center",
+    justifyContent: "center",
+    padding: 24,
+    backgroundColor: theme.background,
+  },
+  transferSuccessIconContainer: {
+    width: 100,
+    height: 100,
+    justifyContent: "center",
+    alignItems: "center",
+    marginBottom: 24,
+    position: "relative",
+  },
+  successCircle: {
+    width: 80,
+    height: 80,
+    borderRadius: 40,
+    backgroundColor: "#34A853",
+    justifyContent: "center",
+    alignItems: "center",
+    shadowColor: "#34A853",
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.2,
+    shadowRadius: 10,
+    elevation: 4,
+  },
+  sparkle: {
+    position: "absolute",
+  },
+  transferSuccessTitle: {
+    fontSize: 22,
+    fontWeight: "800",
+    color: theme.textPrimary,
+    marginBottom: 20,
+  },
+  transferSuccessLabel: {
+    fontSize: 13,
+    color: theme.textSecondary,
+    fontWeight: "600",
+    marginBottom: 4,
+  },
+  transferSuccessAmount: {
+    fontSize: 32,
+    fontWeight: "800",
+    color: theme.textPrimary,
+    marginBottom: 12,
+  },
+  transferSuccessRecipient: {
+    fontSize: 14,
+    color: theme.textSecondary,
+    fontWeight: "600",
+    textAlign: "center",
+    lineHeight: 20,
+    marginBottom: 32,
+  },
+  transferReceiptButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 8,
+    borderWidth: 1.5,
+    borderColor: theme.accent,
+    borderRadius: 16,
+    height: 52,
+    width: "100%",
+    marginBottom: 12,
+  },
+  transferReceiptText: {
+    fontSize: 14,
+    fontWeight: "700",
+    color: theme.accent,
+  },
+  transferHomeButton: {
+    backgroundColor: theme.accent,
+    borderRadius: 16,
+    height: 52,
+    width: "100%",
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  transferHomeText: {
+    color: "#FFFFFF",
+    fontSize: 14,
+    fontWeight: "700",
+  },
+  reviewContainer: {
+    position: "absolute",
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: theme.background,
   },
 });

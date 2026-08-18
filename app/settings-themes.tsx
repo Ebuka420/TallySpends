@@ -30,6 +30,30 @@ const themes = [
     subtitle: "Warm and expressive",
     accent: "#C47C49",
   },
+  {
+    id: "ocean",
+    title: "Ocean Breeze",
+    subtitle: "Deep, crisp blue tones",
+    accent: "#1E40AF",
+  },
+  {
+    id: "forest",
+    title: "Forest Pine",
+    subtitle: "Focused and organic green",
+    accent: "#15803D",
+  },
+  {
+    id: "crimson",
+    title: "Crimson Rose",
+    subtitle: "Elegant and passionate rose",
+    accent: "#BE123C",
+  },
+  {
+    id: "midnight",
+    title: "Midnight Gold",
+    subtitle: "Deep obsidian with gold accents",
+    accent: "#F59E0B",
+  },
 ];
 
 export default function SettingsThemesScreen() {

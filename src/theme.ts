@@ -1,6 +1,6 @@
 export type ThemeMode = "light" | "dark";
 
-export type ThemeId = "aurora" | "sage" | "sunset";
+export type ThemeId = "aurora" | "sage" | "sunset" | "ocean" | "forest" | "crimson" | "midnight";
 
 export type ThemePalette = {
   background: string;
@@ -95,6 +95,82 @@ export const THEME_PALETTES: Record<
       accentSoft: "#35271F",
       accentSecondary: "#C98250",
       accentHighlight: "#E5A46F",
+    },
+  },
+
+  ocean: {
+    light: {
+      ...LIGHT_COLORS,
+      accent: "#1E40AF",
+      accentSoft: "#EFF6FF",
+      accentSecondary: "#3B82F6",
+      accentHighlight: "#2563EB",
+    },
+
+    dark: {
+      ...DARK_COLORS,
+      accent: "#60A5FA",
+      accentSoft: "#172554",
+      accentSecondary: "#3B82F6",
+      accentHighlight: "#2563EB",
+    },
+  },
+
+  forest: {
+    light: {
+      ...LIGHT_COLORS,
+      accent: "#15803D",
+      accentSoft: "#F0FDF4",
+      accentSecondary: "#16A34A",
+      accentHighlight: "#22C55E",
+    },
+
+    dark: {
+      ...DARK_COLORS,
+      accent: "#4ADE80",
+      accentSoft: "#14532D",
+      accentSecondary: "#16A34A",
+      accentHighlight: "#22C55E",
+    },
+  },
+
+  crimson: {
+    light: {
+      ...LIGHT_COLORS,
+      accent: "#BE123C",
+      accentSoft: "#FFF1F2",
+      accentSecondary: "#E11D48",
+      accentHighlight: "#F43F5E",
+    },
+
+    dark: {
+      ...DARK_COLORS,
+      accent: "#FB7185",
+      accentSoft: "#4C0519",
+      accentSecondary: "#E11D48",
+      accentHighlight: "#F43F5E",
+    },
+  },
+
+  midnight: {
+    light: {
+      ...LIGHT_COLORS,
+      accent: "#B45309",
+      accentSoft: "#FEF3C7",
+      accentSecondary: "#D97706",
+      accentHighlight: "#F59E0B",
+    },
+
+    dark: {
+      ...DARK_COLORS,
+      background: "#08080A",
+      surface: "#121115",
+      surfaceSoft: "#1B1920",
+      border: "#25222B",
+      accent: "#F59E0B",
+      accentSoft: "#451A03",
+      accentSecondary: "#D97706",
+      accentHighlight: "#F59E0B",
     },
   },
 };
