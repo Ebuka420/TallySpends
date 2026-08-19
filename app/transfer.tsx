@@ -31,7 +31,7 @@ if (
 
 export default function TransferScreen() {
   const router = useRouter();
-  const { addTransaction, transactions, theme } = useAppStore();
+  const { addTransaction, transactions, theme, themeMode } = useAppStore();
   const styles = React.useMemo(() => getStyles(theme), [theme]);
   const [amount, setAmount] = useState("");
   const [memo, setMemo] = useState("");
@@ -307,7 +307,7 @@ export default function TransferScreen() {
             activeOpacity={0.7}
           >
             <View style={styles.actionIconContainer}>
-              <Ionicons name="add" size={24} color="#4B2C40" />
+              <Ionicons name="add" size={24} color={themeMode === "dark" ? "#FFFFFF" : "#4B2C40"} />
             </View>
             <Text style={styles.actionText}>Add</Text>
           </TouchableOpacity>
@@ -318,7 +318,7 @@ export default function TransferScreen() {
             activeOpacity={0.7}
           >
             <View style={styles.actionIconContainer}>
-              <Ionicons name="scan-outline" size={22} color="#4B2C40" />
+              <Ionicons name="scan-outline" size={22} color={themeMode === "dark" ? "#FFFFFF" : "#4B2C40"} />
             </View>
             <Text style={styles.actionText}>Scan QR</Text>
           </TouchableOpacity>
@@ -332,7 +332,7 @@ export default function TransferScreen() {
               <Ionicons
                 name="person-circle-outline"
                 size={24}
-                color="#4B2C40"
+                color={themeMode === "dark" ? "#FFFFFF" : "#4B2C40"}
               />
             </View>
             <Text style={styles.actionText}>Contact</Text>
@@ -657,7 +657,7 @@ export default function TransferScreen() {
                           <View style={styles.transferHeaderSpacer} />
                           <Text style={styles.transferTitle}>Send Money</Text>
                           <TouchableOpacity style={styles.transferCancelButton} onPress={closeTransferFlow}>
-                            <Ionicons name="close" size={24} color="#1C1C1E" />
+                            <Ionicons name="close" size={24} color={theme.textPrimary} />
                           </TouchableOpacity>
                         </View>
 
@@ -720,11 +720,11 @@ export default function TransferScreen() {
                       <Animated.View style={[styles.reviewContainer, { transform: [{ translateY: slideAnim }] }]}>
                         <View style={styles.transferHeader}>
                           <TouchableOpacity onPress={backToAmount}>
-                            <Ionicons name="chevron-back" size={24} color="#1C1C1E" />
+                            <Ionicons name="chevron-back" size={24} color={theme.textPrimary} />
                           </TouchableOpacity>
                           <Text style={styles.transferTitle}>Review Transfer</Text>
                           <TouchableOpacity style={styles.transferCancelButton} onPress={closeTransferFlow}>
-                            <Ionicons name="close" size={24} color="#1C1C1E" />
+                            <Ionicons name="close" size={24} color={theme.textPrimary} />
                           </TouchableOpacity>
                         </View>
 
@@ -877,7 +877,7 @@ const getStyles = (theme: any) => StyleSheet.create({
     borderRadius: 20,
     paddingVertical: 14,
     borderWidth: 1,
-    borderColor: "#EDE8F3",
+    borderColor: theme.border,
     shadowColor: "#3A2E53",
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.05,
@@ -909,7 +909,7 @@ const getStyles = (theme: any) => StyleSheet.create({
     padding: 12,
     width: 82,
     borderWidth: 1,
-    borderColor: "#EDE8F3",
+    borderColor: theme.border,
     shadowColor: "#3A2E53",
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.05,
@@ -954,7 +954,7 @@ const getStyles = (theme: any) => StyleSheet.create({
     borderRadius: 18,
     backgroundColor: theme.surface,
     borderWidth: 1,
-    borderColor: "#EDE8F3",
+    borderColor: theme.border,
   },
   filterChipActive: {
     backgroundColor: theme.accent,
@@ -973,7 +973,7 @@ const getStyles = (theme: any) => StyleSheet.create({
     alignItems: "center",
     backgroundColor: theme.surface,
     borderWidth: 1,
-    borderColor: "#EDE8F3",
+    borderColor: theme.border,
     borderRadius: 16,
     paddingHorizontal: 12,
     height: 46,
@@ -991,7 +991,7 @@ const getStyles = (theme: any) => StyleSheet.create({
     borderRadius: 24,
     padding: 12,
     borderWidth: 1,
-    borderColor: "#EDE8F3",
+    borderColor: theme.border,
     gap: 12,
   },
   contactItem: {

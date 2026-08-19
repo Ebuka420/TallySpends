@@ -132,7 +132,7 @@ export default function DepositScreen() {
           style={styles.backButton}
           activeOpacity={0.8}
         >
-          <Ionicons name="chevron-back" size={24} color="#1A1A1A" />
+          <Ionicons name="chevron-back" size={24} color={theme.textPrimary} />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>Deposit</Text>
         <View style={styles.headerPlaceholder} />
@@ -444,7 +444,7 @@ const getStyles = (theme: any) => StyleSheet.create({
     padding: 18,
     alignItems: "center",
     borderWidth: 1,
-    borderColor: "#EDE8F3",
+    borderColor: theme.border,
     marginBottom: 18,
   },
   balanceLabel: {
@@ -465,7 +465,7 @@ const getStyles = (theme: any) => StyleSheet.create({
     padding: 16,
     marginBottom: 16,
     borderWidth: 1,
-    borderColor: "#EDE8F3",
+    borderColor: theme.border,
   },
   cardTitle: {
     fontSize: 15,
@@ -481,7 +481,7 @@ const getStyles = (theme: any) => StyleSheet.create({
     backgroundColor: theme.surfaceSoft,
     marginBottom: 12,
     borderWidth: 1,
-    borderColor: "#EDE8F3",
+    borderColor: theme.border,
   },
   optionCardSelected: {
     backgroundColor: theme.accentSoft,
@@ -495,7 +495,7 @@ const getStyles = (theme: any) => StyleSheet.create({
     alignItems: "center",
     marginRight: 14,
     borderWidth: 1,
-    borderColor: "#EDE8F3",
+    borderColor: theme.border,
   },
   optionIconBoxSelected: {
     backgroundColor: theme.accentSoft,
@@ -578,12 +578,12 @@ const getStyles = (theme: any) => StyleSheet.create({
   noteCard: {
     flexDirection: "row",
     alignItems: "center",
-    backgroundColor: "#F5F0F8",
+    backgroundColor: theme.surfaceSoft,
     borderRadius: 20,
     padding: 16,
     marginBottom: 18,
     borderWidth: 1,
-    borderColor: "#EDE8F3",
+    borderColor: theme.border,
   },
   noteText: {
     marginLeft: 10,
@@ -672,7 +672,7 @@ const getStyles = (theme: any) => StyleSheet.create({
     padding: 12,
     marginTop: 12,
     borderWidth: 1,
-    borderColor: "#EDE8F3",
+    borderColor: theme.border,
   },
   bankLineLabel: {
     fontSize: 12,
@@ -692,7 +692,7 @@ const getStyles = (theme: any) => StyleSheet.create({
     padding: 12,
     marginBottom: 10,
     borderWidth: 1,
-    borderColor: "#F1EFF4",
+    borderColor: theme.border,
   },
   cardRowSelected: {
     borderWidth: 1,

@@ -11,6 +11,8 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
+import { useAppStore } from "../src/store";
+import { getThemePalette } from "../src/theme";
 
 type ActionMode = "coach" | "add" | "calc" | "scan";
 
@@ -31,6 +33,9 @@ const MODES: ModeConfig[] = [
 const RADIUS = 80;
 
 export default function RadialFloatingBot() {
+  const { themePreference, themeMode } = useAppStore();
+  const theme = getThemePalette(themePreference, themeMode);
+
   const [activeMode, setActiveMode] = useState<ActionMode>("coach");
   const [isOpen, setIsOpen] = useState(false);
 
@@ -184,7 +189,8 @@ export default function RadialFloatingBot() {
                 <TouchableOpacity
                   style={[
                     styles.optionButton,
-                    activeMode === mode.id && styles.optionButtonActive,
+                    { backgroundColor: theme.surfaceSoft },
+                    activeMode === mode.id && { backgroundColor: theme.accent },
                   ]}
                   activeOpacity={0.7}
                   onPress={() => selectOption(mode.id)}
@@ -192,7 +198,7 @@ export default function RadialFloatingBot() {
                   <Ionicons
                     name={mode.icon}
                     size={22}
-                    color={activeMode === mode.id ? "#FFFFFF" : "#20142A"}
+                    color={activeMode === mode.id ? "#FFFFFF" : theme.textPrimary}
                   />
                 </TouchableOpacity>
               </Animated.View>
@@ -201,7 +207,7 @@ export default function RadialFloatingBot() {
 
         {/* Main Floating Trigger Circle */}
         <Animated.View
-          style={[styles.mainButton, isOpen && styles.mainButtonExpanded]}
+          style={[styles.mainButton, { backgroundColor: theme.accent }, isOpen && { backgroundColor: theme.textPrimary }]}
           {...panResponder.panHandlers}
         >
           <Ionicons name={activeConfig.icon} size={26} color="#FFFFFF" />
@@ -225,43 +231,43 @@ export default function RadialFloatingBot() {
           onPress={() => setActiveModal(null)}
         >
           <Pressable
-            style={styles.modalContent}
+            style={[styles.modalContent, { backgroundColor: theme.surface }]}
             onPress={(e) => e.stopPropagation()}
           >
             <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>Quick Add Expense</Text>
+              <Text style={[styles.modalTitle, { color: theme.textPrimary }]}>Quick Add Expense</Text>
               <TouchableOpacity onPress={() => setActiveModal(null)}>
-                <Ionicons name="close" size={24} color="#20142a" />
+                <Ionicons name="close" size={24} color={theme.textPrimary} />
               </TouchableOpacity>
             </View>
 
             <TextInput
-              style={styles.input}
+              style={[styles.input, { backgroundColor: theme.background, color: theme.textPrimary }]}
               placeholder="Expense Name (e.g. Lunch)"
-              placeholderTextColor="#999"
+              placeholderTextColor={theme.textSecondary}
               value={expenseName}
               onChangeText={setExpenseName}
             />
 
             <TextInput
-              style={styles.input}
+              style={[styles.input, { backgroundColor: theme.background, color: theme.textPrimary }]}
               placeholder="Amount ($)"
-              placeholderTextColor="#999"
+              placeholderTextColor={theme.textSecondary}
               keyboardType="decimal-pad"
               value={expenseAmount}
               onChangeText={setExpenseAmount}
             />
 
             <TextInput
-              style={styles.input}
+              style={[styles.input, { backgroundColor: theme.background, color: theme.textPrimary }]}
               placeholder="Category (e.g. Food, Transport)"
-              placeholderTextColor="#999"
+              placeholderTextColor={theme.textSecondary}
               value={expenseCategory}
               onChangeText={setExpenseCategory}
             />
 
             <TouchableOpacity
-              style={styles.submitBtn}
+              style={[styles.submitBtn, { backgroundColor: theme.accent }]}
               onPress={handleAddExpenseSubmit}
             >
               <Text style={styles.submitBtnText}>Enter</Text>
@@ -283,29 +289,29 @@ export default function RadialFloatingBot() {
           onPress={() => setActiveModal(null)}
         >
           <Pressable
-            style={styles.modalContent}
+            style={[styles.modalContent, { backgroundColor: theme.surface }]}
             onPress={(e) => e.stopPropagation()}
           >
             <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>✨ Smart Coach</Text>
+              <Text style={[styles.modalTitle, { color: theme.textPrimary }]}>✨ Smart Coach</Text>
               <TouchableOpacity onPress={() => setActiveModal(null)}>
-                <Ionicons name="close" size={24} color="#20142a" />
+                <Ionicons name="close" size={24} color={theme.textPrimary} />
               </TouchableOpacity>
             </View>
 
-            <View style={styles.chatBoxPlaceholder}>
-              <Text style={styles.chatText}>
+            <View style={[styles.chatBoxPlaceholder, { backgroundColor: theme.background }]}>
+              <Text style={[styles.chatText, { color: theme.textPrimary }]}>
                 Hello! How can I help you analyze your spending today?
               </Text>
             </View>
 
             <View style={styles.chatInputRow}>
               <TextInput
-                style={[styles.input, { flex: 1, marginBottom: 0 }]}
+                style={[styles.input, { flex: 1, marginBottom: 0, backgroundColor: theme.background, color: theme.textPrimary }]}
                 placeholder="Ask your Smart Coach..."
-                placeholderTextColor="#999"
+                placeholderTextColor={theme.textSecondary}
               />
-              <TouchableOpacity style={styles.sendBtn}>
+              <TouchableOpacity style={[styles.sendBtn, { backgroundColor: theme.accent }]}>
                 <Ionicons name="send" size={18} color="#FFF" />
               </TouchableOpacity>
             </View>
@@ -326,16 +332,16 @@ export default function RadialFloatingBot() {
           onPress={() => setActiveModal(null)}
         >
           <Pressable
-            style={styles.modalContent}
+            style={[styles.modalContent, { backgroundColor: theme.surface }]}
             onPress={(e) => e.stopPropagation()}
           >
             <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>Calculator</Text>
+              <Text style={[styles.modalTitle, { color: theme.textPrimary }]}>Calculator</Text>
               <TouchableOpacity onPress={() => setActiveModal(null)}>
-                <Ionicons name="close" size={24} color="#20142a" />
+                <Ionicons name="close" size={24} color={theme.textPrimary} />
               </TouchableOpacity>
             </View>
-            <Text style={{ color: "#666", marginVertical: 20 }}>
+            <Text style={{ color: theme.textSecondary, marginVertical: 20 }}>
               Calculator panel overlay.
             </Text>
           </Pressable>
@@ -355,16 +361,16 @@ export default function RadialFloatingBot() {
           onPress={() => setActiveModal(null)}
         >
           <Pressable
-            style={styles.modalContent}
+            style={[styles.modalContent, { backgroundColor: theme.surface }]}
             onPress={(e) => e.stopPropagation()}
           >
             <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>Scan Receipt</Text>
+              <Text style={[styles.modalTitle, { color: theme.textPrimary }]}>Scan Receipt</Text>
               <TouchableOpacity onPress={() => setActiveModal(null)}>
-                <Ionicons name="close" size={24} color="#20142a" />
+                <Ionicons name="close" size={24} color={theme.textPrimary} />
               </TouchableOpacity>
             </View>
-            <Text style={{ color: "#666", marginVertical: 20 }}>
+            <Text style={{ color: theme.textSecondary, marginVertical: 20 }}>
               Camera / Scanner overlay.
             </Text>
           </Pressable>

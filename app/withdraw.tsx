@@ -114,7 +114,7 @@ export default function WithdrawScreen() {
           style={styles.backButton}
           activeOpacity={0.8}
         >
-          <Ionicons name="chevron-back" size={24} color="#1A1A1A" />
+          <Ionicons name="chevron-back" size={24} color={theme.textPrimary} />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>Withdraw</Text>
         <View style={styles.headerPlaceholder} />
@@ -339,7 +339,7 @@ const getStyles = (theme: any) => StyleSheet.create({
     padding: 18,
     alignItems: "center",
     borderWidth: 1,
-    borderColor: "#EDE8F3",
+    borderColor: theme.border,
     marginBottom: 18,
   },
   balanceLabel: {
@@ -360,7 +360,7 @@ const getStyles = (theme: any) => StyleSheet.create({
     padding: 16,
     marginBottom: 16,
     borderWidth: 1,
-    borderColor: "#EDE8F3",
+    borderColor: theme.border,
   },
   cardTitle: {
     fontSize: 15,
@@ -437,7 +437,7 @@ const getStyles = (theme: any) => StyleSheet.create({
     backgroundColor: theme.surfaceSoft,
     marginBottom: 12,
     borderWidth: 1,
-    borderColor: "#EDE8F3",
+    borderColor: theme.border,
   },
   destinationCardSelected: {
     backgroundColor: theme.accentSoft,
@@ -492,7 +492,7 @@ const getStyles = (theme: any) => StyleSheet.create({
     padding: 18,
     marginBottom: 18,
     borderWidth: 1,
-    borderColor: "#EDE8F3",
+    borderColor: theme.border,
   },
   summaryLabel: {
     fontSize: 14,
