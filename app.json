@@ -4,7 +4,7 @@
     "slug": "TallySpends",
     "version": "1.0.0",
     "orientation": "portrait",
-    "icon": "./assets/images/LOGO.jpeg",
+    "icon": "./assets/images/LOGO1.jpeg",
     "scheme": "tallyspends",
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
@@ -14,7 +14,7 @@
     "android": {
       "adaptiveIcon": {
         "backgroundColor": "#E6F4FE",
-        "foregroundImage": "./assets/images/LOGO.jpeg",
+        "foregroundImage": "./assets/images/LOGO1.jpeg",
         "backgroundImage": "./assets/images/android-icon-background.png",
         "monochromeImage": "./assets/images/android-icon-monochrome.png"
       },
@@ -23,14 +23,14 @@
     },
     "web": {
       "output": "static",
-      "favicon": "./assets/images/LOGO.jpeg"
+      "favicon": "./assets/images/LOGO1.jpeg"
     },
     "plugins": [
       "expo-router",
       [
         "expo-splash-screen",
         {
-          "image": "./assets/images/LOGO.jpeg",
+          "image": "./assets/images/LOGO1.jpeg",
           "imageWidth": 200,
           "resizeMode": "contain",
           "backgroundColor": "#ffffff",
