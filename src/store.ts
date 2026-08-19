@@ -413,6 +413,20 @@ const setGlobalAuth = (status: boolean) => {
   authListeners.forEach((listener) => listener(status));
 };
 
+let globalThemePreference: ThemeId = "aurora";
+let globalDarkModePreference: "light" | "dark" | "system" = "system";
+let themeListeners: (() => void)[] = [];
+
+const setGlobalThemePreference = (pref: ThemeId) => {
+  globalThemePreference = pref;
+  themeListeners.forEach((listener) => listener());
+};
+
+const setGlobalDarkModePreference = (pref: "light" | "dark" | "system") => {
+  globalDarkModePreference = pref;
+  themeListeners.forEach((listener) => listener());
+};
+
 export function useAppStore() {
   const [transactions, setTransactions] = useState<any[]>([]);
   const [budgets, setBudgets] = useState<Record<string, number>>({});
@@ -429,10 +443,10 @@ export function useAppStore() {
   const [loading, setLoading] = useState(true);
 
   const [themePreference, setThemePreferenceState] =
-    useState<ThemeId>("aurora");
+    useState<ThemeId>(globalThemePreference);
 
   const [darkModePreference, setDarkModePreferenceState] =
-    useState<"light" | "dark" | "system">("system");
+    useState<"light" | "dark" | "system">(globalDarkModePreference);
 
   const systemColorScheme = useColorScheme();
 
@@ -474,6 +488,21 @@ export function useAppStore() {
     return () => {
       authListeners = authListeners.filter(
         (listener) => listener !== setIsAuthenticated,
+      );
+    };
+  }, []);
+
+  useEffect(() => {
+    const handleThemeChange = () => {
+      setThemePreferenceState(globalThemePreference);
+      setDarkModePreferenceState(globalDarkModePreference);
+    };
+
+    themeListeners.push(handleThemeChange);
+
+    return () => {
+      themeListeners = themeListeners.filter(
+        (listener) => listener !== handleThemeChange,
       );
     };
   }, []);
@@ -532,7 +561,7 @@ export function useAppStore() {
 
       const validThemes = ["aurora", "sage", "sunset", "ocean", "forest", "crimson", "midnight", "pink"];
       if (validThemes.includes(storedTheme || "")) {
-        setThemePreferenceState(storedTheme as ThemeId);
+        setGlobalThemePreference(storedTheme as ThemeId);
       }
 
       if (
@@ -540,7 +569,7 @@ export function useAppStore() {
         storedDarkMode === "dark" ||
         storedDarkMode === "system"
       ) {
-        setDarkModePreferenceState(storedDarkMode);
+        setGlobalDarkModePreference(storedDarkMode);
       }
 
       if (storedTabBarOpacity !== null) {
@@ -654,7 +683,7 @@ export function useAppStore() {
     const validThemes: ThemeId[] = ["aurora", "sage", "sunset", "ocean", "forest", "crimson", "midnight", "pink"];
     const validTheme = validThemes.includes(themeId) ? themeId : "aurora";
 
-    setThemePreferenceState(validTheme);
+    setGlobalThemePreference(validTheme);
 
     await AsyncStorage.setItem(THEME_STORAGE_KEY, validTheme);
   }, []);
@@ -662,7 +691,7 @@ export function useAppStore() {
   const setDarkModePreference = useCallback(async (mode: "light" | "dark" | "system") => {
     const validMode = mode === "light" || mode === "dark" || mode === "system" ? mode : "system";
 
-    setDarkModePreferenceState(validMode);
+    setGlobalDarkModePreference(validMode);
 
     await AsyncStorage.setItem(DARK_MODE_PREFERENCE_STORAGE_KEY, validMode);
   }, []);
