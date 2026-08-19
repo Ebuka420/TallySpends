@@ -61,6 +61,9 @@ export default function RootLayout() {
       <Stack screenOptions={{ headerShown: false }}>
         {/* Primary Route Groups */}
         <Stack.Screen name="auth" />
+        <Stack.Screen name="ajo" />
+        <Stack.Screen name="ajo-details" />
+        <Stack.Screen name="ajo-create" />
         <Stack.Screen name="(tabs)" />
         <Stack.Screen name="setup-profile" />
         <Stack.Screen name="passcode" />

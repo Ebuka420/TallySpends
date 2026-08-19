@@ -3,32 +3,35 @@ import { CameraView, useCameraPermissions } from "expo-camera";
 import { useRouter } from "expo-router";
 import React, { useEffect, useRef, useState } from "react";
 import {
-    Alert,
-    Animated,
-    Easing,
-    KeyboardAvoidingView,
-    LayoutAnimation,
-    Modal,
-    Platform,
-    SafeAreaView,
-    ScrollView,
-    StyleSheet,
-    Text,
-    TextInput,
-    TouchableOpacity,
-    UIManager,
-    View,
+  Alert,
+  Animated,
+  Easing,
+  KeyboardAvoidingView,
+  LayoutAnimation,
+  Modal,
+  Platform,
+  SafeAreaView,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  UIManager,
+  View,
 } from "react-native";
 import TransactionReceiptModal from "../components/TransactionReceiptModal";
 import { MOCK_RECIPIENTS, useAppStore } from "../src/store";
 
-if (Platform.OS === "android" && UIManager.setLayoutAnimationEnabledExperimental) {
+if (
+  Platform.OS === "android" &&
+  UIManager.setLayoutAnimationEnabledExperimental
+) {
   UIManager.setLayoutAnimationEnabledExperimental(true);
 }
 
 export default function TransferScreen() {
   const router = useRouter();
-  const { addTransaction, transactions, customCategories, addCustomCategory, deleteCustomCategory, theme } = useAppStore();
+  const { addTransaction, transactions, theme } = useAppStore();
   const styles = React.useMemo(() => getStyles(theme), [theme]);
   const [amount, setAmount] = useState("");
   const [memo, setMemo] = useState("");
@@ -45,17 +48,13 @@ export default function TransferScreen() {
   const [scanned, setScanned] = useState(false);
   const [permission, requestPermission] = useCameraPermissions();
   const [showTransferModal, setShowTransferModal] = useState(false);
-  const [transferStep, setTransferStep] = useState<"amount" | "review" | "success">("amount");
+  const [transferStep, setTransferStep] = useState<
+    "amount" | "review" | "success"
+  >("amount");
   const [showAddRecipientModal, setShowAddRecipientModal] = useState(false);
   const [newRecipientUsername, setNewRecipientUsername] = useState("");
   const quickAmounts = [500, 1000, 2000, 5000, 10000];
-  const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
-  const [customCategory, setCustomCategory] = useState("");
-  const [customCategoryInput, setCustomCategoryInput] = useState("");
-  const [showCustomCategoryManager, setShowCustomCategoryManager] =
-    useState(false);
 
-  // Animation for scanner line
   const scannerAnim = useRef(new Animated.Value(0)).current;
 
   // Animation for slide-up review screen
@@ -68,7 +67,6 @@ export default function TransferScreen() {
     setTransferStep(nextStep);
   };
 
-  // Run scanner line animation when scanner is active
   useEffect(() => {
     if (showScanner) {
       Animated.loop(
@@ -104,7 +102,6 @@ export default function TransferScreen() {
     }
   }, [showScanner]);
 
-  // Balance logic
   const transactionsRaw = transactions || [];
   const totalIncome = transactionsRaw
     .filter((t: any) => t.type === "income")
@@ -114,18 +111,14 @@ export default function TransferScreen() {
     .reduce((sum: number, t: any) => sum + t.amount, 0);
   const currentBalance = 2926.78 + totalIncome - totalExpenses;
 
-  // Filter recents
   const recentRecipients = MOCK_RECIPIENTS.filter((r) => r.isRecent);
 
-  // Filter contacts by search query & category
   const filteredRecipients = MOCK_RECIPIENTS.filter((r) => {
     const matchesSearch =
       r.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
       r.username.toLowerCase().includes(searchQuery.toLowerCase());
 
     if (activeFilter === "my-accounts") {
-      // In a real app, "my-accounts" would filter to user's other accounts.
-      // We mock it by showing cards containing "Carter" or "Budget" or "USD"
       return (
         matchesSearch &&
         (r.bank.includes("Basic Ch") ||
@@ -147,7 +140,6 @@ export default function TransferScreen() {
 
   const handleSimulateScan = (recipient: any) => {
     setShowScanner(false);
-    // Add brief timeout for a smooth transition from scanner close to transfer modal open
     setTimeout(() => {
       handleSelectRecipient(recipient);
     }, 400);
@@ -156,7 +148,6 @@ export default function TransferScreen() {
   const handleBarCodeScanned = ({ data }: { data: string }) => {
     if (scanned) return;
     setScanned(true);
-    // Expecting url like: tallyspends://transfer?recipient=username&amount=1000&memo=Food
     try {
       const url = new URL(data);
       const recipient = url.searchParams.get("recipient");
@@ -179,7 +170,6 @@ export default function TransferScreen() {
       Alert.alert("Scan Result", `Scanned data: ${data}`);
       setShowScanner(false);
     } catch (e) {
-      // Not a full URL; fallback
       const uname = data.replace("@", "");
       const found = MOCK_RECIPIENTS.find(
         (r) => r.username === uname || r.username === data,
@@ -235,11 +225,17 @@ export default function TransferScreen() {
 
   const continueToReview = () => {
     if (isNaN(parsedAmount) || parsedAmount <= 0) {
-      Alert.alert("Enter an amount", "Enter a valid transfer amount to continue.");
+      Alert.alert(
+        "Enter an amount",
+        "Enter a valid transfer amount to continue.",
+      );
       return;
     }
     if (isOverBalance) {
-      Alert.alert("Insufficient Funds", "You do not have enough funds to complete this transfer.");
+      Alert.alert(
+        "Insufficient Funds",
+        "You do not have enough funds to complete this transfer.",
+      );
       return;
     }
     
@@ -271,37 +267,19 @@ export default function TransferScreen() {
     slideAnim.setValue(800);
   };
 
-  const handleDeleteCustomCategory = (category: string) => {
-    Alert.alert(
-      "Delete category",
-      `Delete "${category}" from your saved categories?`,
-      [
-        { text: "Cancel", style: "cancel" },
-        {
-          text: "Delete",
-          style: "destructive",
-          onPress: () => {
-            deleteCustomCategory(category);
-            if (selectedCategory === category) {
-              setSelectedCategory(null);
-              setMemo("");
-            }
-          },
-        },
-      ],
-    );
-  };
-
   return (
     <SafeAreaView style={styles.safeArea}>
-      {/* Header */}
       <View style={styles.header}>
         <TouchableOpacity
           style={styles.backButton}
           onPress={() => router.back()}
           activeOpacity={0.7}
         >
-          <Ionicons name="chevron-back" size={24} color="#1C1C1E" />
+          <Ionicons
+            name="chevron-back"
+            size={24}
+            color={styles.headerIconColor.color}
+          />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>Recipients</Text>
         <TouchableOpacity
@@ -309,7 +287,11 @@ export default function TransferScreen() {
           onPress={() => router.push("/request")}
           activeOpacity={0.7}
         >
-          <Ionicons name="qr-code-outline" size={20} color="#1C1C1E" />
+          <Ionicons
+            name="qr-code-outline"
+            size={20}
+            color={styles.headerIconColor.color}
+          />
         </TouchableOpacity>
       </View>
 
@@ -317,7 +299,6 @@ export default function TransferScreen() {
         contentContainerStyle={styles.scrollContainer}
         keyboardShouldPersistTaps="handled"
       >
-        {/* Send Money Actions */}
         <Text style={styles.sectionTitle}>Send Money</Text>
         <View style={styles.actionRow}>
           <TouchableOpacity
@@ -358,7 +339,6 @@ export default function TransferScreen() {
           </TouchableOpacity>
         </View>
 
-        {/* Recents Horizontal List */}
         <Text style={styles.sectionTitle}>Recents</Text>
         <ScrollView
           horizontal
@@ -387,7 +367,6 @@ export default function TransferScreen() {
           ))}
         </ScrollView>
 
-        {/* Filter Chips & Search Bar */}
         <View style={styles.filterSection}>
           <View style={styles.chipsContainer}>
             <TouchableOpacity
@@ -448,7 +427,6 @@ export default function TransferScreen() {
           </View>
         </View>
 
-        {/* Contacts Vertical List */}
         <View style={styles.contactsContainer}>
           {filteredRecipients.map((rec) => (
             <TouchableOpacity
@@ -485,10 +463,9 @@ export default function TransferScreen() {
         </View>
       </ScrollView>
 
-      {/* --- MOCK SCANNER OVERLAY --- */}
+      {/* --- SCANNER MODAL --- */}
       <Modal visible={showScanner} animationType="slide" transparent={false}>
         <SafeAreaView style={styles.scannerOverlay}>
-          {/* Scanner Header */}
           <View style={styles.scannerHeader}>
             <TouchableOpacity
               style={styles.scannerCloseButton}
@@ -500,7 +477,6 @@ export default function TransferScreen() {
             <View style={{ width: 32 }} />
           </View>
 
-          {/* Viewfinder Section */}
           <View style={styles.viewfinderContainer}>
             <Text style={styles.viewfinderInstructions}>
               Scan the QR of the device
@@ -514,7 +490,7 @@ export default function TransferScreen() {
                   barcodeScannerSettings={{ barcodeTypes: ["qr"] }}
                   onBarcodeScanned={scanned ? undefined : handleBarCodeScanned}
                 />
-              ) : permission?.status === "undetermined" ? (
+              ) : (
                 <View style={styles.cameraPermissionContainer}>
                   <Text style={styles.cameraPermissionText}>
                     Allow camera access to scan QR codes.
@@ -528,34 +504,14 @@ export default function TransferScreen() {
                     </Text>
                   </TouchableOpacity>
                 </View>
-              ) : (
-                <View style={styles.cameraPermissionContainer}>
-                  <Text style={styles.cameraPermissionText}>
-                    Camera access is blocked. Enable it in your device settings
-                    to scan QR codes.
-                  </Text>
-                  <TouchableOpacity
-                    style={styles.cameraPermissionButton}
-                    onPress={() => requestPermission()}
-                  >
-                    <Text style={styles.cameraPermissionButtonText}>
-                      Try Again
-                    </Text>
-                  </TouchableOpacity>
-                </View>
               )}
 
-              {/* Animated laser line overlay */}
               <Animated.View
                 style={[
                   styles.scannerLaserLine,
-                  {
-                    transform: [{ translateY: scannerAnim }],
-                  },
+                  { transform: [{ translateY: scannerAnim }] },
                 ]}
               />
-
-              {/* Viewfinder Corners */}
               <View style={[styles.viewfinderCorner, styles.cornerTL]} />
               <View style={[styles.viewfinderCorner, styles.cornerTR]} />
               <View style={[styles.viewfinderCorner, styles.cornerBL]} />
@@ -563,12 +519,11 @@ export default function TransferScreen() {
             </View>
 
             <Text style={styles.viewfinderSubtext}>
-              The QR code will be automatically detected when you position it
-              between the guide lines
+              The QR code will be automatically detected when positioned in
+              frame.
             </Text>
           </View>
 
-          {/* Simulate scans list */}
           <View style={styles.simulatorSection}>
             <Text style={styles.simulatorTitle}>
               🎯 Simulate QR Scan (Click to Scan):
@@ -680,7 +635,7 @@ export default function TransferScreen() {
         </SafeAreaView>
       </Modal>
 
-      {/* --- TRANSFER DETAILS MODAL --- */}
+      {/* --- TRANSFER FLOW MODAL --- */}
       <Modal
         visible={showTransferModal}
         animationType="slide"
@@ -1899,3 +1854,597 @@ const getStyles = (theme: any) => StyleSheet.create({
     backgroundColor: theme.background,
   },
 });
+=======
+const getStyles = (theme: any) =>
+  StyleSheet.create({
+    safeArea: {
+      flex: 1,
+      backgroundColor: theme?.backgroundColor || "#FFFFFF",
+    },
+    header: {
+      flexDirection: "row",
+      alignItems: "center",
+      justifyContent: "space-between",
+      paddingHorizontal: 16,
+      paddingVertical: 12,
+    },
+    backButton: {
+      padding: 4,
+    },
+    headerTitle: {
+      fontSize: 18,
+      fontWeight: "600",
+      color: theme?.textColor || "#1C1C1E",
+    },
+    headerQRButton: {
+      padding: 4,
+    },
+    headerIconColor: {
+      color: theme?.textColor || "#1C1C1E",
+    },
+    scrollContainer: {
+      paddingHorizontal: 16,
+      paddingBottom: 24,
+    },
+    sectionTitle: {
+      fontSize: 16,
+      fontWeight: "600",
+      color: theme?.textColor || "#1C1C1E",
+      marginTop: 16,
+      marginBottom: 12,
+    },
+    actionRow: {
+      flexDirection: "row",
+      justifyContent: "space-between",
+    },
+    actionCard: {
+      flex: 1,
+      alignItems: "center",
+      paddingVertical: 12,
+      backgroundColor: "#F7F5F8",
+      borderRadius: 12,
+      marginHorizontal: 4,
+    },
+    actionIconContainer: {
+      width: 40,
+      height: 40,
+      borderRadius: 20,
+      backgroundColor: "#EAE5EC",
+      justifyContent: "center",
+      alignItems: "center",
+      marginBottom: 6,
+    },
+    actionText: {
+      fontSize: 12,
+      fontWeight: "500",
+      color: "#4B2C40",
+    },
+    recentsRow: {
+      paddingRight: 16,
+    },
+    recentRecipientCard: {
+      alignItems: "center",
+      marginRight: 16,
+      width: 64,
+    },
+    avatarBox: {
+      width: 48,
+      height: 48,
+      borderRadius: 24,
+      justifyContent: "center",
+      alignItems: "center",
+      marginBottom: 6,
+    },
+    avatarText: {
+      fontSize: 16,
+      fontWeight: "bold",
+    },
+    recentRecName: {
+      fontSize: 12,
+      fontWeight: "500",
+      color: theme?.textColor || "#1C1C1E",
+    },
+    recentRecSubtitle: {
+      fontSize: 10,
+      color: "#8E8E93",
+    },
+    filterSection: {
+      marginTop: 16,
+    },
+    chipsContainer: {
+      flexDirection: "row",
+      marginBottom: 12,
+    },
+    filterChip: {
+      paddingHorizontal: 16,
+      paddingVertical: 8,
+      borderRadius: 20,
+      backgroundColor: "#F2F2F7",
+      marginRight: 8,
+    },
+    filterChipActive: {
+      backgroundColor: "#20142A",
+    },
+    filterChipText: {
+      fontSize: 13,
+      color: "#8E8E93",
+      fontWeight: "500",
+    },
+    filterChipTextActive: {
+      color: "#FFFFFF",
+    },
+    searchBarWrapper: {
+      flexDirection: "row",
+      alignItems: "center",
+      backgroundColor: "#F2F2F7",
+      borderRadius: 10,
+      paddingHorizontal: 10,
+      height: 38,
+    },
+    searchIcon: {
+      marginRight: 6,
+    },
+    searchInput: {
+      flex: 1,
+      fontSize: 14,
+      color: "#000",
+    },
+    contactsContainer: {
+      marginTop: 16,
+    },
+    contactItem: {
+      flexDirection: "row",
+      alignItems: "center",
+      justifyContent: "space-between",
+      paddingVertical: 12,
+      borderBottomWidth: StyleSheet.hairlineWidth,
+      borderBottomColor: "#E5E5EA",
+    },
+    contactLeft: {
+      flexDirection: "row",
+      alignItems: "center",
+    },
+    contactAvatar: {
+      width: 40,
+      height: 40,
+      borderRadius: 20,
+      justifyContent: "center",
+      alignItems: "center",
+      marginRight: 12,
+    },
+    contactAvatarText: {
+      fontSize: 14,
+      fontWeight: "bold",
+    },
+    contactName: {
+      fontSize: 15,
+      fontWeight: "500",
+      color: theme?.textColor || "#1C1C1E",
+    },
+    contactSub: {
+      fontSize: 12,
+      color: "#8E8E93",
+    },
+    emptyText: {
+      textAlign: "center",
+      color: "#8E8E93",
+      marginTop: 20,
+    },
+    fullScreenModal: {
+      flex: 1,
+      backgroundColor: "#FFFFFF",
+    },
+    fullScreenKeyboardAvoider: {
+      flex: 1,
+    },
+    fullScreenModalContent: {
+      flex: 1,
+      paddingHorizontal: 16,
+    },
+    modalHeader: {
+      flexDirection: "row",
+      justifyContent: "space-between",
+      alignItems: "center",
+      paddingVertical: 16,
+    },
+    modalTitle: {
+      fontSize: 18,
+      fontWeight: "600",
+    },
+    modalBody: {
+      marginTop: 12,
+    },
+    inputLabel: {
+      fontSize: 14,
+      fontWeight: "500",
+      color: "#8E8E93",
+      marginBottom: 6,
+    },
+    modalHelperText: {
+      fontSize: 12,
+      color: "#A0A0A0",
+      marginBottom: 12,
+    },
+    modalInputWrapper: {
+      flexDirection: "row",
+      alignItems: "center",
+      borderWidth: 1,
+      borderColor: "#E5E5EA",
+      borderRadius: 10,
+      paddingHorizontal: 12,
+      height: 44,
+    },
+    modalInputIcon: {
+      marginRight: 8,
+    },
+    modalInputField: {
+      flex: 1,
+      fontSize: 15,
+    },
+    modalConfirmButton: {
+      backgroundColor: "#20142A",
+      borderRadius: 10,
+      height: 48,
+      justifyContent: "center",
+      alignItems: "center",
+    },
+    modalConfirmButtonText: {
+      color: "#FFFFFF",
+      fontSize: 16,
+      fontWeight: "600",
+    },
+    scannerOverlay: {
+      flex: 1,
+      backgroundColor: "#000000",
+    },
+    scannerHeader: {
+      flexDirection: "row",
+      alignItems: "center",
+      justifyContent: "space-between",
+      paddingHorizontal: 16,
+      paddingVertical: 12,
+    },
+    scannerCloseButton: {
+      padding: 4,
+    },
+    scannerHeaderTitle: {
+      color: "#FFFFFF",
+      fontSize: 16,
+      fontWeight: "600",
+    },
+    viewfinderContainer: {
+      flex: 1,
+      alignItems: "center",
+      justifyContent: "center",
+    },
+    viewfinderInstructions: {
+      color: "#FFFFFF",
+      marginBottom: 20,
+    },
+    viewfinderFrame: {
+      width: 240,
+      height: 240,
+      borderRadius: 16,
+      overflow: "hidden",
+      position: "relative",
+    },
+    cameraPermissionContainer: {
+      flex: 1,
+      justifyContent: "center",
+      alignItems: "center",
+      padding: 20,
+      backgroundColor: "#1C1C1E",
+    },
+    cameraPermissionText: {
+      color: "#FFF",
+      textAlign: "center",
+      marginBottom: 12,
+    },
+    cameraPermissionButton: {
+      backgroundColor: "#007AFF",
+      paddingHorizontal: 16,
+      paddingVertical: 8,
+      borderRadius: 8,
+    },
+    cameraPermissionButtonText: {
+      color: "#FFF",
+      fontWeight: "600",
+    },
+    scannerLaserLine: {
+      height: 2,
+      backgroundColor: "#FF3B30",
+      width: "100%",
+    },
+    viewfinderCorner: {
+      position: "absolute",
+      width: 20,
+      height: 20,
+      borderColor: "#FFFFFF",
+    },
+    cornerTL: { top: 0, left: 0, borderTopWidth: 3, borderLeftWidth: 3 },
+    cornerTR: { top: 0, right: 0, borderTopWidth: 3, borderRightWidth: 3 },
+    cornerBL: { bottom: 0, left: 0, borderBottomWidth: 3, borderLeftWidth: 3 },
+    cornerBR: {
+      bottom: 0,
+      right: 0,
+      borderBottomWidth: 3,
+      borderRightWidth: 3,
+    },
+    viewfinderSubtext: {
+      color: "#8E8E93",
+      textAlign: "center",
+      fontSize: 12,
+      marginTop: 20,
+      paddingHorizontal: 40,
+    },
+    simulatorSection: {
+      padding: 16,
+    },
+    simulatorTitle: {
+      color: "#FFF",
+      fontSize: 12,
+      marginBottom: 8,
+    },
+    simulatorList: {
+      flexDirection: "row",
+    },
+    simulatorChip: {
+      backgroundColor: "#2C2C2E",
+      paddingHorizontal: 12,
+      paddingVertical: 6,
+      borderRadius: 12,
+      marginRight: 8,
+    },
+    simulatorChipText: {
+      color: "#FFF",
+      fontSize: 12,
+    },
+    transferSheet: {
+      flex: 1,
+      paddingHorizontal: 16,
+    },
+    transferHeader: {
+      flexDirection: "row",
+      alignItems: "center",
+      justifyContent: "space-between",
+      paddingVertical: 12,
+    },
+    transferHeaderSpacer: {
+      width: 23,
+    },
+    transferTitle: {
+      fontSize: 16,
+      fontWeight: "600",
+    },
+    transferCancelButton: {},
+    transferCancelText: {
+      color: "#007AFF",
+      fontSize: 15,
+    },
+    transferRecipientCard: {
+      flexDirection: "row",
+      alignItems: "center",
+      padding: 12,
+      backgroundColor: "#F7F5F8",
+      borderRadius: 12,
+      marginBottom: 16,
+    },
+    transferAvatar: {
+      width: 40,
+      height: 40,
+      borderRadius: 20,
+      justifyContent: "center",
+      alignItems: "center",
+      marginRight: 12,
+    },
+    transferAvatarText: {
+      fontSize: 15,
+      fontWeight: "bold",
+    },
+    transferRecipientName: {
+      fontSize: 15,
+      fontWeight: "600",
+    },
+    transferRecipientHandle: {
+      fontSize: 12,
+      color: "#8E8E93",
+    },
+    transferBody: {
+      flex: 1,
+    },
+    transferLabel: {
+      fontSize: 13,
+      color: "#8E8E93",
+      marginBottom: 4,
+    },
+    transferOptional: {
+      fontSize: 11,
+      color: "#A0A0A0",
+    },
+    transferAmountRow: {
+      flexDirection: "row",
+      alignItems: "center",
+      borderBottomWidth: 1,
+      borderBottomColor: "#E5E5EA",
+      paddingBottom: 8,
+      marginBottom: 12,
+    },
+    transferAmountError: {
+      borderBottomColor: "#FF3B30",
+    },
+    transferCurrency: {
+      fontSize: 28,
+      fontWeight: "bold",
+      marginRight: 8,
+    },
+    transferAmountInput: {
+      flex: 1,
+      fontSize: 28,
+      fontWeight: "bold",
+    },
+    transferQuickRow: {
+      flexDirection: "row",
+      flexWrap: "wrap",
+      marginBottom: 16,
+    },
+    transferQuickChip: {
+      backgroundColor: "#F2F2F7",
+      paddingHorizontal: 12,
+      paddingVertical: 6,
+      borderRadius: 16,
+      marginRight: 8,
+      marginBottom: 8,
+    },
+    transferQuickText: {
+      fontSize: 12,
+      fontWeight: "500",
+    },
+    transferErrorText: {
+      color: "#FF3B30",
+      fontSize: 12,
+      marginBottom: 12,
+    },
+    transferNoteInput: {
+      borderWidth: 1,
+      borderColor: "#E5E5EA",
+      borderRadius: 10,
+      padding: 10,
+      height: 80,
+      textAlignVertical: "top",
+    },
+    transferCharacterCount: {
+      textAlign: "right",
+      fontSize: 10,
+      color: "#A0A0A0",
+      marginTop: 4,
+      marginBottom: 20,
+    },
+    transferPrimaryButton: {
+      backgroundColor: "#20142A",
+      borderRadius: 10,
+      height: 48,
+      justifyContent: "center",
+      alignItems: "center",
+      marginTop: "auto",
+      marginBottom: 20,
+    },
+    transferPrimaryText: {
+      color: "#FFFFFF",
+      fontSize: 16,
+      fontWeight: "600",
+    },
+    transferReviewRow: {
+      flexDirection: "row",
+      justifyContent: "space-between",
+      paddingVertical: 10,
+      borderBottomWidth: StyleSheet.hairlineWidth,
+      borderBottomColor: "#E5E5EA",
+    },
+    transferReviewAmount: {
+      fontSize: 15,
+      fontWeight: "bold",
+    },
+    transferReviewValue: {
+      fontSize: 15,
+    },
+    transferFree: {
+      fontSize: 15,
+      color: "#34C759",
+      fontWeight: "500",
+    },
+    transferTotalRow: {
+      flexDirection: "row",
+      justifyContent: "space-between",
+      paddingVertical: 14,
+    },
+    transferTotalLabel: {
+      fontSize: 16,
+      fontWeight: "bold",
+    },
+    transferTotalAmount: {
+      fontSize: 18,
+      fontWeight: "bold",
+    },
+    transferSecurity: {
+      flexDirection: "row",
+      alignItems: "center",
+      backgroundColor: "#F7F5F8",
+      padding: 12,
+      borderRadius: 10,
+      marginTop: 12,
+      marginBottom: 20,
+    },
+    transferSecurityIcon: {
+      marginRight: 10,
+    },
+    transferSecurityTitle: {
+      fontSize: 13,
+      fontWeight: "600",
+    },
+    transferSecurityCopy: {
+      fontSize: 11,
+      color: "#8E8E93",
+    },
+    transferSuccessBody: {
+      alignItems: "center",
+      paddingTop: 40,
+    },
+    transferSuccessIcon: {
+      width: 80,
+      height: 80,
+      borderRadius: 40,
+      backgroundColor: "#34C759",
+      justifyContent: "center",
+      alignItems: "center",
+      marginBottom: 16,
+    },
+    transferSuccessTitle: {
+      fontSize: 20,
+      fontWeight: "bold",
+      marginBottom: 16,
+    },
+    transferSuccessLabel: {
+      fontSize: 13,
+      color: "#8E8E93",
+    },
+    transferSuccessAmount: {
+      fontSize: 32,
+      fontWeight: "bold",
+      marginVertical: 4,
+    },
+    transferSuccessRecipient: {
+      textAlign: "center",
+      fontSize: 14,
+      color: "#8E8E93",
+      marginBottom: 32,
+    },
+    transferReceiptButton: {
+      flexDirection: "row",
+      alignItems: "center",
+      justifyContent: "center",
+      borderWidth: 1,
+      borderColor: "#20142A",
+      borderRadius: 10,
+      height: 48,
+      width: "100%",
+      marginBottom: 12,
+    },
+    transferReceiptText: {
+      fontSize: 15,
+      fontWeight: "600",
+      marginLeft: 6,
+    },
+    transferHomeButton: {
+      backgroundColor: "#20142A",
+      borderRadius: 10,
+      height: 48,
+      width: "100%",
+      justifyContent: "center",
+      alignItems: "center",
+    },
+    transferHomeText: {
+      color: "#FFFFFF",
+      fontSize: 15,
+      fontWeight: "600",
+    },
+  });

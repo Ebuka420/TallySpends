@@ -506,6 +506,9 @@ ${insightText}`;
                 backgroundColor: colors.primarySoft,
               },
             ]}
+            onPress={() => setShowSharePreview(true)}
+            accessibilityRole="button"
+            accessibilityLabel="Share analytics report"
           >
             <Ionicons
               name="share-outline"
