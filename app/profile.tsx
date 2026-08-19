@@ -43,6 +43,15 @@ export default function ProfileScreen() {
   } = useAppStore();
 
   const [editingField, setEditingField] = useState<string | null>(null);
+  // Helper to format date as YYYY/MM/DD while typing
+  const formatDateInput = (input: string) => {
+    const cleaned = input.replace(/[^0-9]/g, '');
+    const parts = [];
+    if (cleaned.length > 0) parts.push(cleaned.slice(0, 4));
+    if (cleaned.length >= 5) parts.push(cleaned.slice(4, 6));
+    if (cleaned.length >= 7) parts.push(cleaned.slice(6, 8));
+    return parts.join('/');
+  };
   const [editValue, setEditValue] = useState("");
   const [isEditModalVisible, setIsEditModalVisible] = useState(false);
 
@@ -99,6 +108,23 @@ export default function ProfileScreen() {
         await setProfileGender(trimmed || "Male");
         break;
       case "Date of Birth":
+        // Validate YYYY/MM/DD format
+        const dateRegex = /^\d{4}\/\d{2}\/\d{2}$/;
+        if (!dateRegex.test(trimmed)) {
+          Alert.alert("Invalid Date", "Please enter a valid date in YYYY/MM/DD format.");
+          return;
+        }
+        const [year, month, day] = trimmed.split('/');
+        const dateObj = new Date(`${year}-${month}-${day}`);
+        if (
+          isNaN(dateObj.getTime()) ||
+          dateObj.getFullYear() !== Number(year) ||
+          dateObj.getMonth() + 1 !== Number(month) ||
+          dateObj.getDate() !== Number(day)
+        ) {
+          Alert.alert("Invalid Date", "The date entered is not a valid calendar date.");
+          return;
+        }
         await setProfileDob(trimmed);
         break;
       case "Email":
@@ -343,8 +369,14 @@ export default function ProfileScreen() {
                     editingField === "Address" && { height: 80, textAlignVertical: "top" },
                   ]}
                   value={editValue}
-                  onChangeText={setEditValue}
-                  placeholder={editingField === "Date of Birth" ? "e.g. YYYY-MM-DD" : `Enter ${editingField}`}
+                  onChangeText={(text) => {
+                    if (editingField === "Date of Birth") {
+                      setEditValue(formatDateInput(text));
+                    } else {
+                      setEditValue(text);
+                    }
+                  }}
+                  placeholder={editingField === "Date of Birth" ? "e.g. YYYY/MM/DD" : `Enter ${editingField}`}
                   placeholderTextColor={theme.textSecondary}
                   autoFocus
                   multiline={editingField === "Address"}
