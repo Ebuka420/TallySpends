@@ -278,7 +278,7 @@ export default function TransferScreen() {
           <Ionicons
             name="chevron-back"
             size={24}
-            color={styles.headerIconColor.color}
+            color={theme.textPrimary}
           />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>Recipients</Text>
@@ -290,7 +290,7 @@ export default function TransferScreen() {
           <Ionicons
             name="qr-code-outline"
             size={20}
-            color={styles.headerIconColor.color}
+            color={theme.accent}
           />
         </TouchableOpacity>
       </View>
