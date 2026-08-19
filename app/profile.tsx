@@ -5,7 +5,9 @@ import React, { useState } from "react";
 import {
   Alert,
   Image,
+  KeyboardAvoidingView,
   Modal,
+  Platform,
   SafeAreaView,
   ScrollView,
   StyleSheet,
@@ -277,71 +279,87 @@ export default function ProfileScreen() {
           setEditingField(null);
         }}
       >
-        <View style={styles.modalOverlay}>
-          <View style={[styles.modalSheet, { backgroundColor: theme.surface }]}>
-            <View style={styles.modalHeaderStyle}>
-              <Text style={[styles.modalTitleText, { color: theme.textPrimary }]}>Edit {editingField}</Text>
-              <TouchableOpacity
-                onPress={() => {
-                  setIsEditModalVisible(false);
-                  setEditingField(null);
-                }}
-              >
-                <Ionicons name="close" size={24} color={theme.textPrimary} />
-              </TouchableOpacity>
-            </View>
-
-            {editingField === "Gender" ? (
-              <View style={styles.genderContainer}>
-                {["Male", "Female", "Other"].map((g) => (
-                  <TouchableOpacity
-                    key={g}
-                    style={[
-                      styles.genderOption,
-                      { borderColor: theme.border, backgroundColor: theme.background },
-                      editValue === g && { borderColor: theme.accent, backgroundColor: theme.accentSoft },
-                    ]}
-                    onPress={() => setEditValue(g)}
-                  >
-                    <Text
-                      style={{
-                        color: editValue === g ? theme.accent : theme.textPrimary,
-                        fontWeight: "700",
-                      }}
-                    >
-                      {g}
-                    </Text>
-                  </TouchableOpacity>
-                ))}
-              </View>
-            ) : (
-              <TextInput
-                style={[
-                  styles.modalInput,
-                  {
-                    color: theme.textPrimary,
-                    borderColor: theme.border,
-                    backgroundColor: theme.background,
-                  },
-                  editingField === "Address" && { height: 80, textAlignVertical: "top" },
-                ]}
-                value={editValue}
-                onChangeText={setEditValue}
-                placeholder={editingField === "Date of Birth" ? "e.g. YYYY-MM-DD" : `Enter ${editingField}`}
-                placeholderTextColor={theme.textSecondary}
-                autoFocus
-                multiline={editingField === "Address"}
-              />
-            )}
-
+        <TouchableOpacity
+          style={styles.modalOverlay}
+          activeOpacity={1}
+          onPress={() => {
+            setIsEditModalVisible(false);
+            setEditingField(null);
+          }}
+        >
+          <KeyboardAvoidingView
+            behavior={Platform.OS === "ios" ? "padding" : "height"}
+            style={{ width: "100%" }}
+          >
             <TouchableOpacity
-              style={[styles.saveButton, { backgroundColor: theme.accent }]}
-              onPress={handleSaveField}
+              style={[styles.modalSheet, { backgroundColor: theme.surface }]}
+              activeOpacity={1}
+              onPress={(e) => e.stopPropagation()}
             >
-              <Text style={styles.saveButtonText}>Save Details</Text>
+              <View style={styles.modalHeaderStyle}>
+                <Text style={[styles.modalTitleText, { color: theme.textPrimary }]}>Edit {editingField}</Text>
+                <TouchableOpacity
+                  onPress={() => {
+                    setIsEditModalVisible(false);
+                    setEditingField(null);
+                  }}
+                >
+                  <Ionicons name="close" size={24} color={theme.textPrimary} />
+                </TouchableOpacity>
+              </View>
+
+              {editingField === "Gender" ? (
+                <View style={styles.genderContainer}>
+                  {["Male", "Female", "Other"].map((g) => (
+                    <TouchableOpacity
+                      key={g}
+                      style={[
+                        styles.genderOption,
+                        { borderColor: theme.border, backgroundColor: theme.background },
+                        editValue === g && { borderColor: theme.accent, backgroundColor: theme.accentSoft },
+                      ]}
+                      onPress={() => setEditValue(g)}
+                    >
+                      <Text
+                        style={{
+                          color: editValue === g ? theme.accent : theme.textPrimary,
+                          fontWeight: "700",
+                        }}
+                      >
+                        {g}
+                      </Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+              ) : (
+                <TextInput
+                  style={[
+                    styles.modalInput,
+                    {
+                      color: theme.textPrimary,
+                      borderColor: theme.border,
+                      backgroundColor: theme.background,
+                    },
+                    editingField === "Address" && { height: 80, textAlignVertical: "top" },
+                  ]}
+                  value={editValue}
+                  onChangeText={setEditValue}
+                  placeholder={editingField === "Date of Birth" ? "e.g. YYYY-MM-DD" : `Enter ${editingField}`}
+                  placeholderTextColor={theme.textSecondary}
+                  autoFocus
+                  multiline={editingField === "Address"}
+                />
+              )}
+
+              <TouchableOpacity
+                style={[styles.saveButton, { backgroundColor: theme.accent }]}
+                onPress={handleSaveField}
+              >
+                <Text style={styles.saveButtonText}>Save Details</Text>
+              </TouchableOpacity>
             </TouchableOpacity>
-          </View>
-        </View>
+          </KeyboardAvoidingView>
+        </TouchableOpacity>
       </Modal>
     </SafeAreaView>
   );

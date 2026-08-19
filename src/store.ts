@@ -517,6 +517,8 @@ export function useAppStore() {
 
       const storedTheme = await AsyncStorage.getItem(THEME_STORAGE_KEY);
 
+      const isCustomized = await AsyncStorage.getItem("ts_theme_is_customized");
+
       const storedDarkMode = await AsyncStorage.getItem(DARK_MODE_PREFERENCE_STORAGE_KEY);
 
       const storedTabBarOpacity = await AsyncStorage.getItem(
@@ -560,8 +562,10 @@ export function useAppStore() {
       }
 
       const validThemes = ["aurora", "sage", "sunset", "ocean", "forest", "crimson", "midnight", "pink"];
-      if (validThemes.includes(storedTheme || "")) {
+      if (isCustomized === "true" && validThemes.includes(storedTheme || "")) {
         setGlobalThemePreference(storedTheme as ThemeId);
+      } else {
+        setGlobalThemePreference("aurora");
       }
 
       if (
@@ -686,6 +690,7 @@ export function useAppStore() {
     setGlobalThemePreference(validTheme);
 
     await AsyncStorage.setItem(THEME_STORAGE_KEY, validTheme);
+    await AsyncStorage.setItem("ts_theme_is_customized", "true");
   }, []);
 
   const setDarkModePreference = useCallback(async (mode: "light" | "dark" | "system") => {
@@ -946,6 +951,8 @@ export function useAppStore() {
     await AsyncStorage.setItem("ts_username", "ebuka");
 
     await AsyncStorage.setItem(DARK_MODE_PREFERENCE_STORAGE_KEY, "system");
+
+    await AsyncStorage.removeItem("ts_theme_is_customized");
 
     await AsyncStorage.setItem("ts_cards", JSON.stringify(defaultCards));
 
