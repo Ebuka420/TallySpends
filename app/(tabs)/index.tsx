@@ -184,7 +184,7 @@ const getTimeLabel = (value?: string) => {
 export default function App() {
   const router = useRouter();
 
-  const { transactions, themePreference, themeMode } = useAppStore();
+  const { transactions, themePreference, themeMode, username, profileImage } = useAppStore();
 
   const theme = getThemePalette(themePreference, themeMode);
 
@@ -302,10 +302,15 @@ export default function App() {
                 styles.avatarWrapper,
                 {
                   backgroundColor: theme.accentSoft,
+                  overflow: "hidden",
                 },
               ]}
             >
-              <Ionicons name="person" size={20} color={theme.textPrimary} />
+              {profileImage ? (
+                <Image source={{ uri: profileImage }} style={{ width: 40, height: 40, borderRadius: 20 }} />
+              ) : (
+                <Ionicons name="person" size={20} color={theme.textPrimary} />
+              )}
             </View>
 
             <View>
@@ -317,7 +322,7 @@ export default function App() {
                   },
                 ]}
               >
-                Good morning, Ebuka
+                Good morning, {username || "User"}
               </Text>
 
               <Text

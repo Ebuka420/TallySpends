@@ -417,7 +417,15 @@ export function useAppStore() {
   const [transactions, setTransactions] = useState<any[]>([]);
   const [budgets, setBudgets] = useState<Record<string, number>>({});
   const [savingsGoals, setSavingsGoals] = useState<any[]>([]);
-  const [profileImage, setProfileImage] = useState<string | null>(null);
+  const [profileImage, setProfileImageState] = useState<string | null>(null);
+  const [profileFullName, setFullNameState] = useState("Goziechi Chigozie");
+  const [profilePhoneNumber, setPhoneNumberState] = useState("+234 814 622 4577");
+  const [profileEmail, setEmailState] = useState("ebuka@example.com");
+  const [profileNickname, setNicknameState] = useState("Enter Nickname");
+  const [profileGender, setGenderState] = useState("Male");
+  const [profileDob, setDobState] = useState("**-**-11");
+  const [profileAddress, setAddressState] = useState("");
+  const [profileTallyTag, setTallyTagState] = useState("@EBUKA");
   const [loading, setLoading] = useState(true);
 
   const [themePreference, setThemePreferenceState] =
@@ -493,6 +501,26 @@ export function useAppStore() {
       );
 
       const storedCards = await AsyncStorage.getItem("ts_cards");
+
+      const storedFullName = await AsyncStorage.getItem("ts_profile_fullname");
+      const storedPhone = await AsyncStorage.getItem("ts_profile_phone");
+      const storedEmail = await AsyncStorage.getItem("ts_profile_email");
+      const storedNickname = await AsyncStorage.getItem("ts_profile_nickname");
+      const storedGender = await AsyncStorage.getItem("ts_profile_gender");
+      const storedDob = await AsyncStorage.getItem("ts_profile_dob");
+      const storedAddress = await AsyncStorage.getItem("ts_profile_address");
+      const storedTallyTag = await AsyncStorage.getItem("ts_profile_tallytag");
+      const storedProfileImage = await AsyncStorage.getItem("ts_profile_image");
+
+      if (storedFullName) setFullNameState(storedFullName);
+      if (storedPhone) setPhoneNumberState(storedPhone);
+      if (storedEmail) setEmailState(storedEmail);
+      if (storedNickname) setNicknameState(storedNickname);
+      if (storedGender) setGenderState(storedGender);
+      if (storedDob) setDobState(storedDob);
+      if (storedAddress) setAddressState(storedAddress);
+      if (storedTallyTag) setTallyTagState(storedTallyTag);
+      if (storedProfileImage) setProfileImageState(storedProfileImage);
 
       if (storedUsername) {
         setUsernameState(storedUsername);
@@ -654,6 +682,55 @@ export function useAppStore() {
     setUsernameState(newUsername);
 
     await AsyncStorage.setItem("ts_username", newUsername);
+  }, []);
+
+  const setProfileFullName = useCallback(async (val: string) => {
+    setFullNameState(val);
+    await AsyncStorage.setItem("ts_profile_fullname", val);
+  }, []);
+
+  const setProfilePhoneNumber = useCallback(async (val: string) => {
+    setPhoneNumberState(val);
+    await AsyncStorage.setItem("ts_profile_phone", val);
+  }, []);
+
+  const setProfileEmail = useCallback(async (val: string) => {
+    setEmailState(val);
+    await AsyncStorage.setItem("ts_profile_email", val);
+  }, []);
+
+  const setProfileNickname = useCallback(async (val: string) => {
+    setNicknameState(val);
+    await AsyncStorage.setItem("ts_profile_nickname", val);
+  }, []);
+
+  const setProfileGender = useCallback(async (val: string) => {
+    setGenderState(val);
+    await AsyncStorage.setItem("ts_profile_gender", val);
+  }, []);
+
+  const setProfileDob = useCallback(async (val: string) => {
+    setDobState(val);
+    await AsyncStorage.setItem("ts_profile_dob", val);
+  }, []);
+
+  const setProfileAddress = useCallback(async (val: string) => {
+    setAddressState(val);
+    await AsyncStorage.setItem("ts_profile_address", val);
+  }, []);
+
+  const setProfileTallyTag = useCallback(async (val: string) => {
+    setTallyTagState(val);
+    await AsyncStorage.setItem("ts_profile_tallytag", val);
+  }, []);
+
+  const setProfileImage = useCallback(async (val: string | null) => {
+    setProfileImageState(val);
+    if (val) {
+      await AsyncStorage.setItem("ts_profile_image", val);
+    } else {
+      await AsyncStorage.removeItem("ts_profile_image");
+    }
   }, []);
 
   const addCustomCategory = useCallback(
@@ -901,6 +978,23 @@ export function useAppStore() {
 
     username,
     setUsername,
+
+    profileFullName,
+    setProfileFullName,
+    profilePhoneNumber,
+    setProfilePhoneNumber,
+    profileEmail,
+    setProfileEmail,
+    profileNickname,
+    setProfileNickname,
+    profileGender,
+    setProfileGender,
+    profileDob,
+    setProfileDob,
+    profileAddress,
+    setProfileAddress,
+    profileTallyTag,
+    setProfileTallyTag,
 
     customCategories,
     addCustomCategory,

@@ -2,116 +2,33 @@ import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import React, { useState } from "react";
 import {
-    ActivityIndicator,
-    Alert,
-    KeyboardAvoidingView,
-    Platform,
-    SafeAreaView,
-    ScrollView,
-    StyleSheet,
-    Text,
-    TextInput,
-    TouchableOpacity,
-    View,
+  ActivityIndicator,
+  Alert,
+  KeyboardAvoidingView,
+  Platform,
+  SafeAreaView,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View,
 } from "react-native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useAppStore } from "../src/store";
 
 const API_URL = process.env.EXPO_PUBLIC_API_URL;
 
-function sha256(ascii: string): string {
-  function rightRotate(value: number, amount: number) {
-    return (value >>> amount) | (value << (32 - amount));
-  }
-  
-  const words: number[] = [];
-  const asciiLength = ascii.length;
-  const charSize = 8;
-  
-  for (let i = 0; i < asciiLength * charSize; i += charSize) {
-    words[i >> 5] |= (ascii.charCodeAt(i / charSize) & 0xff) << (24 - i % 32);
-  }
-  
-  const totalLen = asciiLength * 8;
-  words[totalLen >> 5] |= 0x80 << (24 - totalLen % 32);
-  words[(((totalLen + 64) >> 9) << 4) + 15] = totalLen;
-  
-  let h0 = 0x6a09e667;
-  let h1 = 0xbb67ae85;
-  let h2 = 0x3c6ef372;
-  let h3 = 0xa54ff53a;
-  let h4 = 0x510e527f;
-  let h5 = 0x9b05688c;
-  let h6 = 0x1f83d9ab;
-  let h7 = 0x5be0cd19;
-  
-  const k = [
-    0x428a2f98, 0x71374491, 0xb5c0fbcf, 0xe9b5dba5, 0x3956c25b, 0x59f111f1, 0x923f82a4, 0xab1c5ed5,
-    0xd807aa98, 0x12835b01, 0x243185be, 0x550c7dc3, 0x72be5d74, 0x80deb1fe, 0x9bdc06a7, 0xc19bf174,
-    0xe49b69c1, 0xefbe4786, 0x0fc19dc6, 0x240ca1cc, 0x2de92c6f, 0x4a7484aa, 0x5cb0a9dc, 0x76f988da,
-    0x983e5152, 0xa831c66d, 0xb00327c8, 0xbf597fc7, 0xc6e00bf3, 0xd5a79147, 0x06ca6351, 0x14292967,
-    0x27b70a85, 0x2e1b2138, 0x4d2c6dfc, 0x53380d13, 0x650a7354, 0x766a0abb, 0x81c2c92e, 0x92722c85,
-    0xa2bfe8a1, 0xa81a664b, 0xc24b8b70, 0xc76c51a3, 0xd192e819, 0xd6990624, 0xf40e3585, 0x106aa070,
-    0x19a4c116, 0x1e376c08, 0x2748774c, 0x34b0bcb5, 0x391c0cb3, 0x4ed8aa4a, 0x5b9cca4f, 0x682e6ff3,
-    0x748f82ee, 0x78a5636f, 0x84c87814, 0x8cc70208, 0x90befffa, 0xa4506ceb, 0xbef9a3f7, 0xc67178f2
-  ];
-  
-  for (let i = 0; i < words.length; i += 16) {
-    const w = words.slice(i, i + 16);
-    while (w.length < 64) {
-      const s0 = rightRotate(w[w.length - 15], 7) ^ rightRotate(w[w.length - 15], 18) ^ (w[w.length - 15] >>> 3);
-      const s1 = rightRotate(w[w.length - 2], 17) ^ rightRotate(w[w.length - 2], 19) ^ (w[w.length - 2] >>> 10);
-      w.push((w[w.length - 16] + s0 + w[w.length - 7] + s1) | 0);
-    }
-    
-    let a = h0;
-    let b = h1;
-    let c = h2;
-    let d = h3;
-    let e = h4;
-    let f = h5;
-    let g = h6;
-    let h = h7;
-    
-    for (let j = 0; j < 64; j++) {
-      const s1 = rightRotate(e, 6) ^ rightRotate(e, 11) ^ rightRotate(e, 25);
-      const ch = (e & f) ^ (~e & g);
-      const temp1 = (h + s1 + ch + k[j] + w[j]) | 0;
-      const s0 = rightRotate(a, 2) ^ rightRotate(a, 13) ^ rightRotate(a, 22);
-      const maj = (a & b) ^ (a & c) ^ (b & c);
-      const temp2 = (s0 + maj) | 0;
-      
-      h = g;
-      g = f;
-      f = e;
-      e = (d + temp1) | 0;
-      d = c;
-      c = b;
-      b = a;
-      a = (temp1 + temp2) | 0;
-    }
-    
-    h0 = (h0 + a) | 0;
-    h1 = (h1 + b) | 0;
-    h2 = (h2 + c) | 0;
-    h3 = (h3 + d) | 0;
-    h4 = (h4 + e) | 0;
-    h5 = (h5 + f) | 0;
-    h6 = (h6 + g) | 0;
-    h7 = (h7 + h) | 0;
-  }
-  
-  const hash = [h0, h1, h2, h3, h4, h5, h6, h7].map((num) => {
-    const hex = (num >>> 0).toString(16);
-    return "00000000".slice(hex.length) + hex;
-  }).join("");
-  
-  return hash;
-}
-
 export default function AuthScreen() {
   const router = useRouter();
-  const { login, setUsername } = useAppStore(); // Pull the login and setUsername functions
+  const {
+    login,
+    setUsername,
+    setProfileFullName,
+    setProfilePhoneNumber,
+    setProfileEmail,
+    setProfileTallyTag,
+  } = useAppStore();
 
   // Tab handling state: 'login' or 'signup'
   const [authMode, setAuthMode] = useState<"login" | "signup">("login");
@@ -132,11 +49,34 @@ export default function AuthScreen() {
     const fullNameTrimmed = fullName.trim();
     const phoneTrimmed = phoneNumber.trim();
 
-    // 1. Validation
+    // 1. Development Bypass (if fields are empty)
     if (!emailTrimmed || !password) {
-      Alert.alert("Input Error", "Please fill in all required fields (Email and Password).");
-      setIsLoading(false);
-      return;
+      if (authMode === "login") {
+        await setUsername("Ebuka");
+        await setProfileFullName("Ebuka");
+        await setProfilePhoneNumber("+234 814 622 4577");
+        await setProfileEmail("ebuka@example.com");
+        await setProfileTallyTag("@EBUKA");
+        login();
+        router.replace("/(tabs)" as any);
+        setIsLoading(false);
+        return;
+      } else {
+        Alert.alert(
+          "Success (Dev Bypass)",
+          "Demo account created successfully! Please click Welcome Back to log in.",
+          [
+            {
+              text: "OK",
+              onPress: () => {
+                setAuthMode("login");
+              },
+            },
+          ]
+        );
+        setIsLoading(false);
+        return;
+      }
     }
 
     if (authMode === "signup") {
@@ -158,45 +98,48 @@ export default function AuthScreen() {
     }
 
     try {
-      // Fetch users from AsyncStorage
-      const storedUsersRaw = await AsyncStorage.getItem("ts_registered_users");
-      let users = storedUsersRaw ? JSON.parse(storedUsersRaw) : [];
+      const endpoint = authMode === "login" ? "/api/auth/login" : "/api/auth/register";
+      const baseUrl = API_URL || "http://localhost:5000";
 
-      // Seed default user if database is empty
-      if (users.length === 0) {
-        const demoHash = sha256("password");
-        users.push({
-          fullName: "Ebuka",
-          phoneNumber: "+234 800 000 0000",
-          email: "ebuka@example.com",
-          passwordHash: demoHash,
-        });
-        await AsyncStorage.setItem("ts_registered_users", JSON.stringify(users));
+      const payload =
+        authMode === "login"
+          ? {
+              email: emailTrimmed,
+              password: password,
+            }
+          : {
+              fullName: fullNameTrimmed,
+              email: emailTrimmed,
+              password: password,
+              phoneNumber: phoneTrimmed,
+            };
+
+      const response = await fetch(`${baseUrl}${endpoint}`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(payload),
+      });
+
+      const responseText = await response.text();
+      let data: any = {};
+
+      if (responseText) {
+        try {
+          data = JSON.parse(responseText);
+        } catch (e) {
+          throw new Error("Server returned an invalid response format.");
+        }
+      }
+
+      if (!response.ok) {
+        throw new Error(
+          data.message || `Authentication failed (Status ${response.status})`,
+        );
       }
 
       if (authMode === "signup") {
-        // Check if user already exists
-        const userExists = users.some((u: any) => u.email === emailTrimmed);
-        if (userExists) {
-          Alert.alert("Sign Up Error", "A user with this email address already exists.");
-          setIsLoading(false);
-          return;
-        }
-
-        // Hash the password
-        const passwordHash = sha256(password);
-
-        // Save new user
-        const newUser = {
-          fullName: fullNameTrimmed,
-          phoneNumber: phoneTrimmed,
-          email: emailTrimmed,
-          passwordHash,
-        };
-
-        users.push(newUser);
-        await AsyncStorage.setItem("ts_registered_users", JSON.stringify(users));
-
         Alert.alert(
           "Success",
           "Your account has been created successfully! Please log in with your credentials.",
@@ -204,12 +147,10 @@ export default function AuthScreen() {
             {
               text: "OK",
               onPress: () => {
-                // Clear fields
                 setFullName("");
                 setPhoneNumber("");
                 setPassword("");
                 setConfirmPassword("");
-                // Switch back to login page
                 setAuthMode("login");
               },
             },
@@ -217,27 +158,24 @@ export default function AuthScreen() {
         );
       } else {
         // Login Flow
-        const user = users.find((u: any) => u.email === emailTrimmed);
-        if (!user) {
-          Alert.alert("Login Error", "Invalid email address or password.");
-          setIsLoading(false);
-          return;
-        }
+        const loggedInName = data.user?.fullName || emailTrimmed.split("@")[0];
+        const loggedInPhone = data.user?.phoneNumber || "";
+        const loggedInEmail = data.user?.email || emailTrimmed;
 
-        const inputHash = sha256(password);
-        if (user.passwordHash !== inputHash) {
-          Alert.alert("Login Error", "Invalid email address or password.");
-          setIsLoading(false);
-          return;
-        }
+        await setUsername(loggedInName);
+        await setProfileFullName(loggedInName);
+        await setProfilePhoneNumber(loggedInPhone);
+        await setProfileEmail(loggedInEmail);
+        await setProfileTallyTag("@" + loggedInName.replace(/\s+/g, "").toUpperCase());
 
-        // Login success!
-        await setUsername(user.fullName);
         login();
         router.replace("/(tabs)" as any);
       }
-    } catch (err: any) {
-      Alert.alert("Error", err.message || "An unexpected error occurred. Please try again.");
+    } catch (error: any) {
+      Alert.alert(
+        "Authentication Error",
+        error.message || "Something went wrong. Please check your network connection."
+      );
     } finally {
       setIsLoading(false);
     }

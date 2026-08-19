@@ -2,6 +2,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { Stack, useRouter } from "expo-router";
 import React from "react";
 import {
+  Image,
   SafeAreaView,
   ScrollView,
   StyleSheet,
@@ -75,7 +76,7 @@ const MENU_ITEMS = [
 export default function MoreScreen() {
   const router = useRouter();
 
-  const { username = "User", themePreference = "aurora", themeMode } = useAppStore();
+  const { username = "User", themePreference = "aurora", themeMode, profileImage } = useAppStore();
 
   const theme = getThemePalette(themePreference, themeMode);
 
@@ -101,10 +102,15 @@ export default function MoreScreen() {
               styles.avatarPlaceholder,
               {
                 backgroundColor: theme.surfaceSoft,
+                overflow: "hidden",
               },
             ]}
           >
-            <Ionicons name="person" size={28} color={theme.textSecondary} />
+            {profileImage ? (
+              <Image source={{ uri: profileImage }} style={{ width: 56, height: 56, borderRadius: 28 }} />
+            ) : (
+              <Ionicons name="person" size={28} color={theme.textSecondary} />
+            )}
           </View>
 
           <Text
