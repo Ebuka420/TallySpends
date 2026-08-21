@@ -14,7 +14,6 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
-import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useAppStore } from "../src/store";
 
 const API_URL = process.env.EXPO_PUBLIC_API_URL;
@@ -72,7 +71,7 @@ export default function AuthScreen() {
                 setAuthMode("login");
               },
             },
-          ]
+          ],
         );
         setIsLoading(false);
         return;
@@ -81,24 +80,34 @@ export default function AuthScreen() {
 
     if (authMode === "signup") {
       if (!fullNameTrimmed || !phoneTrimmed) {
-        Alert.alert("Input Error", "Please fill in your Full Name and Phone Number.");
+        Alert.alert(
+          "Input Error",
+          "Please fill in your Full Name and Phone Number.",
+        );
         setIsLoading(false);
         return;
       }
       if (password.length < 6) {
-        Alert.alert("Password Too Short", "Password must be at least 6 characters long.");
+        Alert.alert(
+          "Password Too Short",
+          "Password must be at least 6 characters long.",
+        );
         setIsLoading(false);
         return;
       }
       if (password !== confirmPassword) {
-        Alert.alert("Password Mismatch", "Passwords do not match. Please verify your passwords.");
+        Alert.alert(
+          "Password Mismatch",
+          "Passwords do not match. Please verify your passwords.",
+        );
         setIsLoading(false);
         return;
       }
     }
 
     try {
-      const endpoint = authMode === "login" ? "/api/auth/login" : "/api/auth/register";
+      const endpoint =
+        authMode === "login" ? "/api/auth/login" : "/api/auth/register";
       const baseUrl = API_URL || "http://localhost:5000";
 
       const payload =
@@ -154,7 +163,7 @@ export default function AuthScreen() {
                 setAuthMode("login");
               },
             },
-          ]
+          ],
         );
       } else {
         // Login Flow
@@ -166,7 +175,9 @@ export default function AuthScreen() {
         await setProfileFullName(loggedInName);
         await setProfilePhoneNumber(loggedInPhone);
         await setProfileEmail(loggedInEmail);
-        await setProfileTallyTag("@" + loggedInName.replace(/\s+/g, "").toUpperCase());
+        await setProfileTallyTag(
+          "@" + loggedInName.replace(/\s+/g, "").toUpperCase(),
+        );
 
         login();
         router.replace("/(tabs)" as any);
@@ -174,7 +185,8 @@ export default function AuthScreen() {
     } catch (error: any) {
       Alert.alert(
         "Authentication Error",
-        error.message || "Something went wrong. Please check your network connection."
+        error.message ||
+          "Something went wrong. Please check your network connection.",
       );
     } finally {
       setIsLoading(false);

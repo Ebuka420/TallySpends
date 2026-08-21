@@ -10,6 +10,10 @@ const DARK_MODE_PREFERENCE_STORAGE_KEY = "ts_dark_mode_preference";
 const TAB_BAR_OPACITY_STORAGE_KEY = "ts_tab_bar_opacity";
 const DEFAULT_CUSTOM_CATEGORIES_STORAGE_KEY = "ts_custom_categories";
 
+const ACCESS_TOKEN_STORAGE_KEY = "ts_access_token";
+const REFRESH_TOKEN_STORAGE_KEY = "ts_refresh_token";
+const USER_STORAGE_KEY = "ts_user";
+
 const getCustomCategoriesStorageKey = (
   usernameValue: string | null | undefined,
 ) =>
@@ -433,7 +437,8 @@ export function useAppStore() {
   const [savingsGoals, setSavingsGoals] = useState<any[]>([]);
   const [profileImage, setProfileImageState] = useState<string | null>(null);
   const [profileFullName, setFullNameState] = useState("Goziechi Chigozie");
-  const [profilePhoneNumber, setPhoneNumberState] = useState("+234 814 622 4577");
+  const [profilePhoneNumber, setPhoneNumberState] =
+    useState("+234 814 622 4577");
   const [profileEmail, setEmailState] = useState("ebuka@example.com");
   const [profileNickname, setNicknameState] = useState("Enter Nickname");
   const [profileGender, setGenderState] = useState("Male");
@@ -442,11 +447,13 @@ export function useAppStore() {
   const [profileTallyTag, setTallyTagState] = useState("@EBUKA");
   const [loading, setLoading] = useState(true);
 
-  const [themePreference, setThemePreferenceState] =
-    useState<ThemeId>(globalThemePreference);
+  const [themePreference, setThemePreferenceState] = useState<ThemeId>(
+    globalThemePreference,
+  );
 
-  const [darkModePreference, setDarkModePreferenceState] =
-    useState<"light" | "dark" | "system">(globalDarkModePreference);
+  const [darkModePreference, setDarkModePreferenceState] = useState<
+    "light" | "dark" | "system"
+  >(globalDarkModePreference);
 
   const systemColorScheme = useColorScheme();
 
@@ -519,7 +526,9 @@ export function useAppStore() {
 
       const isCustomized = await AsyncStorage.getItem("ts_theme_is_customized");
 
-      const storedDarkMode = await AsyncStorage.getItem(DARK_MODE_PREFERENCE_STORAGE_KEY);
+      const storedDarkMode = await AsyncStorage.getItem(
+        DARK_MODE_PREFERENCE_STORAGE_KEY,
+      );
 
       const storedTabBarOpacity = await AsyncStorage.getItem(
         TAB_BAR_OPACITY_STORAGE_KEY,
@@ -561,7 +570,16 @@ export function useAppStore() {
         setUsernameState("ebuka");
       }
 
-      const validThemes = ["aurora", "sage", "sunset", "ocean", "forest", "crimson", "midnight", "pink"];
+      const validThemes = [
+        "aurora",
+        "sage",
+        "sunset",
+        "ocean",
+        "forest",
+        "crimson",
+        "midnight",
+        "pink",
+      ];
       if (isCustomized === "true" && validThemes.includes(storedTheme || "")) {
         setGlobalThemePreference(storedTheme as ThemeId);
       } else {
@@ -675,16 +693,60 @@ export function useAppStore() {
     return unsubscribe;
   }, [navigation, loadData]);
 
-  const login = useCallback(() => {
-    setGlobalAuth(true);
-  }, []);
+  const login = useCallback(
+    async (
+      accessToken?: string,
+      refreshToken?: string,
+      user?: {
+        userId?: number;
+        fullName?: string;
+        email?: string;
+      },
+    ) => {
+      if (accessToken) {
+        await AsyncStorage.setItem(ACCESS_TOKEN_STORAGE_KEY, accessToken);
+      }
 
-  const logout = useCallback(() => {
+      if (refreshToken) {
+        await AsyncStorage.setItem(REFRESH_TOKEN_STORAGE_KEY, refreshToken);
+      }
+
+      if (user) {
+        await AsyncStorage.setItem(USER_STORAGE_KEY, JSON.stringify(user));
+
+        if (user.fullName) {
+          await AsyncStorage.setItem("ts_username", user.fullName);
+
+          setUsernameState(user.fullName);
+        }
+      }
+
+      setGlobalAuth(true);
+    },
+    [],
+  );
+
+  const logout = useCallback(async () => {
+    await AsyncStorage.multiRemove([
+      ACCESS_TOKEN_STORAGE_KEY,
+      REFRESH_TOKEN_STORAGE_KEY,
+      USER_STORAGE_KEY,
+    ]);
+
     setGlobalAuth(false);
   }, []);
 
   const setThemePreference = useCallback(async (themeId: ThemeId) => {
-    const validThemes: ThemeId[] = ["aurora", "sage", "sunset", "ocean", "forest", "crimson", "midnight", "pink"];
+    const validThemes: ThemeId[] = [
+      "aurora",
+      "sage",
+      "sunset",
+      "ocean",
+      "forest",
+      "crimson",
+      "midnight",
+      "pink",
+    ];
     const validTheme = validThemes.includes(themeId) ? themeId : "aurora";
 
     setGlobalThemePreference(validTheme);
@@ -693,13 +755,19 @@ export function useAppStore() {
     await AsyncStorage.setItem("ts_theme_is_customized", "true");
   }, []);
 
-  const setDarkModePreference = useCallback(async (mode: "light" | "dark" | "system") => {
-    const validMode = mode === "light" || mode === "dark" || mode === "system" ? mode : "system";
+  const setDarkModePreference = useCallback(
+    async (mode: "light" | "dark" | "system") => {
+      const validMode =
+        mode === "light" || mode === "dark" || mode === "system"
+          ? mode
+          : "system";
 
-    setGlobalDarkModePreference(validMode);
+      setGlobalDarkModePreference(validMode);
 
-    await AsyncStorage.setItem(DARK_MODE_PREFERENCE_STORAGE_KEY, validMode);
-  }, []);
+      await AsyncStorage.setItem(DARK_MODE_PREFERENCE_STORAGE_KEY, validMode);
+    },
+    [],
+  );
 
   const setTabBarOpacity = useCallback(async (opacity: number) => {
     const nextOpacity = Math.max(0.45, Math.min(0.98, opacity));

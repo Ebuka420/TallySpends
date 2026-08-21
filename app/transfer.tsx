@@ -238,9 +238,9 @@ export default function TransferScreen() {
       );
       return;
     }
-    
+
     setTransferStep("review");
-    
+
     Animated.spring(slideAnim, {
       toValue: 0,
       tension: 55,
@@ -275,11 +275,7 @@ export default function TransferScreen() {
           onPress={() => router.back()}
           activeOpacity={0.7}
         >
-          <Ionicons
-            name="chevron-back"
-            size={24}
-            color={theme.textPrimary}
-          />
+          <Ionicons name="chevron-back" size={24} color={theme.textPrimary} />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>Recipients</Text>
         <TouchableOpacity
@@ -287,11 +283,7 @@ export default function TransferScreen() {
           onPress={() => router.push("/request")}
           activeOpacity={0.7}
         >
-          <Ionicons
-            name="qr-code-outline"
-            size={20}
-            color={theme.accent}
-          />
+          <Ionicons name="qr-code-outline" size={20} color={theme.accent} />
         </TouchableOpacity>
       </View>
 
@@ -307,7 +299,11 @@ export default function TransferScreen() {
             activeOpacity={0.7}
           >
             <View style={styles.actionIconContainer}>
-              <Ionicons name="add" size={24} color={themeMode === "dark" ? "#FFFFFF" : "#4B2C40"} />
+              <Ionicons
+                name="add"
+                size={24}
+                color={themeMode === "dark" ? "#FFFFFF" : "#4B2C40"}
+              />
             </View>
             <Text style={styles.actionText}>Add</Text>
           </TouchableOpacity>
@@ -318,7 +314,11 @@ export default function TransferScreen() {
             activeOpacity={0.7}
           >
             <View style={styles.actionIconContainer}>
-              <Ionicons name="scan-outline" size={22} color={themeMode === "dark" ? "#FFFFFF" : "#4B2C40"} />
+              <Ionicons
+                name="scan-outline"
+                size={22}
+                color={themeMode === "dark" ? "#FFFFFF" : "#4B2C40"}
+              />
             </View>
             <Text style={styles.actionText}>Scan QR</Text>
           </TouchableOpacity>
@@ -652,30 +652,69 @@ export default function TransferScreen() {
                   {transferStep !== "success" ? (
                     <View style={{ flex: 1 }}>
                       {/* STAGE 1: Enter Amount (Send Money) */}
-                      <View style={{ flex: 1, display: transferStep === "amount" || transferStep === "review" ? "flex" : "none" }}>
+                      <View
+                        style={{
+                          flex: 1,
+                          display:
+                            transferStep === "amount" ||
+                            transferStep === "review"
+                              ? "flex"
+                              : "none",
+                        }}
+                      >
                         <View style={styles.transferHeader}>
                           <View style={styles.transferHeaderSpacer} />
                           <Text style={styles.transferTitle}>Send Money</Text>
-                          <TouchableOpacity style={styles.transferCancelButton} onPress={closeTransferFlow}>
-                            <Ionicons name="close" size={24} color={theme.textPrimary} />
+                          <TouchableOpacity
+                            style={styles.transferCancelButton}
+                            onPress={closeTransferFlow}
+                          >
+                            <Ionicons
+                              name="close"
+                              size={24}
+                              color={theme.textPrimary}
+                            />
                           </TouchableOpacity>
                         </View>
 
                         <View style={styles.transferRecipientCard}>
-                          <View style={[styles.transferAvatar, { backgroundColor: selectedRecipient.color }]}>
-                            <Text style={[styles.transferAvatarText, { color: selectedRecipient.textColor }]}>
+                          <View
+                            style={[
+                              styles.transferAvatar,
+                              { backgroundColor: selectedRecipient.color },
+                            ]}
+                          >
+                            <Text
+                              style={[
+                                styles.transferAvatarText,
+                                { color: selectedRecipient.textColor },
+                              ]}
+                            >
                               {selectedRecipient.initial}
                             </Text>
                           </View>
                           <View>
-                            <Text style={styles.transferRecipientName}>{selectedRecipient.name}</Text>
-                            <Text style={styles.transferRecipientHandle}>@{selectedRecipient.username}</Text>
+                            <Text style={styles.transferRecipientName}>
+                              {selectedRecipient.name}
+                            </Text>
+                            <Text style={styles.transferRecipientHandle}>
+                              @{selectedRecipient.username}
+                            </Text>
                           </View>
                         </View>
 
-                        <ScrollView contentContainerStyle={styles.transferBody} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
+                        <ScrollView
+                          contentContainerStyle={styles.transferBody}
+                          keyboardShouldPersistTaps="handled"
+                          showsVerticalScrollIndicator={false}
+                        >
                           <Text style={styles.transferLabel}>You send</Text>
-                          <View style={[styles.transferAmountRow, isOverBalance && styles.transferAmountError]}>
+                          <View
+                            style={[
+                              styles.transferAmountRow,
+                              isOverBalance && styles.transferAmountError,
+                            ]}
+                          >
                             <Text style={styles.transferCurrency}>₦</Text>
                             <TextInput
                               style={styles.transferAmountInput}
@@ -687,18 +726,33 @@ export default function TransferScreen() {
                               onChangeText={setAmount}
                             />
                           </View>
-                          
+
                           <View style={styles.transferQuickRow}>
                             {quickAmounts.slice(0, 3).map((value) => (
-                              <TouchableOpacity key={value} style={styles.transferQuickChip} onPress={() => addQuickAmount(value)}>
-                                <Text style={styles.transferQuickText}>+{value.toLocaleString()}</Text>
+                              <TouchableOpacity
+                                key={value}
+                                style={styles.transferQuickChip}
+                                onPress={() => addQuickAmount(value)}
+                              >
+                                <Text style={styles.transferQuickText}>
+                                  +{value.toLocaleString()}
+                                </Text>
                               </TouchableOpacity>
                             ))}
                           </View>
-                          
-                          {isOverBalance && <Text style={styles.transferErrorText}>Amount exceeds your available balance</Text>}
-                          
-                          <Text style={styles.transferLabel}>Note <Text style={styles.transferOptional}>(optional)</Text></Text>
+
+                          {isOverBalance && (
+                            <Text style={styles.transferErrorText}>
+                              Amount exceeds your available balance
+                            </Text>
+                          )}
+
+                          <Text style={styles.transferLabel}>
+                            Note{" "}
+                            <Text style={styles.transferOptional}>
+                              (optional)
+                            </Text>
+                          </Text>
                           <TextInput
                             style={styles.transferNoteInput}
                             placeholder="What's this for?"
@@ -708,92 +762,188 @@ export default function TransferScreen() {
                             maxLength={40}
                             multiline
                           />
-                          <Text style={styles.transferCharacterCount}>{memo.length}/40</Text>
-                          
-                          <TouchableOpacity style={styles.transferPrimaryButton} onPress={continueToReview}>
-                            <Text style={styles.transferPrimaryText}>Continue</Text>
+                          <Text style={styles.transferCharacterCount}>
+                            {memo.length}/40
+                          </Text>
+
+                          <TouchableOpacity
+                            style={styles.transferPrimaryButton}
+                            onPress={continueToReview}
+                          >
+                            <Text style={styles.transferPrimaryText}>
+                              Continue
+                            </Text>
                           </TouchableOpacity>
                         </ScrollView>
                       </View>
 
                       {/* STAGE 2: Review (slides up over Stage 1) */}
-                      <Animated.View style={[styles.reviewContainer, { transform: [{ translateY: slideAnim }] }]}>
+                      <Animated.View
+                        style={[
+                          styles.reviewContainer,
+                          { transform: [{ translateY: slideAnim }] },
+                        ]}
+                      >
                         <View style={styles.transferHeader}>
                           <TouchableOpacity onPress={backToAmount}>
-                            <Ionicons name="chevron-back" size={24} color={theme.textPrimary} />
+                            <Ionicons
+                              name="chevron-back"
+                              size={24}
+                              color={theme.textPrimary}
+                            />
                           </TouchableOpacity>
-                          <Text style={styles.transferTitle}>Review Transfer</Text>
-                          <TouchableOpacity style={styles.transferCancelButton} onPress={closeTransferFlow}>
-                            <Ionicons name="close" size={24} color={theme.textPrimary} />
+                          <Text style={styles.transferTitle}>
+                            Review Transfer
+                          </Text>
+                          <TouchableOpacity
+                            style={styles.transferCancelButton}
+                            onPress={closeTransferFlow}
+                          >
+                            <Ionicons
+                              name="close"
+                              size={24}
+                              color={theme.textPrimary}
+                            />
                           </TouchableOpacity>
                         </View>
 
                         <View style={styles.transferRecipientCard}>
-                          <View style={[styles.transferAvatar, { backgroundColor: selectedRecipient.color }]}>
-                            <Text style={[styles.transferAvatarText, { color: selectedRecipient.textColor }]}>
+                          <View
+                            style={[
+                              styles.transferAvatar,
+                              { backgroundColor: selectedRecipient.color },
+                            ]}
+                          >
+                            <Text
+                              style={[
+                                styles.transferAvatarText,
+                                { color: selectedRecipient.textColor },
+                              ]}
+                            >
                               {selectedRecipient.initial}
                             </Text>
                           </View>
                           <View>
-                            <Text style={styles.transferRecipientName}>{selectedRecipient.name}</Text>
-                            <Text style={styles.transferRecipientHandle}>@{selectedRecipient.username}</Text>
+                            <Text style={styles.transferRecipientName}>
+                              {selectedRecipient.name}
+                            </Text>
+                            <Text style={styles.transferRecipientHandle}>
+                              @{selectedRecipient.username}
+                            </Text>
                           </View>
                         </View>
 
                         <View style={styles.transferBody}>
                           <View style={styles.transferReviewRow}>
                             <Text style={styles.transferLabel}>You send</Text>
-                            <Text style={styles.transferReviewAmount}>₦{Number(amount || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}</Text>
+                            <Text style={styles.transferReviewAmount}>
+                              ₦
+                              {Number(amount || 0).toLocaleString(undefined, {
+                                minimumFractionDigits: 2,
+                              })}
+                            </Text>
                           </View>
                           <View style={styles.transferReviewRow}>
                             <Text style={styles.transferLabel}>Note</Text>
-                            <Text style={styles.transferReviewValue}>{memo || "No note"}</Text>
+                            <Text style={styles.transferReviewValue}>
+                              {memo || "No note"}
+                            </Text>
                           </View>
                           <View style={styles.transferReviewRow}>
                             <Text style={styles.transferLabel}>Fee</Text>
                             <Text style={styles.transferFree}>Free</Text>
                           </View>
-                          
+
                           <View style={styles.transferTotalRow}>
                             <Text style={styles.transferTotalLabel}>Total</Text>
-                            <Text style={styles.transferTotalAmount}>₦{Number(amount || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}</Text>
+                            <Text style={styles.transferTotalAmount}>
+                              ₦
+                              {Number(amount || 0).toLocaleString(undefined, {
+                                minimumFractionDigits: 2,
+                              })}
+                            </Text>
                           </View>
 
                           <View style={styles.transferSecurity}>
                             <View style={styles.transferSecurityIcon}>
-                              <Ionicons name="shield-checkmark" size={18} color={theme.accent} />
+                              <Ionicons
+                                name="shield-checkmark"
+                                size={18}
+                                color={theme.accent}
+                              />
                             </View>
                             <View>
-                              <Text style={styles.transferSecurityTitle}>Secure transfer</Text>
-                              <Text style={styles.transferSecurityCopy}>Your money is safe with TallySpends.</Text>
+                              <Text style={styles.transferSecurityTitle}>
+                                Secure transfer
+                              </Text>
+                              <Text style={styles.transferSecurityCopy}>
+                                Your money is safe with TallySpends.
+                              </Text>
                             </View>
                           </View>
 
-                          <TouchableOpacity style={styles.transferPrimaryButton} onPress={executeTransfer}>
-                            <Text style={styles.transferPrimaryText}>Send Money</Text>
+                          <TouchableOpacity
+                            style={styles.transferPrimaryButton}
+                            onPress={executeTransfer}
+                          >
+                            <Text style={styles.transferPrimaryText}>
+                              Send Money
+                            </Text>
                           </TouchableOpacity>
                         </View>
                       </Animated.View>
                     </View>
                   ) : (
                     /* STAGE 3: Done (Instant confirmation) */
-                    <ScrollView contentContainerStyle={styles.transferSuccessBody} showsVerticalScrollIndicator={false}>
+                    <ScrollView
+                      contentContainerStyle={styles.transferSuccessBody}
+                      showsVerticalScrollIndicator={false}
+                    >
                       <View style={styles.transferSuccessIconContainer}>
                         <View style={styles.successCircle}>
-                          <Ionicons name="checkmark" size={48} color="#FFFFFF" />
+                          <Ionicons
+                            name="checkmark"
+                            size={48}
+                            color="#FFFFFF"
+                          />
                         </View>
                         {/* Confetti Sparkles */}
-                        <Ionicons name="star" size={14} color="#FFD700" style={[styles.sparkle, { top: 0, left: 0 }]} />
-                        <Ionicons name="star" size={10} color="#FF69B4" style={[styles.sparkle, { top: 20, right: 0 }]} />
-                        <Ionicons name="ellipse" size={8} color="#00FFFF" style={[styles.sparkle, { bottom: 10, left: -5 }]} />
+                        <Ionicons
+                          name="star"
+                          size={14}
+                          color="#FFD700"
+                          style={[styles.sparkle, { top: 0, left: 0 }]}
+                        />
+                        <Ionicons
+                          name="star"
+                          size={10}
+                          color="#FF69B4"
+                          style={[styles.sparkle, { top: 20, right: 0 }]}
+                        />
+                        <Ionicons
+                          name="ellipse"
+                          size={8}
+                          color="#00FFFF"
+                          style={[styles.sparkle, { bottom: 10, left: -5 }]}
+                        />
                       </View>
-                      
-                      <Text style={styles.transferSuccessTitle}>Transfer Successful!</Text>
-                      
+
+                      <Text style={styles.transferSuccessTitle}>
+                        Transfer Successful!
+                      </Text>
+
                       <Text style={styles.transferSuccessLabel}>You sent</Text>
-                      <Text style={styles.transferSuccessAmount}>₦{Number(amount || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}</Text>
-                      <Text style={styles.transferSuccessRecipient}>to {selectedRecipient.name}{`\n`}@{selectedRecipient.username}</Text>
-                      
+                      <Text style={styles.transferSuccessAmount}>
+                        ₦
+                        {Number(amount || 0).toLocaleString(undefined, {
+                          minimumFractionDigits: 2,
+                        })}
+                      </Text>
+                      <Text style={styles.transferSuccessRecipient}>
+                        to {selectedRecipient.name}
+                        {`\n`}@{selectedRecipient.username}
+                      </Text>
+
                       <TouchableOpacity
                         style={styles.transferReceiptButton}
                         onPress={() => {
@@ -804,12 +954,26 @@ export default function TransferScreen() {
                           });
                         }}
                       >
-                        <Ionicons name="receipt-outline" size={19} color={theme.accent} />
-                        <Text style={styles.transferReceiptText}>View Receipt</Text>
+                        <Ionicons
+                          name="receipt-outline"
+                          size={19}
+                          color={theme.accent}
+                        />
+                        <Text style={styles.transferReceiptText}>
+                          View Receipt
+                        </Text>
                       </TouchableOpacity>
-                      
-                      <TouchableOpacity style={styles.transferHomeButton} onPress={() => { closeTransferFlow(); router.replace("/"); }}>
-                        <Text style={styles.transferHomeText}>Back to Home</Text>
+
+                      <TouchableOpacity
+                        style={styles.transferHomeButton}
+                        onPress={() => {
+                          closeTransferFlow();
+                          router.replace("/");
+                        }}
+                      >
+                        <Text style={styles.transferHomeText}>
+                          Back to Home
+                        </Text>
                       </TouchableOpacity>
                     </ScrollView>
                   )}
@@ -823,1034 +987,1039 @@ export default function TransferScreen() {
   );
 }
 
-const getStyles = (theme: any) => StyleSheet.create({
-  safeArea: {
-    flex: 1,
-    backgroundColor: theme.background,
-  },
-  header: {
-    height: 56,
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    paddingHorizontal: 16,
-    borderBottomWidth: 1,
-    borderColor: "rgba(91, 78, 145, 0.08)",
-    backgroundColor: theme.surface,
-  },
-  backButton: {
-    padding: 4,
-  },
-  headerTitle: {
-    fontSize: 16,
-    fontWeight: "700",
-    color: theme.textPrimary,
-    letterSpacing: -0.3,
-  },
-  headerQRButton: {
-    padding: 6,
-    borderRadius: 10,
-    backgroundColor: theme.accentSoft,
-  },
-  scrollContainer: {
-    padding: 20,
-    paddingBottom: 40,
-  },
-  sectionTitle: {
-    fontSize: 14,
-    fontWeight: "700",
-    color: theme.textSecondary,
-    textTransform: "uppercase",
-    letterSpacing: 0.8,
-    marginBottom: 12,
-  },
-  actionRow: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    marginBottom: 24,
-    gap: 12,
-  },
-  actionCard: {
-    flex: 1,
-    alignItems: "center",
-    backgroundColor: theme.surface,
-    borderRadius: 20,
-    paddingVertical: 14,
-    borderWidth: 1,
-    borderColor: theme.border,
-    shadowColor: "#3A2E53",
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.05,
-    shadowRadius: 10,
-    elevation: 2,
-  },
-  actionIconContainer: {
-    width: 48,
-    height: 48,
-    borderRadius: 24,
-    backgroundColor: theme.accentSoft,
-    justifyContent: "center",
-    alignItems: "center",
-    marginBottom: 8,
-  },
-  actionText: {
-    fontSize: 12,
-    fontWeight: "600",
-    color: theme.textPrimary,
-  },
-  recentsRow: {
-    gap: 12,
-    paddingBottom: 24,
-  },
-  recentRecipientCard: {
-    alignItems: "center",
-    backgroundColor: theme.surface,
-    borderRadius: 20,
-    padding: 12,
-    width: 82,
-    borderWidth: 1,
-    borderColor: theme.border,
-    shadowColor: "#3A2E53",
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.05,
-    shadowRadius: 10,
-    elevation: 2,
-  },
-  avatarBox: {
-    width: 46,
-    height: 46,
-    borderRadius: 23,
-    justifyContent: "center",
-    alignItems: "center",
-    marginBottom: 8,
-  },
-  avatarText: {
-    fontSize: 15,
-    fontWeight: "700",
-  },
-  recentRecName: {
-    fontSize: 11,
-    color: theme.textPrimary,
-    fontWeight: "600",
-    textAlign: "center",
-  },
-  recentRecSubtitle: {
-    fontSize: 9,
-    color: theme.textSecondary,
-    marginTop: 2,
-    textAlign: "center",
-  },
-  filterSection: {
-    marginBottom: 16,
-    gap: 12,
-  },
-  chipsContainer: {
-    flexDirection: "row",
-    gap: 8,
-  },
-  filterChip: {
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    borderRadius: 18,
-    backgroundColor: theme.surface,
-    borderWidth: 1,
-    borderColor: theme.border,
-  },
-  filterChipActive: {
-    backgroundColor: theme.accent,
-    borderColor: theme.accent,
-  },
-  filterChipText: {
-    fontSize: 12,
-    fontWeight: "600",
-    color: theme.textSecondary,
-  },
-  filterChipTextActive: {
-    color: "#FFFFFF",
-  },
-  searchBarWrapper: {
-    flexDirection: "row",
-    alignItems: "center",
-    backgroundColor: theme.surface,
-    borderWidth: 1,
-    borderColor: theme.border,
-    borderRadius: 16,
-    paddingHorizontal: 12,
-    height: 46,
-  },
-  searchIcon: {
-    marginRight: 8,
-  },
-  searchInput: {
-    flex: 1,
-    fontSize: 13,
-    color: theme.textPrimary,
-  },
-  contactsContainer: {
-    backgroundColor: theme.surface,
-    borderRadius: 24,
-    padding: 12,
-    borderWidth: 1,
-    borderColor: theme.border,
-    gap: 12,
-  },
-  contactItem: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    paddingVertical: 8,
-    paddingHorizontal: 4,
-  },
-  contactLeft: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 12,
-  },
-  contactAvatar: {
-    width: 42,
-    height: 42,
-    borderRadius: 21,
-    justifyContent: "center",
-    alignItems: "center",
-  },
-  contactAvatarText: {
-    fontSize: 14,
-    fontWeight: "700",
-  },
-  contactName: {
-    fontSize: 13,
-    fontWeight: "600",
-    color: theme.textPrimary,
-  },
-  contactSub: {
-    fontSize: 10,
-    color: theme.textSecondary,
-    marginTop: 2,
-  },
-  emptyText: {
-    color: theme.textSecondary,
-    fontSize: 12,
-    textAlign: "center",
-    marginVertical: 20,
-  },
+const getStyles = (theme: any) =>
+  StyleSheet.create({
+    safeArea: {
+      flex: 1,
+      backgroundColor: theme.background,
+    },
+    header: {
+      height: 56,
+      flexDirection: "row",
+      alignItems: "center",
+      justifyContent: "space-between",
+      paddingHorizontal: 16,
+      borderBottomWidth: 1,
+      borderColor: "rgba(91, 78, 145, 0.08)",
+      backgroundColor: theme.surface,
+    },
+    backButton: {
+      padding: 4,
+    },
+    headerTitle: {
+      fontSize: 16,
+      fontWeight: "700",
+      color: theme.textPrimary,
+      letterSpacing: -0.3,
+    },
+    headerQRButton: {
+      padding: 6,
+      borderRadius: 10,
+      backgroundColor: theme.accentSoft,
+    },
+    scrollContainer: {
+      padding: 20,
+      paddingBottom: 40,
+    },
+    sectionTitle: {
+      fontSize: 14,
+      fontWeight: "700",
+      color: theme.textSecondary,
+      textTransform: "uppercase",
+      letterSpacing: 0.8,
+      marginBottom: 12,
+    },
+    actionRow: {
+      flexDirection: "row",
+      justifyContent: "space-between",
+      marginBottom: 24,
+      gap: 12,
+    },
+    actionCard: {
+      flex: 1,
+      alignItems: "center",
+      backgroundColor: theme.surface,
+      borderRadius: 20,
+      paddingVertical: 14,
+      borderWidth: 1,
+      borderColor: theme.border,
+      shadowColor: "#3A2E53",
+      shadowOffset: { width: 0, height: 4 },
+      shadowOpacity: 0.05,
+      shadowRadius: 10,
+      elevation: 2,
+    },
+    actionIconContainer: {
+      width: 48,
+      height: 48,
+      borderRadius: 24,
+      backgroundColor: theme.accentSoft,
+      justifyContent: "center",
+      alignItems: "center",
+      marginBottom: 8,
+    },
+    actionText: {
+      fontSize: 12,
+      fontWeight: "600",
+      color: theme.textPrimary,
+    },
+    recentsRow: {
+      gap: 12,
+      paddingBottom: 24,
+    },
+    recentRecipientCard: {
+      alignItems: "center",
+      backgroundColor: theme.surface,
+      borderRadius: 20,
+      padding: 12,
+      width: 82,
+      borderWidth: 1,
+      borderColor: theme.border,
+      shadowColor: "#3A2E53",
+      shadowOffset: { width: 0, height: 4 },
+      shadowOpacity: 0.05,
+      shadowRadius: 10,
+      elevation: 2,
+    },
+    avatarBox: {
+      width: 46,
+      height: 46,
+      borderRadius: 23,
+      justifyContent: "center",
+      alignItems: "center",
+      marginBottom: 8,
+    },
+    avatarText: {
+      fontSize: 15,
+      fontWeight: "700",
+    },
+    recentRecName: {
+      fontSize: 11,
+      color: theme.textPrimary,
+      fontWeight: "600",
+      textAlign: "center",
+    },
+    recentRecSubtitle: {
+      fontSize: 9,
+      color: theme.textSecondary,
+      marginTop: 2,
+      textAlign: "center",
+    },
+    filterSection: {
+      marginBottom: 16,
+      gap: 12,
+    },
+    chipsContainer: {
+      flexDirection: "row",
+      gap: 8,
+    },
+    filterChip: {
+      paddingHorizontal: 16,
+      paddingVertical: 8,
+      borderRadius: 18,
+      backgroundColor: theme.surface,
+      borderWidth: 1,
+      borderColor: theme.border,
+    },
+    filterChipActive: {
+      backgroundColor: theme.accent,
+      borderColor: theme.accent,
+    },
+    filterChipText: {
+      fontSize: 12,
+      fontWeight: "600",
+      color: theme.textSecondary,
+    },
+    filterChipTextActive: {
+      color: "#FFFFFF",
+    },
+    searchBarWrapper: {
+      flexDirection: "row",
+      alignItems: "center",
+      backgroundColor: theme.surface,
+      borderWidth: 1,
+      borderColor: theme.border,
+      borderRadius: 16,
+      paddingHorizontal: 12,
+      height: 46,
+    },
+    searchIcon: {
+      marginRight: 8,
+    },
+    searchInput: {
+      flex: 1,
+      fontSize: 13,
+      color: theme.textPrimary,
+    },
+    contactsContainer: {
+      backgroundColor: theme.surface,
+      borderRadius: 24,
+      padding: 12,
+      borderWidth: 1,
+      borderColor: theme.border,
+      gap: 12,
+    },
+    contactItem: {
+      flexDirection: "row",
+      alignItems: "center",
+      justifyContent: "space-between",
+      paddingVertical: 8,
+      paddingHorizontal: 4,
+    },
+    contactLeft: {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: 12,
+    },
+    contactAvatar: {
+      width: 42,
+      height: 42,
+      borderRadius: 21,
+      justifyContent: "center",
+      alignItems: "center",
+    },
+    contactAvatarText: {
+      fontSize: 14,
+      fontWeight: "700",
+    },
+    contactName: {
+      fontSize: 13,
+      fontWeight: "600",
+      color: theme.textPrimary,
+    },
+    contactSub: {
+      fontSize: 10,
+      color: theme.textSecondary,
+      marginTop: 2,
+    },
+    emptyText: {
+      color: theme.textSecondary,
+      fontSize: 12,
+      textAlign: "center",
+      marginVertical: 20,
+    },
 
-  // Viewfinder Simulator
-  scannerOverlay: {
-    flex: 1,
-    backgroundColor: "#111116",
-    justifyContent: "space-between",
-  },
-  scannerHeader: {
-    height: 56,
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    paddingHorizontal: 16,
-  },
-  scannerCloseButton: {
-    padding: 6,
-  },
-  scannerHeaderTitle: {
-    color: "#FFFFFF",
-    fontSize: 16,
-    fontWeight: "700",
-  },
-  viewfinderContainer: {
-    alignItems: "center",
-    justifyContent: "center",
-    paddingHorizontal: 40,
-    flex: 1,
-  },
-  viewfinderInstructions: {
-    color: "#CCCCCC",
-    fontSize: 13,
-    marginBottom: 24,
-    textAlign: "center",
-  },
-  viewfinderFrame: {
-    width: 250,
-    height: 250,
-    position: "relative",
-    borderWidth: 1,
-    borderColor: "rgba(255, 255, 255, 0.08)",
-    overflow: "hidden",
-    borderRadius: 24,
-    backgroundColor: "#111116",
-  },
-  cameraPermissionContainer: {
-    flex: 1,
-    justifyContent: "center",
-    alignItems: "center",
-    paddingHorizontal: 24,
-    backgroundColor: "rgba(17, 17, 22, 0.95)",
-  },
-  cameraPermissionText: {
-    color: "#FFFFFF",
-    fontSize: 13,
-    textAlign: "center",
-    lineHeight: 20,
-    marginBottom: 14,
-  },
-  cameraPermissionButton: {
-    backgroundColor: "#5B4E91",
-    borderRadius: 999,
-    paddingHorizontal: 16,
-    paddingVertical: 10,
-  },
-  cameraPermissionButtonText: {
-    color: "#FFFFFF",
-    fontSize: 13,
-    fontWeight: "700",
-  },
-  scannerLaserLine: {
-    height: 3,
-    backgroundColor: "#5B4E91",
-    width: "100%",
-    position: "absolute",
-    shadowColor: "#5B4E91",
-    shadowOffset: { width: 0, height: 0 },
-    shadowOpacity: 0.8,
-    shadowRadius: 8,
-  },
-  viewfinderCorner: {
-    position: "absolute",
-    width: 20,
-    height: 20,
-    borderColor: "#5B4E91",
-  },
-  cornerTL: {
-    top: -2,
-    left: -2,
-    borderTopWidth: 4,
-    borderLeftWidth: 4,
-    borderTopLeftRadius: 12,
-  },
-  cornerTR: {
-    top: -2,
-    right: -2,
-    borderTopWidth: 4,
-    borderRightWidth: 4,
-    borderTopRightRadius: 12,
-  },
-  cornerBL: {
-    bottom: -2,
-    left: -2,
-    borderBottomWidth: 4,
-    borderLeftWidth: 4,
-    borderBottomLeftRadius: 12,
-  },
-  cornerBR: {
-    bottom: -2,
-    right: -2,
-    borderBottomWidth: 4,
-    borderRightWidth: 4,
-    borderBottomRightRadius: 12,
-  },
-  viewfinderSubtext: {
-    color: "#8E8E93",
-    fontSize: 11,
-    textAlign: "center",
-    marginTop: 24,
-    lineHeight: 16,
-  },
-  simulatorSection: {
-    padding: 20,
-    backgroundColor: "#19171F",
-    borderTopLeftRadius: 24,
-    borderTopRightRadius: 24,
-  },
-  simulatorTitle: {
-    color: "#5B4E91",
-    fontSize: 12,
-    fontWeight: "700",
-    marginBottom: 10,
-  },
-  simulatorList: {
-    gap: 8,
-    paddingBottom: 4,
-  },
-  simulatorChip: {
-    backgroundColor: "rgba(91, 78, 145, 0.12)",
-    borderWidth: 1,
-    borderColor: "rgba(91, 78, 145, 0.3)",
-    borderRadius: 14,
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-  },
-  simulatorChipText: {
-    color: "#5B4E91",
-    fontSize: 11,
-    fontWeight: "600",
-  },
+    // Viewfinder Simulator
+    scannerOverlay: {
+      flex: 1,
+      backgroundColor: "#111116",
+      justifyContent: "space-between",
+    },
+    scannerHeader: {
+      height: 56,
+      flexDirection: "row",
+      alignItems: "center",
+      justifyContent: "space-between",
+      paddingHorizontal: 16,
+    },
+    scannerCloseButton: {
+      padding: 6,
+    },
+    scannerHeaderTitle: {
+      color: "#FFFFFF",
+      fontSize: 16,
+      fontWeight: "700",
+    },
+    viewfinderContainer: {
+      alignItems: "center",
+      justifyContent: "center",
+      paddingHorizontal: 40,
+      flex: 1,
+    },
+    viewfinderInstructions: {
+      color: "#CCCCCC",
+      fontSize: 13,
+      marginBottom: 24,
+      textAlign: "center",
+    },
+    viewfinderFrame: {
+      width: 250,
+      height: 250,
+      position: "relative",
+      borderWidth: 1,
+      borderColor: "rgba(255, 255, 255, 0.08)",
+      overflow: "hidden",
+      borderRadius: 24,
+      backgroundColor: "#111116",
+    },
+    cameraPermissionContainer: {
+      flex: 1,
+      justifyContent: "center",
+      alignItems: "center",
+      paddingHorizontal: 24,
+      backgroundColor: "rgba(17, 17, 22, 0.95)",
+    },
+    cameraPermissionText: {
+      color: "#FFFFFF",
+      fontSize: 13,
+      textAlign: "center",
+      lineHeight: 20,
+      marginBottom: 14,
+    },
+    cameraPermissionButton: {
+      backgroundColor: "#5B4E91",
+      borderRadius: 999,
+      paddingHorizontal: 16,
+      paddingVertical: 10,
+    },
+    cameraPermissionButtonText: {
+      color: "#FFFFFF",
+      fontSize: 13,
+      fontWeight: "700",
+    },
+    scannerLaserLine: {
+      height: 3,
+      backgroundColor: "#5B4E91",
+      width: "100%",
+      position: "absolute",
+      shadowColor: "#5B4E91",
+      shadowOffset: { width: 0, height: 0 },
+      shadowOpacity: 0.8,
+      shadowRadius: 8,
+    },
+    viewfinderCorner: {
+      position: "absolute",
+      width: 20,
+      height: 20,
+      borderColor: "#5B4E91",
+    },
+    cornerTL: {
+      top: -2,
+      left: -2,
+      borderTopWidth: 4,
+      borderLeftWidth: 4,
+      borderTopLeftRadius: 12,
+    },
+    cornerTR: {
+      top: -2,
+      right: -2,
+      borderTopWidth: 4,
+      borderRightWidth: 4,
+      borderTopRightRadius: 12,
+    },
+    cornerBL: {
+      bottom: -2,
+      left: -2,
+      borderBottomWidth: 4,
+      borderLeftWidth: 4,
+      borderBottomLeftRadius: 12,
+    },
+    cornerBR: {
+      bottom: -2,
+      right: -2,
+      borderBottomWidth: 4,
+      borderRightWidth: 4,
+      borderBottomRightRadius: 12,
+    },
+    viewfinderSubtext: {
+      color: "#8E8E93",
+      fontSize: 11,
+      textAlign: "center",
+      marginTop: 24,
+      lineHeight: 16,
+    },
+    simulatorSection: {
+      padding: 20,
+      backgroundColor: "#19171F",
+      borderTopLeftRadius: 24,
+      borderTopRightRadius: 24,
+    },
+    simulatorTitle: {
+      color: "#5B4E91",
+      fontSize: 12,
+      fontWeight: "700",
+      marginBottom: 10,
+    },
+    simulatorList: {
+      gap: 8,
+      paddingBottom: 4,
+    },
+    simulatorChip: {
+      backgroundColor: "rgba(91, 78, 145, 0.12)",
+      borderWidth: 1,
+      borderColor: "rgba(91, 78, 145, 0.3)",
+      borderRadius: 14,
+      paddingHorizontal: 12,
+      paddingVertical: 6,
+    },
+    simulatorChipText: {
+      color: "#5B4E91",
+      fontSize: 11,
+      fontWeight: "600",
+    },
 
-  // Modal styling
-  modalBackdrop: {
-    flex: 1,
-    backgroundColor: "rgba(0, 0, 0, 0.4)",
-    justifyContent: "flex-end",
-  },
-  modalContent: {
-    backgroundColor: theme.surface,
-    borderTopLeftRadius: 28,
-    borderTopRightRadius: 28,
-    paddingTop: 8,
-    paddingBottom: Platform.OS === "ios" ? 34 : 20,
-    maxHeight: "92%",
-    paddingHorizontal: 0,
-  },
-  modalPullBar: {
-    width: 36,
-    height: 5,
-    borderRadius: 2.5,
-    backgroundColor: theme.border,
-    alignSelf: "center",
-    marginBottom: 12,
-  },
-  modalHeader: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    paddingHorizontal: 20,
-    paddingBottom: 16,
-    borderBottomWidth: 1,
-    borderColor: theme.border,
-  },
-  modalTitle: {
-    fontSize: 16,
-    fontWeight: "700",
-    color: theme.textPrimary,
-  },
-  modalBody: {
-    padding: 20,
-  },
-  selectedRecipientHeader: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 12,
-    backgroundColor: theme.mutedBackground,
-    borderRadius: 20,
-    padding: 14,
-    borderWidth: 1,
-    borderColor: theme.border,
-    marginBottom: 16,
-  },
-  selectedAvatar: {
-    width: 48,
-    height: 48,
-    borderRadius: 24,
-    justifyContent: "center",
-    alignItems: "center",
-  },
-  selectedAvatarText: {
-    fontSize: 16,
-    fontWeight: "700",
-  },
-  selectedName: {
-    fontSize: 14,
-    fontWeight: "600",
-    color: theme.textPrimary,
-  },
-  selectedUsername: {
-    fontSize: 11,
-    color: theme.accentSecondary,
-    fontWeight: "600",
-    marginTop: 2,
-  },
-  selectedBank: {
-    fontSize: 10,
-    color: theme.textSecondary,
-    marginTop: 2,
-  },
-  modalBalanceRow: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    marginBottom: 16,
-  },
-  modalBalanceLabel: {
-    fontSize: 12,
-    color: theme.textSecondary,
-  },
-  modalBalanceValue: {
-    fontSize: 13,
-    fontWeight: "700",
-    color: theme.textPrimary,
-  },
-  inputLabel: {
-    fontSize: 12,
-    fontWeight: "600",
-    color: theme.textSecondary,
-    marginBottom: 8,
-  },
-  modalAmountWrapper: {
-    flexDirection: "row",
-    alignItems: "center",
-    backgroundColor: theme.mutedBackground,
-    borderRadius: 16,
-    paddingHorizontal: 16,
-    height: 56,
-  },
-  modalAmountWrapperError: {
-    borderWidth: 1.5,
-    borderColor: "#EF4444",
-  },
-  modalCurrencySymbol: {
-    fontSize: 20,
-    fontWeight: "600",
-    color: theme.textPrimary,
-    marginRight: 4,
-  },
-  modalAmountInput: {
-    flex: 1,
-    fontSize: 20,
-    fontWeight: "600",
-    color: theme.textPrimary,
-  },
-  modalErrorText: {
-    color: "#EF4444",
-    fontSize: 11,
-    fontWeight: "500",
-    marginTop: 6,
-    marginLeft: 4,
-  },
-  modalMemoWrapper: {
-    flexDirection: "row",
-    alignItems: "center",
-    backgroundColor: theme.mutedBackground,
-    borderRadius: 16,
-    paddingHorizontal: 14,
-    height: 48,
-  },
-  memoIcon: {
-    marginRight: 8,
-  },
-  modalHelperText: {
-    fontSize: 12,
-    color: theme.textSecondary,
-    marginBottom: 10,
-    lineHeight: 18,
-  },
-  modalInputWrapper: {
-    flexDirection: "row",
-    alignItems: "center",
-    backgroundColor: theme.mutedBackground,
-    borderRadius: 16,
-    borderWidth: 1,
-    borderColor: theme.border,
-    paddingHorizontal: 12,
-    height: 52,
-  },
-  modalInputIcon: {
-    marginRight: 8,
-  },
-  modalInputField: {
-    flex: 1,
-    fontSize: 14,
-    color: theme.textPrimary,
-    paddingVertical: 0,
-  },
-  modalConfirmButton: {
-    backgroundColor: theme.accent,
-    borderRadius: 18,
-    height: 52,
-    justifyContent: "center",
-    alignItems: "center",
-    marginTop: 16,
-    shadowColor: theme.accent,
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.18,
-    shadowRadius: 10,
-    elevation: 3,
-  },
-  modalConfirmButtonDisabled: {
-    backgroundColor: "#CCCCCC",
-    shadowOpacity: 0,
-    elevation: 0,
-  },
-  modalConfirmButtonText: {
-    color: "#FFFFFF",
-    fontSize: 14,
-    fontWeight: "700",
-  },
-  quickAmountsRow: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-    gap: 8,
-    marginTop: 12,
-  },
-  quickAmountChip: {
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    backgroundColor: theme.surfaceSoft,
-    borderRadius: 14,
-    marginRight: 8,
-  },
-  quickAmountText: {
-    fontSize: 12,
-    fontWeight: "700",
-    color: theme.textPrimary,
-  },
-  categoryRow: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-    gap: 8,
-    marginTop: 8,
-  },
-  categoryChip: {
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    borderRadius: 14,
-    backgroundColor: theme.surfaceSoft,
-    marginRight: 8,
-  },
-  categoryChipActive: {
-    backgroundColor: theme.accent,
-  },
-  addCustomCategoryButton: {
-    marginTop: 10,
-    alignSelf: "flex-start",
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    borderRadius: 999,
-    backgroundColor: theme.accentSoft,
-  },
-  addCustomCategoryButtonText: {
-    color: theme.accent,
-    fontSize: 12,
-    fontWeight: "700",
-  },
-  categoryLabelRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    marginTop: 16,
-  },
-  categoryManageButton: {
-    width: 28,
-    height: 28,
-    borderRadius: 14,
-    backgroundColor: theme.surfaceSoft,
-    justifyContent: "center",
-    alignItems: "center",
-    marginLeft: 8,
-  },
-  categoryManageButtonText: {
-    color: theme.textPrimary,
-    fontSize: 16,
-    fontWeight: "700",
-  },
-  customCategoriesList: {
-    marginTop: 10,
-    backgroundColor: theme.mutedBackground,
-    borderRadius: 14,
-    padding: 10,
-  },
-  customCategoryRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    paddingVertical: 6,
-  },
-  customCategoryText: {
-    fontSize: 13,
-    color: theme.textPrimary,
-    fontWeight: "600",
-  },
-  deleteCategoryButton: {
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 999,
-    backgroundColor: "#FEE2E2",
-  },
-  deleteCategoryButtonText: {
-    color: "#DC2626",
-    fontSize: 13,
-    fontWeight: "700",
-  },
-  clearSelectionButton: {
-    marginTop: 8,
-    alignSelf: "flex-start",
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-    borderRadius: 999,
-    backgroundColor: theme.surfaceSoft,
-  },
-  clearSelectionButtonText: {
-    color: theme.textSecondary,
-    fontSize: 11,
-    fontWeight: "700",
-  },
-  customCategoryInputWrapper: {
-    marginTop: 12,
-    backgroundColor: theme.mutedBackground,
-    borderRadius: 16,
-    paddingHorizontal: 14,
-    paddingVertical: 12,
-  },
-  customCategoryInput: {
-    fontSize: 14,
-    color: theme.textPrimary,
-    paddingVertical: 0,
-  },
-  categoryText: {
-    fontSize: 12,
-    color: theme.textPrimary,
-    fontWeight: "600",
-  },
-  categoryTextActive: {
-    color: "#FFFFFF",
-  },
-  addCategoryChip: {
-    backgroundColor: "#F3E8FF",
-    borderWidth: 1,
-    borderColor: "#C084FC",
-  },
-  addCategoryChipActive: {
-    backgroundColor: "#7C3AED",
-    borderColor: "#7C3AED",
-  },
-  addCategoryChipText: {
-    color: "#6D28D9",
-    fontSize: 16,
-    fontWeight: "800",
-  },
-  addCategoryChipTextActive: {
-    color: "#FFFFFF",
-  },
-  fullScreenModal: {
-    flex: 1,
-    backgroundColor: theme.background,
-  },
-  fullScreenKeyboardAvoider: {
-    flex: 1,
-  },
-  transferSheet: {
-    flex: 1,
-    backgroundColor: theme.background,
-  },
-  transferHeader: {
-    height: 56,
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    paddingHorizontal: 16,
-    borderBottomWidth: 1,
-    borderColor: theme.border,
-    backgroundColor: theme.surface,
-  },
-  transferHeaderSpacer: {
-    width: 32,
-  },
-  transferTitle: {
-    fontSize: 16,
-    fontWeight: "700",
-    color: theme.textPrimary,
-  },
-  transferCancelButton: {
-    padding: 8,
-  },
-  transferCancelText: {
-    fontSize: 14,
-    fontWeight: "600",
-    color: theme.textSecondary,
-  },
-  transferRecipientCard: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 12,
-    marginHorizontal: 20,
-    marginTop: 16,
-    padding: 14,
-    backgroundColor: theme.surface,
-    borderRadius: 16,
-    borderWidth: 1,
-    borderColor: theme.border,
-  },
-  transferAvatar: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    justifyContent: "center",
-    alignItems: "center",
-  },
-  transferAvatarText: {
-    fontSize: 15,
-    fontWeight: "700",
-  },
-  transferRecipientName: {
-    fontSize: 14,
-    fontWeight: "700",
-    color: theme.textPrimary,
-  },
-  transferRecipientHandle: {
-    fontSize: 11,
-    fontWeight: "600",
-    color: theme.textSecondary,
-    marginTop: 2,
-  },
-  transferBody: {
-    padding: 20,
-    flex: 1,
-  },
-  transferLabel: {
-    fontSize: 13,
-    fontWeight: "600",
-    color: theme.textSecondary,
-    marginBottom: 8,
-  },
-  transferAmountRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    backgroundColor: theme.surface,
-    borderRadius: 16,
-    borderWidth: 1,
-    borderColor: theme.border,
-    paddingHorizontal: 16,
-    height: 64,
-    marginBottom: 12,
-  },
-  transferAmountError: {
-    borderColor: theme.danger || "#EF4444",
-  },
-  transferCurrency: {
-    fontSize: 24,
-    fontWeight: "700",
-    color: theme.textPrimary,
-    marginRight: 6,
-  },
-  transferAmountInput: {
-    flex: 1,
-    fontSize: 24,
-    fontWeight: "700",
-    color: theme.textPrimary,
-  },
-  transferQuickRow: {
-    flexDirection: "row",
-    gap: 8,
-    marginBottom: 16,
-  },
-  transferQuickChip: {
-    paddingHorizontal: 14,
-    paddingVertical: 8,
-    backgroundColor: theme.surfaceSoft,
-    borderRadius: 12,
-  },
-  transferQuickText: {
-    fontSize: 12,
-    fontWeight: "700",
-    color: theme.textPrimary,
-  },
-  transferErrorText: {
-    color: theme.danger || "#EF4444",
-    fontSize: 11,
-    fontWeight: "600",
-    marginTop: -8,
-    marginBottom: 16,
-    marginLeft: 4,
-  },
-  transferOptional: {
-    fontWeight: "400",
-    color: theme.textSecondary,
-  },
-  transferNoteInput: {
-    backgroundColor: theme.surface,
-    borderRadius: 16,
-    borderWidth: 1,
-    borderColor: theme.border,
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    fontSize: 14,
-    color: theme.textPrimary,
-    minHeight: 80,
-    textAlignVertical: "top",
-  },
-  transferCharacterCount: {
-    fontSize: 10,
-    fontWeight: "600",
-    color: theme.textSecondary,
-    textAlign: "right",
-    marginTop: 4,
-    marginBottom: 20,
-  },
-  transferPrimaryButton: {
-    backgroundColor: theme.accent,
-    borderRadius: 16,
-    height: 52,
-    justifyContent: "center",
-    alignItems: "center",
-    marginTop: 10,
-    shadowColor: theme.accent,
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.15,
-    shadowRadius: 8,
-    elevation: 3,
-  },
-  transferPrimaryText: {
-    color: "#FFFFFF",
-    fontSize: 15,
-    fontWeight: "700",
-  },
-  transferReviewRow: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    paddingVertical: 14,
-    borderBottomWidth: 1,
-    borderColor: theme.border,
-  },
-  transferReviewAmount: {
-    fontSize: 15,
-    fontWeight: "700",
-    color: theme.textPrimary,
-  },
-  transferReviewValue: {
-    fontSize: 14,
-    fontWeight: "600",
-    color: theme.textPrimary,
-  },
-  transferFree: {
-    fontSize: 14,
-    fontWeight: "700",
-    color: theme.success || "#22C55E",
-  },
-  transferTotalRow: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    paddingVertical: 20,
-    marginBottom: 16,
-  },
-  transferTotalLabel: {
-    fontSize: 15,
-    fontWeight: "700",
-    color: theme.textPrimary,
-  },
-  transferTotalAmount: {
-    fontSize: 22,
-    fontWeight: "800",
-    color: theme.textPrimary,
-  },
-  transferSecurity: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 12,
-    backgroundColor: theme.accentSoft,
-    padding: 14,
-    borderRadius: 16,
-    marginBottom: 24,
-  },
-  transferSecurityIcon: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    backgroundColor: theme.surface,
-    justifyContent: "center",
-    alignItems: "center",
-  },
-  transferSecurityTitle: {
-    fontSize: 13,
-    fontWeight: "700",
-    color: theme.accent,
-  },
-  transferSecurityCopy: {
-    fontSize: 11,
-    fontWeight: "500",
-    color: theme.textSecondary,
-    marginTop: 2,
-  },
-  transferSuccessBody: {
-    flexGrow: 1,
-    alignItems: "center",
-    justifyContent: "center",
-    padding: 24,
-    backgroundColor: theme.background,
-  },
-  transferSuccessIconContainer: {
-    width: 100,
-    height: 100,
-    justifyContent: "center",
-    alignItems: "center",
-    marginBottom: 24,
-    position: "relative",
-  },
-  successCircle: {
-    width: 80,
-    height: 80,
-    borderRadius: 40,
-    backgroundColor: "#34A853",
-    justifyContent: "center",
-    alignItems: "center",
-    shadowColor: "#34A853",
-    shadowOffset: { width: 0, height: 6 },
-    shadowOpacity: 0.2,
-    shadowRadius: 10,
-    elevation: 4,
-  },
-  sparkle: {
-    position: "absolute",
-  },
-  transferSuccessTitle: {
-    fontSize: 22,
-    fontWeight: "800",
-    color: theme.textPrimary,
-    marginBottom: 20,
-  },
-  transferSuccessLabel: {
-    fontSize: 13,
-    color: theme.textSecondary,
-    fontWeight: "600",
-    marginBottom: 4,
-  },
-  transferSuccessAmount: {
-    fontSize: 32,
-    fontWeight: "800",
-    color: theme.textPrimary,
-    marginBottom: 12,
-  },
-  transferSuccessRecipient: {
-    fontSize: 14,
-    color: theme.textSecondary,
-    fontWeight: "600",
-    textAlign: "center",
-    lineHeight: 20,
-    marginBottom: 32,
-  },
-  transferReceiptButton: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    gap: 8,
-    borderWidth: 1.5,
-    borderColor: theme.accent,
-    borderRadius: 16,
-    height: 52,
-    width: "100%",
-    marginBottom: 12,
-  },
-  transferReceiptText: {
-    fontSize: 14,
-    fontWeight: "700",
-    color: theme.accent,
-  },
-  transferHomeButton: {
-    backgroundColor: theme.accent,
-    borderRadius: 16,
-    height: 52,
-    width: "100%",
-    justifyContent: "center",
-    alignItems: "center",
-  },
-  transferHomeText: {
-    color: "#FFFFFF",
-    fontSize: 14,
-    fontWeight: "700",
-  },
-  reviewContainer: {
-    position: "absolute",
-    top: 0,
-    left: 0,
-    right: 0,
-    bottom: 0,
-    backgroundColor: theme.background,
-  },
-});
+    // Modal styling
+    modalBackdrop: {
+      flex: 1,
+      backgroundColor: "rgba(0, 0, 0, 0.4)",
+      justifyContent: "flex-end",
+    },
+    modalContent: {
+      backgroundColor: theme.surface,
+      borderTopLeftRadius: 28,
+      borderTopRightRadius: 28,
+      paddingTop: 8,
+      paddingBottom: Platform.OS === "ios" ? 34 : 20,
+      maxHeight: "92%",
+      paddingHorizontal: 0,
+    },
+    modalPullBar: {
+      width: 36,
+      height: 5,
+      borderRadius: 2.5,
+      backgroundColor: theme.border,
+      alignSelf: "center",
+      marginBottom: 12,
+    },
+    modalHeader: {
+      flexDirection: "row",
+      justifyContent: "space-between",
+      alignItems: "center",
+      paddingHorizontal: 20,
+      paddingBottom: 16,
+      borderBottomWidth: 1,
+      borderColor: theme.border,
+    },
+    modalTitle: {
+      fontSize: 16,
+      fontWeight: "700",
+      color: theme.textPrimary,
+    },
+    modalBody: {
+      padding: 20,
+    },
+    selectedRecipientHeader: {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: 12,
+      backgroundColor: theme.mutedBackground,
+      borderRadius: 20,
+      padding: 14,
+      borderWidth: 1,
+      borderColor: theme.border,
+      marginBottom: 16,
+    },
+    selectedAvatar: {
+      width: 48,
+      height: 48,
+      borderRadius: 24,
+      justifyContent: "center",
+      alignItems: "center",
+    },
+    selectedAvatarText: {
+      fontSize: 16,
+      fontWeight: "700",
+    },
+    selectedName: {
+      fontSize: 14,
+      fontWeight: "600",
+      color: theme.textPrimary,
+    },
+    selectedUsername: {
+      fontSize: 11,
+      color: theme.accentSecondary,
+      fontWeight: "600",
+      marginTop: 2,
+    },
+    selectedBank: {
+      fontSize: 10,
+      color: theme.textSecondary,
+      marginTop: 2,
+    },
+    modalBalanceRow: {
+      flexDirection: "row",
+      justifyContent: "space-between",
+      alignItems: "center",
+      marginBottom: 16,
+    },
+    modalBalanceLabel: {
+      fontSize: 12,
+      color: theme.textSecondary,
+    },
+    modalBalanceValue: {
+      fontSize: 13,
+      fontWeight: "700",
+      color: theme.textPrimary,
+    },
+    inputLabel: {
+      fontSize: 12,
+      fontWeight: "600",
+      color: theme.textSecondary,
+      marginBottom: 8,
+    },
+    modalAmountWrapper: {
+      flexDirection: "row",
+      alignItems: "center",
+      backgroundColor: theme.mutedBackground,
+      borderRadius: 16,
+      paddingHorizontal: 16,
+      height: 56,
+    },
+    modalAmountWrapperError: {
+      borderWidth: 1.5,
+      borderColor: "#EF4444",
+    },
+    modalCurrencySymbol: {
+      fontSize: 20,
+      fontWeight: "600",
+      color: theme.textPrimary,
+      marginRight: 4,
+    },
+    modalAmountInput: {
+      flex: 1,
+      fontSize: 20,
+      fontWeight: "600",
+      color: theme.textPrimary,
+    },
+    modalErrorText: {
+      color: "#EF4444",
+      fontSize: 11,
+      fontWeight: "500",
+      marginTop: 6,
+      marginLeft: 4,
+    },
+    modalMemoWrapper: {
+      flexDirection: "row",
+      alignItems: "center",
+      backgroundColor: theme.mutedBackground,
+      borderRadius: 16,
+      paddingHorizontal: 14,
+      height: 48,
+    },
+    memoIcon: {
+      marginRight: 8,
+    },
+    modalHelperText: {
+      fontSize: 12,
+      color: theme.textSecondary,
+      marginBottom: 10,
+      lineHeight: 18,
+    },
+    modalInputWrapper: {
+      flexDirection: "row",
+      alignItems: "center",
+      backgroundColor: theme.mutedBackground,
+      borderRadius: 16,
+      borderWidth: 1,
+      borderColor: theme.border,
+      paddingHorizontal: 12,
+      height: 52,
+    },
+    modalInputIcon: {
+      marginRight: 8,
+    },
+    modalInputField: {
+      flex: 1,
+      fontSize: 14,
+      color: theme.textPrimary,
+      paddingVertical: 0,
+    },
+    modalConfirmButton: {
+      backgroundColor: theme.accent,
+      borderRadius: 18,
+      height: 52,
+      justifyContent: "center",
+      alignItems: "center",
+      marginTop: 16,
+      shadowColor: theme.accent,
+      shadowOffset: { width: 0, height: 4 },
+      shadowOpacity: 0.18,
+      shadowRadius: 10,
+      elevation: 3,
+    },
+    modalConfirmButtonDisabled: {
+      backgroundColor: "#CCCCCC",
+      shadowOpacity: 0,
+      elevation: 0,
+    },
+    modalConfirmButtonText: {
+      color: "#FFFFFF",
+      fontSize: 14,
+      fontWeight: "700",
+    },
+    quickAmountsRow: {
+      flexDirection: "row",
+      flexWrap: "wrap",
+      gap: 8,
+      marginTop: 12,
+    },
+    quickAmountChip: {
+      paddingHorizontal: 12,
+      paddingVertical: 8,
+      backgroundColor: theme.surfaceSoft,
+      borderRadius: 14,
+      marginRight: 8,
+    },
+    quickAmountText: {
+      fontSize: 12,
+      fontWeight: "700",
+      color: theme.textPrimary,
+    },
+    categoryRow: {
+      flexDirection: "row",
+      flexWrap: "wrap",
+      gap: 8,
+      marginTop: 8,
+    },
+    categoryChip: {
+      paddingHorizontal: 12,
+      paddingVertical: 8,
+      borderRadius: 14,
+      backgroundColor: theme.surfaceSoft,
+      marginRight: 8,
+    },
+    categoryChipActive: {
+      backgroundColor: theme.accent,
+    },
+    addCustomCategoryButton: {
+      marginTop: 10,
+      alignSelf: "flex-start",
+      paddingHorizontal: 12,
+      paddingVertical: 8,
+      borderRadius: 999,
+      backgroundColor: theme.accentSoft,
+    },
+    addCustomCategoryButtonText: {
+      color: theme.accent,
+      fontSize: 12,
+      fontWeight: "700",
+    },
+    categoryLabelRow: {
+      flexDirection: "row",
+      alignItems: "center",
+      justifyContent: "space-between",
+      marginTop: 16,
+    },
+    categoryManageButton: {
+      width: 28,
+      height: 28,
+      borderRadius: 14,
+      backgroundColor: theme.surfaceSoft,
+      justifyContent: "center",
+      alignItems: "center",
+      marginLeft: 8,
+    },
+    categoryManageButtonText: {
+      color: theme.textPrimary,
+      fontSize: 16,
+      fontWeight: "700",
+    },
+    customCategoriesList: {
+      marginTop: 10,
+      backgroundColor: theme.mutedBackground,
+      borderRadius: 14,
+      padding: 10,
+    },
+    customCategoryRow: {
+      flexDirection: "row",
+      alignItems: "center",
+      justifyContent: "space-between",
+      paddingVertical: 6,
+    },
+    customCategoryText: {
+      fontSize: 13,
+      color: theme.textPrimary,
+      fontWeight: "600",
+    },
+    deleteCategoryButton: {
+      paddingHorizontal: 8,
+      paddingVertical: 4,
+      borderRadius: 999,
+      backgroundColor: "#FEE2E2",
+    },
+    deleteCategoryButtonText: {
+      color: "#DC2626",
+      fontSize: 13,
+      fontWeight: "700",
+    },
+    clearSelectionButton: {
+      marginTop: 8,
+      alignSelf: "flex-start",
+      paddingHorizontal: 10,
+      paddingVertical: 6,
+      borderRadius: 999,
+      backgroundColor: theme.surfaceSoft,
+    },
+    clearSelectionButtonText: {
+      color: theme.textSecondary,
+      fontSize: 11,
+      fontWeight: "700",
+    },
+    customCategoryInputWrapper: {
+      marginTop: 12,
+      backgroundColor: theme.mutedBackground,
+      borderRadius: 16,
+      paddingHorizontal: 14,
+      paddingVertical: 12,
+    },
+    customCategoryInput: {
+      fontSize: 14,
+      color: theme.textPrimary,
+      paddingVertical: 0,
+    },
+    categoryText: {
+      fontSize: 12,
+      color: theme.textPrimary,
+      fontWeight: "600",
+    },
+    categoryTextActive: {
+      color: "#FFFFFF",
+    },
+    addCategoryChip: {
+      backgroundColor: "#F3E8FF",
+      borderWidth: 1,
+      borderColor: "#C084FC",
+    },
+    addCategoryChipActive: {
+      backgroundColor: "#7C3AED",
+      borderColor: "#7C3AED",
+    },
+    addCategoryChipText: {
+      color: "#6D28D9",
+      fontSize: 16,
+      fontWeight: "800",
+    },
+    addCategoryChipTextActive: {
+      color: "#FFFFFF",
+    },
+    fullScreenModal: {
+      flex: 1,
+      backgroundColor: theme.background,
+    },
+    fullScreenKeyboardAvoider: {
+      flex: 1,
+    },
+    fullScreenModalContent: {
+      flex: 1,
+      backgroundColor: theme.background,
+    },
+    transferSheet: {
+      flex: 1,
+      backgroundColor: theme.background,
+    },
+    transferHeader: {
+      height: 56,
+      flexDirection: "row",
+      alignItems: "center",
+      justifyContent: "space-between",
+      paddingHorizontal: 16,
+      borderBottomWidth: 1,
+      borderColor: theme.border,
+      backgroundColor: theme.surface,
+    },
+    transferHeaderSpacer: {
+      width: 32,
+    },
+    transferTitle: {
+      fontSize: 16,
+      fontWeight: "700",
+      color: theme.textPrimary,
+    },
+    transferCancelButton: {
+      padding: 8,
+    },
+    transferCancelText: {
+      fontSize: 14,
+      fontWeight: "600",
+      color: theme.textSecondary,
+    },
+    transferRecipientCard: {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: 12,
+      marginHorizontal: 20,
+      marginTop: 16,
+      padding: 14,
+      backgroundColor: theme.surface,
+      borderRadius: 16,
+      borderWidth: 1,
+      borderColor: theme.border,
+    },
+    transferAvatar: {
+      width: 44,
+      height: 44,
+      borderRadius: 22,
+      justifyContent: "center",
+      alignItems: "center",
+    },
+    transferAvatarText: {
+      fontSize: 15,
+      fontWeight: "700",
+    },
+    transferRecipientName: {
+      fontSize: 14,
+      fontWeight: "700",
+      color: theme.textPrimary,
+    },
+    transferRecipientHandle: {
+      fontSize: 11,
+      fontWeight: "600",
+      color: theme.textSecondary,
+      marginTop: 2,
+    },
+    transferBody: {
+      padding: 20,
+      flex: 1,
+    },
+    transferLabel: {
+      fontSize: 13,
+      fontWeight: "600",
+      color: theme.textSecondary,
+      marginBottom: 8,
+    },
+    transferAmountRow: {
+      flexDirection: "row",
+      alignItems: "center",
+      backgroundColor: theme.surface,
+      borderRadius: 16,
+      borderWidth: 1,
+      borderColor: theme.border,
+      paddingHorizontal: 16,
+      height: 64,
+      marginBottom: 12,
+    },
+    transferAmountError: {
+      borderColor: theme.danger || "#EF4444",
+    },
+    transferCurrency: {
+      fontSize: 24,
+      fontWeight: "700",
+      color: theme.textPrimary,
+      marginRight: 6,
+    },
+    transferAmountInput: {
+      flex: 1,
+      fontSize: 24,
+      fontWeight: "700",
+      color: theme.textPrimary,
+    },
+    transferQuickRow: {
+      flexDirection: "row",
+      gap: 8,
+      marginBottom: 16,
+    },
+    transferQuickChip: {
+      paddingHorizontal: 14,
+      paddingVertical: 8,
+      backgroundColor: theme.surfaceSoft,
+      borderRadius: 12,
+    },
+    transferQuickText: {
+      fontSize: 12,
+      fontWeight: "700",
+      color: theme.textPrimary,
+    },
+    transferErrorText: {
+      color: theme.danger || "#EF4444",
+      fontSize: 11,
+      fontWeight: "600",
+      marginTop: -8,
+      marginBottom: 16,
+      marginLeft: 4,
+    },
+    transferOptional: {
+      fontWeight: "400",
+      color: theme.textSecondary,
+    },
+    transferNoteInput: {
+      backgroundColor: theme.surface,
+      borderRadius: 16,
+      borderWidth: 1,
+      borderColor: theme.border,
+      paddingHorizontal: 16,
+      paddingVertical: 12,
+      fontSize: 14,
+      color: theme.textPrimary,
+      minHeight: 80,
+      textAlignVertical: "top",
+    },
+    transferCharacterCount: {
+      fontSize: 10,
+      fontWeight: "600",
+      color: theme.textSecondary,
+      textAlign: "right",
+      marginTop: 4,
+      marginBottom: 20,
+    },
+    transferPrimaryButton: {
+      backgroundColor: theme.accent,
+      borderRadius: 16,
+      height: 52,
+      justifyContent: "center",
+      alignItems: "center",
+      marginTop: 10,
+      shadowColor: theme.accent,
+      shadowOffset: { width: 0, height: 4 },
+      shadowOpacity: 0.15,
+      shadowRadius: 8,
+      elevation: 3,
+    },
+    transferPrimaryText: {
+      color: "#FFFFFF",
+      fontSize: 15,
+      fontWeight: "700",
+    },
+    transferReviewRow: {
+      flexDirection: "row",
+      justifyContent: "space-between",
+      alignItems: "center",
+      paddingVertical: 14,
+      borderBottomWidth: 1,
+      borderColor: theme.border,
+    },
+    transferReviewAmount: {
+      fontSize: 15,
+      fontWeight: "700",
+      color: theme.textPrimary,
+    },
+    transferReviewValue: {
+      fontSize: 14,
+      fontWeight: "600",
+      color: theme.textPrimary,
+    },
+    transferFree: {
+      fontSize: 14,
+      fontWeight: "700",
+      color: theme.success || "#22C55E",
+    },
+    transferTotalRow: {
+      flexDirection: "row",
+      justifyContent: "space-between",
+      alignItems: "center",
+      paddingVertical: 20,
+      marginBottom: 16,
+    },
+    transferTotalLabel: {
+      fontSize: 15,
+      fontWeight: "700",
+      color: theme.textPrimary,
+    },
+    transferTotalAmount: {
+      fontSize: 22,
+      fontWeight: "800",
+      color: theme.textPrimary,
+    },
+    transferSecurity: {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: 12,
+      backgroundColor: theme.accentSoft,
+      padding: 14,
+      borderRadius: 16,
+      marginBottom: 24,
+    },
+    transferSecurityIcon: {
+      width: 36,
+      height: 36,
+      borderRadius: 18,
+      backgroundColor: theme.surface,
+      justifyContent: "center",
+      alignItems: "center",
+    },
+    transferSecurityTitle: {
+      fontSize: 13,
+      fontWeight: "700",
+      color: theme.accent,
+    },
+    transferSecurityCopy: {
+      fontSize: 11,
+      fontWeight: "500",
+      color: theme.textSecondary,
+      marginTop: 2,
+    },
+    transferSuccessBody: {
+      flexGrow: 1,
+      alignItems: "center",
+      justifyContent: "center",
+      padding: 24,
+      backgroundColor: theme.background,
+    },
+    transferSuccessIconContainer: {
+      width: 100,
+      height: 100,
+      justifyContent: "center",
+      alignItems: "center",
+      marginBottom: 24,
+      position: "relative",
+    },
+    successCircle: {
+      width: 80,
+      height: 80,
+      borderRadius: 40,
+      backgroundColor: "#34A853",
+      justifyContent: "center",
+      alignItems: "center",
+      shadowColor: "#34A853",
+      shadowOffset: { width: 0, height: 6 },
+      shadowOpacity: 0.2,
+      shadowRadius: 10,
+      elevation: 4,
+    },
+    sparkle: {
+      position: "absolute",
+    },
+    transferSuccessTitle: {
+      fontSize: 22,
+      fontWeight: "800",
+      color: theme.textPrimary,
+      marginBottom: 20,
+    },
+    transferSuccessLabel: {
+      fontSize: 13,
+      color: theme.textSecondary,
+      fontWeight: "600",
+      marginBottom: 4,
+    },
+    transferSuccessAmount: {
+      fontSize: 32,
+      fontWeight: "800",
+      color: theme.textPrimary,
+      marginBottom: 12,
+    },
+    transferSuccessRecipient: {
+      fontSize: 14,
+      color: theme.textSecondary,
+      fontWeight: "600",
+      textAlign: "center",
+      lineHeight: 20,
+      marginBottom: 32,
+    },
+    transferReceiptButton: {
+      flexDirection: "row",
+      alignItems: "center",
+      justifyContent: "center",
+      gap: 8,
+      borderWidth: 1.5,
+      borderColor: theme.accent,
+      borderRadius: 16,
+      height: 52,
+      width: "100%",
+      marginBottom: 12,
+    },
+    transferReceiptText: {
+      fontSize: 14,
+      fontWeight: "700",
+      color: theme.accent,
+    },
+    transferHomeButton: {
+      backgroundColor: theme.accent,
+      borderRadius: 16,
+      height: 52,
+      width: "100%",
+      justifyContent: "center",
+      alignItems: "center",
+    },
+    transferHomeText: {
+      color: "#FFFFFF",
+      fontSize: 14,
+      fontWeight: "700",
+    },
+    reviewContainer: {
+      position: "absolute",
+      top: 0,
+      left: 0,
+      right: 0,
+      bottom: 0,
+      backgroundColor: theme.background,
+    },
+  });
