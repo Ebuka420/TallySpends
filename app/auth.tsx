@@ -48,34 +48,10 @@ export default function AuthScreen() {
     const fullNameTrimmed = fullName.trim();
     const phoneTrimmed = phoneNumber.trim();
 
-    // 1. Development Bypass (if fields are empty)
     if (!emailTrimmed || !password) {
-      if (authMode === "login") {
-        await setUsername("Ebuka");
-        await setProfileFullName("Ebuka");
-        await setProfilePhoneNumber("+234 814 622 4577");
-        await setProfileEmail("ebuka@example.com");
-        await setProfileTallyTag("@EBUKA");
-        login();
-        router.replace("/(tabs)" as any);
-        setIsLoading(false);
-        return;
-      } else {
-        Alert.alert(
-          "Success (Dev Bypass)",
-          "Demo account created successfully! Please click Welcome Back to log in.",
-          [
-            {
-              text: "OK",
-              onPress: () => {
-                setAuthMode("login");
-              },
-            },
-          ],
-        );
-        setIsLoading(false);
-        return;
-      }
+      Alert.alert("Input Error", "Please enter your email and password.");
+      setIsLoading(false);
+      return;
     }
 
     if (authMode === "signup") {
@@ -87,6 +63,7 @@ export default function AuthScreen() {
         setIsLoading(false);
         return;
       }
+
       if (password.length < 6) {
         Alert.alert(
           "Password Too Short",
@@ -95,6 +72,7 @@ export default function AuthScreen() {
         setIsLoading(false);
         return;
       }
+
       if (password !== confirmPassword) {
         Alert.alert(
           "Password Mismatch",
