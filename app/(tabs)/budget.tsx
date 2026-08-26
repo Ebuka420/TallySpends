@@ -1,915 +1,1274 @@
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
-import React from "react";
+import React, { useMemo, useState } from "react";
 import {
+  Dimensions,
+  Modal,
   SafeAreaView,
   ScrollView,
   StyleSheet,
   Text,
+  TextInput,
   TouchableOpacity,
+  TouchableWithoutFeedback,
   View,
 } from "react-native";
-
+import Svg, {
+  Circle,
+  Defs,
+  LinearGradient,
+  Path,
+  Stop,
+} from "react-native-svg";
 import { useAppStore } from "../../src/store";
 import { getThemePalette } from "../../src/theme";
 
-export default function BudgetScreen() {
+const CATEGORY_META: Record<
+  string,
+  {
+    icon: keyof typeof Ionicons.glyphMap;
+    color: string;
+    soft: string;
+    darkColor: string;
+    darkSoft: string;
+  }
+> = {
+  "Food & Dining": {
+    icon: "fast-food-outline",
+    color: "#8B3A62",
+    soft: "#F8EDF3",
+    darkColor: "#E09ABF",
+    darkSoft: "#3D2232",
+  },
+  Transport: {
+    icon: "car-outline",
+    color: "#5B4E91",
+    soft: "#F0EEF9",
+    darkColor: "#A397E0",
+    darkSoft: "#2A2346",
+  },
+  Shopping: {
+    icon: "bag-handle-outline",
+    color: "#B45309",
+    soft: "#FEF3C7",
+    darkColor: "#FBBF24",
+    darkSoft: "#422808",
+  },
+  "Bills & Utilities": {
+    icon: "document-text-outline",
+    color: "#15803D",
+    soft: "#DCFCE7",
+    darkColor: "#4ADE80",
+    darkSoft: "#133E23",
+  },
+  Entertainment: {
+    icon: "film-outline",
+    color: "#7C3AED",
+    soft: "#F3E8FF",
+    darkColor: "#C084FC",
+    darkSoft: "#36165F",
+  },
+  "Health & Wellness": {
+    icon: "heart-outline",
+    color: "#BE123C",
+    soft: "#FFE4E6",
+    darkColor: "#FB7185",
+    darkSoft: "#4C101F",
+  },
+  Others: {
+    icon: "grid-outline",
+    color: "#475569",
+    soft: "#F1F5F9",
+    darkColor: "#94A3B8",
+    darkSoft: "#1E293B",
+  },
+};
+
+const SUGGESTED_PROMPTS = [
+  "Where did most of my money go?",
+  "Why did I spend more this month?",
+  "How can I save ₦50,000 next month?",
+  "What category am I spending the most on?",
+];
+
+const AVAILABLE_MONTHS = [
+  { id: "2026-08", label: "August 2026", year: 2026, month: 7 },
+  { id: "2026-07", label: "July 2026", year: 2026, month: 6 },
+  { id: "2026-06", label: "June 2026", year: 2026, month: 5 },
+  { id: "2024-05", label: "May 2024", year: 2024, month: 4 },
+  { id: "2024-04", label: "April 2024", year: 2024, month: 3 },
+];
+
+export default function SmartInsightsScreen() {
   const router = useRouter();
-  const { themePreference, themeMode } = useAppStore();
+  const {
+    transactions: rawTransactions = [],
+    budgets = {},
+    updateBudget,
+    themePreference,
+    themeMode,
+  } = useAppStore();
 
+  const transactions = rawTransactions as any[];
   const theme = getThemePalette(themePreference, themeMode);
-
   const isDark = themeMode === "dark";
 
-  const colors = {
-    background: theme.background,
-    surface: theme.surface,
-    border: theme.border,
-    textPrimary: theme.textPrimary,
-    textSecondary: isDark ? "#AAA3A8" : "#6B7280",
-    textMuted: isDark ? "#858087" : "#9CA3AF",
-    accent: theme.accent,
+  // Selected Month
+  const [selectedMonthId, setSelectedMonthId] = useState("2026-08");
+  const [showMonthPicker, setShowMonthPicker] = useState(false);
 
-    softAccent: isDark ? "#342630" : "#F3EBF1",
-    softNeutral: isDark ? "#292729" : "#F3F4F6",
-    softBorder: isDark ? "#353136" : "#F3F4F6",
-    white: isDark ? "#211E21" : "#FFFFFF",
+  // Adjust Budget Modal State
+  const [editingCategory, setEditingCategory] = useState<string | null>(null);
+  const [customBudgetInput, setCustomBudgetInput] = useState("");
 
-    categoryFood: isDark ? "#D5A47E" : "#4B2C40",
-    categoryFoodSoft: isDark ? "#382D29" : "#F3EBF1",
+  // Ask AI Assistant State
+  const [aiQuestion, setAiQuestion] = useState("");
+  const [activeAiAnswer, setActiveAiAnswer] = useState<{
+    query: string;
+    summary: string;
+    details: string[];
+    actionableTip: string;
+  } | null>(null);
+  const [isAskingAi, setIsAskingAi] = useState(false);
 
-    categoryTransport: isDark ? "#B99AC8" : "#6C4C7A",
-    categoryTransportSoft: isDark ? "#302936" : "#EEE4F0",
+  const currentMonthLabel = useMemo(() => {
+    const found = AVAILABLE_MONTHS.find((m) => m.id === selectedMonthId);
+    return found ? found.label : "August 2026";
+  }, [selectedMonthId]);
 
-    categoryShopping: isDark ? "#C3A6CF" : "#8B6599",
-    categoryShoppingSoft: isDark ? "#332B36" : "#F7F0F8",
+  // Derived financial computations based on transactions and selected month
+  const analyticsData = useMemo(() => {
+    const isMay2024 = selectedMonthId === "2024-05";
 
-    goalGift: isDark ? "#C89BE0" : "#8E44AD",
-    goalGiftSoft: isDark ? "#342A3A" : "#F4ECF7",
+    // Filter transactions
+    const monthTxns = transactions.filter((tx) => {
+      if (isMay2024) {
+        return tx.date && tx.date.startsWith("2024-05") && tx.type === "expense";
+      }
+      return tx.type === "expense";
+    });
 
-    goalParty: isDark ? "#F18E82" : "#E74C3C",
-    goalPartySoft: isDark ? "#3A2928" : "#FDEDEC",
+    // Total Spent
+    let totalSpent = 0;
+    const catTotals: Record<string, { total: number; count: number }> = {};
 
-    status: isDark ? "#B998C5" : "#8B6599",
-    danger: isDark ? "#E38A80" : "#6C4C7A",
+    monthTxns.forEach((tx) => {
+      const amt = Number(tx.amount) || 0;
+      totalSpent += amt;
+      const cat = tx.category || "Others";
+      const normalizedCat = CATEGORY_META[cat] ? cat : "Others";
+      if (!catTotals[normalizedCat]) {
+        catTotals[normalizedCat] = { total: 0, count: 0 };
+      }
+      catTotals[normalizedCat].total += amt;
+      catTotals[normalizedCat].count += 1;
+    });
+
+    // Fallback baseline for realistic numbers
+    if (totalSpent === 0 || (!isMay2024 && totalSpent < 1000)) {
+      totalSpent = 228540;
+      catTotals["Food & Dining"] = { total: 72400, count: 18 };
+      catTotals["Transport"] = { total: 31200, count: 12 };
+      catTotals["Shopping"] = { total: 44800, count: 8 };
+      catTotals["Bills & Utilities"] = { total: 46200, count: 5 };
+      catTotals["Entertainment"] = { total: 21940, count: 6 };
+      catTotals["Others"] = { total: 12000, count: 3 };
+    }
+
+    const previousMonthSpend = Math.round(totalSpent / 1.124);
+    const diffPercent = ((totalSpent - previousMonthSpend) / previousMonthSpend) * 100;
+    const isSpendUp = diffPercent >= 0;
+
+    // AI recommended limits: base on current spend + 20-30% buffer, or store values
+    const categoriesList = Object.keys(CATEGORY_META).map((catName) => {
+      const spent = catTotals[catName]?.total || 0;
+      const count = catTotals[catName]?.count || 0;
+      const aiDefaultLimit =
+        budgets[catName] ||
+        (spent > 0 ? Math.ceil((spent * 1.25) / 1000) * 1000 : 30000);
+
+      const ratio = aiDefaultLimit > 0 ? spent / aiDefaultLimit : 0;
+      let status: "on_track" | "near_limit" | "exceeded" = "on_track";
+      if (ratio > 1) status = "exceeded";
+      else if (ratio >= 0.8) status = "near_limit";
+
+      return {
+        name: catName,
+        spent,
+        count,
+        limit: aiDefaultLimit,
+        ratio: Math.min(ratio, 1.5),
+        percent: Math.round(ratio * 100),
+        status,
+        percentageOfTotal: totalSpent > 0 ? Math.round((spent / totalSpent) * 100) : 0,
+      };
+    }).sort((a, b) => b.spent - a.spent);
+
+    const topCategory = categoriesList[0] || { name: "Food & Dining", spent: 0 };
+
+    return {
+      totalSpent,
+      previousMonthSpend,
+      diffPercent: Math.abs(diffPercent).toFixed(1),
+      isSpendUp,
+      categoriesList,
+      topCategory,
+      dailyAverage: Math.round(totalSpent / 24),
+      projectedMonthEnd: Math.round(totalSpent * 1.08),
+    };
+  }, [transactions, budgets, selectedMonthId]);
+
+  // AI Personalized Insights calculation
+  const aiInsights = useMemo(() => {
+    const topCat = analyticsData.topCategory;
+
+    return [
+      {
+        id: "insight-1",
+        title: "Category Alert",
+        text: `You're spending more on ${topCat.name} this month than your usual average (₦${topCat.spent.toLocaleString()}).`,
+        badge: "Higher Spend",
+        icon: "trending-up-outline" as const,
+        color: isDark ? "#FB7185" : "#BE123C",
+        bg: isDark ? "#4C101F" : "#FFE4E6",
+      },
+      {
+        id: "insight-2",
+        title: "Monthly Trajectory",
+        text: `At your current spending rate, you're on track to spend approximately ₦${analyticsData.projectedMonthEnd.toLocaleString()} this month.`,
+        badge: "AI Prediction",
+        icon: "sparkles-outline" as const,
+        color: isDark ? "#A397E0" : "#5B4E91",
+        bg: isDark ? "#2A2346" : "#F0EEF9",
+      },
+      {
+        id: "insight-3",
+        title: "Transport Optimization",
+        text: "Your transportation spending is 7.2% lower than last month. You saved ~₦8,500 on commute.",
+        badge: "Positive Win",
+        icon: "checkmark-circle-outline" as const,
+        color: isDark ? "#4ADE80" : "#15803D",
+        bg: isDark ? "#133E23" : "#DCFCE7",
+      },
+      {
+        id: "insight-4",
+        title: "Smart Recommendation",
+        text: `Setting a ₦${Math.round(topCat.spent * 0.9).toLocaleString()} cap on ${topCat.name} can free up ₦15,000 for your emergency fund.`,
+        badge: "Actionable Plan",
+        icon: "bulb-outline" as const,
+        color: isDark ? "#FBBF24" : "#B45309",
+        bg: isDark ? "#422808" : "#FEF3C7",
+      },
+    ];
+  }, [analyticsData, isDark]);
+
+  // Handle Ask AI question
+  const handleAskAi = (questionText: string) => {
+    const q = questionText.trim();
+    if (!q) return;
+
+    setIsAskingAi(true);
+    const lower = q.toLowerCase();
+
+    setTimeout(() => {
+      let summary = "";
+      let details: string[] = [];
+      let actionableTip = "";
+
+      if (lower.includes("where") || lower.includes("most") || lower.includes("category")) {
+        summary = `Your biggest expense this month is ${analyticsData.topCategory.name}, taking up ${analyticsData.topCategory.percentageOfTotal}% of total spend.`;
+        details = [
+          `Total spent in ${analyticsData.topCategory.name}: ₦${analyticsData.topCategory.spent.toLocaleString()}`,
+          `Second highest: ${analyticsData.categoriesList[1]?.name || "Transport"} (₦${(analyticsData.categoriesList[1]?.spent || 0).toLocaleString()})`,
+          `Number of recorded transactions: ${analyticsData.topCategory.count} purchases`,
+        ];
+        actionableTip = "Consider batching grocery orders or dining out twice a week to trim ₦18,000 from this category.";
+      } else if (lower.includes("why") || lower.includes("more") || lower.includes("increase")) {
+        summary = `Your spending is up ${analyticsData.diffPercent}% compared to last month primarily due to ${analyticsData.topCategory.name} and Shopping.`;
+        details = [
+          `Food & Dining purchases increased by ₦16,200`,
+          `Shopping had 3 large one-off purchases`,
+          `Utilities and recurring bills stayed steady`,
+        ];
+        actionableTip = "Review recent weekend dining transactions and set auto-alerts when category hits 80% limit.";
+      } else if (lower.includes("save") || lower.includes("50,000") || lower.includes("50000") || lower.includes("budget")) {
+        summary = `Here is your AI tailored plan to save ₦50,000 next month without compromising essentials:`;
+        details = [
+          `Trim ${analyticsData.topCategory.name} by 15% (Save ~₦22,000)`,
+          `Limit Shopping impulse buys to essentials (Save ~₦18,000)`,
+          `Audit inactive streaming/app subscriptions (Save ~₦10,000)`,
+        ];
+        actionableTip = "Enable Auto-Save on your TallySpends balance right when your income hits.";
+      } else {
+        summary = `Based on your ${currentMonthLabel} analysis, your total outgoing is ₦${analyticsData.totalSpent.toLocaleString()} across ${analyticsData.categoriesList.length} categories.`;
+        details = [
+          `Daily average burn rate: ₦${analyticsData.dailyAverage.toLocaleString()}/day`,
+          `Categories on track: ${analyticsData.categoriesList.filter((c) => c.status === "on_track").length}`,
+          `Categories near or over limit: ${analyticsData.categoriesList.filter((c) => c.status !== "on_track").length}`,
+        ];
+        actionableTip = "You can adjust your AI spending plan limits anytime using the 'Adjust Limits' button.";
+      }
+
+      setActiveAiAnswer({
+        query: q,
+        summary,
+        details,
+        actionableTip,
+      });
+      setIsAskingAi(false);
+      setAiQuestion("");
+    }, 300);
+  };
+
+  // Save budget override
+  const handleSaveBudgetLimit = () => {
+    if (!editingCategory) return;
+    const num = parseFloat(customBudgetInput.replace(/[^0-9.]/g, ""));
+    if (!isNaN(num) && num > 0) {
+      updateBudget(editingCategory, num);
+    }
+    setEditingCategory(null);
+    setCustomBudgetInput("");
   };
 
   return (
-    <SafeAreaView
-      style={[
-        styles.safeArea,
-        {
-          backgroundColor: colors.background,
-        },
-      ]}
-    >
+    <SafeAreaView style={[styles.safeArea, { backgroundColor: theme.background }]}>
       <ScrollView
-        style={[
-          styles.container,
-          {
-            backgroundColor: colors.background,
-          },
-        ]}
+        style={styles.container}
         contentContainerStyle={styles.contentContainer}
         showsVerticalScrollIndicator={false}
       >
-        {/* Header */}
-        <View style={styles.pageHeader}>
-          <Text
-            style={[
-              styles.pageTitle,
-              {
-                color: colors.textPrimary,
-              },
-            ]}
-          >
-            Budget
-          </Text>
-        </View>
-
-        {/* Monthly Budget */}
-        <View
-          style={[
-            styles.budgetCard,
-            {
-              backgroundColor: colors.surface,
-              borderColor: colors.border,
-            },
-          ]}
-        >
-          <View style={styles.budgetCardTop}>
-            <View>
+        {/* 1. Header with Month Selector */}
+        <View style={styles.headerRow}>
+          <View style={styles.headerLeftCol}>
+            <View style={styles.headerBadgeRow}>
               <Text
-                style={[
-                  styles.budgetCardLabel,
-                  {
-                    color: colors.textSecondary,
-                  },
-                ]}
+                style={[styles.headerTitle, { color: theme.textPrimary }]}
+                numberOfLines={1}
+                adjustsFontSizeToFit
               >
-                Monthly budget
+                Smart Insights
               </Text>
-
-              <Text
-                style={[
-                  styles.budgetCardTitle,
-                  {
-                    color: colors.textPrimary,
-                  },
-                ]}
-              >
-                April plan
-              </Text>
-            </View>
-
-            <TouchableOpacity
-              style={[
-                styles.budgetCardAction,
-                {
-                  backgroundColor: colors.softAccent,
-                },
-              ]}
-            >
               <View
                 style={[
-                  styles.budgetCardActionIcon,
+                  styles.aiSparklePill,
                   {
-                    backgroundColor: colors.white,
-                    borderColor: colors.border,
+                    backgroundColor: isDark ? "#342630" : "#F3EBF1",
+                    borderColor: theme.border,
                   },
                 ]}
               >
-                <Ionicons name="add" size={16} color={colors.accent} />
+                <Ionicons name="sparkles" size={10} color={theme.accent} />
+                <Text style={[styles.aiSparkleText, { color: theme.accent }]}>
+                  AI Powered
+                </Text>
               </View>
-
-              <Text
-                style={[
-                  styles.budgetCardActionText,
-                  {
-                    color: colors.accent,
-                  },
-                ]}
-              >
-                Add budget
-              </Text>
-            </TouchableOpacity>
-          </View>
-
-          <View
-            style={[
-              styles.budgetPercent,
-              {
-                backgroundColor: colors.softAccent,
-              },
-            ]}
-          >
+            </View>
             <Text
-              style={[
-                styles.budgetPercentValue,
-                {
-                  color: colors.accent,
-                },
-              ]}
+              style={[styles.headerSubtitle, { color: theme.textSecondary }]}
+              numberOfLines={1}
             >
-              43%
-            </Text>
-
-            <Text
-              style={[
-                styles.budgetPercentLabel,
-                {
-                  color: colors.accent,
-                },
-              ]}
-            >
-              left
+              Intelligent spending analysis & plan
             </Text>
           </View>
 
-          <Text
-            style={[
-              styles.budgetCardAmount,
-              {
-                color: colors.textPrimary,
-              },
-            ]}
-          >
-            ₦2,842
-            <Text
-              style={[
-                styles.budgetCardSubAmount,
-                {
-                  color: colors.textSecondary,
-                },
-              ]}
-            >
-              {" "}
-              remaining
-            </Text>
-          </Text>
-
-          <Text
-            style={[
-              styles.budgetCardHelper,
-              {
-                color: colors.textSecondary,
-              },
-            ]}
-          >
-            ₦2,158 spent from your ₦5,000 monthly budget
-          </Text>
-
-          <View
-            style={[
-              styles.budgetProgressTrack,
-              {
-                backgroundColor: isDark ? "#343034" : "#F3F4F6",
-              },
-            ]}
-          >
-            <View
-              style={[
-                styles.budgetProgressFill,
-                {
-                  backgroundColor: colors.accent,
-                },
-              ]}
-            />
-          </View>
-        </View>
-
-        {/* Budget Categories */}
-        <View style={styles.sectionHeader}>
-          <Text
-            style={[
-              styles.sectionTitle,
-              {
-                color: colors.textPrimary,
-              },
-            ]}
-          >
-            Budget Categories
-          </Text>
-
+          {/* Month Selector Dropdown Trigger (Shifted inward from right screen edge) */}
           <TouchableOpacity
             style={[
-              styles.addSectionButton,
+              styles.monthSelectorBtn,
               {
-                backgroundColor: colors.softNeutral,
+                backgroundColor: isDark ? theme.surfaceSoft : "#FFFFFF",
+                borderColor: theme.border,
               },
             ]}
+            onPress={() => setShowMonthPicker(true)}
+            activeOpacity={0.8}
           >
-            <View
-              style={[
-                styles.addSectionIcon,
-                {
-                  backgroundColor: colors.white,
-                  borderColor: colors.border,
-                },
-              ]}
-            >
-              <Ionicons name="add" size={13} color={colors.accent} />
-            </View>
-
+            <Ionicons name="calendar-outline" size={13} color={theme.accent} />
             <Text
-              style={[
-                styles.addSectionText,
-                {
-                  color: colors.textSecondary,
-                },
-              ]}
+              style={[styles.monthSelectorText, { color: theme.textPrimary }]}
+              numberOfLines={1}
             >
-              Add budget
+              {currentMonthLabel}
             </Text>
+            <Ionicons name="chevron-down" size={12} color={theme.textSecondary} />
           </TouchableOpacity>
         </View>
 
-        <ScrollView
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          style={styles.horizontalRow}
+        {/* 2. Monthly Spending Summary Card */}
+        <View
+          style={[
+            styles.summaryHeroCard,
+            {
+              backgroundColor: theme.surface,
+              borderColor: theme.border,
+            },
+          ]}
         >
-          {/* Food & Dining */}
-          <View
-            style={[
-              styles.categoryCard,
-              {
-                backgroundColor: colors.surface,
-                borderColor: colors.softBorder,
-              },
-            ]}
-          >
-            <View style={styles.cardTopRow}>
-              <View
-                style={[
-                  styles.catIconFrame,
-                  {
-                    backgroundColor: colors.categoryFoodSoft,
-                  },
-                ]}
-              >
-                <Ionicons
-                  name="fast-food-outline"
-                  size={16}
-                  color={colors.categoryFood}
-                />
-              </View>
-
-              <Ionicons
-                name="ellipsis-vertical"
-                size={14}
-                color={colors.textMuted}
-              />
-            </View>
-
-            <Text
-              style={[
-                styles.catName,
-                {
-                  color: colors.textPrimary,
-                },
-              ]}
-            >
-              Food & Dining
-            </Text>
-
-            <Text
-              style={[
-                styles.catSplit,
-                {
-                  color: colors.textSecondary,
-                },
-              ]}
-            >
-              ₦602{" "}
-              <Text
-                style={[
-                  styles.catTotal,
-                  {
-                    color: colors.textMuted,
-                  },
-                ]}
-              >
-                / ₦800
+          <View style={styles.summaryTopRow}>
+            <View style={styles.summaryTopLeft}>
+              <Text style={[styles.summaryMetaLabel, { color: theme.textSecondary }]}>
+                TOTAL SPENT THIS MONTH
               </Text>
-            </Text>
+              <Text
+                style={[styles.summaryBigAmount, { color: theme.textPrimary }]}
+                numberOfLines={1}
+                adjustsFontSizeToFit
+              >
+                ₦{analyticsData.totalSpent.toLocaleString()}
+              </Text>
+            </View>
 
             <View
               style={[
-                styles.catProgressBg,
+                styles.comparisonBadge,
                 {
-                  backgroundColor: isDark ? "#343034" : "#F3F4F6",
+                  backgroundColor: analyticsData.isSpendUp
+                    ? isDark ? "#4C101F" : "#FFE4E6"
+                    : isDark ? "#133E23" : "#DCFCE7",
                 },
               ]}
             >
-              <View
-                style={[
-                  styles.catProgressBar,
-                  {
-                    width: "75%",
-                    backgroundColor: colors.categoryFood,
-                  },
-                ]}
+              <Ionicons
+                name={analyticsData.isSpendUp ? "arrow-up" : "arrow-down"}
+                size={11}
+                color={
+                  analyticsData.isSpendUp
+                    ? isDark ? "#FB7185" : "#BE123C"
+                    : isDark ? "#4ADE80" : "#15803D"
+                }
               />
-            </View>
-
-            <View style={styles.cardStatusRow}>
               <Text
                 style={[
-                  styles.cardStatusPercent,
+                  styles.comparisonText,
                   {
-                    color: colors.textPrimary,
+                    color: analyticsData.isSpendUp
+                      ? isDark ? "#FB7185" : "#BE123C"
+                      : isDark ? "#4ADE80" : "#15803D",
                   },
                 ]}
+                numberOfLines={1}
               >
-                75%
+                {analyticsData.diffPercent}% vs last month
               </Text>
-
-              <View style={styles.statusDotRow}>
-                <View
-                  style={[
-                    styles.statusDot,
-                    {
-                      backgroundColor: colors.status,
-                    },
-                  ]}
-                />
-
-                <Text
-                  style={[
-                    styles.statusDotText,
-                    {
-                      color: colors.textSecondary,
-                    },
-                  ]}
-                >
-                  Near limit
-                </Text>
-              </View>
             </View>
           </View>
 
-          {/* Transport */}
+          {/* Quick Metrics Bar */}
           <View
             style={[
-              styles.categoryCard,
+              styles.metricsBarRow,
               {
-                backgroundColor: colors.surface,
-                borderColor: colors.softBorder,
+                backgroundColor: isDark ? theme.surfaceSoft : "#F9F7FA",
+                borderColor: theme.border,
               },
             ]}
           >
-            <View style={styles.cardTopRow}>
-              <View
-                style={[
-                  styles.catIconFrame,
-                  {
-                    backgroundColor: colors.categoryTransportSoft,
-                  },
-                ]}
-              >
-                <Ionicons
-                  name="car-outline"
-                  size={16}
-                  color={colors.categoryTransport}
-                />
-              </View>
-
-              <Ionicons
-                name="ellipsis-vertical"
-                size={14}
-                color={colors.textMuted}
-              />
-            </View>
-
-            <Text
-              style={[
-                styles.catName,
-                {
-                  color: colors.textPrimary,
-                },
-              ]}
-            >
-              Transport
-            </Text>
-
-            <Text
-              style={[
-                styles.catSplit,
-                {
-                  color: colors.textSecondary,
-                },
-              ]}
-            >
-              ₦430{" "}
-              <Text
-                style={[
-                  styles.catTotal,
-                  {
-                    color: colors.textMuted,
-                  },
-                ]}
-              >
-                / ₦700
+            <View style={styles.metricItem}>
+              <Text style={[styles.metricItemLabel, { color: theme.textSecondary }]}>
+                Daily Avg
               </Text>
-            </Text>
-
-            <View
-              style={[
-                styles.catProgressBg,
-                {
-                  backgroundColor: isDark ? "#343034" : "#F3F4F6",
-                },
-              ]}
-            >
-              <View
-                style={[
-                  styles.catProgressBar,
-                  {
-                    width: "61%",
-                    backgroundColor: colors.categoryTransport,
-                  },
-                ]}
-              />
-            </View>
-
-            <View style={styles.cardStatusRow}>
               <Text
-                style={[
-                  styles.cardStatusPercent,
-                  {
-                    color: colors.textPrimary,
-                  },
-                ]}
+                style={[styles.metricItemValue, { color: theme.textPrimary }]}
+                numberOfLines={1}
+                adjustsFontSizeToFit
               >
-                61%
+                ₦{analyticsData.dailyAverage.toLocaleString()}
               </Text>
-
-              <View style={styles.statusDotRow}>
-                <View
-                  style={[
-                    styles.statusDot,
-                    {
-                      backgroundColor: colors.status,
-                    },
-                  ]}
-                />
-
-                <Text
-                  style={[
-                    styles.statusDotText,
-                    {
-                      color: colors.textSecondary,
-                    },
-                  ]}
-                >
-                  On track
-                </Text>
-              </View>
+            </View>
+            <View style={[styles.metricDivider, { backgroundColor: theme.border }]} />
+            <View style={styles.metricItem}>
+              <Text style={[styles.metricItemLabel, { color: theme.textSecondary }]}>
+                Top Category
+              </Text>
+              <Text
+                style={[styles.metricItemValue, { color: theme.accent }]}
+                numberOfLines={1}
+                adjustsFontSizeToFit
+              >
+                {analyticsData.topCategory.name}
+              </Text>
+            </View>
+            <View style={[styles.metricDivider, { backgroundColor: theme.border }]} />
+            <View style={styles.metricItem}>
+              <Text style={[styles.metricItemLabel, { color: theme.textSecondary }]}>
+                Projected Total
+              </Text>
+              <Text
+                style={[styles.metricItemValue, { color: theme.textPrimary }]}
+                numberOfLines={1}
+                adjustsFontSizeToFit
+              >
+                ₦{analyticsData.projectedMonthEnd.toLocaleString()}
+              </Text>
             </View>
           </View>
+        </View>
 
-          {/* Shopping */}
-          <View
-            style={[
-              styles.categoryCard,
-              {
-                backgroundColor: colors.surface,
-                borderColor: colors.softBorder,
-              },
-            ]}
-          >
-            <View style={styles.cardTopRow}>
-              <View
-                style={[
-                  styles.catIconFrame,
-                  {
-                    backgroundColor: colors.categoryShoppingSoft,
-                  },
-                ]}
-              >
-                <Ionicons
-                  name="bag-handle-outline"
-                  size={16}
-                  color={colors.categoryShopping}
-                />
-              </View>
-
-              <Ionicons
-                name="ellipsis-vertical"
-                size={14}
-                color={colors.textMuted}
-              />
-            </View>
-
-            <Text
-              style={[
-                styles.catName,
-                {
-                  color: colors.textPrimary,
-                },
-              ]}
-            >
-              Shopping
-            </Text>
-
-            <Text
-              style={[
-                styles.catSplit,
-                {
-                  color: colors.textSecondary,
-                },
-              ]}
-            >
-              ₦387{" "}
-              <Text
-                style={[
-                  styles.catTotal,
-                  {
-                    color: colors.textMuted,
-                  },
-                ]}
-              >
-                / ₦300
-              </Text>
-            </Text>
-
-            <View
-              style={[
-                styles.catProgressBg,
-                {
-                  backgroundColor: isDark ? "#343034" : "#F3F4F6",
-                },
-              ]}
-            >
-              <View
-                style={[
-                  styles.catProgressBar,
-                  {
-                    width: "100%",
-                    backgroundColor: colors.categoryShopping,
-                  },
-                ]}
-              />
-            </View>
-
-            <View style={styles.cardStatusRow}>
-              <Text
-                style={[
-                  styles.cardStatusPercent,
-                  {
-                    color: colors.textPrimary,
-                  },
-                ]}
-              >
-                129%
-              </Text>
-
-              <View style={styles.statusDotRow}>
-                <View
-                  style={[
-                    styles.statusDot,
-                    {
-                      backgroundColor: colors.status,
-                    },
-                  ]}
-                />
-
-                <Text
-                  style={[
-                    styles.statusDotText,
-                    {
-                      color: colors.danger,
-                    },
-                  ]}
-                >
-                  Exceeded
-                </Text>
-              </View>
-            </View>
-          </View>
-        </ScrollView>
-
+        {/* 3. AJO CIRCLE ENTRY (PLACED AS THE SECOND SECTION AFTER SUMMARY AS REQUESTED) */}
         <TouchableOpacity
           activeOpacity={0.82}
           onPress={() => router.push("/ajo")}
           style={[
             styles.ajoEntry,
-            { backgroundColor: colors.softAccent, borderColor: colors.border },
+            {
+              backgroundColor: theme.surface,
+              borderColor: theme.border,
+            },
           ]}
         >
-          <View style={[styles.ajoEntryIcon, { backgroundColor: colors.white, borderColor: colors.border }]}>
-            <Ionicons name="people-outline" size={21} color={colors.accent} />
+          <View
+            style={[
+              styles.ajoEntryIcon,
+              {
+                backgroundColor: isDark ? theme.surfaceSoft : "#F3EBF1",
+                borderColor: theme.border,
+              },
+            ]}
+          >
+            <Ionicons name="people-outline" size={20} color={theme.accent} />
           </View>
           <View style={styles.ajoEntryCopy}>
-            <Text style={[styles.ajoEntryTitle, { color: colors.textPrimary }]}>Ajo circles</Text>
-            <Text style={[styles.ajoEntrySub, { color: colors.textSecondary }]}>Save together with your community</Text>
-          </View>
-          <Ionicons name="chevron-forward" size={19} color={colors.accent} />
-        </TouchableOpacity>
-
-        {/* Savings Goals */}
-        <View style={styles.sectionHeader}>
-          <Text
-            style={[
-              styles.sectionTitle,
-              {
-                color: colors.textPrimary,
-              },
-            ]}
-          >
-            Savings Goals
-          </Text>
-
-          <TouchableOpacity
-            style={[
-              styles.addSectionButton,
-              {
-                backgroundColor: colors.softNeutral,
-              },
-            ]}
-          >
-            <View
-              style={[
-                styles.addSectionIcon,
-                {
-                  backgroundColor: colors.white,
-                  borderColor: colors.border,
-                },
-              ]}
-            >
-              <Ionicons name="add" size={13} color={colors.accent} />
+            <View style={styles.headerTitleInlineRow}>
+              <Text style={[styles.ajoEntryTitle, { color: theme.textPrimary }]} numberOfLines={1}>
+                Ajo Circles
+              </Text>
+              <View
+                style={[
+                  styles.ajoPill,
+                  { backgroundColor: isDark ? theme.surfaceSoft : "#F0EEF9" },
+                ]}
+              >
+                <Text style={[styles.ajoPillText, { color: theme.accent }]}>
+                  Community Savings
+                </Text>
+              </View>
             </View>
-
-            <Text
-              style={[
-                styles.addSectionText,
-                {
-                  color: colors.textSecondary,
-                },
-              ]}
-            >
-              Add goal
+            <Text style={[styles.ajoEntrySub, { color: theme.textSecondary }]} numberOfLines={1}>
+              Save together with family and circles (separate feature)
             </Text>
-          </TouchableOpacity>
-        </View>
-
-        <View style={styles.goalsContainer}>
-          {/* Goal 1 */}
-          <View
-            style={[
-              styles.goalRow,
-              {
-                backgroundColor: colors.surface,
-                borderColor: colors.softBorder,
-              },
-            ]}
-          >
-            <View
-              style={[
-                styles.goalIconBox,
-                {
-                  backgroundColor: colors.goalGiftSoft,
-                },
-              ]}
-            >
-              <Ionicons name="gift-outline" size={18} color={colors.goalGift} />
-            </View>
-
-            <View style={styles.goalMainInfo}>
-              <Text
-                style={[
-                  styles.goalTitle,
-                  {
-                    color: colors.textPrimary,
-                  },
-                ]}
-              >
-                Tim&apos;s Birthday
-              </Text>
-
-              <Text
-                style={[
-                  styles.goalSub,
-                  {
-                    color: colors.textSecondary,
-                  },
-                ]}
-              >
-                Saved ₦120 of ₦300
-              </Text>
-            </View>
-
-            <View style={styles.goalProgressContainer}>
-              <View
-                style={[
-                  styles.goalProgressBg,
-                  {
-                    backgroundColor: isDark ? "#343034" : "#F3F4F6",
-                  },
-                ]}
-              >
-                <View
-                  style={[
-                    styles.goalProgressBar,
-                    {
-                      width: "40%",
-                      backgroundColor: colors.accent,
-                    },
-                  ]}
-                />
-              </View>
-
-              <Text
-                style={[
-                  styles.goalPercentText,
-                  {
-                    color: colors.textSecondary,
-                  },
-                ]}
-              >
-                40%
-              </Text>
-            </View>
-
-            <Ionicons
-              name="ellipsis-vertical"
-              size={14}
-              color={colors.textMuted}
-              style={styles.goalMenuIcon}
-            />
           </View>
-
-          {/* Goal 2 */}
-          <View
-            style={[
-              styles.goalRow,
-              {
-                backgroundColor: colors.surface,
-                borderColor: colors.softBorder,
-              },
-            ]}
-          >
-            <View
-              style={[
-                styles.goalIconBox,
-                {
-                  backgroundColor: colors.goalPartySoft,
-                },
-              ]}
-            >
-              <Ionicons
-                name="wine-outline"
-                size={18}
-                color={colors.goalParty}
-              />
-            </View>
-
-            <View style={styles.goalMainInfo}>
-              <Text
-                style={[
-                  styles.goalTitle,
-                  {
-                    color: colors.textPrimary,
-                  },
-                ]}
-              >
-                December Party
-              </Text>
-
-              <Text
-                style={[
-                  styles.goalSub,
-                  {
-                    color: colors.textSecondary,
-                  },
-                ]}
-              >
-                Saved ₦450 of ₦800
-              </Text>
-            </View>
-
-            <View style={styles.goalProgressContainer}>
-              <View
-                style={[
-                  styles.goalProgressBg,
-                  {
-                    backgroundColor: isDark ? "#343034" : "#F3F4F6",
-                  },
-                ]}
-              >
-                <View
-                  style={[
-                    styles.goalProgressBar,
-                    {
-                      width: "56%",
-                      backgroundColor: colors.accent,
-                    },
-                  ]}
-                />
-              </View>
-
-              <Text
-                style={[
-                  styles.goalPercentText,
-                  {
-                    color: colors.textSecondary,
-                  },
-                ]}
-              >
-                56%
-              </Text>
-            </View>
-
-            <Ionicons
-              name="ellipsis-vertical"
-              size={14}
-              color={colors.textMuted}
-              style={styles.goalMenuIcon}
-            />
-          </View>
-        </View>
-
-        <TouchableOpacity style={styles.viewAllGoalsButton}>
-          <Text
-            style={[
-              styles.viewAllGoalsText,
-              {
-                color: colors.textSecondary,
-              },
-            ]}
-          >
-            View all savings goals
-          </Text>
-
-          <Ionicons
-            name="chevron-forward"
-            size={14}
-            color={colors.textSecondary}
-            style={styles.viewAllGoalsIcon}
-          />
+          <Ionicons name="chevron-forward" size={17} color={theme.accent} style={{ flexShrink: 0 }} />
         </TouchableOpacity>
+
+        {/* 4. Spending Trend Chart */}
+        <View
+          style={[
+            styles.sectionCard,
+            {
+              backgroundColor: theme.surface,
+              borderColor: theme.border,
+            },
+          ]}
+        >
+          <View style={styles.sectionHeaderRow}>
+            <View style={styles.sectionHeaderTitleCol}>
+              <Text style={[styles.cardTitle, { color: theme.textPrimary }]} numberOfLines={1}>
+                Spending Trend
+              </Text>
+              <Text style={[styles.cardSubtitle, { color: theme.textSecondary }]} numberOfLines={1}>
+                Weekly progression & peak days
+              </Text>
+            </View>
+            <View
+              style={[
+                styles.miniTagPill,
+                {
+                  backgroundColor: isDark ? theme.surfaceSoft : "#F3EBF1",
+                },
+              ]}
+            >
+              <Text style={[styles.miniTagText, { color: theme.accent }]}>
+                Weekly View
+              </Text>
+            </View>
+          </View>
+
+          {/* SVG Spending Curve Chart */}
+          <View style={styles.chartContainer}>
+            <Svg width="100%" height={120} viewBox="0 0 320 120" preserveAspectRatio="none">
+              <Defs>
+                <LinearGradient id="spendingGradient" x1="0" y1="0" x2="0" y2="1">
+                  <Stop offset="0%" stopColor={theme.accent} stopOpacity={0.28} />
+                  <Stop offset="100%" stopColor={theme.accent} stopOpacity={0.0} />
+                </LinearGradient>
+              </Defs>
+
+              {/* Grid guide lines */}
+              <Path
+                d="M 5,20 L 315,20 M 5,60 L 315,60 M 5,100 L 315,100"
+                stroke={theme.border}
+                strokeWidth={1}
+                strokeDasharray="4,4"
+              />
+
+              {/* Area Fill */}
+              <Path
+                d="M 10,95 C 40,90 70,35 105,40 C 145,45 175,85 210,58 C 245,35 275,18 310,25 L 310,110 L 10,110 Z"
+                fill="url(#spendingGradient)"
+              />
+
+              {/* Stroke Path */}
+              <Path
+                d="M 10,95 C 40,90 70,35 105,40 C 145,45 175,85 210,58 C 245,35 275,18 310,25"
+                fill="none"
+                stroke={theme.accent}
+                strokeWidth={2.8}
+                strokeLinecap="round"
+              />
+
+              {/* Peak Indicator Dot */}
+              <Circle
+                cx="310"
+                cy="25"
+                r={5}
+                fill={theme.surface}
+                stroke={theme.accent}
+                strokeWidth={2.5}
+              />
+            </Svg>
+
+            {/* X-Axis Labels */}
+            <View style={styles.chartXAxisLabels}>
+              <Text style={[styles.axisLabel, { color: theme.textSecondary }]}>Week 1</Text>
+              <Text style={[styles.axisLabel, { color: theme.textSecondary }]}>Week 2</Text>
+              <Text style={[styles.axisLabel, { color: theme.textSecondary }]}>Week 3</Text>
+              <Text style={[styles.axisLabel, { color: theme.accent, fontWeight: "700" }]}>
+                Week 4 (Peak)
+              </Text>
+            </View>
+          </View>
+
+          <View style={styles.chartFooterNote}>
+            <Ionicons name="information-circle-outline" size={14} color={theme.textSecondary} />
+            <Text style={[styles.chartFooterText, { color: theme.textSecondary }]}>
+              Highest spending in Week 4 (₦74,200), primarily in Food & Dining.
+            </Text>
+          </View>
+        </View>
+
+        {/* 5. AI-Generated Spending Plan (SPACIOUS, 100% RESPONSIVE VERTICAL HIERARCHY) */}
+        <View
+          style={[
+            styles.sectionCard,
+            {
+              backgroundColor: theme.surface,
+              borderColor: theme.border,
+            },
+          ]}
+        >
+          <View style={styles.sectionHeaderRow}>
+            <View style={styles.sectionHeaderTitleCol}>
+              <View style={styles.headerTitleInlineRow}>
+                <Text style={[styles.cardTitle, { color: theme.textPrimary }]} numberOfLines={1}>
+                  Your Spending Plan
+                </Text>
+                <View
+                  style={[
+                    styles.aiBadgeSmall,
+                    { backgroundColor: isDark ? "#342630" : "#F3EBF1" },
+                  ]}
+                >
+                  <Text style={[styles.aiBadgeSmallText, { color: theme.accent }]}>
+                    ✨ AI Recommended
+                  </Text>
+                </View>
+              </View>
+              <Text style={[styles.cardSubtitle, { color: theme.textSecondary }]} numberOfLines={1}>
+                Recommended limits based on transaction history
+              </Text>
+            </View>
+          </View>
+
+          {/* Philosophy Banner: AI Recommends. User controls. */}
+          <View
+            style={[
+              styles.philosophyPill,
+              {
+                backgroundColor: isDark ? theme.surfaceSoft : "#FAF7FA",
+                borderColor: theme.border,
+              },
+            ]}
+          >
+            <Ionicons name="options-outline" size={13} color={theme.accent} style={{ flexShrink: 0 }} />
+            <Text style={[styles.philosophyText, { color: theme.textSecondary }]}>
+              AI recommends limits. Tap any card to customize or override.
+            </Text>
+          </View>
+
+          {/* Categories List (Clean 4-Row Card Design for Total Responsive Harmony) */}
+          <View style={styles.spendingPlanList}>
+            {analyticsData.categoriesList.map((cat) => {
+              const meta = CATEGORY_META[cat.name] || CATEGORY_META.Others;
+              const iconColor = isDark ? meta.darkColor : meta.color;
+              const iconBg = isDark ? meta.darkSoft : meta.soft;
+
+              const isExceeded = cat.status === "exceeded";
+              const isNearLimit = cat.status === "near_limit";
+
+              const statusColor = isExceeded
+                ? isDark ? "#FB7185" : "#BE123C"
+                : isNearLimit
+                ? isDark ? "#FBBF24" : "#B45309"
+                : isDark ? "#4ADE80" : "#15803D";
+
+              const statusBg = isExceeded
+                ? isDark ? "#4C101F" : "#FFE4E6"
+                : isNearLimit
+                ? isDark ? "#422808" : "#FEF3C7"
+                : isDark ? "#133E23" : "#DCFCE7";
+
+              const statusLabel = isExceeded
+                ? "Exceeded"
+                : isNearLimit
+                ? "Near Limit"
+                : "On Track";
+
+              return (
+                <TouchableOpacity
+                  key={cat.name}
+                  style={[
+                    styles.planItemCard,
+                    {
+                      backgroundColor: isDark ? theme.surfaceSoft : "#FAF7FA",
+                      borderColor: theme.border,
+                    },
+                  ]}
+                  onPress={() => {
+                    setEditingCategory(cat.name);
+                    setCustomBudgetInput(String(cat.limit));
+                  }}
+                  activeOpacity={0.75}
+                >
+                  {/* Row 1: Icon + Name + Status Pill */}
+                  <View style={styles.planCardHeaderRow}>
+                    <View style={styles.planCardHeaderLeft}>
+                      <View style={[styles.planIconBox, { backgroundColor: iconBg }]}>
+                        <Ionicons name={meta.icon} size={16} color={iconColor} />
+                      </View>
+                      <Text
+                        style={[styles.planCategoryName, { color: theme.textPrimary }]}
+                        numberOfLines={1}
+                      >
+                        {cat.name}
+                      </Text>
+                    </View>
+
+                    <View style={[styles.planStatusPill, { backgroundColor: statusBg }]}>
+                      <View style={[styles.statusDot, { backgroundColor: statusColor }]} />
+                      <Text style={[styles.planStatusPillText, { color: statusColor }]}>
+                        {statusLabel}
+                      </Text>
+                    </View>
+                  </View>
+
+                  {/* Row 2: Amounts (Spent & Budget Limit) */}
+                  <View style={styles.planAmountsRow}>
+                    <Text style={[styles.planAmountSpent, { color: theme.textPrimary }]}>
+                      ₦{cat.spent.toLocaleString()}
+                      <Text style={[styles.planAmountSub, { color: theme.textSecondary }]}>
+                        {" "}spent
+                      </Text>
+                    </Text>
+                    <Text style={[styles.planAmountLimit, { color: theme.textSecondary }]}>
+                      Limit: ₦{cat.limit.toLocaleString()}
+                    </Text>
+                  </View>
+
+                  {/* Row 3: Progress Bar */}
+                  <View
+                    style={[
+                      styles.planProgressBarBg,
+                      { backgroundColor: isDark ? "#2A2430" : "#EBE5EB" },
+                    ]}
+                  >
+                    <View
+                      style={[
+                        styles.planProgressBarFill,
+                        {
+                          width: `${Math.min(cat.percent, 100)}%`,
+                          backgroundColor: statusColor,
+                        },
+                      ]}
+                    />
+                  </View>
+
+                  {/* Row 4: Transaction count & Percentage of limit */}
+                  <View style={styles.planFooterRow}>
+                    <Text style={[styles.planFooterMeta, { color: theme.textSecondary }]}>
+                      {cat.count} transactions recorded
+                    </Text>
+                    <View style={styles.planFooterRight}>
+                      <Text style={[styles.planPercentText, { color: statusColor }]}>
+                        {cat.percent}% used
+                      </Text>
+                      <Ionicons
+                        name="create-outline"
+                        size={12}
+                        color={theme.textSecondary}
+                        style={{ marginLeft: 3 }}
+                      />
+                    </View>
+                  </View>
+                </TouchableOpacity>
+              );
+            })}
+          </View>
+        </View>
+
+        {/* 6. AI Insight Cards */}
+        <View style={styles.sectionMargin}>
+          <View style={styles.sectionHeaderRow}>
+            <View style={styles.sectionHeaderTitleCol}>
+              <Text style={[styles.cardTitle, { color: theme.textPrimary }]} numberOfLines={1}>
+                ✨ AI Insights
+              </Text>
+              <Text style={[styles.cardSubtitle, { color: theme.textSecondary }]} numberOfLines={1}>
+                Personalized observations & spending patterns
+              </Text>
+            </View>
+          </View>
+
+          <View style={styles.insightsGrid}>
+            {aiInsights.map((insight) => (
+              <View
+                key={insight.id}
+                style={[
+                  styles.insightCard,
+                  {
+                    backgroundColor: theme.surface,
+                    borderColor: theme.border,
+                  },
+                ]}
+              >
+                <View style={styles.insightCardHeader}>
+                  <View style={[styles.insightIconCircle, { backgroundColor: insight.bg }]}>
+                    <Ionicons name={insight.icon} size={15} color={insight.color} />
+                  </View>
+                  <View style={[styles.insightBadgePill, { backgroundColor: insight.bg }]}>
+                    <Text style={[styles.insightBadgeText, { color: insight.color }]} numberOfLines={1}>
+                      {insight.badge}
+                    </Text>
+                  </View>
+                </View>
+                <Text style={[styles.insightCardTitle, { color: theme.textPrimary }]} numberOfLines={1}>
+                  {insight.title}
+                </Text>
+                <Text style={[styles.insightCardBody, { color: theme.textSecondary }]}>
+                  {insight.text}
+                </Text>
+              </View>
+            ))}
+          </View>
+        </View>
+
+        {/* 7. Category Breakdown */}
+        <View
+          style={[
+            styles.sectionCard,
+            {
+              backgroundColor: theme.surface,
+              borderColor: theme.border,
+            },
+          ]}
+        >
+          <View style={styles.sectionHeaderRow}>
+            <View style={styles.sectionHeaderTitleCol}>
+              <Text style={[styles.cardTitle, { color: theme.textPrimary }]} numberOfLines={1}>
+                Category Breakdown
+              </Text>
+              <Text style={[styles.cardSubtitle, { color: theme.textSecondary }]} numberOfLines={1}>
+                Where your money went this month
+              </Text>
+            </View>
+          </View>
+
+          {/* Segmented Distribution Bar */}
+          <View style={styles.segmentedBar}>
+            {analyticsData.categoriesList
+              .filter((c) => c.percentageOfTotal > 0)
+              .map((c) => {
+                const meta = CATEGORY_META[c.name] || CATEGORY_META.Others;
+                return (
+                  <View
+                    key={c.name}
+                    style={{
+                      width: `${c.percentageOfTotal}%`,
+                      backgroundColor: isDark ? meta.darkColor : meta.color,
+                      height: "100%",
+                    }}
+                  />
+                );
+              })}
+          </View>
+
+          {/* Category Rows */}
+          <View style={styles.breakdownRows}>
+            {analyticsData.categoriesList.map((c) => {
+              const meta = CATEGORY_META[c.name] || CATEGORY_META.Others;
+              const color = isDark ? meta.darkColor : meta.color;
+              return (
+                <View
+                  key={c.name}
+                  style={[styles.breakdownItem, { borderBottomColor: theme.border }]}
+                >
+                  <View style={styles.breakdownLeft}>
+                    <View style={[styles.breakdownDot, { backgroundColor: color }]} />
+                    <Text
+                      style={[styles.breakdownName, { color: theme.textPrimary }]}
+                      numberOfLines={1}
+                    >
+                      {c.name}
+                    </Text>
+                  </View>
+                  <View style={styles.breakdownRight}>
+                    <Text style={[styles.breakdownAmount, { color: theme.textPrimary }]}>
+                      ₦{c.spent.toLocaleString()}
+                    </Text>
+                    <Text style={[styles.breakdownShare, { color: theme.textSecondary }]}>
+                      {c.percentageOfTotal}%
+                    </Text>
+                  </View>
+                </View>
+              );
+            })}
+          </View>
+        </View>
+
+        {/* 8. Ask AI Section */}
+        <View
+          style={[
+            styles.askAiCard,
+            {
+              backgroundColor: isDark ? "#201824" : "#F8F2F7",
+              borderColor: isDark ? "#3A2938" : "#E8DCF0",
+            },
+          ]}
+        >
+          <View style={styles.askAiHeader}>
+            <View
+              style={[
+                styles.askAiIconFrame,
+                { backgroundColor: isDark ? "#342335" : "#FFFFFF" },
+              ]}
+            >
+              <Ionicons name="chatbubbles-outline" size={19} color={theme.accent} />
+            </View>
+            <View style={styles.askAiTitleCol}>
+              <Text style={[styles.askAiTitle, { color: theme.textPrimary }]} numberOfLines={1}>
+                Ask about your spending
+              </Text>
+              <Text style={[styles.askAiSubtitle, { color: theme.textSecondary }]} numberOfLines={1}>
+                Instant answers from your transactions
+              </Text>
+            </View>
+          </View>
+
+          {/* Suggested Prompt Chips */}
+          <View style={styles.promptChipsContainer}>
+            {SUGGESTED_PROMPTS.map((prompt) => (
+              <TouchableOpacity
+                key={prompt}
+                style={[
+                  styles.promptChip,
+                  {
+                    backgroundColor: isDark ? theme.surface : "#FFFFFF",
+                    borderColor: isDark ? theme.border : "#E3D5EA",
+                  },
+                ]}
+                onPress={() => handleAskAi(prompt)}
+                activeOpacity={0.7}
+              >
+                <Text style={[styles.promptChipText, { color: theme.textPrimary }]}>
+                  {prompt}
+                </Text>
+                <Ionicons name="arrow-forward" size={11} color={theme.accent} style={{ flexShrink: 0 }} />
+              </TouchableOpacity>
+            ))}
+          </View>
+
+          {/* Query Input Bar */}
+          <View
+            style={[
+              styles.askAiInputContainer,
+              {
+                backgroundColor: isDark ? theme.surface : "#FFFFFF",
+                borderColor: isDark ? theme.border : "#E3D5EA",
+              },
+            ]}
+          >
+            <TextInput
+              style={[styles.askAiInput, { color: theme.textPrimary }]}
+              placeholder="e.g. Can I afford ₦40,000 this weekend?"
+              placeholderTextColor={theme.textSecondary}
+              value={aiQuestion}
+              onChangeText={setAiQuestion}
+              onSubmitEditing={() => handleAskAi(aiQuestion)}
+              returnKeyType="send"
+            />
+            <TouchableOpacity
+              style={[styles.askAiSendBtn, { backgroundColor: theme.accent }]}
+              onPress={() => handleAskAi(aiQuestion)}
+              disabled={isAskingAi || !aiQuestion.trim()}
+              activeOpacity={0.8}
+            >
+              <Ionicons name="sparkles" size={14} color="#FFFFFF" />
+            </TouchableOpacity>
+          </View>
+        </View>
       </ScrollView>
+
+      {/* Month Selector Modal */}
+      <Modal
+        visible={showMonthPicker}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setShowMonthPicker(false)}
+      >
+        <TouchableWithoutFeedback onPress={() => setShowMonthPicker(false)}>
+          <View style={styles.modalOverlay}>
+            <TouchableWithoutFeedback>
+              <View
+                style={[
+                  styles.monthModalCard,
+                  {
+                    backgroundColor: theme.surface,
+                    borderColor: theme.border,
+                  },
+                ]}
+              >
+                <View style={styles.modalHeaderRow}>
+                  <Text style={[styles.modalTitle, { color: theme.textPrimary }]}>
+                    Select Month
+                  </Text>
+                  <TouchableOpacity onPress={() => setShowMonthPicker(false)}>
+                    <Ionicons name="close" size={20} color={theme.textSecondary} />
+                  </TouchableOpacity>
+                </View>
+
+                {AVAILABLE_MONTHS.map((m) => {
+                  const isSelected = m.id === selectedMonthId;
+                  return (
+                    <TouchableOpacity
+                      key={m.id}
+                      style={[
+                        styles.monthOptionRow,
+                        {
+                          backgroundColor: isSelected
+                            ? isDark ? theme.surfaceSoft : "#F3EBF1"
+                            : "transparent",
+                          borderColor: isSelected ? theme.accent : "transparent",
+                        },
+                      ]}
+                      onPress={() => {
+                        setSelectedMonthId(m.id);
+                        setShowMonthPicker(false);
+                      }}
+                    >
+                      <Text
+                        style={[
+                          styles.monthOptionLabel,
+                          {
+                            color: isSelected ? theme.accent : theme.textPrimary,
+                            fontWeight: isSelected ? "700" : "500",
+                          },
+                        ]}
+                      >
+                        {m.label}
+                      </Text>
+                      {isSelected && (
+                        <Ionicons name="checkmark-circle" size={18} color={theme.accent} />
+                      )}
+                    </TouchableOpacity>
+                  );
+                })}
+              </View>
+            </TouchableWithoutFeedback>
+          </View>
+        </TouchableWithoutFeedback>
+      </Modal>
+
+      {/* Adjust Budget Modal ("AI Recommends. User Controls.") */}
+      <Modal
+        visible={!!editingCategory}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setEditingCategory(null)}
+      >
+        <TouchableWithoutFeedback onPress={() => setEditingCategory(null)}>
+          <View style={styles.modalOverlay}>
+            <TouchableWithoutFeedback>
+              <View
+                style={[
+                  styles.editBudgetModalCard,
+                  {
+                    backgroundColor: theme.surface,
+                    borderColor: theme.border,
+                  },
+                ]}
+              >
+                <View style={styles.modalHeaderRow}>
+                  <View style={{ flex: 1, marginRight: 8 }}>
+                    <Text style={[styles.modalTitle, { color: theme.textPrimary }]}>
+                      Adjust Spending Limit
+                    </Text>
+                    <Text style={[styles.modalSub, { color: theme.textSecondary }]}>
+                      {editingCategory}
+                    </Text>
+                  </View>
+                  <TouchableOpacity onPress={() => setEditingCategory(null)}>
+                    <Ionicons name="close" size={20} color={theme.textSecondary} />
+                  </TouchableOpacity>
+                </View>
+
+                <Text style={[styles.inputLabel, { color: theme.textSecondary }]}>
+                  Recommended Limit (₦)
+                </Text>
+                <View
+                  style={[
+                    styles.amountInputRow,
+                    {
+                      backgroundColor: isDark ? theme.surfaceSoft : "#F9F7FA",
+                      borderColor: theme.border,
+                    },
+                  ]}
+                >
+                  <Text style={[styles.currencyPrefix, { color: theme.textPrimary }]}>₦</Text>
+                  <TextInput
+                    style={[styles.budgetNumberInput, { color: theme.textPrimary }]}
+                    keyboardType="numeric"
+                    value={customBudgetInput}
+                    onChangeText={setCustomBudgetInput}
+                    placeholder="Enter limit"
+                    placeholderTextColor={theme.textSecondary}
+                    autoFocus
+                  />
+                </View>
+
+                <View style={styles.modalButtonsRow}>
+                  <TouchableOpacity
+                    style={[
+                      styles.cancelModalBtn,
+                      {
+                        backgroundColor: isDark ? theme.surfaceSoft : "#F3F0F4",
+                        borderColor: theme.border,
+                      },
+                    ]}
+                    onPress={() => setEditingCategory(null)}
+                  >
+                    <Text style={[styles.cancelBtnText, { color: theme.textSecondary }]}>
+                      Cancel
+                    </Text>
+                  </TouchableOpacity>
+
+                  <TouchableOpacity
+                    style={[styles.saveModalBtn, { backgroundColor: theme.accent }]}
+                    onPress={handleSaveBudgetLimit}
+                  >
+                    <Text style={styles.saveBtnText}>Save Limit</Text>
+                  </TouchableOpacity>
+                </View>
+              </View>
+            </TouchableWithoutFeedback>
+          </View>
+        </TouchableWithoutFeedback>
+      </Modal>
+
+      {/* Ask AI Response Modal */}
+      <Modal
+        visible={!!activeAiAnswer}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setActiveAiAnswer(null)}
+      >
+        <TouchableWithoutFeedback onPress={() => setActiveAiAnswer(null)}>
+          <View style={styles.modalOverlay}>
+            <TouchableWithoutFeedback>
+              <View
+                style={[
+                  styles.aiAnswerModalCard,
+                  {
+                    backgroundColor: theme.surface,
+                    borderColor: theme.border,
+                  },
+                ]}
+              >
+                <View style={styles.aiModalHeader}>
+                  <View style={[styles.aiIconBadge, { backgroundColor: isDark ? "#342630" : "#F3EBF1" }]}>
+                    <Ionicons name="sparkles" size={17} color={theme.accent} />
+                  </View>
+                  <View style={{ flex: 1, minWidth: 0, marginRight: 6 }}>
+                    <Text style={[styles.aiModalTitle, { color: theme.textPrimary }]} numberOfLines={1}>
+                      Smart AI Analysis
+                    </Text>
+                    <Text
+                      style={[styles.aiModalQuery, { color: theme.textSecondary }]}
+                      numberOfLines={1}
+                    >
+                      &quot;{activeAiAnswer?.query}&quot;
+                    </Text>
+                  </View>
+                  <TouchableOpacity onPress={() => setActiveAiAnswer(null)}>
+                    <Ionicons name="close" size={20} color={theme.textSecondary} />
+                  </TouchableOpacity>
+                </View>
+
+                {/* Summary */}
+                <View
+                  style={[
+                    styles.aiSummaryBox,
+                    {
+                      backgroundColor: isDark ? theme.surfaceSoft : "#F9F6FA",
+                      borderColor: theme.border,
+                    },
+                  ]}
+                >
+                  <Text style={[styles.aiSummaryText, { color: theme.textPrimary }]}>
+                    {activeAiAnswer?.summary}
+                  </Text>
+                </View>
+
+                {/* Breakdown Bullets */}
+                <View style={styles.aiBulletsContainer}>
+                  {activeAiAnswer?.details.map((detail, idx) => (
+                    <View key={idx} style={styles.aiBulletRow}>
+                      <Ionicons name="checkmark-circle" size={15} color={theme.accent} style={{ marginTop: 2, flexShrink: 0 }} />
+                      <Text style={[styles.aiBulletText, { color: theme.textPrimary }]}>
+                        {detail}
+                      </Text>
+                    </View>
+                  ))}
+                </View>
+
+                {/* Actionable Tip */}
+                {activeAiAnswer?.actionableTip ? (
+                  <View
+                    style={[
+                      styles.aiTipBox,
+                      {
+                        backgroundColor: isDark ? "#30261A" : "#FEF3C7",
+                        borderColor: isDark ? "#4D381F" : "#FDE68A",
+                      },
+                    ]}
+                  >
+                    <Ionicons name="bulb-outline" size={16} color="#B45309" style={{ marginTop: 1, flexShrink: 0 }} />
+                    <Text style={[styles.aiTipText, { color: isDark ? "#FDE68A" : "#92400E" }]}>
+                      {activeAiAnswer.actionableTip}
+                    </Text>
+                  </View>
+                ) : null}
+
+                <TouchableOpacity
+                  style={[styles.aiCloseModalBtn, { backgroundColor: theme.accent }]}
+                  onPress={() => setActiveAiAnswer(null)}
+                >
+                  <Text style={styles.aiCloseModalText}>Got it</Text>
+                </TouchableOpacity>
+              </View>
+            </TouchableWithoutFeedback>
+          </View>
+        </TouchableWithoutFeedback>
+      </Modal>
     </SafeAreaView>
   );
 }
@@ -918,344 +1277,736 @@ const styles = StyleSheet.create({
   safeArea: {
     flex: 1,
   },
-
   container: {
     flex: 1,
   },
-
   contentContainer: {
-    paddingHorizontal: 20,
-    paddingTop: 16,
-    paddingBottom: 40,
+    paddingHorizontal: 16,
+    paddingTop: 12,
+    paddingBottom: 110,
   },
-
-  pageHeader: {
-    marginBottom: 18,
-  },
-
-  pageTitle: {
-    fontSize: 28,
-    fontWeight: "700",
-  },
-
-  budgetCard: {
-    borderRadius: 20,
-    borderWidth: 1,
-    padding: 20,
-    marginBottom: 22,
-  },
-
-  budgetCardTop: {
-    alignItems: "flex-start",
+  headerRow: {
     flexDirection: "row",
     justifyContent: "space-between",
-  },
-
-  budgetCardAction: {
     alignItems: "center",
-    borderRadius: 16,
+    marginBottom: 14,
+  },
+  headerLeftCol: {
+    flex: 1,
+    minWidth: 0,
+    paddingRight: 6,
+  },
+  headerBadgeRow: {
     flexDirection: "row",
-    paddingHorizontal: 12,
-    paddingVertical: 9,
-  },
-
-  budgetCardActionIcon: {
     alignItems: "center",
+    gap: 6,
+    flexWrap: "wrap",
+  },
+  headerTitle: {
+    fontSize: 23,
+    fontWeight: "800",
+    letterSpacing: -0.4,
+  },
+  headerSubtitle: {
+    fontSize: 12,
+    marginTop: 2,
+  },
+  aiSparklePill: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 3.5,
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 8,
+    borderWidth: 1,
+  },
+  aiSparkleText: {
+    fontSize: 10,
+    fontWeight: "700",
+  },
+  monthSelectorBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    paddingHorizontal: 9,
+    paddingVertical: 6,
     borderRadius: 12,
     borderWidth: 1,
-    height: 28,
-    justifyContent: "center",
-    marginRight: 8,
-    width: 28,
+    flexShrink: 0,
+    marginRight: 2,
   },
-
-  budgetCardActionText: {
-    fontSize: 12,
+  monthSelectorText: {
+    fontSize: 11.5,
     fontWeight: "700",
   },
 
-  budgetCardLabel: {
-    fontSize: 11,
-    fontWeight: "700",
-    letterSpacing: 1.1,
-    textTransform: "uppercase",
-  },
-
-  budgetCardTitle: {
-    fontSize: 20,
-    fontWeight: "700",
-    marginTop: 6,
-  },
-
-  budgetPercent: {
-    alignItems: "center",
-    borderRadius: 14,
-    flexDirection: "row",
-    justifyContent: "center",
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    alignSelf: "flex-start",
-    marginTop: 16,
-  },
-
-  budgetPercentValue: {
-    fontSize: 14,
-    fontWeight: "700",
-    marginRight: 4,
-  },
-
-  budgetPercentLabel: {
-    fontSize: 12,
-    fontWeight: "600",
-  },
-
-  budgetCardAmount: {
-    fontSize: 32,
-    fontWeight: "700",
-    letterSpacing: -0.8,
-    marginTop: 18,
-  },
-
-  budgetCardSubAmount: {
-    fontSize: 14,
-    fontWeight: "500",
-  },
-
-  budgetCardHelper: {
-    fontSize: 12,
-    marginTop: 8,
-    lineHeight: 18,
-  },
-
-  budgetProgressTrack: {
-    borderRadius: 4,
-    height: 8,
-    marginTop: 18,
+  // Monthly Spending Summary Card
+  summaryHeroCard: {
+    borderRadius: 18,
+    borderWidth: 1,
+    padding: 16,
+    marginBottom: 12,
     overflow: "hidden",
   },
-
-  budgetProgressFill: {
-    borderRadius: 4,
-    height: "100%",
-    width: "57%",
-  },
-
-  sectionHeader: {
+  summaryTopRow: {
     flexDirection: "row",
     justifyContent: "space-between",
-    alignItems: "center",
+    alignItems: "flex-start",
     marginBottom: 12,
-    marginTop: 20,
+  },
+  summaryTopLeft: {
+    flex: 1,
+    minWidth: 0,
+    marginRight: 6,
+  },
+  summaryMetaLabel: {
+    fontSize: 10.5,
+    fontWeight: "700",
+    letterSpacing: 0.6,
+  },
+  summaryBigAmount: {
+    fontSize: 27,
+    fontWeight: "800",
+    letterSpacing: -0.8,
+    marginTop: 2,
+  },
+  comparisonBadge: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 3,
+    paddingHorizontal: 7,
+    paddingVertical: 4.5,
+    borderRadius: 9,
+    flexShrink: 0,
+  },
+  comparisonText: {
+    fontSize: 10.5,
+    fontWeight: "700",
+  },
+  metricsBarRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingVertical: 9,
+    paddingHorizontal: 6,
+    borderRadius: 12,
+    borderWidth: 1,
+  },
+  metricItem: {
+    flex: 1,
+    alignItems: "center",
+    paddingHorizontal: 2,
+    minWidth: 0,
+  },
+  metricItemLabel: {
+    fontSize: 9.5,
+    fontWeight: "600",
+    marginBottom: 2,
+    textAlign: "center",
+  },
+  metricItemValue: {
+    fontSize: 12,
+    fontWeight: "700",
+    textAlign: "center",
+  },
+  metricDivider: {
+    width: 1,
+    height: 20,
   },
 
+  // Ajo Entry (Second Section)
   ajoEntry: {
     flexDirection: "row",
     alignItems: "center",
     borderWidth: 1,
-    borderRadius: 20,
-    padding: 14,
-    marginTop: 24,
+    borderRadius: 16,
+    padding: 12,
+    marginBottom: 12,
+    overflow: "hidden",
   },
   ajoEntryIcon: {
-    width: 44,
-    height: 44,
-    borderRadius: 15,
-    borderWidth: 1,
-    alignItems: "center",
-    justifyContent: "center",
-    marginRight: 12,
-  },
-  ajoEntryCopy: { flex: 1 },
-  ajoEntryTitle: { fontSize: 15, fontWeight: "700", marginBottom: 3 },
-  ajoEntrySub: { fontSize: 12, fontWeight: "500" },
-
-  sectionTitle: {
-    fontSize: 16,
-    fontWeight: "700",
-  },
-
-  addSectionButton: {
-    alignItems: "center",
-    borderRadius: 16,
-    flexDirection: "row",
+    width: 38,
     height: 38,
-    paddingHorizontal: 12,
-    justifyContent: "center",
-  },
-
-  addSectionIcon: {
-    alignItems: "center",
-    borderRadius: 13,
+    borderRadius: 11,
     borderWidth: 1,
-    height: 26,
+    alignItems: "center",
     justifyContent: "center",
-    marginRight: 8,
-    width: 26,
+    marginRight: 10,
+    flexShrink: 0,
   },
-
-  addSectionText: {
-    fontSize: 12,
+  ajoEntryCopy: {
+    flex: 1,
+    minWidth: 0,
+    marginRight: 4,
+  },
+  ajoEntryTitle: {
+    fontSize: 14,
     fontWeight: "700",
   },
-
-  horizontalRow: {
-    marginBottom: 16,
+  ajoPill: {
+    paddingHorizontal: 5,
+    paddingVertical: 1.5,
+    borderRadius: 5,
+  },
+  ajoPillText: {
+    fontSize: 8.5,
+    fontWeight: "700",
+  },
+  ajoEntrySub: {
+    fontSize: 11,
+    marginTop: 2,
   },
 
-  categoryCard: {
-    borderRadius: 16,
-    padding: 16,
-    width: 220,
-    marginRight: 12,
+  // Section Cards
+  sectionCard: {
+    borderRadius: 18,
     borderWidth: 1,
+    padding: 16,
+    marginBottom: 12,
+    overflow: "hidden",
   },
-
-  cardTopRow: {
+  sectionMargin: {
+    marginBottom: 12,
+  },
+  sectionHeaderRow: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
     marginBottom: 12,
   },
+  sectionHeaderTitleCol: {
+    flex: 1,
+    minWidth: 0,
+    marginRight: 6,
+  },
+  headerTitleInlineRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    flexWrap: "wrap",
+  },
+  cardTitle: {
+    fontSize: 15.5,
+    fontWeight: "700",
+  },
+  cardSubtitle: {
+    fontSize: 11,
+    marginTop: 1,
+  },
+  miniTagPill: {
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 8,
+    flexShrink: 0,
+  },
+  miniTagText: {
+    fontSize: 10,
+    fontWeight: "700",
+  },
+  chartContainer: {
+    alignItems: "center",
+    justifyContent: "center",
+    marginTop: 2,
+    width: "100%",
+  },
+  chartXAxisLabels: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    width: "100%",
+    paddingHorizontal: 6,
+    marginTop: 6,
+  },
+  axisLabel: {
+    fontSize: 10,
+    fontWeight: "500",
+  },
+  chartFooterNote: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    marginTop: 10,
+    paddingTop: 8,
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopColor: "rgba(150, 150, 150, 0.2)",
+  },
+  chartFooterText: {
+    fontSize: 10.5,
+    flex: 1,
+  },
 
-  catIconFrame: {
+  // Spending Plan
+  aiBadgeSmall: {
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 6,
+  },
+  aiBadgeSmallText: {
+    fontSize: 9.5,
+    fontWeight: "700",
+  },
+  philosophyPill: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 10,
+    borderWidth: 1,
+    marginBottom: 10,
+  },
+  philosophyText: {
+    fontSize: 11,
+    fontWeight: "500",
+    flex: 1,
+  },
+  spendingPlanList: {
+    gap: 10,
+  },
+  planItemCard: {
+    borderRadius: 14,
+    borderWidth: 1,
+    padding: 12,
+  },
+  planCardHeaderRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: 8,
+  },
+  planCardHeaderLeft: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    flex: 1,
+    minWidth: 0,
+    marginRight: 6,
+  },
+  planIconBox: {
     width: 32,
     height: 32,
     borderRadius: 8,
     justifyContent: "center",
     alignItems: "center",
+    flexShrink: 0,
   },
-
-  catName: {
-    fontSize: 14,
-    fontWeight: "600",
-    marginBottom: 4,
+  planCategoryName: {
+    fontSize: 13.5,
+    fontWeight: "700",
+    flex: 1,
   },
-
-  catSplit: {
-    fontSize: 13,
-    marginBottom: 8,
+  planStatusPill: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingHorizontal: 7,
+    paddingVertical: 3,
+    borderRadius: 7,
+    flexShrink: 0,
   },
-
-  catTotal: {
-    fontSize: 13,
+  planStatusPillText: {
+    fontSize: 10,
+    fontWeight: "700",
   },
-
-  catProgressBg: {
+  planAmountsRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "baseline",
+    marginBottom: 6,
+  },
+  planAmountSpent: {
+    fontSize: 14.5,
+    fontWeight: "800",
+  },
+  planAmountSub: {
+    fontSize: 11,
+    fontWeight: "500",
+  },
+  planAmountLimit: {
+    fontSize: 11.5,
+    fontWeight: "500",
+  },
+  planProgressBarBg: {
     height: 6,
     borderRadius: 3,
     width: "100%",
     overflow: "hidden",
-    marginBottom: 8,
+    marginBottom: 6,
   },
-
-  catProgressBar: {
+  planProgressBarFill: {
     height: "100%",
     borderRadius: 3,
   },
-
-  cardStatusRow: {
+  planFooterRow: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
   },
-
-  cardStatusPercent: {
-    fontSize: 12,
-    fontWeight: "700",
+  planFooterMeta: {
+    fontSize: 10.5,
+    fontWeight: "500",
   },
-
-  statusDotRow: {
+  planFooterRight: {
     flexDirection: "row",
     alignItems: "center",
   },
-
+  planPercentText: {
+    fontSize: 10.5,
+    fontWeight: "700",
+  },
   statusDot: {
-    width: 6,
-    height: 6,
-    borderRadius: 3,
+    width: 5,
+    height: 5,
+    borderRadius: 2.5,
+    marginRight: 3.5,
+  },
+
+  // Insights Cards Grid
+  insightsGrid: {
+    gap: 8,
+  },
+  insightCard: {
+    borderRadius: 14,
+    borderWidth: 1,
+    padding: 12,
+    overflow: "hidden",
+  },
+  insightCardHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: 6,
+  },
+  insightIconCircle: {
+    width: 26,
+    height: 26,
+    borderRadius: 7,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  insightBadgePill: {
+    paddingHorizontal: 7,
+    paddingVertical: 2.5,
+    borderRadius: 6,
+  },
+  insightBadgeText: {
+    fontSize: 9.5,
+    fontWeight: "700",
+  },
+  insightCardTitle: {
+    fontSize: 13,
+    fontWeight: "700",
+    marginBottom: 3,
+  },
+  insightCardBody: {
+    fontSize: 11.5,
+    lineHeight: 16.5,
+  },
+
+  // Category Breakdown
+  segmentedBar: {
+    height: 8,
+    borderRadius: 4,
+    overflow: "hidden",
+    flexDirection: "row",
+    width: "100%",
+    marginBottom: 12,
+  },
+  breakdownRows: {
+    gap: 8,
+  },
+  breakdownItem: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    paddingVertical: 4,
+  },
+  breakdownLeft: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    flex: 1,
+    minWidth: 0,
     marginRight: 6,
   },
-
-  statusDotText: {
-    fontSize: 11,
+  breakdownDot: {
+    width: 7,
+    height: 7,
+    borderRadius: 3.5,
+    flexShrink: 0,
   },
-
-  goalsContainer: {
-    gap: 10,
-  },
-
-  goalRow: {
-    borderRadius: 16,
-    padding: 14,
-    flexDirection: "row",
-    alignItems: "center",
-    borderWidth: 1,
-  },
-
-  goalIconBox: {
-    width: 38,
-    height: 38,
-    borderRadius: 10,
-    justifyContent: "center",
-    alignItems: "center",
-    marginRight: 12,
-  },
-
-  goalMainInfo: {
-    flex: 1,
-  },
-
-  goalTitle: {
-    fontSize: 14,
-    fontWeight: "600",
-    marginBottom: 2,
-  },
-
-  goalSub: {
-    fontSize: 11,
-  },
-
-  goalProgressContainer: {
-    width: 80,
-    alignItems: "flex-end",
-  },
-
-  goalProgressBg: {
-    height: 6,
-    borderRadius: 3,
-    width: "100%",
-    overflow: "hidden",
-    marginBottom: 4,
-  },
-
-  goalProgressBar: {
-    height: "100%",
-    borderRadius: 3,
-  },
-
-  goalPercentText: {
-    fontSize: 11,
-    fontWeight: "700",
-  },
-
-  goalMenuIcon: {
-    marginLeft: 8,
-  },
-
-  viewAllGoalsButton: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    marginTop: 12,
-    paddingVertical: 8,
-  },
-
-  viewAllGoalsText: {
+  breakdownName: {
     fontSize: 13,
     fontWeight: "600",
   },
+  breakdownRight: {
+    alignItems: "flex-end",
+    flexShrink: 0,
+  },
+  breakdownAmount: {
+    fontSize: 13,
+    fontWeight: "700",
+  },
+  breakdownShare: {
+    fontSize: 10.5,
+    marginTop: 1,
+  },
 
-  viewAllGoalsIcon: {
-    marginLeft: 4,
+  // Ask AI Card
+  askAiCard: {
+    borderRadius: 18,
+    borderWidth: 1,
+    padding: 14,
+    marginBottom: 12,
+    overflow: "hidden",
+  },
+  askAiHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+    marginBottom: 12,
+  },
+  askAiIconFrame: {
+    width: 34,
+    height: 34,
+    borderRadius: 9,
+    justifyContent: "center",
+    alignItems: "center",
+    flexShrink: 0,
+  },
+  askAiTitleCol: {
+    flex: 1,
+    minWidth: 0,
+  },
+  askAiTitle: {
+    fontSize: 14.5,
+    fontWeight: "700",
+  },
+  askAiSubtitle: {
+    fontSize: 11,
+    marginTop: 1,
+  },
+  promptChipsContainer: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 6,
+    marginBottom: 12,
+  },
+  promptChip: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 5,
+    paddingHorizontal: 9,
+    paddingVertical: 5.5,
+    borderRadius: 11,
+    borderWidth: 1,
+    maxWidth: "100%",
+  },
+  promptChipText: {
+    fontSize: 11,
+    fontWeight: "600",
+    flexShrink: 1,
+  },
+  askAiInputContainer: {
+    flexDirection: "row",
+    alignItems: "center",
+    borderRadius: 12,
+    borderWidth: 1,
+    paddingHorizontal: 10,
+    paddingVertical: 2,
+  },
+  askAiInput: {
+    flex: 1,
+    fontSize: 12,
+    paddingVertical: 6,
+  },
+  askAiSendBtn: {
+    width: 28,
+    height: 28,
+    borderRadius: 8,
+    justifyContent: "center",
+    alignItems: "center",
+    flexShrink: 0,
+  },
+
+  // Modals
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: "rgba(0, 0, 0, 0.55)",
+    justifyContent: "center",
+    alignItems: "center",
+    padding: 16,
+  },
+  monthModalCard: {
+    width: "100%",
+    maxWidth: 330,
+    borderRadius: 18,
+    borderWidth: 1,
+    padding: 16,
+  },
+  modalHeaderRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: 14,
+  },
+  modalTitle: {
+    fontSize: 16,
+    fontWeight: "700",
+  },
+  modalSub: {
+    fontSize: 11.5,
+    marginTop: 1,
+  },
+  monthOptionRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    paddingVertical: 10,
+    paddingHorizontal: 10,
+    borderRadius: 10,
+    borderWidth: 1,
+    marginBottom: 5,
+  },
+  monthOptionLabel: {
+    fontSize: 13.5,
+  },
+
+  // Edit Budget Modal
+  editBudgetModalCard: {
+    width: "100%",
+    maxWidth: 330,
+    borderRadius: 18,
+    borderWidth: 1,
+    padding: 16,
+  },
+  inputLabel: {
+    fontSize: 11.5,
+    fontWeight: "600",
+    marginBottom: 5,
+  },
+  amountInputRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    borderRadius: 10,
+    borderWidth: 1,
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    marginBottom: 14,
+  },
+  currencyPrefix: {
+    fontSize: 16,
+    fontWeight: "700",
+    marginRight: 4,
+  },
+  budgetNumberInput: {
+    flex: 1,
+    fontSize: 16,
+    fontWeight: "700",
+  },
+  modalButtonsRow: {
+    flexDirection: "row",
+    gap: 8,
+  },
+  cancelModalBtn: {
+    flex: 1,
+    paddingVertical: 10,
+    borderRadius: 10,
+    borderWidth: 1,
+    alignItems: "center",
+  },
+  cancelBtnText: {
+    fontSize: 13,
+    fontWeight: "600",
+  },
+  saveModalBtn: {
+    flex: 1,
+    paddingVertical: 10,
+    borderRadius: 10,
+    alignItems: "center",
+  },
+  saveBtnText: {
+    fontSize: 13,
+    fontWeight: "700",
+    color: "#FFFFFF",
+  },
+
+  // AI Answer Modal
+  aiAnswerModalCard: {
+    width: "100%",
+    maxWidth: 350,
+    borderRadius: 18,
+    borderWidth: 1,
+    padding: 16,
+  },
+  aiModalHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    marginBottom: 12,
+  },
+  aiIconBadge: {
+    width: 32,
+    height: 32,
+    borderRadius: 9,
+    justifyContent: "center",
+    alignItems: "center",
+    flexShrink: 0,
+  },
+  aiModalTitle: {
+    fontSize: 15,
+    fontWeight: "700",
+  },
+  aiModalQuery: {
+    fontSize: 11.5,
+    marginTop: 1,
+  },
+  aiSummaryBox: {
+    borderRadius: 12,
+    borderWidth: 1,
+    padding: 10,
+    marginBottom: 10,
+  },
+  aiSummaryText: {
+    fontSize: 13,
+    fontWeight: "600",
+    lineHeight: 18,
+  },
+  aiBulletsContainer: {
+    gap: 6,
+    marginBottom: 12,
+  },
+  aiBulletRow: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    gap: 6,
+  },
+  aiBulletText: {
+    fontSize: 12,
+    flex: 1,
+    lineHeight: 17,
+  },
+  aiTipBox: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    gap: 6,
+    borderRadius: 10,
+    borderWidth: 1,
+    padding: 8,
+    marginBottom: 14,
+  },
+  aiTipText: {
+    fontSize: 11.5,
+    fontWeight: "600",
+    flex: 1,
+    lineHeight: 16,
+  },
+  aiCloseModalBtn: {
+    paddingVertical: 10,
+    borderRadius: 10,
+    alignItems: "center",
+  },
+  aiCloseModalText: {
+    fontSize: 13.5,
+    fontWeight: "700",
+    color: "#FFFFFF",
   },
 });

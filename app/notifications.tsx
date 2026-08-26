@@ -10,6 +10,7 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
+import { useAppStore } from "../src/store";
 
 // Define the structure for notifications
 interface NotificationItem {
@@ -23,6 +24,7 @@ interface NotificationItem {
 
 export default function NotificationsScreen() {
   const router = useRouter();
+  const { theme } = useAppStore();
   const [activeFilter, setActiveFilter] = useState<
     "all" | "alerts" | "insights"
   >("all");
@@ -92,16 +94,16 @@ export default function NotificationsScreen() {
   const getNotificationIcon = (type: string) => {
     switch (type) {
       case "alert":
-        return <Ionicons name="warning-outline" size={18} color="#EC7063" />;
+        return <Ionicons name="warning-outline" size={18} color={theme.danger} />;
       case "insight":
         return (
-          <Ionicons name="trending-up-outline" size={18} color="#2ECC71" />
+          <Ionicons name="trending-up-outline" size={18} color={theme.success} />
         );
       case "bill":
-        return <Ionicons name="card-outline" size={18} color="#F5B041" />;
+        return <Ionicons name="card-outline" size={18} color={theme.warning} />;
       default:
         return (
-          <Ionicons name="shield-checkmark-outline" size={18} color="#5DADE2" />
+          <Ionicons name="shield-checkmark-outline" size={18} color={theme.accentHighlight} />
         );
     }
   };
@@ -110,7 +112,10 @@ export default function NotificationsScreen() {
     <TouchableOpacity
       style={[
         styles.notificationCard,
-        item.isUnread && styles.unreadCardBackground,
+        {
+          backgroundColor: item.isUnread ? theme.surface : theme.surfaceSoft,
+          borderColor: item.isUnread ? theme.accent + "40" : theme.border,
+        },
       ]}
       activeOpacity={0.8}
     >
@@ -119,7 +124,7 @@ export default function NotificationsScreen() {
           <View
             style={[
               styles.iconCircleFrame,
-              { backgroundColor: item.isUnread ? "#FFFFFF" : "#F4F5F7" },
+              { backgroundColor: item.isUnread ? theme.accentSoft : theme.surface },
             ]}
           >
             {getNotificationIcon(item.type)}
@@ -127,6 +132,7 @@ export default function NotificationsScreen() {
           <Text
             style={[
               styles.notificationTitleText,
+              { color: theme.textPrimary },
               item.isUnread && styles.unreadTextWeight,
             ]}
           >
@@ -134,45 +140,46 @@ export default function NotificationsScreen() {
           </Text>
         </View>
         <View style={styles.rightMetaGroup}>
-          <Text style={styles.timestampText}>{item.timestamp}</Text>
-          {item.isUnread && <View style={styles.unreadActiveIndicatorDot} />}
+          <Text style={[styles.timestampText, { color: theme.textSecondary }]}>{item.timestamp}</Text>
+          {item.isUnread && <View style={[styles.unreadActiveIndicatorDot, { backgroundColor: theme.accent }]} />}
         </View>
       </View>
-      <Text style={styles.descriptionText}>{item.description}</Text>
+      <Text style={[styles.descriptionText, { color: theme.textSecondary }]}>{item.description}</Text>
     </TouchableOpacity>
   );
 
   return (
-    <SafeAreaView style={styles.container}>
+    <SafeAreaView style={[styles.container, { backgroundColor: theme.background }]}>
       {/* --- TOP HEADER NAVIGATION --- */}
-      <View style={styles.header}>
+      <View style={[styles.header, { backgroundColor: theme.surface, borderColor: theme.border }]}>
         <TouchableOpacity
           style={styles.backButton}
           onPress={() => router.back()}
         >
-          <Ionicons name="arrow-back" size={22} color="#2D232E" />
+          <Ionicons name="arrow-back" size={22} color={theme.textPrimary} />
         </TouchableOpacity>
-        <Text style={styles.headerTitleText}>Notifications</Text>
+        <Text style={[styles.headerTitleText, { color: theme.textPrimary }]}>Notifications</Text>
         <TouchableOpacity
           style={styles.markReadTextButton}
           onPress={markAllAsRead}
         >
-          <Text style={styles.markReadActionLabel}>Clear unread</Text>
+          <Text style={[styles.markReadActionLabel, { color: theme.accent }]}>Clear unread</Text>
         </TouchableOpacity>
       </View>
 
       {/* --- SEGMENTED FILTER CONTROLS --- */}
-      <View style={styles.filterBarTabsContainer}>
+      <View style={[styles.filterBarTabsContainer, { backgroundColor: theme.surface, borderColor: theme.border }]}>
         <TouchableOpacity
           style={[
             styles.tabItemButton,
-            activeFilter === "all" && styles.activeTabItemButton,
+            { backgroundColor: activeFilter === "all" ? theme.accent : theme.surfaceSoft },
           ]}
           onPress={() => setActiveFilter("all")}
         >
           <Text
             style={[
               styles.tabLabelText,
+              { color: activeFilter === "all" ? "#FFFFFF" : theme.textSecondary },
               activeFilter === "all" && styles.activeTabLabelText,
             ]}
           >
@@ -182,13 +189,14 @@ export default function NotificationsScreen() {
         <TouchableOpacity
           style={[
             styles.tabItemButton,
-            activeFilter === "alerts" && styles.activeTabItemButton,
+            { backgroundColor: activeFilter === "alerts" ? theme.accent : theme.surfaceSoft },
           ]}
           onPress={() => setActiveFilter("alerts")}
         >
           <Text
             style={[
               styles.tabLabelText,
+              { color: activeFilter === "alerts" ? "#FFFFFF" : theme.textSecondary },
               activeFilter === "alerts" && styles.activeTabLabelText,
             ]}
           >
@@ -198,13 +206,14 @@ export default function NotificationsScreen() {
         <TouchableOpacity
           style={[
             styles.tabItemButton,
-            activeFilter === "insights" && styles.activeTabItemButton,
+            { backgroundColor: activeFilter === "insights" ? theme.accent : theme.surfaceSoft },
           ]}
           onPress={() => setActiveFilter("insights")}
         >
           <Text
             style={[
               styles.tabLabelText,
+              { color: activeFilter === "insights" ? "#FFFFFF" : theme.textSecondary },
               activeFilter === "insights" && styles.activeTabLabelText,
             ]}
           >
@@ -225,10 +234,10 @@ export default function NotificationsScreen() {
             <Ionicons
               name="notifications-off-outline"
               size={48}
-              color="#A6ACAF"
+              color={theme.textSecondary}
             />
-            <Text style={styles.emptyStateHeadingTitle}>All caught up!</Text>
-            <Text style={styles.emptyStateSubtextBlurb}>
+            <Text style={[styles.emptyStateHeadingTitle, { color: theme.textPrimary }]}>All caught up!</Text>
+            <Text style={[styles.emptyStateSubtextBlurb, { color: theme.textSecondary }]}>
               No recent notifications fit your selected filters.
             </Text>
           </View>

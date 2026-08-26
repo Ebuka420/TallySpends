@@ -308,6 +308,9 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     alignItems: "flex-start",
   },
+  headerBtnPlaceholder: {
+    width: 40,
+  },
   headerBtnAdd: {
     width: 32,
     height: 32,

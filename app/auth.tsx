@@ -1,9 +1,11 @@
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
-import React, { useState } from "react";
+import React, { useMemo, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
+  Image,
   KeyboardAvoidingView,
   Platform,
   SafeAreaView,
@@ -15,8 +17,11 @@ import {
   View,
 } from "react-native";
 import { useAppStore } from "../src/store";
+import { getThemePalette } from "../src/theme";
+import DynamicLogo from "../components/DynamicLogo";
 
 const API_URL = process.env.EXPO_PUBLIC_API_URL;
+const LOCAL_USERS_KEY = "ts_registered_users";
 
 export default function AuthScreen() {
   const router = useRouter();
@@ -27,7 +32,33 @@ export default function AuthScreen() {
     setProfilePhoneNumber,
     setProfileEmail,
     setProfileTallyTag,
+    themePreference,
+    themeMode,
   } = useAppStore();
+
+  const isDark = themeMode === "dark";
+  const theme = getThemePalette(themePreference || "aurora", themeMode);
+
+  // If user has a preferred theme already, the auth screen adopts it; otherwise defaults to 'aurora'
+  const authColors = useMemo(
+    () => ({
+      background: theme.background,
+      surface: theme.surface,
+      surfaceSoft: theme.surfaceSoft,
+      inputBg: isDark ? theme.surfaceSoft : "#FFFFFF",
+      border: theme.border,
+      textPrimary: theme.textPrimary,
+      textSecondary: theme.textSecondary,
+      placeholder: isDark ? theme.textSecondary : "#9E8FA6",
+      accent: theme.accent,
+      accentSoft: theme.accentSoft,
+      tabTrack: isDark ? theme.surfaceSoft : theme.mutedBackground,
+      tabActive: isDark ? theme.accentSoft : "#FFFFFF",
+      buttonBg: isDark ? theme.accent : theme.textPrimary,
+      buttonText: "#FFFFFF",
+    }),
+    [isDark, theme],
+  );
 
   // Tab handling state: 'login' or 'signup'
   const [authMode, setAuthMode] = useState<"login" | "signup">("login");
@@ -83,50 +114,129 @@ export default function AuthScreen() {
       }
     }
 
+    let loggedInUser: {
+      fullName: string;
+      email: string;
+      phoneNumber: string;
+    } | null = null;
+
+    // 1. Try remote backend if API_URL is configured
+    if (API_URL) {
+      try {
+        const endpoint =
+          authMode === "login" ? "/api/auth/login" : "/api/auth/register";
+        const payload =
+          authMode === "login"
+            ? { email: emailTrimmed, password }
+            : {
+                fullName: fullNameTrimmed,
+                email: emailTrimmed,
+                password,
+                phoneNumber: phoneTrimmed,
+              };
+
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 3500);
+
+        const response = await fetch(`${API_URL}${endpoint}`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload),
+          signal: controller.signal,
+        });
+        clearTimeout(timeoutId);
+
+        const responseText = await response.text();
+        let data: any = {};
+        if (responseText) {
+          try {
+            data = JSON.parse(responseText);
+          } catch (e) {}
+        }
+
+        if (!response.ok) {
+          throw new Error(
+            data.message || `Authentication failed (Status ${response.status})`,
+          );
+        }
+
+        if (authMode === "signup") {
+          Alert.alert(
+            "Success",
+            "Your account has been created successfully! Please log in with your credentials.",
+            [
+              {
+                text: "OK",
+                onPress: () => {
+                  setFullName("");
+                  setPhoneNumber("");
+                  setPassword("");
+                  setConfirmPassword("");
+                  setAuthMode("login");
+                },
+              },
+            ],
+          );
+          setIsLoading(false);
+          return;
+        }
+
+        loggedInUser = {
+          fullName: data.user?.fullName || emailTrimmed.split("@")[0],
+          email: data.user?.email || emailTrimmed,
+          phoneNumber: data.user?.phoneNumber || "",
+        };
+      } catch (backendError: any) {
+        // If the backend gave a specific rejection (e.g. 401 Unauthorized, invalid password), display it
+        if (
+          backendError.message &&
+          !backendError.message.includes("Network") &&
+          !backendError.message.includes("abort") &&
+          !backendError.message.includes("Failed to fetch")
+        ) {
+          Alert.alert("Authentication Error", backendError.message);
+          setIsLoading(false);
+          return;
+        }
+        // Otherwise (network unreachable/offline), fall through to local storage auth
+      }
+    }
+
+    // 2. Local / Offline Auth Handler
     try {
-      const endpoint =
-        authMode === "login" ? "/api/auth/login" : "/api/auth/register";
-      const baseUrl = API_URL || "http://localhost:5000";
-
-      const payload =
-        authMode === "login"
-          ? {
-              email: emailTrimmed,
-              password: password,
-            }
-          : {
-              fullName: fullNameTrimmed,
-              email: emailTrimmed,
-              password: password,
-              phoneNumber: phoneTrimmed,
-            };
-
-      const response = await fetch(`${baseUrl}${endpoint}`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify(payload),
-      });
-
-      const responseText = await response.text();
-      let data: any = {};
-
-      if (responseText) {
+      const storedUsersRaw = await AsyncStorage.getItem(LOCAL_USERS_KEY);
+      let localUsers: any[] = [];
+      if (storedUsersRaw) {
         try {
-          data = JSON.parse(responseText);
+          localUsers = JSON.parse(storedUsersRaw);
         } catch (e) {
-          throw new Error("Server returned an invalid response format.");
+          localUsers = [];
         }
       }
 
-      if (!response.ok) {
-        throw new Error(
-          data.message || `Authentication failed (Status ${response.status})`,
-        );
-      }
-
       if (authMode === "signup") {
+        // Check if user already exists
+        const existingIdx = localUsers.findIndex(
+          (u) => u.email === emailTrimmed,
+        );
+        const newUserObj = {
+          fullName: fullNameTrimmed,
+          email: emailTrimmed,
+          phoneNumber: phoneTrimmed,
+          password,
+        };
+
+        if (existingIdx >= 0) {
+          localUsers[existingIdx] = newUserObj;
+        } else {
+          localUsers.push(newUserObj);
+        }
+
+        await AsyncStorage.setItem(
+          LOCAL_USERS_KEY,
+          JSON.stringify(localUsers),
+        );
+
         Alert.alert(
           "Success",
           "Your account has been created successfully! Please log in with your credentials.",
@@ -143,28 +253,59 @@ export default function AuthScreen() {
             },
           ],
         );
-      } else {
-        // Login Flow
-        const loggedInName = data.user?.fullName || emailTrimmed.split("@")[0];
-        const loggedInPhone = data.user?.phoneNumber || "";
-        const loggedInEmail = data.user?.email || emailTrimmed;
-
-        await setUsername(loggedInName);
-        await setProfileFullName(loggedInName);
-        await setProfilePhoneNumber(loggedInPhone);
-        await setProfileEmail(loggedInEmail);
-        await setProfileTallyTag(
-          "@" + loggedInName.replace(/\s+/g, "").toUpperCase(),
-        );
-
-        login();
-        router.replace("/(tabs)" as any);
+        setIsLoading(false);
+        return;
       }
-    } catch (error: any) {
+
+      // Login Flow
+      if (!loggedInUser) {
+        const foundUser = localUsers.find((u) => u.email === emailTrimmed);
+        if (foundUser) {
+          if (foundUser.password && foundUser.password !== password) {
+            Alert.alert(
+              "Authentication Error",
+              "Incorrect password. Please try again.",
+            );
+            setIsLoading(false);
+            return;
+          }
+          loggedInUser = {
+            fullName: foundUser.fullName || emailTrimmed.split("@")[0],
+            email: foundUser.email,
+            phoneNumber: foundUser.phoneNumber || "",
+          };
+        } else {
+          // Allow first-time login for testing / offline demo
+          const defaultName = emailTrimmed.split("@")[0];
+          const formattedName =
+            defaultName.charAt(0).toUpperCase() + defaultName.slice(1);
+          loggedInUser = {
+            fullName: formattedName,
+            email: emailTrimmed,
+            phoneNumber: "+234 814 622 4577",
+          };
+        }
+      }
+
+      const displayName = loggedInUser.fullName || "User";
+      await setUsername(displayName);
+      await setProfileFullName(displayName);
+      await setProfilePhoneNumber(loggedInUser.phoneNumber || "");
+      await setProfileEmail(loggedInUser.email || emailTrimmed);
+      await setProfileTallyTag(
+        "@" + displayName.replace(/\s+/g, "").toUpperCase(),
+      );
+
+      await login(undefined, undefined, {
+        fullName: displayName,
+        email: loggedInUser.email,
+      });
+
+      router.replace("/(tabs)" as any);
+    } catch (localError: any) {
       Alert.alert(
         "Authentication Error",
-        error.message ||
-          "Something went wrong. Please check your network connection.",
+        localError.message || "Failed to log in. Please try again.",
       );
     } finally {
       setIsLoading(false);
@@ -172,7 +313,9 @@ export default function AuthScreen() {
   };
 
   return (
-    <SafeAreaView style={styles.container}>
+    <SafeAreaView
+      style={[styles.container, { backgroundColor: authColors.background }]}
+    >
       <KeyboardAvoidingView
         behavior={Platform.OS === "ios" ? "padding" : "height"}
         style={{ flex: 1 }}
@@ -180,31 +323,55 @@ export default function AuthScreen() {
         <ScrollView
           contentContainerStyle={styles.scrollContent}
           keyboardShouldPersistTaps="handled"
+          showsVerticalScrollIndicator={false}
         >
           {/* App Logo & Branding Header */}
           <View style={styles.brandContainer}>
-            <View style={styles.logoPlaceholder}>
-              <Ionicons name="wallet" size={36} color="#20142A" />
-            </View>
-            <Text style={styles.brandName}>TallySpends</Text>
-            <Text style={styles.brandSubtitle}>
+            <DynamicLogo size={76} style={{ marginBottom: 14 }} />
+            <Text style={[styles.brandName, { color: authColors.textPrimary }]}>
+              TallySpends
+            </Text>
+            <Text
+              style={[styles.brandSubtitle, { color: authColors.textSecondary }]}
+            >
               Automate your budgets, track operations.
             </Text>
           </View>
 
           {/* Auth Mode Switcher Tabs */}
-          <View style={styles.tabContainer}>
+          <View
+            style={[
+              styles.tabContainer,
+              {
+                backgroundColor: authColors.tabTrack,
+                borderColor: authColors.border,
+              },
+            ]}
+          >
             <TouchableOpacity
               style={[
                 styles.tabButton,
-                authMode === "login" && styles.activeTabButton,
+                authMode === "login" && [
+                  styles.activeTabButton,
+                  {
+                    backgroundColor: authColors.tabActive,
+                    borderColor: isDark ? authColors.border : "transparent",
+                  },
+                ],
               ]}
               onPress={() => setAuthMode("login")}
+              activeOpacity={0.8}
             >
               <Text
                 style={[
                   styles.tabText,
-                  authMode === "login" && styles.activeTabText,
+                  {
+                    color:
+                      authMode === "login"
+                        ? authColors.textPrimary
+                        : authColors.textSecondary,
+                    fontWeight: authMode === "login" ? "700" : "500",
+                  },
                 ]}
               >
                 Log In
@@ -214,14 +381,27 @@ export default function AuthScreen() {
             <TouchableOpacity
               style={[
                 styles.tabButton,
-                authMode === "signup" && styles.activeTabButton,
+                authMode === "signup" && [
+                  styles.activeTabButton,
+                  {
+                    backgroundColor: authColors.tabActive,
+                    borderColor: isDark ? authColors.border : "transparent",
+                  },
+                ],
               ]}
               onPress={() => setAuthMode("signup")}
+              activeOpacity={0.8}
             >
               <Text
                 style={[
                   styles.tabText,
-                  authMode === "signup" && styles.activeTabText,
+                  {
+                    color:
+                      authMode === "signup"
+                        ? authColors.textPrimary
+                        : authColors.textSecondary,
+                    fontWeight: authMode === "signup" ? "700" : "500",
+                  },
                 ]}
               >
                 Sign Up
@@ -230,22 +410,42 @@ export default function AuthScreen() {
           </View>
 
           {/* Form Fields Container */}
-          <View style={styles.formContainer}>
+          <View
+            style={[
+              styles.formContainer,
+              {
+                backgroundColor: authColors.surface,
+                borderColor: authColors.border,
+              },
+            ]}
+          >
             {/* Full Name & Phone Number (Sign Up Only) */}
             {authMode === "signup" && (
               <>
-                <Text style={styles.inputLabel}>Full Name</Text>
-                <View style={styles.inputWrapper}>
+                <Text
+                  style={[styles.inputLabel, { color: authColors.textSecondary }]}
+                >
+                  Full Name
+                </Text>
+                <View
+                  style={[
+                    styles.inputWrapper,
+                    {
+                      backgroundColor: authColors.inputBg,
+                      borderColor: authColors.border,
+                    },
+                  ]}
+                >
                   <Ionicons
                     name="person-outline"
-                    size={20}
-                    color="#9CA3AF"
+                    size={18}
+                    color={authColors.placeholder}
                     style={styles.inputIcon}
                   />
                   <TextInput
-                    style={styles.textInput}
+                    style={[styles.textInput, { color: authColors.textPrimary }]}
                     placeholder="John Doe"
-                    placeholderTextColor="#9CA3AF"
+                    placeholderTextColor={authColors.placeholder}
                     autoCapitalize="words"
                     autoCorrect={false}
                     value={fullName}
@@ -253,18 +453,30 @@ export default function AuthScreen() {
                   />
                 </View>
 
-                <Text style={styles.inputLabel}>Phone Number</Text>
-                <View style={styles.inputWrapper}>
+                <Text
+                  style={[styles.inputLabel, { color: authColors.textSecondary }]}
+                >
+                  Phone Number
+                </Text>
+                <View
+                  style={[
+                    styles.inputWrapper,
+                    {
+                      backgroundColor: authColors.inputBg,
+                      borderColor: authColors.border,
+                    },
+                  ]}
+                >
                   <Ionicons
                     name="call-outline"
-                    size={20}
-                    color="#9CA3AF"
+                    size={18}
+                    color={authColors.placeholder}
                     style={styles.inputIcon}
                   />
                   <TextInput
-                    style={styles.textInput}
+                    style={[styles.textInput, { color: authColors.textPrimary }]}
                     placeholder="+234 800 000 0000"
-                    placeholderTextColor="#9CA3AF"
+                    placeholderTextColor={authColors.placeholder}
                     keyboardType="phone-pad"
                     autoCorrect={false}
                     value={phoneNumber}
@@ -275,18 +487,30 @@ export default function AuthScreen() {
             )}
 
             {/* Email Field Input */}
-            <Text style={styles.inputLabel}>Email Address</Text>
-            <View style={styles.inputWrapper}>
+            <Text
+              style={[styles.inputLabel, { color: authColors.textSecondary }]}
+            >
+              Email Address
+            </Text>
+            <View
+              style={[
+                styles.inputWrapper,
+                {
+                  backgroundColor: authColors.inputBg,
+                  borderColor: authColors.border,
+                },
+              ]}
+            >
               <Ionicons
                 name="mail-outline"
-                size={20}
-                color="#9CA3AF"
+                size={18}
+                color={authColors.placeholder}
                 style={styles.inputIcon}
               />
               <TextInput
-                style={styles.textInput}
+                style={[styles.textInput, { color: authColors.textPrimary }]}
                 placeholder="you@example.com"
-                placeholderTextColor="#9CA3AF"
+                placeholderTextColor={authColors.placeholder}
                 keyboardType="email-address"
                 autoCapitalize="none"
                 autoCorrect={false}
@@ -296,18 +520,30 @@ export default function AuthScreen() {
             </View>
 
             {/* Password Field Input */}
-            <Text style={styles.inputLabel}>Password</Text>
-            <View style={styles.inputWrapper}>
+            <Text
+              style={[styles.inputLabel, { color: authColors.textSecondary }]}
+            >
+              Password
+            </Text>
+            <View
+              style={[
+                styles.inputWrapper,
+                {
+                  backgroundColor: authColors.inputBg,
+                  borderColor: authColors.border,
+                },
+              ]}
+            >
               <Ionicons
                 name="lock-closed-outline"
-                size={20}
-                color="#9CA3AF"
+                size={18}
+                color={authColors.placeholder}
                 style={styles.inputIcon}
               />
               <TextInput
-                style={styles.textInput}
+                style={[styles.textInput, { color: authColors.textPrimary }]}
                 placeholder="••••••••"
-                placeholderTextColor="#9CA3AF"
+                placeholderTextColor={authColors.placeholder}
                 secureTextEntry={!isPasswordVisible}
                 autoCapitalize="none"
                 autoCorrect={false}
@@ -320,8 +556,8 @@ export default function AuthScreen() {
               >
                 <Ionicons
                   name={isPasswordVisible ? "eye-off-outline" : "eye-outline"}
-                  size={20}
-                  color="#9CA3AF"
+                  size={19}
+                  color={authColors.placeholder}
                 />
               </TouchableOpacity>
             </View>
@@ -329,18 +565,36 @@ export default function AuthScreen() {
             {/* Confirm Password (Sign Up Only) */}
             {authMode === "signup" && (
               <>
-                <Text style={styles.inputLabel}>Confirm Password</Text>
-                <View style={styles.inputWrapper}>
+                <Text
+                  style={[
+                    styles.inputLabel,
+                    { color: authColors.textSecondary },
+                  ]}
+                >
+                  Confirm Password
+                </Text>
+                <View
+                  style={[
+                    styles.inputWrapper,
+                    {
+                      backgroundColor: authColors.inputBg,
+                      borderColor: authColors.border,
+                    },
+                  ]}
+                >
                   <Ionicons
                     name="lock-closed-outline"
-                    size={20}
-                    color="#9CA3AF"
+                    size={18}
+                    color={authColors.placeholder}
                     style={styles.inputIcon}
                   />
                   <TextInput
-                    style={styles.textInput}
+                    style={[
+                      styles.textInput,
+                      { color: authColors.textPrimary },
+                    ]}
                     placeholder="••••••••"
-                    placeholderTextColor="#9CA3AF"
+                    placeholderTextColor={authColors.placeholder}
                     secureTextEntry={!isPasswordVisible}
                     autoCapitalize="none"
                     autoCorrect={false}
@@ -355,16 +609,23 @@ export default function AuthScreen() {
             <TouchableOpacity
               style={[
                 styles.actionButton,
+                { backgroundColor: authColors.buttonBg },
                 isLoading && styles.actionButtonDisabled,
               ]}
               onPress={handleAuthAction}
               disabled={isLoading}
+              activeOpacity={0.85}
             >
               {isLoading ? (
-                <ActivityIndicator color="#FFFFFF" />
+                <ActivityIndicator color={authColors.buttonText} />
               ) : (
-                <Text style={styles.actionButtonText}>
-                  {authMode === "login" ? "Welcome Back" : "Create Account"}
+                <Text
+                  style={[
+                    styles.actionButtonText,
+                    { color: authColors.buttonText },
+                  ]}
+                >
+                  {authMode === "login" ? "Log In" : "Create Account"}
                 </Text>
               )}
             </TouchableOpacity>
@@ -378,129 +639,120 @@ export default function AuthScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#F9FAFB",
   },
   scrollContent: {
-    paddingHorizontal: 24,
-    paddingTop: 40,
-    paddingBottom: 24,
+    paddingHorizontal: 20,
+    paddingTop: 32,
+    paddingBottom: 32,
     justifyContent: "center",
   },
   brandContainer: {
     alignItems: "center",
-    marginBottom: 40,
+    marginBottom: 28,
   },
-  logoPlaceholder: {
-    width: 70,
-    height: 70,
-    borderRadius: 18,
-    backgroundColor: "#F3F0F7",
+  logoFrame: {
+    width: 76,
+    height: 76,
+    borderRadius: 22,
+    borderWidth: 1,
+    overflow: "hidden",
     justifyContent: "center",
     alignItems: "center",
-    marginBottom: 16,
-    shadowColor: "#20142A",
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.08,
-    shadowRadius: 8,
+    marginBottom: 14,
+    shadowOffset: { width: 0, height: 6 },
+    shadowRadius: 12,
+    elevation: 6,
+  },
+  logoImage: {
+    width: "100%",
+    height: "100%",
   },
   brandName: {
     fontSize: 26,
     fontWeight: "800",
-    color: "#1F2937",
+    letterSpacing: -0.5,
     marginBottom: 4,
   },
   brandSubtitle: {
-    fontSize: 14,
-    color: "#6B7280",
+    fontSize: 13,
     textAlign: "center",
   },
   tabContainer: {
     flexDirection: "row",
-    backgroundColor: "#E5E7EB",
-    borderRadius: 12,
-    padding: 4,
-    marginBottom: 32,
+    borderRadius: 14,
+    borderWidth: 1,
+    padding: 3,
+    marginBottom: 20,
   },
   tabButton: {
     flex: 1,
-    paddingVertical: 12,
+    paddingVertical: 10,
     alignItems: "center",
-    borderRadius: 10,
+    borderRadius: 11,
   },
   activeTabButton: {
-    backgroundColor: "#FFFFFF",
-    shadowColor: "#000",
+    borderWidth: 1,
+    shadowColor: "#000000",
     shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.05,
+    shadowOpacity: 0.06,
     shadowRadius: 4,
+    elevation: 2,
   },
   tabText: {
-    fontSize: 15,
-    fontWeight: "600",
-    color: "#6B7280",
-  },
-  activeTabText: {
-    color: "#20142A",
+    fontSize: 13,
   },
   formContainer: {
-    backgroundColor: "#FFFFFF",
     borderRadius: 20,
-    padding: 20,
     borderWidth: 1,
-    borderColor: "#E5E7EB",
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.02,
-    shadowRadius: 10,
+    padding: 20,
   },
   inputLabel: {
-    fontSize: 13,
-    fontWeight: "600",
-    color: "#4B5563",
+    fontSize: 11.5,
+    fontWeight: "700",
     marginBottom: 6,
-    textTransform: "uppercase",
-    letterSpacing: 0.5,
+    marginTop: 10,
+    letterSpacing: 0.2,
   },
   inputWrapper: {
     flexDirection: "row",
     alignItems: "center",
-    backgroundColor: "#F9FAFB",
     borderWidth: 1,
-    borderColor: "#E5E7EB",
     borderRadius: 12,
     paddingHorizontal: 12,
     height: 48,
-    marginBottom: 20,
+    marginBottom: 6,
   },
   inputIcon: {
     marginRight: 10,
   },
   textInput: {
     flex: 1,
-    fontSize: 15,
-    color: "#1F2937",
+    fontSize: 14,
+    fontWeight: "500",
+    height: "100%",
   },
   eyeIcon: {
-    padding: 4,
+    padding: 6,
   },
   actionButton: {
-    backgroundColor: "#20142A",
-    height: 52,
-    borderRadius: 12,
+    height: 50,
+    borderRadius: 13,
     justifyContent: "center",
     alignItems: "center",
-    marginTop: 8,
-    shadowColor: "#20142A",
+    marginTop: 20,
+    marginBottom: 6,
+    shadowColor: "#000000",
     shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.2,
-    shadowRadius: 8,
+    shadowOpacity: 0.15,
+    shadowRadius: 6,
+    elevation: 3,
   },
   actionButtonDisabled: {
-    backgroundColor: "#9CA3AF",
+    opacity: 0.6,
   },
   actionButtonText: {
-    color: "#FFFFFF",
-    fontSize: 16,
-    fontWeight: "600",
+    fontSize: 15,
+    fontWeight: "700",
+    letterSpacing: -0.2,
   },
 });

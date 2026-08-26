@@ -75,7 +75,13 @@ function generateMockQRCode(text: string): boolean[][] {
 
 export default function RequestScreen() {
   const router = useRouter();
-  const { username, customCategories, addCustomCategory, deleteCustomCategory } = useAppStore();
+  const {
+    username,
+    customCategories,
+    addCustomCategory,
+    deleteCustomCategory,
+    theme,
+  } = useAppStore();
   const [requestAmount, setRequestAmount] = useState("");
   const [requestMemo, setRequestMemo] = useState("");
   const [showConfigModal, setShowConfigModal] = useState(false);
@@ -146,27 +152,27 @@ export default function RequestScreen() {
   };
 
   return (
-    <SafeAreaView style={styles.safeArea}>
+    <SafeAreaView style={[styles.safeArea, { backgroundColor: theme.background }]}>
       {/* Header */}
-      <View style={styles.header}>
+      <View style={[styles.header, { backgroundColor: theme.surface, borderColor: theme.border }]}>
         <TouchableOpacity
           style={styles.backButton}
           onPress={() => router.back()}
           activeOpacity={0.7}
         >
-          <Ionicons name="chevron-back" size={24} color="#20142A" />
+          <Ionicons name="chevron-back" size={24} color={theme.textPrimary} />
         </TouchableOpacity>
-        <Text style={styles.headerTitle}>Tally Request</Text>
+        <Text style={[styles.headerTitle, { color: theme.textPrimary }]}>Tally Request</Text>
         <View style={{ width: 32 }} />
       </View>
 
       <ScrollView contentContainerStyle={styles.scrollContainer} keyboardShouldPersistTaps="handled">
         {/* Mockup Card */}
-        <View style={styles.qrCardContainer}>
-          <Text style={styles.qrCardTitle}>Share this Tally Request QR</Text>
+        <View style={[styles.qrCardContainer, { backgroundColor: theme.surface, borderColor: theme.border }]}>
+          <Text style={[styles.qrCardTitle, { color: theme.textSecondary }]}>Share this Tally Request QR</Text>
 
           {/* QR Code Container */}
-          <View style={styles.qrWrapper}>
+          <View style={[styles.qrWrapper, { backgroundColor: "#FFFFFF", borderColor: theme.border }]}>
             <Svg width={210} height={210} viewBox="0 0 210 210">
               {qrMatrix.map((row, rIdx) =>
                 row.map((isBlack, cIdx) => {
@@ -178,7 +184,7 @@ export default function RequestScreen() {
                         y={rIdx * sizeMultiplier}
                         width={sizeMultiplier}
                         height={sizeMultiplier}
-                        fill="#20142A" // Deep premium purple/black
+                        fill="#1C1C1E"
                       />
                     );
                   }
@@ -189,17 +195,17 @@ export default function RequestScreen() {
           </View>
 
           {/* Username Tag Badge */}
-          <View style={styles.usernameBadge}>
-            <Text style={styles.usernameText}>@{formattedUsername}</Text>
+          <View style={[styles.usernameBadge, { backgroundColor: theme.accentSoft }]}>
+            <Text style={[styles.usernameText, { color: theme.accent }]}>@{formattedUsername}</Text>
           </View>
 
           {requestAmount ? (
             <View style={styles.requestAmountInfoBadge}>
-              <Text style={styles.requestAmountText}>
+              <Text style={[styles.requestAmountText, { color: theme.textPrimary }]}>
                 Requested: ₦{parseFloat(requestAmount).toFixed(2)}
               </Text>
               {requestMemo ? (
-                <Text style={styles.requestMemoText} numberOfLines={1}>
+                <Text style={[styles.requestMemoText, { color: theme.textSecondary }]} numberOfLines={1}>
                   "{requestMemo}"
                 </Text>
               ) : null}
@@ -208,12 +214,12 @@ export default function RequestScreen() {
         </View>
 
         {/* Viewfinder Instructions below the card */}
-        <Text style={styles.instructionsText}>
-            Share the QR as an image to send a quick request to anyone on TallySpends.
-          </Text>
+        <Text style={[styles.instructionsText, { color: theme.textSecondary }]}>
+          Share the QR as an image to send a quick request to anyone on TallySpends.
+        </Text>
         {/* Share Button (Primary) */}
         <TouchableOpacity
-          style={styles.shareButton}
+          style={[styles.shareButton, { backgroundColor: theme.accent, shadowColor: theme.accent }]}
           onPress={handleShare}
           activeOpacity={0.8}
         >
@@ -222,11 +228,11 @@ export default function RequestScreen() {
 
         {/* Add Amount and Note (Secondary) */}
         <TouchableOpacity
-          style={styles.configButton}
+          style={[styles.configButton, { backgroundColor: theme.accentSoft }]}
           onPress={() => setShowConfigModal(true)}
           activeOpacity={0.7}
         >
-          <Text style={styles.configButtonText}>
+          <Text style={[styles.configButtonText, { color: theme.accent }]}>
             {requestAmount ? "Edit Amount and Note" : "Add Amount and Note"}
           </Text>
         </TouchableOpacity>
@@ -242,24 +248,24 @@ export default function RequestScreen() {
             keyboardVerticalOffset={Platform.OS === "ios" ? 24 : 0}
             style={styles.keyboardAvoidingContainer}
           >
-            <View style={styles.modalContent}>
-              <View style={styles.modalPullBar} />
+            <View style={[styles.modalContent, { backgroundColor: theme.surface }]}>
+              <View style={[styles.modalPullBar, { backgroundColor: theme.border }]} />
 
-              <View style={styles.modalHeader}>
-                <Text style={styles.modalTitle}>Request Details</Text>
+              <View style={[styles.modalHeader, { borderColor: theme.border }]}>
+                <Text style={[styles.modalTitle, { color: theme.textPrimary }]}>Request Details</Text>
                 <TouchableOpacity onPress={() => setShowConfigModal(false)}>
-                  <Ionicons name="close-circle" size={24} color="#CCCCCC" />
+                  <Ionicons name="close-circle" size={24} color={theme.textSecondary} />
                 </TouchableOpacity>
               </View>
 
               <ScrollView style={styles.modalBody} keyboardShouldPersistTaps="handled" contentContainerStyle={styles.modalBodyContent}>
-                <Text style={styles.inputLabel}>Amount to Request</Text>
-                <View style={styles.inputWrapper}>
-                  <Text style={styles.currencyPrefix}>₦</Text>
+                <Text style={[styles.inputLabel, { color: theme.textSecondary }]}>Amount to Request</Text>
+                <View style={[styles.inputWrapper, { backgroundColor: theme.surfaceSoft }]}>
+                  <Text style={[styles.currencyPrefix, { color: theme.textPrimary }]}>₦</Text>
                   <TextInput
-                    style={styles.textInput}
+                    style={[styles.textInput, { color: theme.textPrimary }]}
                     placeholder="0.00"
-                    placeholderTextColor="#A0A0A0"
+                    placeholderTextColor={theme.textSecondary}
                     keyboardType="decimal-pad"
                     autoFocus
                     value={requestAmount}
@@ -271,24 +277,24 @@ export default function RequestScreen() {
                   {quickAmounts.map((amount) => (
                     <TouchableOpacity
                       key={amount}
-                      style={styles.quickAmountChip}
+                      style={[styles.quickAmountChip, { backgroundColor: theme.accentSoft }]}
                       onPress={() => setRequestAmount(String(amount))}
                       activeOpacity={0.8}
                     >
-                      <Text style={styles.quickAmountText}>₦{amount.toLocaleString()}</Text>
+                      <Text style={[styles.quickAmountText, { color: theme.accent }]}>₦{amount.toLocaleString()}</Text>
                     </TouchableOpacity>
                   ))}
                 </View>
 
                 <View style={styles.categoryLabelRow}>
-                  <Text style={[styles.inputLabel, { marginTop: 16 }]}>Choose a category</Text>
+                  <Text style={[styles.inputLabel, { color: theme.textSecondary, marginTop: 16 }]}>Choose a category</Text>
                   {(customCategories || []).length > 0 ? (
                     <TouchableOpacity
-                      style={styles.categoryManageButton}
+                      style={[styles.categoryManageButton, { backgroundColor: theme.surfaceSoft }]}
                       onPress={() => setShowCustomCategoryManager((prev) => !prev)}
                       activeOpacity={0.8}
                     >
-                      <Text style={styles.categoryManageButtonText}>×</Text>
+                      <Text style={[styles.categoryManageButtonText, { color: theme.textSecondary }]}>×</Text>
                     </TouchableOpacity>
                   ) : null}
                 </View>
@@ -296,14 +302,25 @@ export default function RequestScreen() {
                   {requestCategories.map((category) => {
                     const isSelected = selectedCategory === category;
                     const isCustomCategory = (customCategories || []).includes(category);
+                    const isAddBtn = category === "Add Category";
                     return (
                       <TouchableOpacity
                         key={category}
                         style={[
                           styles.categoryChip,
-                          category === "Add Category" && styles.addCategoryChip,
-                          isSelected && styles.categoryChipActive,
-                          category === "Add Category" && isSelected && styles.addCategoryChipActive,
+                          {
+                            backgroundColor: isSelected
+                              ? theme.accent
+                              : isAddBtn
+                                ? theme.accentSoft
+                                : theme.surfaceSoft,
+                            borderColor: isAddBtn
+                              ? isSelected
+                                ? theme.accent
+                                : theme.accentSecondary
+                              : "transparent",
+                            borderWidth: isAddBtn ? 1 : 0,
+                          },
                         ]}
                         onPress={() => {
                           setSelectedCategory(category);
@@ -318,22 +335,31 @@ export default function RequestScreen() {
                         }}
                         activeOpacity={0.8}
                       >
-                        <Text style={[
-                          styles.categoryChipText,
-                          isSelected && styles.categoryChipTextActive,
-                          category === "Add Category" && styles.addCategoryChipText,
-                          category === "Add Category" && isSelected && styles.addCategoryChipTextActive,
-                        ]}>{category === "Add Category" ? "＋" : category}</Text>
+                        <Text
+                          style={[
+                            styles.categoryChipText,
+                            {
+                              color: isSelected
+                                ? "#FFFFFF"
+                                : isAddBtn
+                                  ? theme.accent
+                                  : theme.textPrimary,
+                              fontWeight: isAddBtn ? "800" : "600",
+                            },
+                          ]}
+                        >
+                          {isAddBtn ? "＋" : category}
+                        </Text>
                       </TouchableOpacity>
                     );
                   })}
                 </View>
 
                 {(customCategories || []).length > 0 && showCustomCategoryManager ? (
-                  <View style={styles.customCategoriesList}>
+                  <View style={[styles.customCategoriesList, { backgroundColor: theme.surfaceSoft }]}>
                     {(customCategories || []).map((category) => (
                       <View key={category} style={styles.customCategoryRow}>
-                        <Text style={styles.customCategoryText}>{category}</Text>
+                        <Text style={[styles.customCategoryText, { color: theme.textPrimary }]}>{category}</Text>
                         <TouchableOpacity
                           style={styles.deleteCategoryButton}
                           onPress={() => handleDeleteCustomCategory(category)}
@@ -348,7 +374,7 @@ export default function RequestScreen() {
 
                 {selectedCategory ? (
                   <TouchableOpacity
-                    style={styles.clearSelectionButton}
+                    style={[styles.clearSelectionButton, { backgroundColor: theme.surfaceSoft }]}
                     onPress={() => {
                       setSelectedCategory(null);
                       setCustomCategory("");
@@ -357,17 +383,17 @@ export default function RequestScreen() {
                     }}
                     activeOpacity={0.8}
                   >
-                    <Text style={styles.clearSelectionButtonText}>Clear</Text>
+                    <Text style={[styles.clearSelectionButtonText, { color: theme.textSecondary }]}>Clear</Text>
                   </TouchableOpacity>
                 ) : null}
 
                 {(selectedCategory === "Other" || selectedCategory === "Add Category") ? (
-                  <View style={styles.customInputWrapper}>
-                    <Text style={styles.inputLabel}>{selectedCategory === "Other" ? "Other category" : "New category"}</Text>
+                  <View style={[styles.customInputWrapper, { backgroundColor: theme.surfaceSoft }]}>
+                    <Text style={[styles.inputLabel, { color: theme.textSecondary }]}>{selectedCategory === "Other" ? "Other category" : "New category"}</Text>
                     <TextInput
-                      style={styles.customInput}
+                      style={[styles.customInput, { color: theme.textPrimary }]}
                       placeholder={selectedCategory === "Other" ? "Type a custom category" : "Type a new category name"}
-                      placeholderTextColor="#A0A0A0"
+                      placeholderTextColor={theme.textSecondary}
                       value={customCategoryInput}
                       onChangeText={setCustomCategoryInput}
                     />
@@ -376,7 +402,7 @@ export default function RequestScreen() {
 
                 {selectedCategory === "Add Category" ? (
                   <TouchableOpacity
-                    style={styles.addCustomCategoryButton}
+                    style={[styles.addCustomCategoryButton, { backgroundColor: theme.accentSoft }]}
                     onPress={() => {
                       const trimmed = customCategoryInput.trim();
                       if (!trimmed) return;
@@ -387,19 +413,23 @@ export default function RequestScreen() {
                     }}
                     activeOpacity={0.8}
                   >
-                    <Text style={styles.addCustomCategoryButtonText}>Save this as my category</Text>
+                    <Text style={[styles.addCustomCategoryButtonText, { color: theme.accent }]}>Save this as my category</Text>
                   </TouchableOpacity>
                 ) : null}
 
-                <Text style={styles.helperText}>Pick a category so the request is faster and easier to organize.</Text>
+                <Text style={[styles.helperText, { color: theme.textSecondary }]}>Pick a category so the request is faster and easier to organize.</Text>
 
                 <TouchableOpacity
-                  style={[styles.modalSaveButton, !isRequestReady && styles.modalSaveButtonDisabled]}
+                  style={[
+                    styles.modalSaveButton,
+                    { backgroundColor: isRequestReady ? theme.accent : theme.surfaceSoft, shadowColor: theme.accent },
+                    !isRequestReady && styles.modalSaveButtonDisabled,
+                  ]}
                   onPress={handleSaveConfig}
                   activeOpacity={0.8}
                   disabled={!isRequestReady}
                 >
-                  <Text style={styles.modalSaveButtonText}>Apply Request Details</Text>
+                  <Text style={[styles.modalSaveButtonText, !isRequestReady && { color: theme.textSecondary }]}>Apply Request Details</Text>
                 </TouchableOpacity>
 
                 {requestAmount ? (
@@ -415,7 +445,7 @@ export default function RequestScreen() {
                     }}
                     activeOpacity={0.7}
                   >
-                    <Text style={styles.modalClearButtonText}>Clear Request Details</Text>
+                    <Text style={[styles.modalClearButtonText, { color: theme.danger }]}>Clear Request Details</Text>
                   </TouchableOpacity>
                 ) : null}
               </ScrollView>

@@ -10,6 +10,8 @@ import {
     View,
 } from "react-native";
 
+import DynamicLogo from "../components/DynamicLogo";
+
 export default function SettingsAboutScreen() {
   const router = useRouter();
   const { theme } = useAppStore();
@@ -29,13 +31,7 @@ export default function SettingsAboutScreen() {
       </View>
 
       <View style={styles.heroCard}>
-        <View style={styles.heroIconCircle}>
-          <Ionicons
-            name="information-circle-outline"
-            size={22}
-            color={theme.accent}
-          />
-        </View>
+        <DynamicLogo size={46} style={{ marginRight: 12 }} />
         <View style={styles.heroTextWrap}>
           <Text style={styles.heroTitle}>TallySpends</Text>
           <Text style={styles.heroSubtitle}>

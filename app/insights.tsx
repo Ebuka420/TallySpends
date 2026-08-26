@@ -10,6 +10,7 @@ import {
     StyleSheet,
     Text,
     TouchableOpacity,
+    UIManager,
     useColorScheme,
     View,
 } from "react-native";
@@ -666,16 +667,18 @@ const styles = StyleSheet.create({
   calendarCard: {
     backgroundColor: "#FFFFFF",
     borderRadius: 16,
-    padding: 16,
+    padding: 12,
     borderWidth: 1,
     borderColor: "#F0F0F2",
     marginBottom: 20,
+    overflow: "hidden",
   },
   calendarNavbar: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
-    marginBottom: 16,
+    marginBottom: 12,
+    paddingHorizontal: 4,
   },
   calendarMonthTitle: {
     fontSize: 14,
@@ -684,11 +687,11 @@ const styles = StyleSheet.create({
   },
   calendarWeekdaysRow: {
     flexDirection: "row",
-    justifyContent: "space-around",
-    marginBottom: 8,
+    width: "100%",
+    marginBottom: 6,
   },
   calendarWeekdayLabel: {
-    width: 36,
+    width: "14.285%",
     textAlign: "center",
     fontSize: 12,
     fontWeight: "600",
@@ -697,27 +700,27 @@ const styles = StyleSheet.create({
   calendarDaysGrid: {
     flexDirection: "row",
     flexWrap: "wrap",
-    justifyContent: "space-around",
+    width: "100%",
   },
   calendarDayCell: {
-    width: 40,
-    height: 40,
+    width: "14.285%",
+    height: 36,
     justifyContent: "center",
     alignItems: "center",
-    marginVertical: 4,
-    borderRadius: 20,
+    marginVertical: 2,
+    borderRadius: 18,
   },
   calendarDayCellEmpty: {
-    width: 40,
-    height: 40,
+    width: "14.285%",
+    height: 36,
   },
   calendarDayCellStart: {
     backgroundColor: "#4B2C40",
-    borderRadius: 20,
+    borderRadius: 18,
   },
   calendarDayCellEnd: {
     backgroundColor: "#4B2C40",
-    borderRadius: 20,
+    borderRadius: 18,
   },
   calendarDayCellInRange: {
     backgroundColor: "rgba(75, 44, 64, 0.1)",

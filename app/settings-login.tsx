@@ -55,7 +55,10 @@ export default function SettingsLoginScreen() {
   });
 
   const toggle = (key: string) => {
-    setValues((prev) => ({ ...prev, [key]: !prev[key] }));
+    setValues((prev) => ({
+      ...prev,
+      [key]: !prev[key as keyof typeof prev],
+    }));
   };
 
   return (
