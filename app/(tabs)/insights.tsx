@@ -349,20 +349,6 @@ export default function SmartInsightsScreen() {
               >
                 Smart Insights
               </Text>
-              <View
-                style={[
-                  styles.aiSparklePill,
-                  {
-                    backgroundColor: isDark ? "#342630" : "#F3EBF1",
-                    borderColor: theme.border,
-                  },
-                ]}
-              >
-                <Ionicons name="sparkles" size={10} color={theme.accent} />
-                <Text style={[styles.aiSparkleText, { color: theme.accent }]}>
-                  AI Powered
-                </Text>
-              </View>
             </View>
             <Text
               style={[styles.headerSubtitle, { color: theme.textSecondary }]}
