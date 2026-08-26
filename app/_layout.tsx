@@ -71,7 +71,7 @@ export default function RootLayout() {
         {/* Standalone Sub-screens */}
         <Stack.Screen name="customerservice" />
         <Stack.Screen name="deposit" />
-        <Stack.Screen name="insights" />
+        <Stack.Screen name="insightssum" />
         <Stack.Screen name="invitation" />
         <Stack.Screen name="linkbank" />
         <Stack.Screen name="membership" />

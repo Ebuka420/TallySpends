@@ -581,7 +581,7 @@ export default function App() {
             Smart insights
           </Text>
 
-          <TouchableOpacity onPress={() => router.push("/insights")}>
+          <TouchableOpacity onPress={() => router.push("/insightssum")}>
             <Text
               style={[
                 styles.viewAllText,
@@ -630,7 +630,7 @@ export default function App() {
                   borderColor: theme.border,
                 },
               ]}
-              onPress={() => router.push("/insights")}
+              onPress={() => router.push("/insightssum")}
             >
               <View
                 style={[
