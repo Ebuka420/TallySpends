@@ -135,7 +135,7 @@ export default function InsightsScreen() {
     <SafeAreaView
       style={[styles.container, { backgroundColor: theme.background }]}
     >
-      {/* --- HEADER --- */}
+      {/* --- SCREEN HEADER --- */}
       <View
         style={[
           styles.header,
@@ -147,9 +147,11 @@ export default function InsightsScreen() {
           onPress={() => router.back()}
           activeOpacity={0.7}
         >
-          <Ionicons name="chevron-back" size={24} color="#4B2C40" />
+          <Ionicons name="chevron-back" size={24} color={theme.textPrimary} />
         </TouchableOpacity>
-        <Text style={styles.headerTitle}>Insights</Text>
+        <Text style={[styles.headerTitle, { color: theme.textPrimary }]}>
+          Insights Summary
+        </Text>
         <View style={styles.headerRightPlaceholder} />
       </View>
 
@@ -158,17 +160,23 @@ export default function InsightsScreen() {
         showsVerticalScrollIndicator={false}
       >
         {/* --- TIMEFRAME TABS SEGMENTED CONTROL --- */}
-        <View style={styles.segmentedControlFrame}>
+        <View
+          style={[
+            styles.segmentedControlFrame,
+            { backgroundColor: theme.surfaceSoft, borderColor: theme.border },
+          ]}
+        >
           <TouchableOpacity
             style={[
               styles.segmentTab,
-              activeTab === "week" && styles.segmentTabActive,
+              activeTab === "week" && [styles.segmentTabActive, { backgroundColor: theme.accent }],
             ]}
             onPress={() => setActiveTab("week")}
           >
             <Text
               style={[
                 styles.segmentTabText,
+                { color: activeTab === "week" ? "#FFFFFF" : theme.textSecondary },
                 activeTab === "week" && styles.segmentTabTextActive,
               ]}
             >
@@ -178,13 +186,14 @@ export default function InsightsScreen() {
           <TouchableOpacity
             style={[
               styles.segmentTab,
-              activeTab === "month" && styles.segmentTabActive,
+              activeTab === "month" && [styles.segmentTabActive, { backgroundColor: theme.accent }],
             ]}
             onPress={() => setActiveTab("month")}
           >
             <Text
               style={[
                 styles.segmentTabText,
+                { color: activeTab === "month" ? "#FFFFFF" : theme.textSecondary },
                 activeTab === "month" && styles.segmentTabTextActive,
               ]}
             >
@@ -194,7 +203,7 @@ export default function InsightsScreen() {
           <TouchableOpacity
             style={[
               styles.segmentTab,
-              activeTab === "custom" && styles.segmentTabActive,
+              activeTab === "custom" && [styles.segmentTabActive, { backgroundColor: theme.accent }],
               styles.customTabFlexRow,
             ]}
             onPress={() => setActiveTab("custom")}
@@ -202,6 +211,7 @@ export default function InsightsScreen() {
             <Text
               style={[
                 styles.segmentTabText,
+                { color: activeTab === "custom" ? "#FFFFFF" : theme.textSecondary },
                 activeTab === "custom" && styles.segmentTabTextActive,
                 { marginRight: 4 },
               ]}
@@ -211,7 +221,7 @@ export default function InsightsScreen() {
             <Ionicons
               name="calendar-outline"
               size={13}
-              color={activeTab === "custom" ? "#FFFFFF" : "#534B52"}
+              color={activeTab === "custom" ? "#FFFFFF" : theme.textSecondary}
             />
           </TouchableOpacity>
         </View>
@@ -225,20 +235,20 @@ export default function InsightsScreen() {
               { backgroundColor: theme.surface, borderColor: theme.border },
             ]}
           >
-            <Text style={styles.heroSummaryMetaLabel}>
+            <Text style={[styles.heroSummaryMetaLabel, { color: theme.textSecondary }]}>
               {activeTab === "week" ? "Weekly Summary" : "Monthly Summary"}
             </Text>
-            <Text style={styles.heroSummaryDateLabel}>
+            <Text style={[styles.heroSummaryDateLabel, { color: theme.accent }]}>
               {activeTab === "week" ? "Current Week" : "May 2026"}
             </Text>
 
             <View style={styles.heroContentMainRow}>
               <View style={styles.heroTextLeftLayout}>
-                <Text style={styles.heroMainTitleBlurb}>
+                <Text style={[styles.heroMainTitleBlurb, { color: theme.textPrimary }]}>
                   Your spending habits improved this month 🎉
                 </Text>
-                <Text style={styles.heroSubTextBody}>
-                  You spent 12% less on shopping and saved $140 more compared to
+                <Text style={[styles.heroSubTextBody, { color: theme.textSecondary }]}>
+                  You spent 12% less on shopping and saved ₦140,000 more compared to
                   last month.
                 </Text>
               </View>
@@ -247,11 +257,11 @@ export default function InsightsScreen() {
                   <Path
                     d="M 5,60 Q 30,55 45,35 T 90,25 T 112,12"
                     fill="none"
-                    stroke="#4B2C40"
+                    stroke={theme.accent}
                     strokeWidth={2.5}
                     strokeLinecap="round"
                   />
-                  <Circle cx="112" cy="12" r="4" fill="#4B2C40" />
+                  <Circle cx="112" cy="12" r="4" fill={theme.accent} />
                 </Svg>
               </View>
             </View>

@@ -395,7 +395,7 @@ export default function SmartInsightsScreen() {
           </TouchableOpacity>
         </View>
 
-        {/* 2. Monthly Spending Summary Card */}
+        {/* 2. Insights Summary Section */}
         <View
           style={[
             styles.summaryHeroCard,
@@ -405,6 +405,50 @@ export default function SmartInsightsScreen() {
             },
           ]}
         >
+          <View
+            style={{
+              flexDirection: "row",
+              justifyContent: "space-between",
+              alignItems: "center",
+              marginBottom: 12,
+            }}
+          >
+            <View style={{ flexDirection: "row", alignItems: "center" }}>
+              <Ionicons
+                name="pie-chart-outline"
+                size={16}
+                color={theme.accent}
+                style={{ marginRight: 6 }}
+              />
+              <Text
+                style={{
+                  fontSize: 15,
+                  fontWeight: "700",
+                  color: theme.textPrimary,
+                }}
+              >
+                Insights Summary
+              </Text>
+            </View>
+            <TouchableOpacity
+              onPress={() => router.push("/insightssum")}
+              activeOpacity={0.7}
+              style={{ flexDirection: "row", alignItems: "center" }}
+            >
+              <Text
+                style={{
+                  fontSize: 12,
+                  fontWeight: "600",
+                  color: theme.accent,
+                  marginRight: 2,
+                }}
+              >
+                View Full Summary
+              </Text>
+              <Ionicons name="chevron-forward" size={12} color={theme.accent} />
+            </TouchableOpacity>
+          </View>
+
           <View style={styles.summaryTopRow}>
             <View style={styles.summaryTopLeft}>
               <Text style={[styles.summaryMetaLabel, { color: theme.textSecondary }]}>
