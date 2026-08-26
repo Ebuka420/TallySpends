@@ -45,10 +45,6 @@ const MODES: ModeConfig[] = [
 
 const RADIUS = 82;
 
-const PURPLE = "#20142A";
-const LIGHT_PURPLE = "#F3EBF1";
-const SOFT_PURPLE = "#EEE7F0";
-
 export default function RadialFloatingBot() {
   const { themePreference, themeMode } = useAppStore();
   const theme = getThemePalette(themePreference, themeMode);
@@ -94,234 +90,185 @@ export default function RadialFloatingBot() {
   const handleAddExpenseSubmit = () => {
     if (!expenseName || !expenseAmount) return;
 
-    console.log("Expense Added:", {
-      name: expenseName,
-      amount: parseFloat(expenseAmount),
-      category: expenseCategory || "Uncategorized",
-      date: new Date().toISOString(),
-    });
-
     setExpenseName("");
     setExpenseAmount("");
     setExpenseCategory("");
     setActiveModal(null);
   };
 
-  /*
-   * OPEN RADIAL MENU
-   *
-   * Notice that we DO NOT call setActiveMode("coach")
-   * or select any option here.
-   */
   const openMenu = () => {
     setIsOpen(true);
     menuOpenedFromLongPress.current = true;
 
     Animated.spring(menuAnimation, {
       toValue: 1,
-      friction: 7,
-      tension: 55,
       useNativeDriver: true,
+      friction: 6,
+      tension: 60,
     }).start();
   };
 
-  /*
-   * CLOSE RADIAL MENU
-   *
-   * This only closes the radial menu.
-   * It does NOT open Smart Coach.
-   */
   const closeMenu = () => {
-    clearLongPressTimer();
-
-    menuOpenedFromLongPress.current = false;
-
     Animated.timing(menuAnimation, {
       toValue: 0,
       duration: 180,
       useNativeDriver: true,
     }).start(() => {
       setIsOpen(false);
+      menuOpenedFromLongPress.current = false;
     });
   };
 
-  /*
-   * USER EXPLICITLY TAPPED A RADIAL OPTION
-   */
   const selectOption = (mode: ActionMode) => {
-    // Selecting an option explicitly is the only way
-    // a radial option should open.
-    setActiveMode(mode);
     closeMenu();
     handleAction(mode);
   };
 
-  const animatePress = (pressed: boolean) => {
-    Animated.spring(pressAnimation, {
-      toValue: pressed ? 0.91 : 1,
-      friction: 6,
-      tension: 100,
-      useNativeDriver: true,
-    }).start();
-  };
-
-  /*
-   * DRAG + GESTURE RESPONDER
-   */
   const panResponder = useRef(
     PanResponder.create({
       onStartShouldSetPanResponder: () => true,
-      onMoveShouldSetPanResponder: () => true,
+
+      onMoveShouldSetPanResponder: (_, gestureState) => {
+        return Math.abs(gestureState.dx) > 4 || Math.abs(gestureState.dy) > 4;
+      },
 
       onPanResponderGrant: () => {
         isDragging.current = false;
         longPressTriggered.current = false;
+        menuOpenedFromLongPress.current = false;
 
         pan.setOffset({
           x: (pan.x as any)._value,
           y: (pan.y as any)._value,
         });
+        pan.setValue({ x: 0, y: 0 });
 
-        pan.setValue({
-          x: 0,
-          y: 0,
-        });
-
-        animatePress(true);
+        Animated.spring(pressAnimation, {
+          toValue: 0.93,
+          useNativeDriver: true,
+          friction: 8,
+        }).start();
 
         longPressTimer.current = setTimeout(() => {
-          if (!isDragging.current && !isOpen) {
+          if (!isDragging.current) {
             longPressTriggered.current = true;
             openMenu();
           }
-        }, 400);
+        }, 320);
       },
 
       onPanResponderMove: (_, gestureState) => {
-        const { dx, dy } = gestureState;
+        if (Math.abs(gestureState.dx) > 6 || Math.abs(gestureState.dy) > 6) {
+          if (!isDragging.current) {
+            isDragging.current = true;
+            clearLongPressTimer();
 
-        if (Math.hypot(dx, dy) > 8) {
-          isDragging.current = true;
-
-          clearLongPressTimer();
+            if (isOpen) {
+              closeMenu();
+            }
+          }
 
           pan.setValue({
-            x: dx,
-            y: dy,
+            x: gestureState.dx,
+            y: gestureState.dy,
           });
         }
       },
 
       onPanResponderRelease: () => {
-        if (longPressTimer.current) {
-          clearTimeout(longPressTimer.current);
-          longPressTimer.current = null;
-        }
-
+        clearLongPressTimer();
         pan.flattenOffset();
-        animatePress(false);
 
-        // A long press has already opened the radial menu.
-        // DO NOT trigger Smart Coach when the finger is released.
-        if (longPressTriggered.current) {
-          longPressTriggered.current = false;
-          return;
-        }
+        Animated.spring(pressAnimation, {
+          toValue: 1,
+          useNativeDriver: true,
+          friction: 6,
+        }).start();
 
-        // Ignore releases caused by dragging.
         if (isDragging.current) {
+          isDragging.current = false;
           return;
         }
 
-        // If the menu is already open, this release came from
-        // pressing the X/main button, so close the menu.
+        if (menuOpenedFromLongPress.current) {
+          menuOpenedFromLongPress.current = false;
+          return;
+        }
+
         if (isOpen) {
           closeMenu();
           return;
         }
 
-        // A normal short tap opens Smart Coach.
         handleAction("coach");
       },
 
       onPanResponderTerminate: () => {
         clearLongPressTimer();
-
         pan.flattenOffset();
-        animatePress(false);
+
+        Animated.spring(pressAnimation, {
+          toValue: 1,
+          useNativeDriver: true,
+        }).start();
+
+        isDragging.current = false;
       },
     }),
   ).current;
 
   return (
     <>
-      {/* ================================================================
-          SUBTLE BACKDROP
-      ================================================================= */}
       {isOpen && (
-        <Animated.View pointerEvents="box-none" style={StyleSheet.absoluteFill}>
-          <Pressable style={styles.backdrop} onPress={closeMenu} />
-        </Animated.View>
+        <Pressable
+          style={[styles.backdrop, { backgroundColor: "rgba(0, 0, 0, 0.4)" }]}
+          onPress={closeMenu}
+        />
       )}
 
-      {/* ================================================================
-          FLOATING ASSISTANT
-      ================================================================= */}
       <Animated.View
         style={[
           styles.container,
           {
             transform: [
-              {
-                translateX: pan.x,
-              },
-              {
-                translateY: pan.y,
-              },
+              { translateX: pan.x },
+              { translateY: pan.y },
+              { scale: pressAnimation },
             ],
           },
         ]}
       >
         {/* ================================================================
-            RADIAL OPTIONS
+            RADIAL ACTION BUTTONS
         ================================================================= */}
         {isOpen &&
-          MODES.map((mode, index) => {
+          MODES.map((mode) => {
             const rad = (mode.angle * Math.PI) / 180;
+            const targetX = Math.cos(rad) * RADIUS;
+            const targetY = Math.sin(rad) * RADIUS;
 
             const translateX = menuAnimation.interpolate({
               inputRange: [0, 1],
-              outputRange: [0, RADIUS * Math.cos(rad)],
+              outputRange: [0, targetX],
             });
 
             const translateY = menuAnimation.interpolate({
               inputRange: [0, 1],
-              outputRange: [0, RADIUS * Math.sin(rad)],
+              outputRange: [0, targetY],
             });
 
             const scale = menuAnimation.interpolate({
-              inputRange: [0, 0.7, 1],
-              outputRange: [0.65, 1.05, 1],
+              inputRange: [0, 0.6, 1],
+              outputRange: [0, 1.12, 1],
             });
 
             const opacity = menuAnimation.interpolate({
-              inputRange: [0, 0.25, 1],
-              outputRange: [0, 0.5, 1],
+              inputRange: [0, 0.3, 1],
+              outputRange: [0, 0.7, 1],
             });
 
-            const labelTranslate = menuAnimation.interpolate({
-              inputRange: [0, 1],
-              outputRange: [8, 0],
-            });
-
-            /*
-             * IMPORTANT:
-             *
-             * There is NO automatic active option anymore.
-             *
-             * The option only becomes active after the user
-             * explicitly taps it.
-             */
+            const isLeftAligned = mode.angle > 90 && mode.angle < 270;
+            const labelTranslate = isLeftAligned ? -72 : 54;
             const isSelected = activeMode === mode.id;
 
             return (
@@ -331,15 +278,9 @@ export default function RadialFloatingBot() {
                   styles.optionWrapper,
                   {
                     transform: [
-                      {
-                        translateX,
-                      },
-                      {
-                        translateY,
-                      },
-                      {
-                        scale,
-                      },
+                      { translateX },
+                      { translateY },
+                      { scale },
                     ],
                     opacity,
                   },
@@ -350,15 +291,18 @@ export default function RadialFloatingBot() {
                   onPress={() => selectOption(mode.id)}
                   style={[
                     styles.optionButton,
-                    { backgroundColor: theme.surfaceSoft },
-                    activeMode === mode.id && { backgroundColor: theme.accent },
+                    {
+                      backgroundColor: isSelected ? theme.accent : theme.surface,
+                      borderColor: isSelected ? theme.accent : theme.border,
+                      shadowColor: isSelected ? theme.accent : "#000",
+                    },
                   ]}
                 >
                   <Ionicons
                     name={mode.icon}
                     size={22}
                     color={
-                      activeMode === mode.id ? "#FFFFFF" : theme.textPrimary
+                      isSelected ? "#FFFFFF" : theme.textPrimary
                     }
                   />
 
@@ -366,6 +310,8 @@ export default function RadialFloatingBot() {
                     style={[
                       styles.labelContainer,
                       {
+                        backgroundColor: theme.surface,
+                        borderColor: theme.border,
                         opacity,
                         transform: [
                           {
@@ -379,7 +325,8 @@ export default function RadialFloatingBot() {
                     <Text
                       style={[
                         styles.optionLabel,
-                        isSelected && styles.optionLabelActive,
+                        { color: theme.textPrimary },
+                        isSelected && { color: theme.accent, fontWeight: "700" },
                       ]}
                     >
                       {mode.label}
@@ -396,20 +343,15 @@ export default function RadialFloatingBot() {
         <Animated.View
           style={[
             styles.mainButton,
-            { backgroundColor: theme.accent },
-            isOpen && { backgroundColor: theme.textPrimary },
+            {
+              backgroundColor: isOpen ? theme.textPrimary : theme.accent,
+              shadowColor: theme.accent,
+            },
           ]}
           {...panResponder.panHandlers}
         >
-          <View style={[styles.mainButton, isOpen && styles.mainButtonOpen]}>
+          <View style={[styles.mainButtonInner, isOpen && styles.mainButtonOpen]}>
             <View style={styles.mainButtonHighlight} />
-
-            {/*
-             * CLOSED = Sparkles
-             * OPEN = X
-             *
-             * X is now strictly the close-menu state.
-             */}
             <Ionicons
               name={isOpen ? "close" : "sparkles"}
               size={25}
@@ -436,10 +378,13 @@ export default function RadialFloatingBot() {
           onPress={() => setActiveModal(null)}
         >
           <Pressable
-            style={[styles.modalContent, { backgroundColor: theme.surface }]}
+            style={[
+              styles.modalContent,
+              { backgroundColor: theme.surface, borderColor: theme.border },
+            ]}
             onPress={(e) => e.stopPropagation()}
           >
-            <View style={styles.modalHandle} />
+            <View style={[styles.modalHandle, { backgroundColor: theme.border }]} />
 
             <View style={styles.modalHeader}>
               <Text style={[styles.modalTitle, { color: theme.textPrimary }]}>
@@ -453,7 +398,11 @@ export default function RadialFloatingBot() {
             <TextInput
               style={[
                 styles.input,
-                { backgroundColor: theme.background, color: theme.textPrimary },
+                {
+                  backgroundColor: theme.background,
+                  color: theme.textPrimary,
+                  borderColor: theme.border,
+                },
               ]}
               placeholder="Expense Name (e.g. Lunch)"
               placeholderTextColor={theme.textSecondary}
@@ -464,9 +413,13 @@ export default function RadialFloatingBot() {
             <TextInput
               style={[
                 styles.input,
-                { backgroundColor: theme.background, color: theme.textPrimary },
+                {
+                  backgroundColor: theme.background,
+                  color: theme.textPrimary,
+                  borderColor: theme.border,
+                },
               ]}
-              placeholder="Amount ($)"
+              placeholder="Amount (₦)"
               placeholderTextColor={theme.textSecondary}
               keyboardType="decimal-pad"
               value={expenseAmount}
@@ -476,7 +429,11 @@ export default function RadialFloatingBot() {
             <TextInput
               style={[
                 styles.input,
-                { backgroundColor: theme.background, color: theme.textPrimary },
+                {
+                  backgroundColor: theme.background,
+                  color: theme.textPrimary,
+                  borderColor: theme.border,
+                },
               ]}
               placeholder="Category (e.g. Food, Transport)"
               placeholderTextColor={theme.textSecondary}
@@ -485,12 +442,14 @@ export default function RadialFloatingBot() {
             />
 
             <TouchableOpacity
-              style={[styles.submitBtn, { backgroundColor: theme.accent }]}
+              style={[
+                styles.submitBtn,
+                { backgroundColor: theme.accent, shadowColor: theme.accent },
+              ]}
               onPress={handleAddExpenseSubmit}
               activeOpacity={0.85}
             >
               <Text style={styles.submitBtnText}>Add Expense</Text>
-
               <Ionicons name="arrow-forward" size={18} color="#FFFFFF" />
             </TouchableOpacity>
           </Pressable>
@@ -510,10 +469,13 @@ export default function RadialFloatingBot() {
           onPress={() => setActiveModal(null)}
         >
           <Pressable
-            style={[styles.modalContent, { backgroundColor: theme.surface }]}
+            style={[
+              styles.modalContent,
+              { backgroundColor: theme.surface, borderColor: theme.border },
+            ]}
             onPress={(e) => e.stopPropagation()}
           >
-            <View style={styles.modalHandle} />
+            <View style={[styles.modalHandle, { backgroundColor: theme.border }]} />
 
             <View style={styles.modalHeader}>
               <Text style={[styles.modalTitle, { color: theme.textPrimary }]}>
@@ -527,7 +489,10 @@ export default function RadialFloatingBot() {
             <View
               style={[
                 styles.chatBoxPlaceholder,
-                { backgroundColor: theme.background },
+                {
+                  backgroundColor: theme.background,
+                  borderColor: theme.border,
+                },
               ]}
             >
               <Text style={[styles.chatText, { color: theme.textPrimary }]}>
@@ -544,13 +509,17 @@ export default function RadialFloatingBot() {
                     marginBottom: 0,
                     backgroundColor: theme.background,
                     color: theme.textPrimary,
+                    borderColor: theme.border,
                   },
                 ]}
                 placeholder="Ask your Smart Coach..."
                 placeholderTextColor={theme.textSecondary}
               />
               <TouchableOpacity
-                style={[styles.sendBtn, { backgroundColor: theme.accent }]}
+                style={[
+                  styles.sendBtn,
+                  { backgroundColor: theme.accent, shadowColor: theme.accent },
+                ]}
               >
                 <Ionicons name="send" size={18} color="#FFF" />
               </TouchableOpacity>
@@ -572,10 +541,13 @@ export default function RadialFloatingBot() {
           onPress={() => setActiveModal(null)}
         >
           <Pressable
-            style={[styles.modalContent, { backgroundColor: theme.surface }]}
+            style={[
+              styles.modalContent,
+              { backgroundColor: theme.surface, borderColor: theme.border },
+            ]}
             onPress={(e) => e.stopPropagation()}
           >
-            <View style={styles.modalHandle} />
+            <View style={[styles.modalHandle, { backgroundColor: theme.border }]} />
 
             <View style={styles.modalHeader}>
               <Text style={[styles.modalTitle, { color: theme.textPrimary }]}>
@@ -605,10 +577,13 @@ export default function RadialFloatingBot() {
           onPress={() => setActiveModal(null)}
         >
           <Pressable
-            style={[styles.modalContent, { backgroundColor: theme.surface }]}
+            style={[
+              styles.modalContent,
+              { backgroundColor: theme.surface, borderColor: theme.border },
+            ]}
             onPress={(e) => e.stopPropagation()}
           >
-            <View style={styles.modalHandle} />
+            <View style={[styles.modalHandle, { backgroundColor: theme.border }]} />
 
             <View style={styles.modalHeader}>
               <Text style={[styles.modalTitle, { color: theme.textPrimary }]}>
@@ -641,37 +616,34 @@ const styles = StyleSheet.create({
 
   backdrop: {
     ...StyleSheet.absoluteFillObject,
-    backgroundColor: "rgba(32, 20, 42, 0.055)",
-  },
-
-  mainButtonShadow: {
-    width: 58,
-    height: 58,
-    borderRadius: 29,
-    shadowColor: PURPLE,
-    shadowOffset: {
-      width: 0,
-      height: 7,
-    },
-    shadowOpacity: 0.3,
-    shadowRadius: 13,
-    elevation: 12,
   },
 
   mainButton: {
     width: 58,
     height: 58,
     borderRadius: 29,
-    backgroundColor: PURPLE,
     alignItems: "center",
     justifyContent: "center",
     overflow: "hidden",
     borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.10)",
+    borderColor: "rgba(255,255,255,0.15)",
+    shadowOffset: {
+      width: 0,
+      height: 6,
+    },
+    shadowOpacity: 0.35,
+    shadowRadius: 12,
+    elevation: 12,
+  },
+
+  mainButtonInner: {
+    width: "100%",
+    height: "100%",
+    alignItems: "center",
+    justifyContent: "center",
   },
 
   mainButtonOpen: {
-    backgroundColor: "#291936",
     transform: [
       {
         scale: 1.02,
@@ -686,7 +658,7 @@ const styles = StyleSheet.create({
     right: 7,
     height: 22,
     borderRadius: 20,
-    backgroundColor: "rgba(255,255,255,0.07)",
+    backgroundColor: "rgba(255,255,255,0.15)",
   },
 
   optionWrapper: {
@@ -699,12 +671,9 @@ const styles = StyleSheet.create({
     width: 50,
     height: 50,
     borderRadius: 25,
-    backgroundColor: "#FFFFFF",
     alignItems: "center",
     justifyContent: "center",
     borderWidth: 1,
-    borderColor: "rgba(32,20,42,0.07)",
-    shadowColor: "#000",
     shadowOffset: {
       width: 0,
       height: 4,
@@ -714,23 +683,15 @@ const styles = StyleSheet.create({
     elevation: 7,
   },
 
-  optionButtonActive: {
-    backgroundColor: PURPLE,
-    borderColor: "rgba(255,255,255,0.08)",
-    shadowColor: PURPLE,
-    shadowOpacity: 0.28,
-    shadowRadius: 10,
-  },
-
   labelContainer: {
     position: "absolute",
     left: -5,
-    backgroundColor: "rgba(255,255,255,0.96)",
     paddingHorizontal: 10,
     paddingVertical: 6,
     borderRadius: 10,
     minWidth: 90,
     alignItems: "center",
+    borderWidth: 1,
     shadowColor: "#000",
     shadowOffset: {
       width: 0,
@@ -742,26 +703,21 @@ const styles = StyleSheet.create({
   },
 
   optionLabel: {
-    color: PURPLE,
-    fontSize: 10.5,
-    fontWeight: "700",
+    fontSize: 11,
+    fontWeight: "600",
     letterSpacing: -0.1,
-  },
-
-  optionLabelActive: {
-    color: PURPLE,
   },
 
   modalOverlay: {
     flex: 1,
-    backgroundColor: "rgba(20, 12, 25, 0.42)",
+    backgroundColor: "rgba(0, 0, 0, 0.45)",
     justifyContent: "flex-end",
   },
 
   modalContent: {
-    backgroundColor: "#FFFFFF",
     borderTopLeftRadius: 28,
     borderTopRightRadius: 28,
+    borderTopWidth: 1,
     paddingHorizontal: 20,
     paddingTop: 10,
     paddingBottom: 28,
@@ -781,7 +737,6 @@ const styles = StyleSheet.create({
     width: 38,
     height: 4,
     borderRadius: 4,
-    backgroundColor: "#DDD6DF",
     marginBottom: 20,
   },
 
@@ -792,44 +747,22 @@ const styles = StyleSheet.create({
     marginBottom: 20,
   },
 
-  modalEyebrow: {
-    color: "#8B7B90",
-    fontSize: 9,
-    fontWeight: "800",
-    letterSpacing: 1.1,
-    marginBottom: 4,
-  },
-
   modalTitle: {
     fontSize: 20,
     fontWeight: "800",
-    color: PURPLE,
     letterSpacing: -0.4,
   },
 
-  modalCloseButton: {
-    width: 38,
-    height: 38,
-    borderRadius: 19,
-    backgroundColor: LIGHT_PURPLE,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-
   input: {
-    backgroundColor: "#F7F4F7",
     borderRadius: 14,
     paddingHorizontal: 15,
     paddingVertical: 13,
     fontSize: 14,
-    color: PURPLE,
     marginBottom: 12,
     borderWidth: 1,
-    borderColor: "#EEE8EF",
   },
 
   submitBtn: {
-    backgroundColor: PURPLE,
     borderRadius: 14,
     paddingVertical: 15,
     alignItems: "center",
@@ -837,7 +770,6 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     gap: 8,
     marginTop: 8,
-    shadowColor: PURPLE,
     shadowOffset: {
       width: 0,
       height: 5,
@@ -853,43 +785,15 @@ const styles = StyleSheet.create({
     fontSize: 15,
   },
 
-  coachTitleRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 7,
-  },
-
-  coachTitleIcon: {
-    width: 25,
-    height: 25,
-    borderRadius: 8,
-    backgroundColor: PURPLE,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-
   chatBoxPlaceholder: {
-    backgroundColor: "#F7F4F7",
     padding: 16,
     borderRadius: 17,
     marginBottom: 15,
     minHeight: 120,
     borderWidth: 1,
-    borderColor: "#EEE8EF",
-  },
-
-  chatAvatar: {
-    width: 32,
-    height: 32,
-    borderRadius: 11,
-    backgroundColor: PURPLE,
-    alignItems: "center",
-    justifyContent: "center",
-    marginBottom: 10,
   },
 
   chatText: {
-    color: PURPLE,
     fontSize: 14,
     lineHeight: 20,
     fontWeight: "500",
@@ -905,10 +809,8 @@ const styles = StyleSheet.create({
     width: 47,
     height: 47,
     borderRadius: 14,
-    backgroundColor: PURPLE,
     justifyContent: "center",
     alignItems: "center",
-    shadowColor: PURPLE,
     shadowOffset: {
       width: 0,
       height: 4,
@@ -916,11 +818,5 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.2,
     shadowRadius: 7,
     elevation: 4,
-  },
-
-  placeholderText: {
-    color: "#706572",
-    fontSize: 14,
-    marginVertical: 20,
   },
 });
