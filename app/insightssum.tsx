@@ -43,38 +43,6 @@ export default function InsightsScreen() {
   const [startDate, setStartDate] = useState<Date | null>(new Date(2026, 4, 1));
   const [endDate, setEndDate] = useState<Date | null>(new Date(2026, 4, 15));
 
-  // Expanded tips state
-  const [expandedTipId, setExpandedTipId] = useState<string | null>(null);
-
-  const toggleTip = (id: string) => {
-    LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
-    setExpandedTipId((currentId) => (currentId === id ? null : id));
-  };
-
-  const tipsLibrary = [
-    {
-      id: "tip-1",
-      title: "Optimize Grocery Spending",
-      short: "Cut down on food delivery by meal prepping.",
-      full: "Food & Dining represents 26% of your budget (₦602.10). By meal prepping just 3 days a week, you can save an estimated ₦80-₦100 per month. Try to use grocery lists and avoid shopping while hungry!",
-      icon: "restaurant-outline",
-    },
-    {
-      id: "tip-2",
-      title: "Review Subscriptions",
-      short: "Audit monthly direct debits.",
-      full: "Bills & Utilities stand at ₦322.00. Check for forgotten streaming services, gym memberships, or software subscriptions. Canceling just one unused ₦15 subscription saves you ₦180 a year.",
-      icon: "card-outline",
-    },
-    {
-      id: "tip-3",
-      title: "Smart Savings Allocation",
-      short: "Set up auto-save rules.",
-      full: "You've saved ₦1,104.00 this month. Set up a recurring ₦50 transfer to your savings goals right after your salary drops to pay yourself first and secure your laptop savings goal faster.",
-      icon: "trending-up-outline",
-    },
-  ];
-
   const heatMapBlocks = Array(21)
     .fill(0)
     .map((_, i) => {
@@ -443,83 +411,7 @@ export default function InsightsScreen() {
             <Text style={styles.vendorAvatarInitials}>AMZ</Text>
           </View>
           <Text style={styles.vendorLabelStringName}>Amazon Marketplace</Text>
-          <Text style={styles.patternColorIndicatorDot}>$420.00</Text>
-        </View>
-
-        {/* --- DYNAMIC TIPS & RECOMMENDATIONS --- */}
-        <Text
-          style={[
-            styles.patternsWidgetHighlightTextEmphasis,
-            { marginTop: 24 },
-          ]}
-        >
-          Premium Financial Tips
-        </Text>
-        <Text style={styles.patternsWidgetSubTextMeta}>
-          Tap any tip card to reveal actionable, step-by-step guidance.
-        </Text>
-
-        <View style={{ gap: 12, marginBottom: 24 }}>
-          {tipsLibrary.map((tip) => {
-            const isExpanded = expandedTipId === tip.id;
-            return (
-              <TouchableOpacity
-                key={tip.id}
-                style={[
-                  styles.coachRecommendationCardItem,
-                  isExpanded && styles.coachCardExpanded,
-                ]}
-                onPress={() => toggleTip(tip.id)}
-                activeOpacity={0.8}
-              >
-                <View
-                  style={{
-                    flexDirection: "row",
-                    alignItems: "center",
-                    justifyContent: "space-between",
-                  }}
-                >
-                  <View
-                    style={{
-                      flexDirection: "row",
-                      alignItems: "center",
-                      gap: 8,
-                    }}
-                  >
-                    <Ionicons
-                      name={tip.icon as any}
-                      size={18}
-                      color="#4B2C40"
-                    />
-                    <Text
-                      style={[
-                        styles.patternsWidgetHighlightTextEmphasis,
-                        { marginTop: 0 },
-                      ]}
-                    >
-                      {tip.title}
-                    </Text>
-                  </View>
-                  <Ionicons
-                    name={isExpanded ? "chevron-up" : "chevron-down"}
-                    size={16}
-                    color="#4B2C40"
-                  />
-                </View>
-                <Text
-                  style={[
-                    styles.patternsWidgetSubTextMeta,
-                    { marginTop: 4, marginBottom: 0 },
-                  ]}
-                >
-                  {tip.short}
-                </Text>
-                {isExpanded && (
-                  <Text style={styles.expandedTipBodyText}>{tip.full}</Text>
-                )}
-              </TouchableOpacity>
-            );
-          })}
+          <Text style={styles.patternColorIndicatorDot}>₦420,000</Text>
         </View>
       </ScrollView>
     </SafeAreaView>
