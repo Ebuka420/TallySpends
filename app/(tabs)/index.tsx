@@ -187,9 +187,25 @@ const getTimeLabel = (value?: string) => {
 export default function App() {
   const router = useRouter();
 
-  const { transactions, themePreference, themeMode, username, profileImage } = useAppStore();
+  const {
+    transactions,
+    themePreference,
+    themeMode,
+    username,
+    profileFullName,
+    profileNickname,
+    profileImage,
+  } = useAppStore();
 
   const theme = getThemePalette(themePreference, themeMode);
+
+  const isNicknameSet =
+    profileNickname &&
+    profileNickname.trim() !== "" &&
+    profileNickname.trim().toLowerCase() !== "enter nickname";
+  const displayName = isNicknameSet
+    ? profileNickname.trim()
+    : profileFullName?.trim() || username || "User";
 
   const [balanceVisible, setBalanceVisible] = useState(true);
   const [activeInsight, setActiveInsight] = useState(0);
@@ -316,7 +332,7 @@ export default function App() {
               )}
             </View>
 
-            <View>
+            <View style={styles.greetingTextWrap}>
               <Text
                 style={[
                   styles.greetingText,
@@ -324,8 +340,10 @@ export default function App() {
                     color: theme.textPrimary,
                   },
                 ]}
+                numberOfLines={1}
+                ellipsizeMode="tail"
               >
-                Good morning, {username || "User"}
+                Welcome, {displayName}
               </Text>
 
               <Text
@@ -335,6 +353,8 @@ export default function App() {
                     color: theme.textSecondary,
                   },
                 ]}
+                numberOfLines={1}
+                ellipsizeMode="tail"
               >
                 Where did your money go today?
               </Text>
@@ -1187,6 +1207,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
     flexDirection: "row",
     justifyContent: "space-between",
+    gap: 8,
   },
 
   profileContainer: {
@@ -1194,6 +1215,13 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     flex: 1,
     minWidth: 0,
+    marginRight: 6,
+  },
+
+  greetingTextWrap: {
+    flex: 1,
+    minWidth: 0,
+    justifyContent: "center",
   },
 
   avatarWrapper: {
@@ -1203,6 +1231,7 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     marginRight: 10,
     width: 40,
+    flexShrink: 0,
   },
 
   greetingText: {
@@ -1218,6 +1247,8 @@ const styles = StyleSheet.create({
   headerIcons: {
     flexDirection: "row",
     gap: 8,
+    flexShrink: 0,
+    alignItems: "center",
   },
 
   iconButton: {

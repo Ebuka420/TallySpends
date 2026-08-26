@@ -400,13 +400,6 @@ export default function InsightsScreen() {
           </View>
         )}
 
-        {/* --- EXPENSE CATEGORIES SUMMARY LINES --- */}
-        <View style={styles.categoryRowItemLine}>
-          <Text style={styles.patternCategoryLabelString}>
-            Shopping & Apparel
-          </Text>
-          <Text style={styles.patternCategoryPercentValue}>28%</Text>
-        </View>
 
         {/* --- HEATMAP PATTERNS WIDGET --- */}
         <Text style={styles.patternsWidgetHighlightTextEmphasis}>
@@ -735,26 +728,7 @@ const styles = StyleSheet.create({
     color: "#FFFFFF",
     fontWeight: "700",
   },
-  categoryRowItemLine: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    backgroundColor: "#FFFFFF",
-    padding: 14,
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: "#F0F0F2",
-    marginBottom: 12,
-  },
-  patternCategoryLabelString: {
-    fontSize: 14,
-    fontWeight: "600",
-    color: "#111111",
-  },
-  patternCategoryPercentValue: {
-    fontSize: 14,
-    fontWeight: "700",
-    color: "#4B2C40",
-  },
+
   patternsWidgetHighlightTextEmphasis: {
     fontSize: 15,
     fontWeight: "700",

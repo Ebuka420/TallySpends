@@ -76,9 +76,24 @@ const MENU_ITEMS = [
 export default function MoreScreen() {
   const router = useRouter();
 
-  const { username = "User", themePreference = "aurora", themeMode, profileImage } = useAppStore();
+  const {
+    username = "User",
+    profileFullName,
+    profileNickname,
+    themePreference = "aurora",
+    themeMode,
+    profileImage,
+  } = useAppStore();
 
   const theme = getThemePalette(themePreference, themeMode);
+
+  const isNicknameSet =
+    profileNickname &&
+    profileNickname.trim() !== "" &&
+    profileNickname.trim().toLowerCase() !== "enter nickname";
+  const displayName = isNicknameSet
+    ? profileNickname.trim()
+    : profileFullName?.trim() || username || "User";
 
   return (
     <SafeAreaView
@@ -107,7 +122,10 @@ export default function MoreScreen() {
             ]}
           >
             {profileImage ? (
-              <Image source={{ uri: profileImage }} style={{ width: 56, height: 56, borderRadius: 28 }} />
+              <Image
+                source={{ uri: profileImage }}
+                style={{ width: 56, height: 56, borderRadius: 28 }}
+              />
             ) : (
               <Ionicons name="person" size={28} color={theme.textSecondary} />
             )}
@@ -121,7 +139,7 @@ export default function MoreScreen() {
               },
             ]}
           >
-            {`HI ${(username || "User").toUpperCase()}`}
+            {`Hi ${displayName}`}
           </Text>
         </TouchableOpacity>
 

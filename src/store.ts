@@ -781,9 +781,13 @@ export function useAppStore() {
   }, []);
 
   const setUsername = useCallback(async (newUsername: string) => {
-    setUsernameState(newUsername);
+    const cleanUsername = newUsername.replace(/^@/, "").trim();
+    setUsernameState(cleanUsername);
+    await AsyncStorage.setItem("ts_username", cleanUsername);
 
-    await AsyncStorage.setItem("ts_username", newUsername);
+    const tag = `@${cleanUsername}`;
+    setTallyTagState(tag);
+    await AsyncStorage.setItem("ts_profile_tallytag", tag);
   }, []);
 
   const setProfileFullName = useCallback(async (val: string) => {

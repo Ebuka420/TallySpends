@@ -65,6 +65,7 @@ export default function AuthScreen() {
 
   // Form input fields
   const [fullName, setFullName] = useState("");
+  const [signupUsername, setSignupUsername] = useState("");
   const [phoneNumber, setPhoneNumber] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -78,18 +79,45 @@ export default function AuthScreen() {
     const emailTrimmed = email.trim().toLowerCase();
     const fullNameTrimmed = fullName.trim();
     const phoneTrimmed = phoneNumber.trim();
+    const usernameTrimmed = signupUsername
+      .trim()
+      .replace(/^@/, "")
+      .toLowerCase();
 
     if (!emailTrimmed || !password) {
-      Alert.alert("Input Error", "Please enter your email and password.");
+      Alert.alert(
+        "Input Error",
+        authMode === "login"
+          ? "Please enter your email/username and password."
+          : "Please enter your email and password.",
+      );
       setIsLoading(false);
       return;
     }
 
     if (authMode === "signup") {
-      if (!fullNameTrimmed || !phoneTrimmed) {
+      if (!fullNameTrimmed || !phoneTrimmed || !usernameTrimmed) {
         Alert.alert(
           "Input Error",
-          "Please fill in your Full Name and Phone Number.",
+          "Please fill in your Full Name, Username, and Phone Number.",
+        );
+        setIsLoading(false);
+        return;
+      }
+
+      if (usernameTrimmed.length < 3) {
+        Alert.alert(
+          "Invalid Username",
+          "Username must be at least 3 characters long.",
+        );
+        setIsLoading(false);
+        return;
+      }
+
+      if (!/^[a-zA-Z0-9_.]+$/.test(usernameTrimmed)) {
+        Alert.alert(
+          "Invalid Username",
+          "Username can only contain letters, numbers, underscores, and periods.",
         );
         setIsLoading(false);
         return;
@@ -116,6 +144,7 @@ export default function AuthScreen() {
 
     let loggedInUser: {
       fullName: string;
+      username?: string;
       email: string;
       phoneNumber: string;
     } | null = null;
@@ -130,6 +159,7 @@ export default function AuthScreen() {
             ? { email: emailTrimmed, password }
             : {
                 fullName: fullNameTrimmed,
+                username: usernameTrimmed,
                 email: emailTrimmed,
                 password,
                 phoneNumber: phoneTrimmed,
@@ -169,6 +199,7 @@ export default function AuthScreen() {
                 text: "OK",
                 onPress: () => {
                   setFullName("");
+                  setSignupUsername("");
                   setPhoneNumber("");
                   setPassword("");
                   setConfirmPassword("");
@@ -183,6 +214,7 @@ export default function AuthScreen() {
 
         loggedInUser = {
           fullName: data.user?.fullName || emailTrimmed.split("@")[0],
+          username: data.user?.username || usernameTrimmed,
           email: data.user?.email || emailTrimmed,
           phoneNumber: data.user?.phoneNumber || "",
         };
@@ -215,12 +247,30 @@ export default function AuthScreen() {
       }
 
       if (authMode === "signup") {
-        // Check if user already exists
+        // Check for unique username
+        const usernameTaken = localUsers.some(
+          (u) =>
+            u.username &&
+            u.username.toLowerCase() === usernameTrimmed &&
+            u.email !== emailTrimmed,
+        );
+
+        if (usernameTaken) {
+          Alert.alert(
+            "Username Taken",
+            `The username "@${usernameTrimmed}" is already registered. Please choose another unique username.`,
+          );
+          setIsLoading(false);
+          return;
+        }
+
+        // Check if user already exists by email
         const existingIdx = localUsers.findIndex(
           (u) => u.email === emailTrimmed,
         );
         const newUserObj = {
           fullName: fullNameTrimmed,
+          username: usernameTrimmed,
           email: emailTrimmed,
           phoneNumber: phoneTrimmed,
           password,
@@ -245,6 +295,7 @@ export default function AuthScreen() {
               text: "OK",
               onPress: () => {
                 setFullName("");
+                setSignupUsername("");
                 setPhoneNumber("");
                 setPassword("");
                 setConfirmPassword("");
@@ -257,9 +308,15 @@ export default function AuthScreen() {
         return;
       }
 
-      // Login Flow
+      // Login Flow (Match by Email OR Username)
       if (!loggedInUser) {
-        const foundUser = localUsers.find((u) => u.email === emailTrimmed);
+        const foundUser = localUsers.find(
+          (u) =>
+            (u.email && u.email.toLowerCase() === emailTrimmed) ||
+            (u.username &&
+              u.username.toLowerCase() === emailTrimmed.replace(/^@/, "")),
+        );
+
         if (foundUser) {
           if (foundUser.password && foundUser.password !== password) {
             Alert.alert(
@@ -271,30 +328,34 @@ export default function AuthScreen() {
           }
           loggedInUser = {
             fullName: foundUser.fullName || emailTrimmed.split("@")[0],
+            username: foundUser.username,
             email: foundUser.email,
             phoneNumber: foundUser.phoneNumber || "",
           };
         } else {
           // Allow first-time login for testing / offline demo
-          const defaultName = emailTrimmed.split("@")[0];
+          const defaultName = emailTrimmed.split("@")[0].replace(/^@/, "");
           const formattedName =
             defaultName.charAt(0).toUpperCase() + defaultName.slice(1);
           loggedInUser = {
             fullName: formattedName,
-            email: emailTrimmed,
+            username: defaultName.toLowerCase(),
+            email: emailTrimmed.includes("@") ? emailTrimmed : `${defaultName.toLowerCase()}@example.com`,
             phoneNumber: "+234 814 622 4577",
           };
         }
       }
 
-      const displayName = loggedInUser.fullName || "User";
-      await setUsername(displayName);
+      const assignedUsername =
+        loggedInUser.username ||
+        emailTrimmed.split("@")[0].replace(/^@/, "").toLowerCase();
+      const displayName = loggedInUser.fullName || assignedUsername;
+
+      await setUsername(assignedUsername);
       await setProfileFullName(displayName);
       await setProfilePhoneNumber(loggedInUser.phoneNumber || "");
       await setProfileEmail(loggedInUser.email || emailTrimmed);
-      await setProfileTallyTag(
-        "@" + displayName.replace(/\s+/g, "").toUpperCase(),
-      );
+      await setProfileTallyTag(`@${assignedUsername}`);
 
       await login(undefined, undefined, {
         fullName: displayName,
@@ -419,7 +480,7 @@ export default function AuthScreen() {
               },
             ]}
           >
-            {/* Full Name & Phone Number (Sign Up Only) */}
+            {/* Sign Up Fields: Full Name, Unique Username & Phone Number */}
             {authMode === "signup" && (
               <>
                 <Text
@@ -456,6 +517,39 @@ export default function AuthScreen() {
                 <Text
                   style={[styles.inputLabel, { color: authColors.textSecondary }]}
                 >
+                  Username
+                </Text>
+                <View
+                  style={[
+                    styles.inputWrapper,
+                    {
+                      backgroundColor: authColors.inputBg,
+                      borderColor: authColors.border,
+                    },
+                  ]}
+                >
+                  <Ionicons
+                    name="at-outline"
+                    size={18}
+                    color={authColors.placeholder}
+                    style={styles.inputIcon}
+                  />
+                  <TextInput
+                    style={[styles.textInput, { color: authColors.textPrimary }]}
+                    placeholder="username (e.g. ebuka_99)"
+                    placeholderTextColor={authColors.placeholder}
+                    autoCapitalize="none"
+                    autoCorrect={false}
+                    value={signupUsername}
+                    onChangeText={(text) =>
+                      setSignupUsername(text.replace(/[^a-zA-Z0-9_.]/g, ""))
+                    }
+                  />
+                </View>
+
+                <Text
+                  style={[styles.inputLabel, { color: authColors.textSecondary }]}
+                >
                   Phone Number
                 </Text>
                 <View
@@ -486,11 +580,13 @@ export default function AuthScreen() {
               </>
             )}
 
-            {/* Email Field Input */}
+            {/* Email Field Input (or Username for Login) */}
             <Text
               style={[styles.inputLabel, { color: authColors.textSecondary }]}
             >
-              Email Address
+              {authMode === "login"
+                ? "Email Address or Username"
+                : "Email Address"}
             </Text>
             <View
               style={[
@@ -502,16 +598,22 @@ export default function AuthScreen() {
               ]}
             >
               <Ionicons
-                name="mail-outline"
+                name={authMode === "login" ? "person-circle-outline" : "mail-outline"}
                 size={18}
                 color={authColors.placeholder}
                 style={styles.inputIcon}
               />
               <TextInput
                 style={[styles.textInput, { color: authColors.textPrimary }]}
-                placeholder="you@example.com"
+                placeholder={
+                  authMode === "login"
+                    ? "you@example.com or @username"
+                    : "you@example.com"
+                }
                 placeholderTextColor={authColors.placeholder}
-                keyboardType="email-address"
+                keyboardType={
+                  authMode === "login" ? "default" : "email-address"
+                }
                 autoCapitalize="none"
                 autoCorrect={false}
                 value={email}
