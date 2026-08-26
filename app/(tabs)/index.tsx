@@ -856,7 +856,7 @@ export default function App() {
             </Text>
 
             <TouchableOpacity
-              onPress={() => router.push("/budget")}
+              onPress={() => router.push("/(tabs)/insights" as any)}
               activeOpacity={0.7}
             >
               <Text
@@ -911,7 +911,7 @@ export default function App() {
                     borderColor: theme.border,
                   },
                 ]}
-                onPress={() => router.push("/budget")}
+                onPress={() => router.push("/(tabs)/insights" as any)}
                 activeOpacity={0.84}
               >
                 <Image
