@@ -396,7 +396,9 @@ export default function SmartInsightsScreen() {
         </View>
 
         {/* 2. Insights Summary Section */}
-        <View
+        <TouchableOpacity
+          activeOpacity={0.9}
+          onPress={() => router.push("/insightssum")}
           style={[
             styles.summaryHeroCard,
             {
@@ -430,11 +432,7 @@ export default function SmartInsightsScreen() {
                 Insights Summary
               </Text>
             </View>
-            <TouchableOpacity
-              onPress={() => router.push("/insightssum")}
-              activeOpacity={0.7}
-              style={{ flexDirection: "row", alignItems: "center" }}
-            >
+            <View style={{ flexDirection: "row", alignItems: "center" }}>
               <Text
                 style={{
                   fontSize: 12,
@@ -446,7 +444,7 @@ export default function SmartInsightsScreen() {
                 View Full Summary
               </Text>
               <Ionicons name="chevron-forward" size={12} color={theme.accent} />
-            </TouchableOpacity>
+            </View>
           </View>
 
           <View style={styles.summaryTopRow}>
@@ -547,7 +545,39 @@ export default function SmartInsightsScreen() {
               </Text>
             </View>
           </View>
-        </View>
+
+          {/* Banner link */}
+          <View
+            style={{
+              flexDirection: "row",
+              justifyContent: "space-between",
+              alignItems: "center",
+              marginTop: 12,
+              paddingTop: 10,
+              borderTopWidth: 1,
+              borderTopColor: theme.border,
+            }}
+          >
+            <View style={{ flexDirection: "row", alignItems: "center" }}>
+              <Ionicons
+                name="calendar-outline"
+                size={13}
+                color={theme.accent}
+                style={{ marginRight: 6 }}
+              />
+              <Text
+                style={{
+                  fontSize: 12,
+                  fontWeight: "500",
+                  color: theme.textSecondary,
+                }}
+              >
+                Weekly heatmap, custom calendar & tips
+              </Text>
+            </View>
+            <Ionicons name="arrow-forward" size={13} color={theme.accent} />
+          </View>
+        </TouchableOpacity>
 
         {/* 3. AJO CIRCLE ENTRY (PLACED AS THE SECOND SECTION AFTER SUMMARY AS REQUESTED) */}
         <TouchableOpacity
