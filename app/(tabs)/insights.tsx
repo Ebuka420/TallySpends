@@ -9,8 +9,8 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
-import { useAppStore } from "../src/store";
-import { getThemePalette } from "../src/theme";
+import { useAppStore } from "../../src/store";
+import { getThemePalette } from "../../src/theme";
 
 interface InsightItem {
   id: string;
@@ -59,26 +59,6 @@ export default function SmartInsightsScreen() {
 
   return (
     <SafeAreaView style={[styles.safeArea, { backgroundColor: theme.background }]}>
-      {/* Header Bar with back navigation */}
-      <View
-        style={[
-          styles.headerBar,
-          { backgroundColor: theme.surface, borderColor: theme.border },
-        ]}
-      >
-        <TouchableOpacity
-          style={styles.backBtn}
-          onPress={() => router.back()}
-          activeOpacity={0.7}
-        >
-          <Ionicons name="chevron-back" size={24} color={theme.textPrimary} />
-        </TouchableOpacity>
-        <Text style={[styles.headerBarTitle, { color: theme.textPrimary }]}>
-          Smart Insights
-        </Text>
-        <View style={{ width: 32 }} />
-      </View>
-
       <ScrollView
         style={styles.container}
         contentContainerStyle={styles.contentContainer}
@@ -156,35 +136,20 @@ const styles = StyleSheet.create({
   safeArea: {
     flex: 1,
   },
-  headerBar: {
-    height: 56,
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    paddingHorizontal: 16,
-    borderBottomWidth: 1,
-  },
-  backBtn: {
-    padding: 4,
-  },
-  headerBarTitle: {
-    fontSize: 17,
-    fontWeight: "700",
-  },
   container: {
     flex: 1,
   },
   contentContainer: {
     paddingHorizontal: 20,
     paddingTop: 16,
-    paddingBottom: 60,
+    paddingBottom: 110,
   },
   headerRow: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "flex-start",
-    marginBottom: 20,
-    marginTop: 4,
+    marginBottom: 24,
+    marginTop: 6,
   },
   headerTextCol: {
     flex: 1,
