@@ -9,8 +9,8 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
-import { useAppStore } from "../../src/store";
-import { getThemePalette } from "../../src/theme";
+import { useAppStore } from "../src/store";
+import { getThemePalette } from "../src/theme";
 
 interface InsightItem {
   id: string;
@@ -59,12 +59,32 @@ export default function SmartInsightsScreen() {
 
   return (
     <SafeAreaView style={[styles.safeArea, { backgroundColor: theme.background }]}>
+      {/* Header Bar with back navigation */}
+      <View
+        style={[
+          styles.headerBar,
+          { backgroundColor: theme.surface, borderColor: theme.border },
+        ]}
+      >
+        <TouchableOpacity
+          style={styles.backBtn}
+          onPress={() => router.back()}
+          activeOpacity={0.7}
+        >
+          <Ionicons name="chevron-back" size={24} color={theme.textPrimary} />
+        </TouchableOpacity>
+        <Text style={[styles.headerBarTitle, { color: theme.textPrimary }]}>
+          Smart Insights
+        </Text>
+        <View style={{ width: 32 }} />
+      </View>
+
       <ScrollView
         style={styles.container}
         contentContainerStyle={styles.contentContainer}
         showsVerticalScrollIndicator={false}
       >
-        {/* Header Section */}
+        {/* Title Header Section */}
         <View style={styles.headerRow}>
           <View style={styles.headerTextCol}>
             <Text style={[styles.headerTitle, { color: theme.textPrimary }]}>
@@ -136,24 +156,38 @@ const styles = StyleSheet.create({
   safeArea: {
     flex: 1,
   },
+  headerBar: {
+    height: 56,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingHorizontal: 16,
+    borderBottomWidth: 1,
+  },
+  backBtn: {
+    padding: 4,
+  },
+  headerBarTitle: {
+    fontSize: 17,
+    fontWeight: "700",
+  },
   container: {
     flex: 1,
   },
   contentContainer: {
     paddingHorizontal: 20,
     paddingTop: 16,
-    paddingBottom: 110,
+    paddingBottom: 60,
   },
   headerRow: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "flex-start",
-    marginBottom: 24,
-    marginTop: 6,
+    marginBottom: 20,
+    marginTop: 4,
   },
   headerTextCol: {
     flex: 1,
-    paddingRight: 12,
   },
   headerTitle: {
     fontSize: 28,
@@ -165,15 +199,6 @@ const styles = StyleSheet.create({
     fontSize: 14,
     lineHeight: 20,
     fontWeight: "500",
-  },
-  sparkleBtn: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    justifyContent: "center",
-    alignItems: "center",
-    borderWidth: 1,
-    marginTop: 2,
   },
   cardsList: {
     gap: 16,
@@ -204,29 +229,11 @@ const styles = StyleSheet.create({
     minWidth: 0,
     paddingRight: 8,
   },
-  cardTitleRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    marginBottom: 4,
-  },
-  numberBadge: {
-    width: 20,
-    height: 20,
-    borderRadius: 10,
-    justifyContent: "center",
-    alignItems: "center",
-    marginRight: 8,
-    flexShrink: 0,
-  },
-  numberBadgeText: {
-    fontSize: 11,
-    fontWeight: "700",
-  },
   cardTitle: {
     fontSize: 15.5,
     fontWeight: "700",
     letterSpacing: -0.2,
-    flex: 1,
+    marginBottom: 4,
   },
   cardSubtitle: {
     fontSize: 12.5,

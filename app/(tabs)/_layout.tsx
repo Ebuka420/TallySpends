@@ -97,7 +97,7 @@ function CustomTabBar({ state, descriptors, navigation, themeMode, theme, tabBar
         let iconName = "home-outline";
         if (route.name === "index") iconName = isFocused ? "home" : "home-outline";
         else if (route.name === "expenses") iconName = isFocused ? "document-text" : "document-text-outline";
-        else if (route.name === "insights" || route.name === "budget") iconName = isFocused ? "sparkles" : "sparkles-outline";
+        else if (route.name === "budget") iconName = isFocused ? "pie-chart" : "pie-chart-outline";
         else if (route.name === "analytics") iconName = isFocused ? "bar-chart" : "bar-chart-outline";
         else if (route.name === "more") iconName = isFocused ? "ellipsis-horizontal" : "ellipsis-horizontal-outline";
 
@@ -158,7 +158,7 @@ export default function TabLayout() {
     >
       <Tabs.Screen name="index" options={{ title: "Home" }} />
       <Tabs.Screen name="expenses" options={{ title: "Expenses" }} />
-      <Tabs.Screen name="insights" options={{ title: "Insights" }} />
+      <Tabs.Screen name="budget" options={{ title: "Budget" }} />
       <Tabs.Screen name="analytics" options={{ title: "Analytics" }} />
       <Tabs.Screen name="more" options={{ title: "More" }} />
     </Tabs>
