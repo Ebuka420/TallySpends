@@ -14,7 +14,6 @@ import { getThemePalette } from "../../src/theme";
 
 interface InsightItem {
   id: string;
-  number: number;
   title: string;
   subtitle: string;
   icon: keyof typeof Ionicons.glyphMap;
@@ -24,7 +23,6 @@ interface InsightItem {
 const INSIGHT_ITEMS: InsightItem[] = [
   {
     id: "item-1",
-    number: 1,
     title: "Spending Patterns",
     subtitle: "See where your money goes and identify trends.",
     icon: "trending-up-outline",
@@ -32,7 +30,6 @@ const INSIGHT_ITEMS: InsightItem[] = [
   },
   {
     id: "item-2",
-    number: 2,
     title: "Unlinked Cards Activity",
     subtitle: "Track and analyse your unlinked card transactions.",
     icon: "card-outline",
@@ -40,7 +37,6 @@ const INSIGHT_ITEMS: InsightItem[] = [
   },
   {
     id: "item-3",
-    number: 3,
     title: "Budgeting Based on Spending",
     subtitle: "Get AI-generated budgets based on your habits.",
     icon: "pie-chart-outline",
@@ -48,7 +44,6 @@ const INSIGHT_ITEMS: InsightItem[] = [
   },
   {
     id: "item-4",
-    number: 4,
     title: "Savings Progress",
     subtitle: "Monitor your savings goals and achievements.",
     icon: "wallet-outline",
@@ -56,7 +51,6 @@ const INSIGHT_ITEMS: InsightItem[] = [
   },
   {
     id: "item-5",
-    number: 5,
     title: "Ajo Circles",
     subtitle: "Save together with family and community circles.",
     icon: "people-outline",
@@ -87,21 +81,6 @@ export default function SmartInsightsScreen() {
               Smart insights to help you save and grow.
             </Text>
           </View>
-
-          {/* Top Right Sparkle Button */}
-          <TouchableOpacity
-            style={[
-              styles.sparkleBtn,
-              {
-                backgroundColor: isDark ? theme.surfaceSoft : "#F4EBF8",
-                borderColor: theme.border,
-              },
-            ]}
-            onPress={() => router.push("/insightssum")}
-            activeOpacity={0.7}
-          >
-            <Ionicons name="sparkles" size={18} color={theme.accent} />
-          </TouchableOpacity>
         </View>
 
         {/* Clean Action Cards List */}
@@ -133,26 +112,12 @@ export default function SmartInsightsScreen() {
 
               {/* Middle Content */}
               <View style={styles.cardContentCol}>
-                <View style={styles.cardTitleRow}>
-                  <View
-                    style={[
-                      styles.numberBadge,
-                      {
-                        backgroundColor: isDark ? "#382838" : "#EFE8F6",
-                      },
-                    ]}
-                  >
-                    <Text style={[styles.numberBadgeText, { color: theme.accent }]}>
-                      {item.number}
-                    </Text>
-                  </View>
-                  <Text
-                    style={[styles.cardTitle, { color: theme.textPrimary }]}
-                    numberOfLines={1}
-                  >
-                    {item.title}
-                  </Text>
-                </View>
+                <Text
+                  style={[styles.cardTitle, { color: theme.textPrimary }]}
+                  numberOfLines={1}
+                >
+                  {item.title}
+                </Text>
 
                 <Text
                   style={[styles.cardSubtitle, { color: theme.textSecondary }]}
