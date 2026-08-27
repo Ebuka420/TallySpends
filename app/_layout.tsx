@@ -69,16 +69,19 @@ export default function RootLayout() {
         <Stack.Screen name="passcode" />
 
         {/* Standalone Sub-screens */}
+        <Stack.Screen name="budgetspending" />
         <Stack.Screen name="customerservice" />
         <Stack.Screen name="deposit" />
         <Stack.Screen name="insightssum" />
         <Stack.Screen name="invitation" />
         <Stack.Screen name="linkbank" />
+        <Stack.Screen name="linkedcards" />
         <Stack.Screen name="membership" />
         <Stack.Screen name="notifications" />
         <Stack.Screen name="profile" />
         <Stack.Screen name="rateus" />
         <Stack.Screen name="request" />
+        <Stack.Screen name="savingsprogress" />
         <Stack.Screen name="settings" />
         <Stack.Screen name="SObreakdown" />
         <Stack.Screen name="support" />
