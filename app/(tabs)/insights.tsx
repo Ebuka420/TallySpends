@@ -49,13 +49,6 @@ const INSIGHT_ITEMS: InsightItem[] = [
     icon: "wallet-outline",
     route: "/savingsprogress",
   },
-  {
-    id: "item-5",
-    title: "Ajo Circles",
-    subtitle: "Save together with family and community circles.",
-    icon: "people-outline",
-    route: "/ajo",
-  },
 ];
 
 export default function SmartInsightsScreen() {
