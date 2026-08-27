@@ -23,35 +23,28 @@ interface InsightItem {
 const INSIGHT_ITEMS: InsightItem[] = [
   {
     id: "item-1",
-    title: "Spending Patterns",
-    subtitle: "See where your money goes and identify trends.",
-    icon: "trending-up-outline",
-    route: "/insightssum",
-  },
-  {
-    id: "item-2",
-    title: "Unlinked Cards Activity",
-    subtitle: "Track and analyse your unlinked card transactions.",
-    icon: "card-outline",
-    route: "/linkedcards",
-  },
-  {
-    id: "item-3",
     title: "Budgeting Based on Spending",
     subtitle: "Get AI-generated budgets based on your habits.",
     icon: "pie-chart-outline",
     route: "/budgetspending",
   },
   {
-    id: "item-4",
+    id: "item-2",
     title: "Savings Progress",
     subtitle: "Monitor your savings goals and achievements.",
     icon: "wallet-outline",
     route: "/savingsprogress",
   },
+  {
+    id: "item-3",
+    title: "Ajo Circles",
+    subtitle: "Save together with family and community circles.",
+    icon: "people-outline",
+    route: "/ajo",
+  },
 ];
 
-export default function SmartInsightsScreen() {
+export default function BudgetScreen() {
   const router = useRouter();
   const { themePreference, themeMode } = useAppStore();
   const theme = getThemePalette(themePreference, themeMode);
@@ -68,7 +61,7 @@ export default function SmartInsightsScreen() {
         <View style={styles.headerRow}>
           <View style={styles.headerTextCol}>
             <Text style={[styles.headerTitle, { color: theme.textPrimary }]}>
-              Insights
+              Budget
             </Text>
             <Text style={[styles.headerSubtitle, { color: theme.textSecondary }]}>
               Smart insights to help you save and grow.

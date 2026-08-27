@@ -3,21 +3,25 @@ import { Stack, useLocalSearchParams, useRouter } from "expo-router";
 import * as Sharing from "expo-sharing";
 import React, { useMemo, useRef } from "react";
 import {
-    SafeAreaView,
-    ScrollView,
-    StyleSheet,
-    Text,
-    TouchableOpacity,
-    View,
+  SafeAreaView,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
 } from "react-native";
 import { captureRef } from "react-native-view-shot";
 import { MOCK_RECIPIENTS, useAppStore } from "../src/store";
+import { getThemePalette } from "../src/theme";
 
 export default function TransactionDetailsScreen() {
   const router = useRouter();
   const receiptRef = useRef<View>(null);
   const params = useLocalSearchParams<{ id?: string }>();
-  const { transactions: rawTransactions = [] } = useAppStore();
+  const { transactions: rawTransactions = [], themePreference, themeMode } = useAppStore();
+  const theme = getThemePalette(themePreference, themeMode);
+  const isDark = themeMode === "dark";
+
   const transactions = rawTransactions as any[];
   const transaction = useMemo(
     () => transactions.find((tx) => tx.id === params.id),
@@ -85,48 +89,90 @@ export default function TransactionDetailsScreen() {
   };
 
   return (
-    <SafeAreaView style={styles.container}>
+    <SafeAreaView style={[styles.container, { backgroundColor: theme.background }]}>
       <Stack.Screen options={{ headerShown: false }} />
 
-      <View style={styles.header}>
+      <View
+        style={[
+          styles.header,
+          { backgroundColor: theme.surface, borderBottomColor: theme.border },
+        ]}
+      >
         <TouchableOpacity onPress={() => router.back()} style={styles.backBtn}>
-          <Ionicons name="chevron-back" size={24} color="#20142A" />
+          <Ionicons name="chevron-back" size={24} color={theme.textPrimary} />
         </TouchableOpacity>
-        <Text style={styles.headerTitle}>Receipt</Text>
+        <Text style={[styles.headerTitle, { color: theme.textPrimary }]}>Receipt</Text>
         <TouchableOpacity
           onPress={handleShareDetails}
           style={styles.headerAction}
         >
-          <Ionicons name="share-outline" size={22} color="#4B2C40" />
+          <Ionicons name="share-outline" size={22} color={theme.accent} />
         </TouchableOpacity>
       </View>
 
       <ScrollView contentContainerStyle={styles.content}>
-        <View ref={receiptRef} collapsable={false} style={styles.receiptCard}>
-          <View style={[styles.edgeNotch, styles.edgeBottomLeft]} />
-          <View style={[styles.edgeNotch, styles.edgeBottomRight]} />
+        <View
+          ref={receiptRef}
+          collapsable={false}
+          style={[
+            styles.receiptCard,
+            { backgroundColor: theme.surface, borderColor: theme.border },
+          ]}
+        >
+          <View
+            style={[
+              styles.edgeNotch,
+              styles.edgeBottomLeft,
+              { backgroundColor: theme.background },
+            ]}
+          />
+          <View
+            style={[
+              styles.edgeNotch,
+              styles.edgeBottomRight,
+              { backgroundColor: theme.background },
+            ]}
+          />
 
           <View style={styles.chipArea}>
-            <View style={styles.chip}>
-              <Ionicons name="receipt-outline" size={18} color="#7D5B8A" />
-              <Text style={styles.chipText}>Transaction successful</Text>
+            <View
+              style={[
+                styles.chip,
+                { backgroundColor: isDark ? theme.surfaceSoft : "#F5EFF8" },
+              ]}
+            >
+              <Ionicons name="receipt-outline" size={18} color={theme.accent} />
+              <Text style={[styles.chipText, { color: theme.accent }]}>
+                Transaction successful
+              </Text>
             </View>
           </View>
 
-          <View style={styles.heroIcon}>
-            <Ionicons name="checkmark-circle" size={48} color="#4B2C40" />
+          <View
+            style={[
+              styles.heroIcon,
+              { backgroundColor: isDark ? theme.surfaceSoft : "#EEF3F8" },
+            ]}
+          >
+            <Ionicons name="checkmark-circle" size={48} color={theme.accent} />
           </View>
 
-          <Text style={styles.heroTitle}>Thank you!</Text>
-          <Text style={styles.heroSubtitle}>Your payment was completed.</Text>
+          <Text style={[styles.heroTitle, { color: theme.textPrimary }]}>
+            Thank you!
+          </Text>
+          <Text style={[styles.heroSubtitle, { color: theme.textSecondary }]}>
+            Your payment was completed.
+          </Text>
 
-          <View style={styles.divider} />
+          <View style={[styles.divider, { backgroundColor: theme.border }]} />
 
           <View style={styles.detailGrid}>
             <View style={styles.detailBlock}>
-              <Text style={styles.detailLabel}>Title</Text>
+              <Text style={[styles.detailLabel, { color: theme.textSecondary }]}>
+                Title
+              </Text>
               <Text
-                style={styles.detailValue}
+                style={[styles.detailValue, { color: theme.textPrimary }]}
                 numberOfLines={2}
                 ellipsizeMode="tail"
               >
@@ -134,8 +180,10 @@ export default function TransactionDetailsScreen() {
               </Text>
             </View>
             <View style={styles.detailBlock}>
-              <Text style={styles.detailLabel}>Amount</Text>
-              <Text style={styles.detailValue}>
+              <Text style={[styles.detailLabel, { color: theme.textSecondary }]}>
+                Amount
+              </Text>
+              <Text style={[styles.detailValue, { color: theme.accent, fontWeight: "800" }]}>
                 {transaction ? formatCurrency(transaction.amount) : "-"}
               </Text>
             </View>
@@ -144,8 +192,12 @@ export default function TransactionDetailsScreen() {
           {recipientUsername ? (
             <View style={styles.detailGrid}>
               <View style={styles.detailBlock}>
-                <Text style={styles.detailLabel}>Recipient</Text>
-                <Text style={styles.detailValue}>@{recipientUsername}</Text>
+                <Text style={[styles.detailLabel, { color: theme.textSecondary }]}>
+                  Recipient
+                </Text>
+                <Text style={[styles.detailValue, { color: theme.textPrimary }]}>
+                  @{recipientUsername}
+                </Text>
               </View>
               <View style={styles.detailBlock} />
             </View>
@@ -153,61 +205,90 @@ export default function TransactionDetailsScreen() {
 
           <View style={styles.detailGrid}>
             <View style={styles.detailBlock}>
-              <Text style={styles.detailLabel}>Date</Text>
-              <Text style={styles.detailValue}>{formattedDate}</Text>
+              <Text style={[styles.detailLabel, { color: theme.textSecondary }]}>
+                Date
+              </Text>
+              <Text style={[styles.detailValue, { color: theme.textPrimary }]}>
+                {formattedDate}
+              </Text>
             </View>
             <View style={styles.detailBlock}>
-              <Text style={styles.detailLabel}>Time</Text>
-              <Text style={styles.detailValue}>{formattedTime}</Text>
+              <Text style={[styles.detailLabel, { color: theme.textSecondary }]}>
+                Time
+              </Text>
+              <Text style={[styles.detailValue, { color: theme.textPrimary }]}>
+                {formattedTime}
+              </Text>
             </View>
           </View>
 
           <View style={styles.detailGrid}>
             <View style={styles.detailBlock}>
-              <Text style={styles.detailLabel}>Category</Text>
-              <Text style={styles.detailValue}>
+              <Text style={[styles.detailLabel, { color: theme.textSecondary }]}>
+                Category
+              </Text>
+              <Text style={[styles.detailValue, { color: theme.textPrimary }]}>
                 {transaction?.category ?? "-"}
               </Text>
             </View>
             <View style={styles.detailBlock}>
-              <Text style={styles.detailLabel}>Type</Text>
-              <Text style={styles.detailValue}>
+              <Text style={[styles.detailLabel, { color: theme.textSecondary }]}>
+                Type
+              </Text>
+              <Text style={[styles.detailValue, { color: theme.textPrimary }]}>
                 {transaction?.type?.toUpperCase() ?? "-"}
               </Text>
             </View>
           </View>
 
-          <View style={styles.cardFooter}>
+          <View
+            style={[
+              styles.cardFooter,
+              { backgroundColor: isDark ? theme.surfaceSoft : "#FCF8FF" },
+            ]}
+          >
             <View style={styles.accountRow}>
-              <View style={styles.accountIcon}>
-                <Ionicons name="card-outline" size={18} color="#4B2C40" />
+              <View
+                style={[
+                  styles.accountIcon,
+                  { backgroundColor: isDark ? theme.surface : "#E9E0F2" },
+                ]}
+              >
+                <Ionicons name="card-outline" size={18} color={theme.accent} />
               </View>
               <View style={styles.accountCopy}>
-                <Text style={styles.accountLabel}>Payment method</Text>
-                <Text style={styles.accountValue}>
+                <Text style={[styles.accountLabel, { color: theme.textSecondary }]}>
+                  Payment method
+                </Text>
+                <Text style={[styles.accountValue, { color: theme.textPrimary }]}>
                   Tally Wallet • • • • 8234
                 </Text>
               </View>
             </View>
           </View>
 
-          <View style={styles.barcodeArea}>
-            <View style={styles.barcodeLine} />
+          <View style={[styles.barcodeArea, { borderTopColor: theme.border }]}>
+            <View
+              style={[
+                styles.barcodeLine,
+                { backgroundColor: isDark ? theme.surfaceSoft : "#F4EFF4" },
+              ]}
+            />
             <View style={styles.barcodeTextRow}>
-              <Text style={styles.barcodeText}>2</Text>
-              <Text style={styles.barcodeText}>8</Text>
-              <Text style={styles.barcodeText}>9</Text>
-              <Text style={styles.barcodeText}>3</Text>
-              <Text style={styles.barcodeText}>7</Text>
-              <Text style={styles.barcodeText}>2</Text>
-              <Text style={styles.barcodeText}>6</Text>
-              <Text style={styles.barcodeText}>1</Text>
-              <Text style={styles.barcodeText}>2</Text>
-              <Text style={styles.barcodeText}>7</Text>
-              <Text style={styles.barcodeText}>3</Text>
-              <Text style={styles.barcodeText}>6</Text>
-              <Text style={styles.barcodeText}>1</Text>
-              <Text style={styles.barcodeText}>0</Text>
+              <Text style={[styles.barcodeText, { color: theme.textSecondary }]}>2</Text>
+              <Text style={[styles.barcodeText, { color: theme.textSecondary }]}>8</Text>
+              <Text style={[styles.barcodeText, { color: theme.textSecondary }]}>9</Text>
+              <Text style={[styles.barcodeText, { color: theme.textSecondary }]}>3</Text>
+              <Text style={[styles.barcodeText, { color: theme.textSecondary }]}>7</Text>
+              <Text style={[styles.barcodeText, { color: theme.textSecondary }]}>2</Text>
+              <Text style={[styles.barcodeText, { color: theme.textSecondary }]}>6</Text>
+              <Text style={[styles.barcodeText, { color: theme.textSecondary }]}>1</Text>
+              <Text style={[styles.barcodeText, { color: theme.textSecondary }]}>2</Text>
+              <Text style={[styles.barcodeText, { color: theme.textSecondary }]}>7</Text>
+              <Text style={[styles.barcodeText, { color: theme.textSecondary }]}>3</Text>
+              <Text style={[styles.barcodeText, { color: theme.textSecondary }]}>6</Text>
+              <Text style={[styles.barcodeText, { color: theme.textSecondary }]}>1</Text>
+              <Text style={[styles.barcodeText, { color: theme.textSecondary }]}>0</Text>
             </View>
           </View>
         </View>
@@ -219,7 +300,6 @@ export default function TransactionDetailsScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#FAF9FB",
   },
   header: {
     height: 58,
@@ -227,9 +307,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "space-between",
     paddingHorizontal: 18,
-    backgroundColor: "#FFF",
     borderBottomWidth: 1,
-    borderBottomColor: "#F0EDF4",
   },
   backBtn: {
     width: 40,
@@ -239,7 +317,6 @@ const styles = StyleSheet.create({
   headerTitle: {
     fontSize: 18,
     fontWeight: "700",
-    color: "#20142A",
   },
   headerPlaceholder: {
     width: 40,
@@ -255,7 +332,6 @@ const styles = StyleSheet.create({
   },
   receiptCard: {
     position: "relative",
-    backgroundColor: "#FFF",
     borderRadius: 32,
     padding: 24,
     shadowColor: "#000",
@@ -264,14 +340,12 @@ const styles = StyleSheet.create({
     shadowRadius: 24,
     elevation: 4,
     borderWidth: 1,
-    borderColor: "#F1ECF5",
     overflow: "visible",
   },
   edgeNotch: {
     position: "absolute",
     width: 34,
     height: 18,
-    backgroundColor: "#FAF9FB",
     borderTopLeftRadius: 18,
     borderTopRightRadius: 18,
   },
@@ -291,19 +365,16 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     gap: 8,
-    backgroundColor: "#F5EFF8",
     paddingHorizontal: 12,
     paddingVertical: 8,
     borderRadius: 16,
   },
   chipText: {
-    color: "#7D5B8A",
     fontSize: 12,
     fontWeight: "700",
   },
   heroIcon: {
     alignSelf: "center",
-    backgroundColor: "#EEF3F8",
     borderRadius: 36,
     height: 72,
     width: 72,
@@ -313,21 +384,18 @@ const styles = StyleSheet.create({
   },
   heroTitle: {
     textAlign: "center",
-    color: "#251A2B",
     fontSize: 24,
     fontWeight: "800",
     marginBottom: 6,
   },
   heroSubtitle: {
     textAlign: "center",
-    color: "#817687",
     fontSize: 14,
     lineHeight: 20,
     marginBottom: 24,
   },
   divider: {
     height: 1,
-    backgroundColor: "#F0EDF4",
     marginVertical: 18,
   },
   detailGrid: {
@@ -341,14 +409,12 @@ const styles = StyleSheet.create({
     minWidth: 0,
   },
   detailLabel: {
-    color: "#8E7A9A",
     fontSize: 11,
     fontWeight: "700",
     letterSpacing: 0.75,
     marginBottom: 8,
   },
   detailValue: {
-    color: "#2C2033",
     fontSize: 15,
     fontWeight: "700",
     lineHeight: 22,
@@ -357,7 +423,6 @@ const styles = StyleSheet.create({
     marginTop: 16,
     padding: 18,
     borderRadius: 20,
-    backgroundColor: "#FCF8FF",
   },
   accountRow: {
     flexDirection: "row",
@@ -368,7 +433,6 @@ const styles = StyleSheet.create({
     height: 40,
     width: 40,
     borderRadius: 12,
-    backgroundColor: "#E9E0F2",
     justifyContent: "center",
     alignItems: "center",
   },
@@ -378,25 +442,21 @@ const styles = StyleSheet.create({
   accountLabel: {
     fontSize: 12,
     fontWeight: "700",
-    color: "#7B6390",
     marginBottom: 6,
   },
   accountValue: {
     fontSize: 14,
     fontWeight: "700",
-    color: "#20142A",
   },
   barcodeArea: {
     marginTop: 24,
     alignItems: "center",
     paddingVertical: 18,
     borderTopWidth: 1,
-    borderTopColor: "#F0EDF4",
   },
   barcodeLine: {
     width: "100%",
     height: 68,
-    backgroundColor: "#F4EFF4",
     borderRadius: 14,
     marginBottom: 10,
   },
@@ -406,7 +466,6 @@ const styles = StyleSheet.create({
     width: "100%",
   },
   barcodeText: {
-    color: "#9A8EA3",
     fontSize: 10,
     letterSpacing: 1,
   },
