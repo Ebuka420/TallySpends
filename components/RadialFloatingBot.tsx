@@ -1,7 +1,9 @@
 import { Ionicons } from "@expo/vector-icons";
+import * as Haptics from "expo-haptics";
 import React, { useRef, useState } from "react";
 import {
   Animated,
+  Easing,
   Modal,
   PanResponder,
   Pressable,
@@ -19,41 +21,55 @@ type ActionMode = "coach" | "calc" | "add" | "scan";
 type ModeConfig = {
   id: ActionMode;
   icon: React.ComponentProps<typeof Ionicons>["name"];
-  label: string;
   angle: number;
 };
+
+/*
+ * Radial positions
+ *
+ * The options are spread farther apart from one another,
+ * while keeping the SAME distance from the RadialBot.
+ *
+ * 185° = upper-left
+ * 235° = left / upper-left
+ * 285° = upper-right of the vertical axis
+ *
+ * The 50° separation gives the radial menu more presence
+ * without pushing the buttons farther away from the bot.
+ */
 const MODES: ModeConfig[] = [
   {
     id: "calc",
     icon: "calculator-outline",
-    label: "Calculator",
-    angle: 225,
+    angle: 185,
   },
   {
     id: "add",
     icon: "add-outline",
-    label: "Add Expense",
-    angle: 270,
+    angle: 235,
   },
   {
     id: "scan",
     icon: "camera-outline",
-    label: "Scan Receipt",
-    angle: 315,
+    angle: 285,
   },
 ];
 
-const RADIUS = 82;
+/*
+ * Distance from the center of the RadialBot.
+ *
+ * Keep this relatively close.
+ * The increased spacing between options comes from the angles,
+ * NOT from increasing this value.
+ */
+const RADIUS = 62;
 
 const PURPLE = "#20142A";
-const LIGHT_PURPLE = "#F3EBF1";
-const SOFT_PURPLE = "#EEE7F0";
 
 export default function RadialFloatingBot() {
-  const { themePreference, themeMode } = useAppStore();
+  const { themePreference, themeMode, addTransaction } = useAppStore();
   const theme = getThemePalette(themePreference, themeMode);
 
-  const [activeMode, setActiveMode] = useState<ActionMode>("coach");
   const [isOpen, setIsOpen] = useState(false);
 
   // Active Modal State
@@ -64,9 +80,20 @@ export default function RadialFloatingBot() {
   const [expenseAmount, setExpenseAmount] = useState("");
   const [expenseCategory, setExpenseCategory] = useState("");
 
+  // Calculator State
+  const [calculatorExpression, setCalculatorExpression] = useState("");
+  const [calculatorResult, setCalculatorResult] = useState("0");
+  const [calculatorHasResult, setCalculatorHasResult] = useState(false);
+
   // Position state for dragging
   const pan = useRef(new Animated.ValueXY()).current;
   const isDragging = useRef(false);
+
+  /*
+   * Keeps the current menu state available to PanResponder
+   * without relying on potentially stale React state.
+   */
+  const isOpenRef = useRef(false);
 
   // Keeps track of whether the current press opened the menu
   const menuOpenedFromLongPress = useRef(false);
@@ -91,54 +118,322 @@ export default function RadialFloatingBot() {
     setActiveModal(mode);
   };
 
-  const handleAddExpenseSubmit = () => {
-    if (!expenseName || !expenseAmount) return;
+  /*
+   * ================================================================
+   * ADD EXPENSE
+   * ================================================================
+   *
+   * This now actually adds the transaction through the app store.
+   *
+   * The store's addTransaction() function handles updating state
+   * and persisting the transaction to AsyncStorage.
+   */
+  const handleAddExpenseSubmit = async () => {
+    const trimmedName = expenseName.trim();
+    const trimmedAmount = expenseAmount.trim();
+    const trimmedCategory = expenseCategory.trim();
 
-    console.log("Expense Added:", {
-      name: expenseName,
-      amount: parseFloat(expenseAmount),
-      category: expenseCategory || "Uncategorized",
-      date: new Date().toISOString(),
-    });
+    if (!trimmedName || !trimmedAmount) {
+      return;
+    }
 
-    setExpenseName("");
-    setExpenseAmount("");
-    setExpenseCategory("");
-    setActiveModal(null);
+    const parsedAmount = parseFloat(trimmedAmount);
+
+    if (!Number.isFinite(parsedAmount) || parsedAmount <= 0) {
+      return;
+    }
+
+    const now = new Date();
+
+    const date = [
+      now.getFullYear(),
+      String(now.getMonth() + 1).padStart(2, "0"),
+      String(now.getDate()).padStart(2, "0"),
+    ].join("-");
+
+    try {
+      await addTransaction({
+        title: trimmedName,
+        amount: parsedAmount,
+        category: trimmedCategory || "Others",
+        type: "expense",
+        date,
+      });
+
+      /*
+       * Strong confirmation haptic after successfully adding
+       * the transaction.
+       */
+      await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+
+      setExpenseName("");
+      setExpenseAmount("");
+      setExpenseCategory("");
+      setActiveModal(null);
+    } catch (error) {
+      console.error("Failed to add expense:", error);
+    }
   };
 
   /*
-   * OPEN RADIAL MENU
+   * ================================================================
+   * CALCULATOR
+   * ================================================================
+   */
+
+  /*
+   * Evaluates a basic arithmetic expression safely.
    *
-   * Notice that we DO NOT call setActiveMode("coach")
-   * or select any option here.
+   * Supported:
+   * +   addition
+   * -   subtraction
+   * ×   multiplication
+   * ÷   division
+   * .   decimals
+   * ( ) parentheses
+   *
+   * This uses a small recursive parser rather than eval().
+   */
+  const calculateExpression = (expression: string): number | null => {
+    const normalized = expression
+      .replace(/×/g, "*")
+      .replace(/÷/g, "/")
+      .replace(/\s+/g, "");
+
+    if (!normalized) {
+      return null;
+    }
+
+    let index = 0;
+
+    const parseNumber = (): number | null => {
+      const start = index;
+
+      if (normalized[index] === "+") {
+        index++;
+      } else if (normalized[index] === "-") {
+        index++;
+      }
+
+      while (index < normalized.length && /[0-9.]/.test(normalized[index])) {
+        index++;
+      }
+
+      const value = Number(normalized.slice(start, index));
+
+      return Number.isFinite(value) ? value : null;
+    };
+
+    const parseFactor = (): number | null => {
+      if (normalized[index] === "(") {
+        index++;
+
+        const value = parseExpression();
+
+        if (normalized[index] !== ")") {
+          return null;
+        }
+
+        index++;
+
+        return value;
+      }
+
+      return parseNumber();
+    };
+
+    const parseTerm = (): number | null => {
+      let value = parseFactor();
+
+      if (value === null) {
+        return null;
+      }
+
+      while (normalized[index] === "*" || normalized[index] === "/") {
+        const operator = normalized[index];
+        index++;
+
+        const nextValue = parseFactor();
+
+        if (nextValue === null) {
+          return null;
+        }
+
+        if (operator === "*") {
+          value *= nextValue;
+        } else {
+          if (nextValue === 0) {
+            return null;
+          }
+
+          value /= nextValue;
+        }
+      }
+
+      return value;
+    };
+
+    function parseExpression(): number | null {
+      let value = parseTerm();
+
+      if (value === null) {
+        return null;
+      }
+
+      while (normalized[index] === "+" || normalized[index] === "-") {
+        const operator = normalized[index];
+        index++;
+
+        const nextValue = parseTerm();
+
+        if (nextValue === null) {
+          return null;
+        }
+
+        if (operator === "+") {
+          value += nextValue;
+        } else {
+          value -= nextValue;
+        }
+      }
+
+      return value;
+    }
+
+    const result = parseExpression();
+
+    if (result === null || index !== normalized.length) {
+      return null;
+    }
+
+    return result;
+  };
+
+  const formatCalculatorResult = (value: number) => {
+    if (!Number.isFinite(value)) {
+      return "Error";
+    }
+
+    return Number(value.toFixed(10)).toString();
+  };
+
+  const handleCalculatorInput = (value: string) => {
+    setCalculatorHasResult(false);
+
+    setCalculatorExpression((previous) => {
+      /*
+       * If a result was just calculated and the user enters
+       * a number, start a fresh calculation.
+       */
+      if (calculatorHasResult && /[0-9.]/.test(value)) {
+        return value;
+      }
+
+      return previous + value;
+    });
+  };
+
+  const handleCalculatorClear = () => {
+    setCalculatorExpression("");
+    setCalculatorResult("0");
+    setCalculatorHasResult(false);
+
+    Haptics.selectionAsync();
+  };
+
+  const handleCalculatorBackspace = () => {
+    setCalculatorHasResult(false);
+
+    setCalculatorExpression((previous) => previous.slice(0, -1));
+
+    Haptics.selectionAsync();
+  };
+
+  const handleCalculatorEquals = () => {
+    if (!calculatorExpression) {
+      return;
+    }
+
+    const result = calculateExpression(calculatorExpression);
+
+    if (result === null) {
+      setCalculatorResult("Error");
+      setCalculatorHasResult(true);
+
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+
+      return;
+    }
+
+    const formatted = formatCalculatorResult(result);
+
+    setCalculatorResult(formatted);
+    setCalculatorExpression(formatted);
+    setCalculatorHasResult(true);
+
+    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+  };
+
+  const openCalculator = () => {
+    setCalculatorExpression("");
+    setCalculatorResult("0");
+    setCalculatorHasResult(false);
+
+    handleAction("calc");
+  };
+
+  /*
+   * ================================================================
+   * OPEN RADIAL MENU
+   * ================================================================
+   *
+   * Slower + more dramatic than before.
    */
   const openMenu = () => {
+    isOpenRef.current = true;
     setIsOpen(true);
+
     menuOpenedFromLongPress.current = true;
 
-    Animated.spring(menuAnimation, {
+    /*
+     * Strong haptic when the radial menu bursts open.
+     */
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
+
+    /*
+     * Reset animation before starting.
+     */
+    menuAnimation.setValue(0);
+
+    /*
+     * Slower timing animation gives the menu a more deliberate,
+     * premium feel instead of instantly appearing.
+     */
+    Animated.timing(menuAnimation, {
       toValue: 1,
-      friction: 7,
-      tension: 55,
+      duration: 520,
+      easing: Easing.out(Easing.back(1.15)),
       useNativeDriver: true,
     }).start();
   };
 
   /*
+   * ================================================================
    * CLOSE RADIAL MENU
-   *
-   * This only closes the radial menu.
-   * It does NOT open Smart Coach.
+   * ================================================================
    */
   const closeMenu = () => {
     clearLongPressTimer();
 
+    isOpenRef.current = false;
     menuOpenedFromLongPress.current = false;
+
+    Haptics.selectionAsync();
 
     Animated.timing(menuAnimation, {
       toValue: 0,
-      duration: 180,
+      duration: 300,
+      easing: Easing.in(Easing.quad),
       useNativeDriver: true,
     }).start(() => {
       setIsOpen(false);
@@ -146,31 +441,56 @@ export default function RadialFloatingBot() {
   };
 
   /*
-   * USER EXPLICITLY TAPPED A RADIAL OPTION
+   * ================================================================
+   * RADIAL OPTION SELECTED
+   * ================================================================
+   *
+   * IMPORTANT:
+   * There is NO activeMode anymore.
+   *
+   * Therefore clicking an option cannot leave behind a purple
+   * "selected" state.
    */
   const selectOption = (mode: ActionMode) => {
-    // Selecting an option explicitly is the only way
-    // a radial option should open.
-    setActiveMode(mode);
+    /*
+     * Stronger haptic specifically for selecting a tool.
+     */
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+
     closeMenu();
-    handleAction(mode);
+
+    /*
+     * Slight delay lets the radial closing animation begin before
+     * the modal appears.
+     */
+    setTimeout(() => {
+      if (mode === "calc") {
+        openCalculator();
+        return;
+      }
+
+      handleAction(mode);
+    }, 180);
   };
 
   const animatePress = (pressed: boolean) => {
     Animated.spring(pressAnimation, {
-      toValue: pressed ? 0.91 : 1,
-      friction: 6,
-      tension: 100,
+      toValue: pressed ? 0.88 : 1,
+      friction: 5,
+      tension: 110,
       useNativeDriver: true,
     }).start();
   };
 
   /*
+   * ================================================================
    * DRAG + GESTURE RESPONDER
+   * ================================================================
    */
   const panResponder = useRef(
     PanResponder.create({
       onStartShouldSetPanResponder: () => true,
+
       onMoveShouldSetPanResponder: () => true,
 
       onPanResponderGrant: () => {
@@ -189,12 +509,17 @@ export default function RadialFloatingBot() {
 
         animatePress(true);
 
-        longPressTimer.current = setTimeout(() => {
-          if (!isDragging.current && !isOpen) {
-            longPressTriggered.current = true;
-            openMenu();
-          }
-        }, 400);
+        /*
+         * Start long press only while menu is closed.
+         */
+        if (!isOpenRef.current) {
+          longPressTimer.current = setTimeout(() => {
+            if (!isDragging.current && !isOpenRef.current) {
+              longPressTriggered.current = true;
+              openMenu();
+            }
+          }, 400);
+        }
       },
 
       onPanResponderMove: (_, gestureState) => {
@@ -213,34 +538,39 @@ export default function RadialFloatingBot() {
       },
 
       onPanResponderRelease: () => {
-        if (longPressTimer.current) {
-          clearTimeout(longPressTimer.current);
-          longPressTimer.current = null;
-        }
+        clearLongPressTimer();
 
         pan.flattenOffset();
         animatePress(false);
 
-        // A long press has already opened the radial menu.
-        // DO NOT trigger Smart Coach when the finger is released.
+        /*
+         * Long press already opened the menu.
+         */
         if (longPressTriggered.current) {
           longPressTriggered.current = false;
           return;
         }
 
-        // Ignore releases caused by dragging.
+        /*
+         * Ignore drag releases.
+         */
         if (isDragging.current) {
           return;
         }
 
-        // If the menu is already open, this release came from
-        // pressing the X/main button, so close the menu.
-        if (isOpen) {
+        /*
+         * Tapping the RadialBot while the menu is open closes it.
+         */
+        if (isOpenRef.current) {
           closeMenu();
           return;
         }
 
-        // A normal short tap opens Smart Coach.
+        /*
+         * Normal short tap opens Smart Coach.
+         */
+        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+
         handleAction("coach");
       },
 
@@ -249,9 +579,22 @@ export default function RadialFloatingBot() {
 
         pan.flattenOffset();
         animatePress(false);
+
+        longPressTriggered.current = false;
       },
     }),
   ).current;
+
+  /*
+   * Calculator buttons
+   */
+  const calculatorButtons = [
+    ["C", "backspace", "(", ")"],
+    ["7", "8", "9", "÷"],
+    ["4", "5", "6", "×"],
+    ["1", "2", "3", "-"],
+    ["0", ".", "=", "+"],
+  ];
 
   return (
     <>
@@ -286,7 +629,7 @@ export default function RadialFloatingBot() {
             RADIAL OPTIONS
         ================================================================= */}
         {isOpen &&
-          MODES.map((mode, index) => {
+          MODES.map((mode, modeIndex) => {
             const rad = (mode.angle * Math.PI) / 180;
 
             const translateX = menuAnimation.interpolate({
@@ -299,30 +642,30 @@ export default function RadialFloatingBot() {
               outputRange: [0, RADIUS * Math.sin(rad)],
             });
 
+            /*
+             * Dramatic scale:
+             *
+             * 0%   → tiny
+             * 55%  → overshoot
+             * 100% → final size
+             */
             const scale = menuAnimation.interpolate({
-              inputRange: [0, 0.7, 1],
-              outputRange: [0.65, 1.05, 1],
-            });
-
-            const opacity = menuAnimation.interpolate({
-              inputRange: [0, 0.25, 1],
-              outputRange: [0, 0.5, 1],
-            });
-
-            const labelTranslate = menuAnimation.interpolate({
-              inputRange: [0, 1],
-              outputRange: [8, 0],
+              inputRange: [0, 0.55, 0.82, 1],
+              outputRange: [0.15, 1.18, 0.94, 1],
             });
 
             /*
-             * IMPORTANT:
-             *
-             * There is NO automatic active option anymore.
-             *
-             * The option only becomes active after the user
-             * explicitly taps it.
+             * Slight stagger in opacity between the three buttons.
              */
-            const isSelected = activeMode === mode.id;
+            const opacity = menuAnimation.interpolate({
+              inputRange: [
+                0,
+                0.18 + modeIndex * 0.04,
+                0.45 + modeIndex * 0.04,
+                1,
+              ],
+              outputRange: [0, 0, 0.85, 1],
+            });
 
             return (
               <Animated.View
@@ -346,45 +689,20 @@ export default function RadialFloatingBot() {
                 ]}
               >
                 <TouchableOpacity
-                  activeOpacity={0.85}
+                  activeOpacity={0.75}
                   onPress={() => selectOption(mode.id)}
                   style={[
                     styles.optionButton,
-                    { backgroundColor: theme.surfaceSoft },
-                    activeMode === mode.id && { backgroundColor: theme.accent },
+                    {
+                      backgroundColor: theme.surfaceSoft,
+                    },
                   ]}
                 >
                   <Ionicons
                     name={mode.icon}
-                    size={22}
-                    color={
-                      activeMode === mode.id ? "#FFFFFF" : theme.textPrimary
-                    }
+                    size={23}
+                    color={theme.textPrimary}
                   />
-
-                  <Animated.View
-                    style={[
-                      styles.labelContainer,
-                      {
-                        opacity,
-                        transform: [
-                          {
-                            translateX: labelTranslate,
-                          },
-                        ],
-                      },
-                    ]}
-                    pointerEvents="none"
-                  >
-                    <Text
-                      style={[
-                        styles.optionLabel,
-                        isSelected && styles.optionLabelActive,
-                      ]}
-                    >
-                      {mode.label}
-                    </Text>
-                  </Animated.View>
                 </TouchableOpacity>
               </Animated.View>
             );
@@ -395,35 +713,28 @@ export default function RadialFloatingBot() {
         ================================================================= */}
         <Animated.View
           style={[
-            styles.mainButton,
-            { backgroundColor: theme.accent },
-            isOpen && { backgroundColor: theme.textPrimary },
+            styles.mainButtonAnimated,
+            {
+              transform: [
+                {
+                  scale: pressAnimation,
+                },
+              ],
+            },
           ]}
           {...panResponder.panHandlers}
         >
-          <View style={[styles.mainButton, isOpen && styles.mainButtonOpen]}>
+          <View style={styles.mainButton}>
             <View style={styles.mainButtonHighlight} />
 
-            {/*
-             * CLOSED = Sparkles
-             * OPEN = X
-             *
-             * X is now strictly the close-menu state.
-             */}
-            <Ionicons
-              name={isOpen ? "close" : "sparkles"}
-              size={25}
-              color="#FFFFFF"
-            />
+            <Ionicons name="sparkles" size={25} color="#FFFFFF" />
           </View>
         </Animated.View>
       </Animated.View>
 
       {/* ================================================================
-          FEATURE MODALS
+          1. ADD EXPENSE MODAL
       ================================================================= */}
-
-      {/* 1. Add Expense Modal */}
       <Modal
         visible={activeModal === "add"}
         transparent
@@ -436,15 +747,28 @@ export default function RadialFloatingBot() {
           onPress={() => setActiveModal(null)}
         >
           <Pressable
-            style={[styles.modalContent, { backgroundColor: theme.surface }]}
+            style={[
+              styles.modalContent,
+              {
+                backgroundColor: theme.surface,
+              },
+            ]}
             onPress={(e) => e.stopPropagation()}
           >
             <View style={styles.modalHandle} />
 
             <View style={styles.modalHeader}>
-              <Text style={[styles.modalTitle, { color: theme.textPrimary }]}>
+              <Text
+                style={[
+                  styles.modalTitle,
+                  {
+                    color: theme.textPrimary,
+                  },
+                ]}
+              >
                 Quick Add Expense
               </Text>
+
               <TouchableOpacity onPress={() => setActiveModal(null)}>
                 <Ionicons name="close" size={24} color={theme.textPrimary} />
               </TouchableOpacity>
@@ -453,7 +777,10 @@ export default function RadialFloatingBot() {
             <TextInput
               style={[
                 styles.input,
-                { backgroundColor: theme.background, color: theme.textPrimary },
+                {
+                  backgroundColor: theme.background,
+                  color: theme.textPrimary,
+                },
               ]}
               placeholder="Expense Name (e.g. Lunch)"
               placeholderTextColor={theme.textSecondary}
@@ -464,7 +791,10 @@ export default function RadialFloatingBot() {
             <TextInput
               style={[
                 styles.input,
-                { backgroundColor: theme.background, color: theme.textPrimary },
+                {
+                  backgroundColor: theme.background,
+                  color: theme.textPrimary,
+                },
               ]}
               placeholder="Amount ($)"
               placeholderTextColor={theme.textSecondary}
@@ -476,7 +806,10 @@ export default function RadialFloatingBot() {
             <TextInput
               style={[
                 styles.input,
-                { backgroundColor: theme.background, color: theme.textPrimary },
+                {
+                  backgroundColor: theme.background,
+                  color: theme.textPrimary,
+                },
               ]}
               placeholder="Category (e.g. Food, Transport)"
               placeholderTextColor={theme.textSecondary}
@@ -485,7 +818,12 @@ export default function RadialFloatingBot() {
             />
 
             <TouchableOpacity
-              style={[styles.submitBtn, { backgroundColor: theme.accent }]}
+              style={[
+                styles.submitBtn,
+                {
+                  backgroundColor: theme.accent,
+                },
+              ]}
               onPress={handleAddExpenseSubmit}
               activeOpacity={0.85}
             >
@@ -497,7 +835,9 @@ export default function RadialFloatingBot() {
         </TouchableOpacity>
       </Modal>
 
-      {/* 2. Smart Coach Modal */}
+      {/* ================================================================
+          2. SMART COACH MODAL
+      ================================================================= */}
       <Modal
         visible={activeModal === "coach"}
         transparent
@@ -510,15 +850,28 @@ export default function RadialFloatingBot() {
           onPress={() => setActiveModal(null)}
         >
           <Pressable
-            style={[styles.modalContent, { backgroundColor: theme.surface }]}
+            style={[
+              styles.modalContent,
+              {
+                backgroundColor: theme.surface,
+              },
+            ]}
             onPress={(e) => e.stopPropagation()}
           >
             <View style={styles.modalHandle} />
 
             <View style={styles.modalHeader}>
-              <Text style={[styles.modalTitle, { color: theme.textPrimary }]}>
+              <Text
+                style={[
+                  styles.modalTitle,
+                  {
+                    color: theme.textPrimary,
+                  },
+                ]}
+              >
                 ✨ Smart Coach
               </Text>
+
               <TouchableOpacity onPress={() => setActiveModal(null)}>
                 <Ionicons name="close" size={24} color={theme.textPrimary} />
               </TouchableOpacity>
@@ -527,10 +880,19 @@ export default function RadialFloatingBot() {
             <View
               style={[
                 styles.chatBoxPlaceholder,
-                { backgroundColor: theme.background },
+                {
+                  backgroundColor: theme.background,
+                },
               ]}
             >
-              <Text style={[styles.chatText, { color: theme.textPrimary }]}>
+              <Text
+                style={[
+                  styles.chatText,
+                  {
+                    color: theme.textPrimary,
+                  },
+                ]}
+              >
                 Hello! How can I help you analyze your spending today?
               </Text>
             </View>
@@ -549,8 +911,14 @@ export default function RadialFloatingBot() {
                 placeholder="Ask your Smart Coach..."
                 placeholderTextColor={theme.textSecondary}
               />
+
               <TouchableOpacity
-                style={[styles.sendBtn, { backgroundColor: theme.accent }]}
+                style={[
+                  styles.sendBtn,
+                  {
+                    backgroundColor: theme.accent,
+                  },
+                ]}
               >
                 <Ionicons name="send" size={18} color="#FFF" />
               </TouchableOpacity>
@@ -559,11 +927,13 @@ export default function RadialFloatingBot() {
         </TouchableOpacity>
       </Modal>
 
-      {/* 3. Calculator Modal */}
+      {/* ================================================================
+          3. CALCULATOR MODAL
+      ================================================================= */}
       <Modal
         visible={activeModal === "calc"}
         transparent
-        animationType="fade"
+        animationType="slide"
         onRequestClose={() => setActiveModal(null)}
       >
         <TouchableOpacity
@@ -572,27 +942,153 @@ export default function RadialFloatingBot() {
           onPress={() => setActiveModal(null)}
         >
           <Pressable
-            style={[styles.modalContent, { backgroundColor: theme.surface }]}
+            style={[
+              styles.modalContent,
+              styles.calculatorModalContent,
+              {
+                backgroundColor: theme.surface,
+              },
+            ]}
             onPress={(e) => e.stopPropagation()}
           >
             <View style={styles.modalHandle} />
 
             <View style={styles.modalHeader}>
-              <Text style={[styles.modalTitle, { color: theme.textPrimary }]}>
+              <Text
+                style={[
+                  styles.modalTitle,
+                  {
+                    color: theme.textPrimary,
+                  },
+                ]}
+              >
                 Calculator
               </Text>
+
               <TouchableOpacity onPress={() => setActiveModal(null)}>
                 <Ionicons name="close" size={24} color={theme.textPrimary} />
               </TouchableOpacity>
             </View>
-            <Text style={{ color: theme.textSecondary, marginVertical: 20 }}>
-              Calculator panel overlay.
-            </Text>
+
+            {/* Calculator Display */}
+            <View
+              style={[
+                styles.calculatorDisplay,
+                {
+                  backgroundColor: theme.background,
+                },
+              ]}
+            >
+              <Text
+                numberOfLines={1}
+                adjustsFontSizeToFit
+                style={[
+                  styles.calculatorExpression,
+                  {
+                    color: theme.textSecondary,
+                  },
+                ]}
+              >
+                {calculatorExpression || " "}
+              </Text>
+
+              <Text
+                numberOfLines={1}
+                adjustsFontSizeToFit
+                style={[
+                  styles.calculatorResult,
+                  {
+                    color: theme.textPrimary,
+                  },
+                ]}
+              >
+                {calculatorResult}
+              </Text>
+            </View>
+
+            {/* Calculator Buttons */}
+            <View style={styles.calculatorGrid}>
+              {calculatorButtons.flatMap((row, rowIndex) =>
+                row.map((button) => {
+                  const isOperator = ["÷", "×", "-", "+"].includes(button);
+
+                  const isEquals = button === "=";
+                  const isClear = button === "C";
+                  const isBackspace = button === "backspace";
+
+                  return (
+                    <TouchableOpacity
+                      key={`${rowIndex}-${button}`}
+                      activeOpacity={0.7}
+                      onPress={() => {
+                        if (isClear) {
+                          handleCalculatorClear();
+                          return;
+                        }
+
+                        if (isBackspace) {
+                          handleCalculatorBackspace();
+                          return;
+                        }
+
+                        if (isEquals) {
+                          handleCalculatorEquals();
+                          return;
+                        }
+
+                        handleCalculatorInput(button);
+                        Haptics.selectionAsync();
+                      }}
+                      style={[
+                        styles.calculatorButton,
+                        {
+                          backgroundColor: theme.background,
+                        },
+                        isOperator && {
+                          backgroundColor: theme.surfaceSoft,
+                        },
+                        isEquals && {
+                          backgroundColor: theme.accent,
+                        },
+                        isClear && {
+                          backgroundColor: theme.surfaceSoft,
+                        },
+                      ]}
+                    >
+                      <Ionicons
+                        name="backspace-outline"
+                        size={21}
+                        color={theme.textPrimary}
+                        style={isBackspace ? undefined : styles.hiddenIcon}
+                      />
+
+                      {!isBackspace && (
+                        <Text
+                          style={[
+                            styles.calculatorButtonText,
+                            {
+                              color: theme.textPrimary,
+                            },
+                            isOperator && styles.calculatorOperatorText,
+                            isEquals && styles.calculatorEqualsText,
+                            isClear && styles.calculatorClearText,
+                          ]}
+                        >
+                          {button}
+                        </Text>
+                      )}
+                    </TouchableOpacity>
+                  );
+                }),
+              )}
+            </View>
           </Pressable>
         </TouchableOpacity>
       </Modal>
 
-      {/* 4. Camera / Receipt Scanner Modal */}
+      {/* ================================================================
+          4. CAMERA / RECEIPT SCANNER MODAL
+      ================================================================= */}
       <Modal
         visible={activeModal === "scan"}
         transparent
@@ -605,20 +1101,39 @@ export default function RadialFloatingBot() {
           onPress={() => setActiveModal(null)}
         >
           <Pressable
-            style={[styles.modalContent, { backgroundColor: theme.surface }]}
+            style={[
+              styles.modalContent,
+              {
+                backgroundColor: theme.surface,
+              },
+            ]}
             onPress={(e) => e.stopPropagation()}
           >
             <View style={styles.modalHandle} />
 
             <View style={styles.modalHeader}>
-              <Text style={[styles.modalTitle, { color: theme.textPrimary }]}>
+              <Text
+                style={[
+                  styles.modalTitle,
+                  {
+                    color: theme.textPrimary,
+                  },
+                ]}
+              >
                 Scan Receipt
               </Text>
+
               <TouchableOpacity onPress={() => setActiveModal(null)}>
                 <Ionicons name="close" size={24} color={theme.textPrimary} />
               </TouchableOpacity>
             </View>
-            <Text style={{ color: theme.textSecondary, marginVertical: 20 }}>
+
+            <Text
+              style={{
+                color: theme.textSecondary,
+                marginVertical: 20,
+              }}
+            >
               Camera / Scanner overlay.
             </Text>
           </Pressable>
@@ -644,18 +1159,9 @@ const styles = StyleSheet.create({
     backgroundColor: "rgba(32, 20, 42, 0.055)",
   },
 
-  mainButtonShadow: {
+  mainButtonAnimated: {
     width: 58,
     height: 58,
-    borderRadius: 29,
-    shadowColor: PURPLE,
-    shadowOffset: {
-      width: 0,
-      height: 7,
-    },
-    shadowOpacity: 0.3,
-    shadowRadius: 13,
-    elevation: 12,
   },
 
   mainButton: {
@@ -668,15 +1174,14 @@ const styles = StyleSheet.create({
     overflow: "hidden",
     borderWidth: 1,
     borderColor: "rgba(255,255,255,0.10)",
-  },
-
-  mainButtonOpen: {
-    backgroundColor: "#291936",
-    transform: [
-      {
-        scale: 1.02,
-      },
-    ],
+    shadowColor: PURPLE,
+    shadowOffset: {
+      width: 0,
+      height: 7,
+    },
+    shadowOpacity: 0.3,
+    shadowRadius: 13,
+    elevation: 12,
   },
 
   mainButtonHighlight: {
@@ -699,7 +1204,6 @@ const styles = StyleSheet.create({
     width: 50,
     height: 50,
     borderRadius: 25,
-    backgroundColor: "#FFFFFF",
     alignItems: "center",
     justifyContent: "center",
     borderWidth: 1,
@@ -712,44 +1216,6 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.14,
     shadowRadius: 9,
     elevation: 7,
-  },
-
-  optionButtonActive: {
-    backgroundColor: PURPLE,
-    borderColor: "rgba(255,255,255,0.08)",
-    shadowColor: PURPLE,
-    shadowOpacity: 0.28,
-    shadowRadius: 10,
-  },
-
-  labelContainer: {
-    position: "absolute",
-    left: -5,
-    backgroundColor: "rgba(255,255,255,0.96)",
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-    borderRadius: 10,
-    minWidth: 90,
-    alignItems: "center",
-    shadowColor: "#000",
-    shadowOffset: {
-      width: 0,
-      height: 2,
-    },
-    shadowOpacity: 0.08,
-    shadowRadius: 6,
-    elevation: 4,
-  },
-
-  optionLabel: {
-    color: PURPLE,
-    fontSize: 10.5,
-    fontWeight: "700",
-    letterSpacing: -0.1,
-  },
-
-  optionLabelActive: {
-    color: PURPLE,
   },
 
   modalOverlay: {
@@ -776,6 +1242,10 @@ const styles = StyleSheet.create({
     elevation: 18,
   },
 
+  calculatorModalContent: {
+    minHeight: 520,
+  },
+
   modalHandle: {
     alignSelf: "center",
     width: 38,
@@ -792,28 +1262,11 @@ const styles = StyleSheet.create({
     marginBottom: 20,
   },
 
-  modalEyebrow: {
-    color: "#8B7B90",
-    fontSize: 9,
-    fontWeight: "800",
-    letterSpacing: 1.1,
-    marginBottom: 4,
-  },
-
   modalTitle: {
     fontSize: 20,
     fontWeight: "800",
     color: PURPLE,
     letterSpacing: -0.4,
-  },
-
-  modalCloseButton: {
-    width: 38,
-    height: 38,
-    borderRadius: 19,
-    backgroundColor: LIGHT_PURPLE,
-    alignItems: "center",
-    justifyContent: "center",
   },
 
   input: {
@@ -853,20 +1306,77 @@ const styles = StyleSheet.create({
     fontSize: 15,
   },
 
-  coachTitleRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 7,
+  /* ================================================================
+     CALCULATOR
+  ================================================================= */
+
+  calculatorDisplay: {
+    minHeight: 105,
+    borderRadius: 18,
+    paddingHorizontal: 18,
+    paddingVertical: 14,
+    justifyContent: "flex-end",
+    alignItems: "flex-end",
+    marginBottom: 14,
+    borderWidth: 1,
+    borderColor: "#EEE8EF",
   },
 
-  coachTitleIcon: {
-    width: 25,
-    height: 25,
-    borderRadius: 8,
-    backgroundColor: PURPLE,
+  calculatorExpression: {
+    fontSize: 16,
+    fontWeight: "600",
+    marginBottom: 4,
+    minHeight: 20,
+  },
+
+  calculatorResult: {
+    fontSize: 36,
+    fontWeight: "800",
+    letterSpacing: -1,
+  },
+
+  calculatorGrid: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    justifyContent: "space-between",
+    gap: 10,
+  },
+
+  calculatorButton: {
+    width: "22.5%",
+    aspectRatio: 1,
+    borderRadius: 16,
     alignItems: "center",
     justifyContent: "center",
+    borderWidth: 1,
+    borderColor: "#EEE8EF",
   },
+
+  calculatorButtonText: {
+    fontSize: 19,
+    fontWeight: "700",
+  },
+
+  calculatorOperatorText: {
+    fontWeight: "800",
+  },
+
+  calculatorEqualsText: {
+    color: "#FFFFFF",
+    fontWeight: "800",
+  },
+
+  calculatorClearText: {
+    fontWeight: "800",
+  },
+
+  hiddenIcon: {
+    display: "none",
+  },
+
+  /* ================================================================
+     SMART COACH
+  ================================================================= */
 
   chatBoxPlaceholder: {
     backgroundColor: "#F7F4F7",
@@ -876,16 +1386,6 @@ const styles = StyleSheet.create({
     minHeight: 120,
     borderWidth: 1,
     borderColor: "#EEE8EF",
-  },
-
-  chatAvatar: {
-    width: 32,
-    height: 32,
-    borderRadius: 11,
-    backgroundColor: PURPLE,
-    alignItems: "center",
-    justifyContent: "center",
-    marginBottom: 10,
   },
 
   chatText: {
@@ -916,11 +1416,5 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.2,
     shadowRadius: 7,
     elevation: 4,
-  },
-
-  placeholderText: {
-    color: "#706572",
-    fontSize: 14,
-    marginVertical: 20,
   },
 });

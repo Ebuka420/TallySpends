@@ -86,6 +86,7 @@ export default function AuthScreen() {
     try {
       const endpoint =
         authMode === "login" ? "/api/auth/login" : "/api/auth/register";
+
       const baseUrl = API_URL || "http://localhost:5000";
 
       const payload =
@@ -127,25 +128,65 @@ export default function AuthScreen() {
       }
 
       if (authMode === "signup") {
-        Alert.alert(
-          "Success",
-          "Your account has been created successfully! Please log in with your credentials.",
-          [
-            {
-              text: "OK",
-              onPress: () => {
-                setFullName("");
-                setPhoneNumber("");
-                setPassword("");
-                setConfirmPassword("");
-                setAuthMode("login");
-              },
-            },
-          ],
+        /*
+         * New-user flow:
+         *
+         * Account successfully created
+         *        ↓
+         * Onboarding
+         *
+         * We intentionally do not send the new user back to
+         * the login screen anymore.
+         *
+         * The onboarding screen will collect the user's goals
+         * and employment status before taking them to the dashboard.
+         */
+
+        // Store the information we already collected during signup.
+        await setUsername(fullNameTrimmed);
+        await setProfileFullName(fullNameTrimmed);
+        await setProfilePhoneNumber(phoneTrimmed);
+        await setProfileEmail(emailTrimmed);
+        await setProfileTallyTag(
+          "@" + fullNameTrimmed.replace(/\s+/g, "").toUpperCase(),
         );
+
+        /*
+         * If the register endpoint returns authentication tokens,
+         * preserve them and authenticate the user immediately.
+         *
+         * This supports backends that automatically log users in
+         * after successful registration.
+         */
+        const accessToken =
+          data.accessToken ||
+          data.token ||
+          data.data?.accessToken ||
+          data.data?.token;
+
+        const refreshToken = data.refreshToken || data.data?.refreshToken;
+
+        const registeredUser = data.user || data.data?.user;
+
+        if (accessToken) {
+          await login(accessToken, refreshToken, {
+            userId: registeredUser?.userId ?? registeredUser?.id,
+            fullName: registeredUser?.fullName || fullNameTrimmed,
+            email: registeredUser?.email || emailTrimmed,
+          });
+        }
+
+        /*
+         * Go directly to onboarding.
+         *
+         * We use replace so the user cannot press Back and return
+         * to the signup form after successfully creating an account.
+         */
+        router.replace("/onboarding/goals" as any);
       } else {
-        // Login Flow
+        // Existing-user login flow
         const loggedInName = data.user?.fullName || emailTrimmed.split("@")[0];
+
         const loggedInPhone = data.user?.phoneNumber || "";
         const loggedInEmail = data.user?.email || emailTrimmed;
 
@@ -186,7 +227,9 @@ export default function AuthScreen() {
             <View style={styles.logoPlaceholder}>
               <Ionicons name="wallet" size={36} color="#20142A" />
             </View>
+
             <Text style={styles.brandName}>TallySpends</Text>
+
             <Text style={styles.brandSubtitle}>
               Automate your budgets, track operations.
             </Text>
@@ -235,6 +278,7 @@ export default function AuthScreen() {
             {authMode === "signup" && (
               <>
                 <Text style={styles.inputLabel}>Full Name</Text>
+
                 <View style={styles.inputWrapper}>
                   <Ionicons
                     name="person-outline"
@@ -242,6 +286,7 @@ export default function AuthScreen() {
                     color="#9CA3AF"
                     style={styles.inputIcon}
                   />
+
                   <TextInput
                     style={styles.textInput}
                     placeholder="John Doe"
@@ -254,6 +299,7 @@ export default function AuthScreen() {
                 </View>
 
                 <Text style={styles.inputLabel}>Phone Number</Text>
+
                 <View style={styles.inputWrapper}>
                   <Ionicons
                     name="call-outline"
@@ -261,6 +307,7 @@ export default function AuthScreen() {
                     color="#9CA3AF"
                     style={styles.inputIcon}
                   />
+
                   <TextInput
                     style={styles.textInput}
                     placeholder="+234 800 000 0000"
@@ -276,6 +323,7 @@ export default function AuthScreen() {
 
             {/* Email Field Input */}
             <Text style={styles.inputLabel}>Email Address</Text>
+
             <View style={styles.inputWrapper}>
               <Ionicons
                 name="mail-outline"
@@ -283,6 +331,7 @@ export default function AuthScreen() {
                 color="#9CA3AF"
                 style={styles.inputIcon}
               />
+
               <TextInput
                 style={styles.textInput}
                 placeholder="you@example.com"
@@ -297,6 +346,7 @@ export default function AuthScreen() {
 
             {/* Password Field Input */}
             <Text style={styles.inputLabel}>Password</Text>
+
             <View style={styles.inputWrapper}>
               <Ionicons
                 name="lock-closed-outline"
@@ -304,6 +354,7 @@ export default function AuthScreen() {
                 color="#9CA3AF"
                 style={styles.inputIcon}
               />
+
               <TextInput
                 style={styles.textInput}
                 placeholder="••••••••"
@@ -314,6 +365,7 @@ export default function AuthScreen() {
                 value={password}
                 onChangeText={setPassword}
               />
+
               <TouchableOpacity
                 onPress={() => setIsPasswordVisible(!isPasswordVisible)}
                 style={styles.eyeIcon}
@@ -330,6 +382,7 @@ export default function AuthScreen() {
             {authMode === "signup" && (
               <>
                 <Text style={styles.inputLabel}>Confirm Password</Text>
+
                 <View style={styles.inputWrapper}>
                   <Ionicons
                     name="lock-closed-outline"
@@ -337,6 +390,7 @@ export default function AuthScreen() {
                     color="#9CA3AF"
                     style={styles.inputIcon}
                   />
+
                   <TextInput
                     style={styles.textInput}
                     placeholder="••••••••"
@@ -380,16 +434,19 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: "#F9FAFB",
   },
+
   scrollContent: {
     paddingHorizontal: 24,
     paddingTop: 40,
     paddingBottom: 24,
     justifyContent: "center",
   },
+
   brandContainer: {
     alignItems: "center",
     marginBottom: 40,
   },
+
   logoPlaceholder: {
     width: 70,
     height: 70,
@@ -403,17 +460,20 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.08,
     shadowRadius: 8,
   },
+
   brandName: {
     fontSize: 26,
     fontWeight: "800",
     color: "#1F2937",
     marginBottom: 4,
   },
+
   brandSubtitle: {
     fontSize: 14,
     color: "#6B7280",
     textAlign: "center",
   },
+
   tabContainer: {
     flexDirection: "row",
     backgroundColor: "#E5E7EB",
@@ -421,12 +481,14 @@ const styles = StyleSheet.create({
     padding: 4,
     marginBottom: 32,
   },
+
   tabButton: {
     flex: 1,
     paddingVertical: 12,
     alignItems: "center",
     borderRadius: 10,
   },
+
   activeTabButton: {
     backgroundColor: "#FFFFFF",
     shadowColor: "#000",
@@ -434,14 +496,17 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.05,
     shadowRadius: 4,
   },
+
   tabText: {
     fontSize: 15,
     fontWeight: "600",
     color: "#6B7280",
   },
+
   activeTabText: {
     color: "#20142A",
   },
+
   formContainer: {
     backgroundColor: "#FFFFFF",
     borderRadius: 20,
@@ -453,6 +518,7 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.02,
     shadowRadius: 10,
   },
+
   inputLabel: {
     fontSize: 13,
     fontWeight: "600",
@@ -461,6 +527,7 @@ const styles = StyleSheet.create({
     textTransform: "uppercase",
     letterSpacing: 0.5,
   },
+
   inputWrapper: {
     flexDirection: "row",
     alignItems: "center",
@@ -472,17 +539,21 @@ const styles = StyleSheet.create({
     height: 48,
     marginBottom: 20,
   },
+
   inputIcon: {
     marginRight: 10,
   },
+
   textInput: {
     flex: 1,
     fontSize: 15,
     color: "#1F2937",
   },
+
   eyeIcon: {
     padding: 4,
   },
+
   actionButton: {
     backgroundColor: "#20142A",
     height: 52,
@@ -495,9 +566,11 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.2,
     shadowRadius: 8,
   },
+
   actionButtonDisabled: {
     backgroundColor: "#9CA3AF",
   },
+
   actionButtonText: {
     color: "#FFFFFF",
     fontSize: 16,

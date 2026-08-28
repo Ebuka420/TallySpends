@@ -8,31 +8,52 @@ export default function RootLayout() {
   const segments = useSegments();
   const router = useRouter();
 
-  // Pull authentication status from the global store instead of hardcoding it to false
+  // Pull authentication status from the global store
   const { isAuthenticated } = useAppStore();
+
   const hasPasscode = false;
   const isPasscodeVerified = false;
 
-  const topLevelGroup = segments && segments.length > 0 ? String(segments[0]) : "";
-  const showSmartCoach = topLevelGroup !== "auth";
+  const topLevelGroup =
+    segments && segments.length > 0 ? String(segments[0]) : "";
+
+  const showSmartCoach =
+    topLevelGroup !== "auth" && topLevelGroup !== "onboarding";
 
   useEffect(() => {
     // Wait until Expo Router segments are populated
     if (!segments || !segments.length) return;
 
     const topLevelGroup = String(segments[0]);
+
     const inAuthGroup = topLevelGroup === "auth";
     const inPasscodeScreen = topLevelGroup === "passcode";
     const inSetupGroup = topLevelGroup === "setup-profile";
+    const inOnboardingGroup = topLevelGroup === "onboarding";
 
     const navigationTask = setTimeout(() => {
-      // 1. Unauthenticated user trying to access protected screens -> redirect to Auth
-      if (!isAuthenticated && !inAuthGroup && !inSetupGroup) {
+      /*
+       * 1. Unauthenticated users:
+       *
+       * Auth and onboarding are allowed.
+       *
+       * This is important because a newly registered user may
+       * enter onboarding before the authentication token/state
+       * has finished being established.
+       */
+      if (
+        !isAuthenticated &&
+        !inAuthGroup &&
+        !inOnboardingGroup &&
+        !inSetupGroup
+      ) {
         router.replace("/auth" as any);
         return;
       }
 
-      // 2. Authenticated user with active Passcode requirement
+      /*
+       * 2. Authenticated user with an active Passcode requirement
+       */
       if (
         isAuthenticated &&
         hasPasscode &&
@@ -43,18 +64,30 @@ export default function RootLayout() {
         return;
       }
 
-      // 3. Authenticated user sitting on Auth/Passcode screens -> redirect to Dashboard
-      if (
-        isAuthenticated &&
-        (inAuthGroup || (hasPasscode && isPasscodeVerified && inPasscodeScreen))
-      ) {
+      /*
+       * 3. Authenticated users sitting on Auth:
+       *
+       * Existing users who log in should go directly to the
+       * dashboard.
+       *
+       * We deliberately DO NOT include onboarding here.
+       * A newly registered user must be allowed to complete
+       * onboarding before reaching the dashboard.
+       */
+      if (isAuthenticated && inAuthGroup) {
         router.replace("/(tabs)" as any);
         return;
       }
+
+      /*
+       * 4. Authenticated users who have completed/are completing
+       * onboarding stay inside onboarding until the onboarding
+       * flow itself sends them to the dashboard.
+       */
     }, 0);
 
     return () => clearTimeout(navigationTask);
-  }, [isAuthenticated, hasPasscode, isPasscodeVerified, segments]);
+  }, [isAuthenticated, hasPasscode, isPasscodeVerified, segments, router]);
 
   return (
     <View style={{ flex: 1 }}>
@@ -67,6 +100,7 @@ export default function RootLayout() {
         <Stack.Screen name="(tabs)" />
         <Stack.Screen name="setup-profile" />
         <Stack.Screen name="passcode" />
+        <Stack.Screen name="onboarding" />
 
         {/* Standalone Sub-screens */}
         <Stack.Screen name="customerservice" />
