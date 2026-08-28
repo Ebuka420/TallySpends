@@ -82,6 +82,9 @@ export default function RootLayout() {
         <Stack.Screen name="rateus" />
         <Stack.Screen name="request" />
         <Stack.Screen name="savingsprogress" />
+        <Stack.Screen name="savings-lock" />
+        <Stack.Screen name="joint-savings" />
+        <Stack.Screen name="joint-savings-details" />
         <Stack.Screen name="settings" />
         <Stack.Screen name="SObreakdown" />
         <Stack.Screen name="support" />
