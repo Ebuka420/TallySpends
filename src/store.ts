@@ -14,6 +14,11 @@ const ACCESS_TOKEN_STORAGE_KEY = "ts_access_token";
 const REFRESH_TOKEN_STORAGE_KEY = "ts_refresh_token";
 const USER_STORAGE_KEY = "ts_user";
 
+// Onboarding storage keys
+const ONBOARDING_GOALS_STORAGE_KEY = "ts_onboarding_goals";
+const EMPLOYMENT_STATUS_STORAGE_KEY = "ts_employment_status";
+const ONBOARDING_COMPLETED_STORAGE_KEY = "ts_onboarding_completed";
+
 const getCustomCategoriesStorageKey = (
   usernameValue: string | null | undefined,
 ) =>
@@ -447,6 +452,22 @@ export function useAppStore() {
   const [profileTallyTag, setTallyTagState] = useState("@EBUKA");
   const [loading, setLoading] = useState(true);
 
+  // ---------------------------------------------------------
+  // ONBOARDING STATE
+  // ---------------------------------------------------------
+
+  // Page 1 allows multiple selections, so this is an array.
+  const [onboardingGoals, setOnboardingGoalsState] = useState<string[]>([]);
+
+  // Page 2 allows one employment status.
+  const [employmentStatus, setEmploymentStatusState] = useState<
+    "employed" | "unemployed" | "student" | null
+  >(null);
+
+  // Becomes true only after the user reaches the final onboarding page.
+  const [hasCompletedOnboarding, setHasCompletedOnboardingState] =
+    useState(false);
+
   const [themePreference, setThemePreferenceState] = useState<ThemeId>(
     globalThemePreference,
   );
@@ -552,6 +573,50 @@ export function useAppStore() {
       const storedTallyTag = await AsyncStorage.getItem("ts_profile_tallytag");
       const storedProfileImage = await AsyncStorage.getItem("ts_profile_image");
 
+      // -------------------------------------------------------
+      // Load onboarding data
+      // -------------------------------------------------------
+
+      const storedOnboardingGoals = await AsyncStorage.getItem(
+        ONBOARDING_GOALS_STORAGE_KEY,
+      );
+
+      const storedEmploymentStatus = await AsyncStorage.getItem(
+        EMPLOYMENT_STATUS_STORAGE_KEY,
+      );
+
+      const storedOnboardingCompleted = await AsyncStorage.getItem(
+        ONBOARDING_COMPLETED_STORAGE_KEY,
+      );
+
+      if (storedOnboardingGoals) {
+        try {
+          const parsedGoals = JSON.parse(storedOnboardingGoals);
+
+          if (Array.isArray(parsedGoals)) {
+            setOnboardingGoalsState(parsedGoals);
+          }
+        } catch (error) {
+          console.warn("Failed to parse onboarding goals", error);
+        }
+      }
+
+      if (
+        storedEmploymentStatus === "employed" ||
+        storedEmploymentStatus === "unemployed" ||
+        storedEmploymentStatus === "student"
+      ) {
+        setEmploymentStatusState(storedEmploymentStatus);
+      }
+
+      if (storedOnboardingCompleted === "true") {
+        setHasCompletedOnboardingState(true);
+      }
+
+      // -------------------------------------------------------
+      // Profile data
+      // -------------------------------------------------------
+
       if (storedFullName) setFullNameState(storedFullName);
       if (storedPhone) setPhoneNumberState(storedPhone);
       if (storedEmail) setEmailState(storedEmail);
@@ -580,6 +645,7 @@ export function useAppStore() {
         "midnight",
         "pink",
       ];
+
       if (isCustomized === "true" && validThemes.includes(storedTheme || "")) {
         setGlobalThemePreference(storedTheme as ThemeId);
       } else {
@@ -693,6 +759,10 @@ export function useAppStore() {
     return unsubscribe;
   }, [navigation, loadData]);
 
+  // ---------------------------------------------------------
+  // AUTH
+  // ---------------------------------------------------------
+
   const login = useCallback(
     async (
       accessToken?: string,
@@ -705,6 +775,7 @@ export function useAppStore() {
     ) => {
       if (accessToken) {
         await AsyncStorage.setItem(ACCESS_TOKEN_STORAGE_KEY, accessToken);
+        console.log("MY ACCESS TOKEN:", accessToken);
       }
 
       if (refreshToken) {
@@ -736,6 +807,50 @@ export function useAppStore() {
     setGlobalAuth(false);
   }, []);
 
+  // ---------------------------------------------------------
+  // ONBOARDING
+  // ---------------------------------------------------------
+
+  const setOnboardingGoals = useCallback(async (goals: string[]) => {
+    setOnboardingGoalsState(goals);
+
+    await AsyncStorage.setItem(
+      ONBOARDING_GOALS_STORAGE_KEY,
+      JSON.stringify(goals),
+    );
+  }, []);
+
+  const setEmploymentStatus = useCallback(
+    async (status: "employed" | "unemployed" | "student") => {
+      setEmploymentStatusState(status);
+
+      await AsyncStorage.setItem(EMPLOYMENT_STATUS_STORAGE_KEY, status);
+    },
+    [],
+  );
+
+  const completeOnboarding = useCallback(async () => {
+    setHasCompletedOnboardingState(true);
+
+    await AsyncStorage.setItem(ONBOARDING_COMPLETED_STORAGE_KEY, "true");
+  }, []);
+
+  const resetOnboarding = useCallback(async () => {
+    setOnboardingGoalsState([]);
+    setEmploymentStatusState(null);
+    setHasCompletedOnboardingState(false);
+
+    await AsyncStorage.multiRemove([
+      ONBOARDING_GOALS_STORAGE_KEY,
+      EMPLOYMENT_STATUS_STORAGE_KEY,
+      ONBOARDING_COMPLETED_STORAGE_KEY,
+    ]);
+  }, []);
+
+  // ---------------------------------------------------------
+  // THEME
+  // ---------------------------------------------------------
+
   const setThemePreference = useCallback(async (themeId: ThemeId) => {
     const validThemes: ThemeId[] = [
       "aurora",
@@ -747,6 +862,7 @@ export function useAppStore() {
       "midnight",
       "pink",
     ];
+
     const validTheme = validThemes.includes(themeId) ? themeId : "aurora";
 
     setGlobalThemePreference(validTheme);
@@ -780,6 +896,10 @@ export function useAppStore() {
     );
   }, []);
 
+  // ---------------------------------------------------------
+  // PROFILE
+  // ---------------------------------------------------------
+
   const setUsername = useCallback(async (newUsername: string) => {
     const cleanUsername = newUsername.replace(/^@/, "").trim();
     setUsernameState(cleanUsername);
@@ -792,52 +912,65 @@ export function useAppStore() {
 
   const setProfileFullName = useCallback(async (val: string) => {
     setFullNameState(val);
+
     await AsyncStorage.setItem("ts_profile_fullname", val);
   }, []);
 
   const setProfilePhoneNumber = useCallback(async (val: string) => {
     setPhoneNumberState(val);
+
     await AsyncStorage.setItem("ts_profile_phone", val);
   }, []);
 
   const setProfileEmail = useCallback(async (val: string) => {
     setEmailState(val);
+
     await AsyncStorage.setItem("ts_profile_email", val);
   }, []);
 
   const setProfileNickname = useCallback(async (val: string) => {
     setNicknameState(val);
+
     await AsyncStorage.setItem("ts_profile_nickname", val);
   }, []);
 
   const setProfileGender = useCallback(async (val: string) => {
     setGenderState(val);
+
     await AsyncStorage.setItem("ts_profile_gender", val);
   }, []);
 
   const setProfileDob = useCallback(async (val: string) => {
     setDobState(val);
+
     await AsyncStorage.setItem("ts_profile_dob", val);
   }, []);
 
   const setProfileAddress = useCallback(async (val: string) => {
     setAddressState(val);
+
     await AsyncStorage.setItem("ts_profile_address", val);
   }, []);
 
   const setProfileTallyTag = useCallback(async (val: string) => {
     setTallyTagState(val);
+
     await AsyncStorage.setItem("ts_profile_tallytag", val);
   }, []);
 
   const setProfileImage = useCallback(async (val: string | null) => {
     setProfileImageState(val);
+
     if (val) {
       await AsyncStorage.setItem("ts_profile_image", val);
     } else {
       await AsyncStorage.removeItem("ts_profile_image");
     }
   }, []);
+
+  // ---------------------------------------------------------
+  // CUSTOM CATEGORIES
+  // ---------------------------------------------------------
 
   const addCustomCategory = useCallback(
     async (categoryName: string) => {
@@ -877,6 +1010,10 @@ export function useAppStore() {
     [username],
   );
 
+  // ---------------------------------------------------------
+  // TRANSACTIONS
+  // ---------------------------------------------------------
+
   const addTransaction = useCallback(async (newTx: any) => {
     const tx = {
       ...newTx,
@@ -914,6 +1051,10 @@ export function useAppStore() {
     });
   }, []);
 
+  // ---------------------------------------------------------
+  // BUDGETS
+  // ---------------------------------------------------------
+
   const updateBudget = useCallback(async (category: string, limit: number) => {
     setBudgets((prev) => {
       const next = {
@@ -938,6 +1079,10 @@ export function useAppStore() {
       return next;
     });
   }, []);
+
+  // ---------------------------------------------------------
+  // SAVINGS GOALS
+  // ---------------------------------------------------------
 
   const addSavingsGoal = useCallback(async (newGoal: any) => {
     const goal = {
@@ -995,6 +1140,10 @@ export function useAppStore() {
     [],
   );
 
+  // ---------------------------------------------------------
+  // RESET DATA
+  // ---------------------------------------------------------
+
   const resetData = useCallback(async () => {
     const defaultCards = [
       {
@@ -1033,6 +1182,13 @@ export function useAppStore() {
       JSON.stringify([]),
     );
 
+    // Reset onboarding as well
+    await AsyncStorage.multiRemove([
+      ONBOARDING_GOALS_STORAGE_KEY,
+      EMPLOYMENT_STATUS_STORAGE_KEY,
+      ONBOARDING_COMPLETED_STORAGE_KEY,
+    ]);
+
     setTransactions(DEFAULT_TRANSACTIONS);
 
     setBudgets(DEFAULT_BUDGETS);
@@ -1046,6 +1202,12 @@ export function useAppStore() {
     setSavedCards(defaultCards);
 
     setCustomCategoriesState([]);
+
+    setOnboardingGoalsState([]);
+
+    setEmploymentStatusState(null);
+
+    setHasCompletedOnboardingState(false);
   }, []);
 
   return {
@@ -1073,6 +1235,17 @@ export function useAppStore() {
     login,
     logout,
 
+    // Onboarding
+    onboardingGoals,
+    setOnboardingGoals,
+
+    employmentStatus,
+    setEmploymentStatus,
+
+    hasCompletedOnboarding,
+    completeOnboarding,
+    resetOnboarding,
+
     addTransaction,
     deleteTransaction,
     updateTransaction,
@@ -1089,18 +1262,25 @@ export function useAppStore() {
 
     profileFullName,
     setProfileFullName,
+
     profilePhoneNumber,
     setProfilePhoneNumber,
+
     profileEmail,
     setProfileEmail,
+
     profileNickname,
     setProfileNickname,
+
     profileGender,
     setProfileGender,
+
     profileDob,
     setProfileDob,
+
     profileAddress,
     setProfileAddress,
+
     profileTallyTag,
     setProfileTallyTag,
 
