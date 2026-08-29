@@ -6,6 +6,7 @@ import {
   Alert,
   Animated,
   Easing,
+  Keyboard,
   KeyboardAvoidingView,
   LayoutAnimation,
   Modal,
@@ -239,6 +240,7 @@ export default function TransferScreen() {
       return;
     }
 
+    Keyboard.dismiss();
     setTransferStep("review");
 
     Animated.spring(slideAnim, {
@@ -863,6 +865,14 @@ export default function TransferScreen() {
                               })}
                             </Text>
                           </View>
+
+                          <TouchableOpacity
+                            style={styles.transferEditButton}
+                            onPress={backToAmount}
+                          >
+                            <Ionicons name="create-outline" size={16} color={theme.accent} />
+                            <Text style={styles.transferEditText}>Edit transfer</Text>
+                          </TouchableOpacity>
 
                           <View style={styles.transferSecurity}>
                             <View style={styles.transferSecurityIcon}>
@@ -1857,6 +1867,22 @@ const getStyles = (theme: any) =>
     transferPrimaryText: {
       color: "#FFFFFF",
       fontSize: 15,
+      fontWeight: "700",
+    },
+    transferEditButton: {
+      height: 40,
+      borderRadius: 12,
+      borderWidth: 1,
+      borderColor: theme.border,
+      alignItems: "center",
+      justifyContent: "center",
+      flexDirection: "row",
+      gap: 6,
+      marginBottom: 12,
+    },
+    transferEditText: {
+      color: theme.accent,
+      fontSize: 12,
       fontWeight: "700",
     },
     transferReviewRow: {
