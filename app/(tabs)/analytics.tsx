@@ -13,7 +13,7 @@ import {
   type DimensionValue,
 } from "react-native";
 // view-shot and expo-sharing are imported dynamically at runtime
-import Svg, { Path } from "react-native-svg";
+import Svg, { Defs, LinearGradient, Path, Stop } from "react-native-svg";
 import { useAppStore } from "../../src/store";
 import { getThemePalette } from "../../src/theme";
 
@@ -97,39 +97,43 @@ export default function AnalyticsScreen() {
       surface: theme.surface,
       border: theme.border,
 
-      primary: isDark ? "#D8BFE0" : "#624B6A",
-      primaryStrong: isDark ? "#E6D4EA" : "#20142A",
-      primarySoft: isDark ? "#34263A" : "#F3EBF1",
-      primaryMuted: isDark ? "#A98FB1" : "#8E7B95",
+      primary: theme.accent,
+      primaryStrong: isDark ? theme.textPrimary : theme.accent,
+      primarySoft: theme.accentSoft,
+      primaryMuted: theme.accentSecondary,
 
-      text: isDark ? "#F5F1F6" : "#251A2B",
-      textStrong: isDark ? "#FFFFFF" : "#20142A",
-      textBody: isDark ? "#D2C8D5" : "#362B3D",
-      textMuted: isDark ? "#A99EAD" : "#817687",
-      textSubtle: isDark ? "#8F8494" : "#9A8FA0",
+      text: theme.textPrimary,
+      textStrong: theme.textPrimary,
+      textBody: theme.textPrimary,
+      textMuted: theme.textSecondary,
+      textSubtle: theme.textSecondary,
 
-      controlBackground: isDark ? "#29202D" : "#F3F0F4",
-      track: isDark ? "#403442" : "#F0EBF1",
-      guide: isDark ? "#3A303D" : "#F0EBF1",
+      controlBackground: isDark ? theme.surfaceSoft : theme.mutedBackground,
+      track: isDark ? theme.border : theme.border,
+      guide: isDark ? theme.border : theme.border,
 
-      metricBackground: isDark ? "#29212E" : "#F5F1F6",
-      metricIconBackground: isDark ? "#433449" : "#E9DDEB",
-      metricDivider: isDark ? "#4A3C4D" : "#DDD4E0",
+      metricBackground: isDark ? theme.surfaceSoft : theme.mutedBackground,
+      metricIconBackground: theme.accentSoft,
+      metricDivider: theme.border,
 
-      insightBackground: isDark ? "#302431" : "#F3EBF1",
-      insightIconBackground: isDark ? "#423347" : "#FFFFFF",
+      insightBackground: theme.accentSoft,
+      insightIconBackground: theme.surface,
 
-      modalOverlay: isDark ? "rgba(0, 0, 0, 0.58)" : "rgba(31, 20, 38, 0.18)",
+      modalOverlay: isDark ? "rgba(0, 0, 0, 0.65)" : "rgba(31, 20, 38, 0.25)",
 
-      expense: isDark ? "#FF8B80" : "#E74C3C",
-      income: isDark ? "#BFA0D8" : "#8E44AD",
-      saved: isDark ? "#72D6A0" : "#2ECC71",
+      expense: theme.danger,
+      income: theme.accent,
+      saved: theme.success,
 
-      heatmap: isDark
-        ? ["#2B222F", "#493A4D", "#69556D", "#92779B", "#BFA6C5"]
-        : ["#F5F0F6", "#E7DDE9", "#CDBBD3", "#8F729A", "#624B6A"],
+      heatmap: [
+        isDark ? theme.surfaceSoft : theme.mutedBackground,
+        theme.accentSoft,
+        theme.accentSecondary,
+        theme.accentHighlight,
+        theme.accent,
+      ],
     }),
-    [isDark, theme.background, theme.border, theme.surface],
+    [isDark, theme],
   );
 
   const [timeframe, setTimeframe] = useState<Timeframe>("monthly");
@@ -248,11 +252,13 @@ export default function AnalyticsScreen() {
     );
   }, [filteredTransactions]);
 
-  const formatCurrency = (value: number) =>
-    `₦${value.toLocaleString(undefined, {
-      minimumFractionDigits: 2,
-      maximumFractionDigits: 2,
+  const formatCurrency = (value: number) => {
+    const isClean = value % 1 === 0 || Math.abs(value) >= 1000;
+    return `₦${value.toLocaleString(undefined, {
+      minimumFractionDigits: isClean ? 0 : 2,
+      maximumFractionDigits: isClean ? 0 : 2,
     })}`;
+  };
 
   const categoryTotals = useMemo(() => {
     const categoryMap: Record<string, number> = {};
@@ -524,32 +530,39 @@ ${insightText}`;
               styles.segment,
               {
                 backgroundColor: colors.controlBackground,
+                borderColor: colors.border,
+                borderWidth: 1,
               },
             ]}
           >
-            {(["weekly", "monthly", "yearly"] as Timeframe[]).map((item) => (
-              <TouchableOpacity
-                key={item}
-                onPress={() => chooseTimeframe(item)}
-                style={[
-                  styles.segmentOption,
-                  timeframe === item && {
-                    backgroundColor: colors.primaryStrong,
-                  },
-                ]}
-              >
-                <Text
+            {(["weekly", "monthly", "yearly"] as Timeframe[]).map((item) => {
+              const isActive = timeframe === item;
+              return (
+                <TouchableOpacity
+                  key={item}
+                  onPress={() => chooseTimeframe(item)}
                   style={[
-                    styles.segmentText,
-                    {
-                      color: timeframe === item ? "#FFFFFF" : colors.textMuted,
+                    styles.segmentOption,
+                    isActive && {
+                      backgroundColor: colors.primary,
                     },
                   ]}
+                  activeOpacity={0.8}
                 >
-                  {item[0].toUpperCase() + item.slice(1)}
-                </Text>
-              </TouchableOpacity>
-            ))}
+                  <Text
+                    style={[
+                      styles.segmentText,
+                      {
+                        color: isActive ? "#FFFFFF" : colors.textMuted,
+                        fontWeight: isActive ? "700" : "500",
+                      },
+                    ]}
+                  >
+                    {item[0].toUpperCase() + item.slice(1)}
+                  </Text>
+                </TouchableOpacity>
+              );
+            })}
           </View>
 
           <TouchableOpacity
@@ -561,12 +574,13 @@ ${insightText}`;
               },
             ]}
             onPress={() => setShowPeriods(true)}
+            activeOpacity={0.8}
           >
             <Text
               style={[
                 styles.periodText,
                 {
-                  color: colors.primary,
+                  color: colors.textStrong,
                 },
               ]}
             >
@@ -747,16 +761,22 @@ ${insightText}`;
             >
               {linePath ? (
                 <>
+                  <Defs>
+                    <LinearGradient id="analyticsGradient" x1="0" y1="0" x2="0" y2="1">
+                      <Stop offset="0%" stopColor={colors.primary} stopOpacity={0.35} />
+                      <Stop offset="100%" stopColor={colors.primary} stopOpacity={0.0} />
+                    </LinearGradient>
+                  </Defs>
+
                   <Path
                     d={`${linePath} L300 92 L20 92 Z`}
-                    fill={colors.primarySoft}
-                    opacity={0.72}
+                    fill="url(#analyticsGradient)"
                   />
 
                   <Path
                     d={linePath}
                     fill="none"
-                    stroke={colors.expense}
+                    stroke={colors.primary}
                     strokeLinecap="round"
                     strokeLinejoin="round"
                     strokeWidth="3"
@@ -793,7 +813,7 @@ ${insightText}`;
           <View style={styles.legend}>
             <Legend
               label="Spent"
-              color={colors.expense}
+              color={colors.primary}
               textColor={colors.textMuted}
             />
 
@@ -881,7 +901,7 @@ ${insightText}`;
                   style={[
                     styles.categoryIcon,
                     {
-                      backgroundColor: isDark ? "#3A2C3D" : tint,
+                      backgroundColor: colors.primarySoft,
                     },
                   ]}
                 >
@@ -1398,6 +1418,9 @@ function Metric({
             color: colors.textStrong,
           },
         ]}
+        numberOfLines={1}
+        adjustsFontSizeToFit
+        minimumFontScale={0.55}
       >
         {value}
       </Text>
@@ -1609,13 +1632,16 @@ const styles = StyleSheet.create({
     borderRadius: 20,
     flexDirection: "row",
     marginTop: 14,
-    paddingHorizontal: 13,
-    paddingVertical: 17,
+    paddingHorizontal: 8,
+    paddingVertical: 16,
+    alignItems: "center",
   },
 
   metric: {
     alignItems: "center",
     flex: 1,
+    paddingHorizontal: 2,
+    minWidth: 0,
   },
 
   metricIcon: {
@@ -1629,20 +1655,23 @@ const styles = StyleSheet.create({
   metricDivider: {
     marginVertical: 3,
     width: 1,
+    height: 32,
   },
 
   metricLabel: {
-    fontSize: 8,
+    fontSize: 8.5,
     fontWeight: "700",
     letterSpacing: 0.65,
     marginTop: 7,
   },
 
   metricValue: {
-    fontSize: 16,
+    fontSize: 14,
     fontWeight: "700",
-    letterSpacing: -0.35,
+    letterSpacing: -0.3,
     marginTop: 4,
+    textAlign: "center",
+    width: "100%",
   },
 
   heading: {
@@ -1683,11 +1712,14 @@ const styles = StyleSheet.create({
     height: 40,
     justifyContent: "center",
     width: 40,
+    flexShrink: 0,
   },
 
   categoryCopy: {
     flex: 1,
     marginLeft: 12,
+    marginRight: 8,
+    minWidth: 0,
   },
 
   categoryName: {
@@ -1700,7 +1732,7 @@ const styles = StyleSheet.create({
     height: 4,
     marginTop: 8,
     overflow: "hidden",
-    width: "88%",
+    width: "92%",
   },
 
   categoryFill: {
@@ -1710,16 +1742,20 @@ const styles = StyleSheet.create({
 
   categoryEnd: {
     alignItems: "flex-end",
+    flexShrink: 0,
+    minWidth: 70,
   },
 
   categoryAmount: {
     fontSize: 13,
     fontWeight: "700",
+    textAlign: "right",
   },
 
   categoryShare: {
     fontSize: 10,
     marginTop: 3,
+    textAlign: "right",
   },
 
   insight: {

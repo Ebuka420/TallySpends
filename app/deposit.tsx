@@ -179,7 +179,7 @@ export default function DepositScreen() {
                   <Ionicons
                     name={option.icon as any}
                     size={20}
-                    color={selected ? "#20142A" : "#6B5B8B"}
+                    color={selected ? theme.accent : theme.textSecondary}
                   />
                 </View>
                 <View style={styles.optionInfo}>
@@ -326,7 +326,7 @@ export default function DepositScreen() {
         </TouchableOpacity>
 
         <View style={styles.noteCard}>
-          <Ionicons name="shield-checkmark-outline" size={18} color="#20142A" />
+          <Ionicons name="shield-checkmark-outline" size={18} color={theme.accent} />
           <Text style={styles.noteText}>
             Your money is safe with us. All deposits are secure and encrypted.
           </Text>
@@ -347,7 +347,7 @@ export default function DepositScreen() {
                   <Ionicons
                     name="arrow-down-circle"
                     size={20}
-                    color="#20142A"
+                    color={theme.accent}
                   />
                 </View>
                 <View style={styles.depositInfo}>
@@ -560,11 +560,11 @@ const getStyles = (theme: any) => StyleSheet.create({
   depositAmount: {
     fontSize: 14,
     fontWeight: "700",
-    color: "#20142A",
+    color: theme.textPrimary,
   },
   depositDate: {
     fontSize: 11,
-    color: "#8A8A8A",
+    color: theme.textSecondary,
     marginTop: 4,
   },
   emptyNotice: {
@@ -588,7 +588,7 @@ const getStyles = (theme: any) => StyleSheet.create({
   noteText: {
     marginLeft: 10,
     fontSize: 13,
-    color: "#20142A",
+    color: theme.textPrimary,
     lineHeight: 20,
     flex: 1,
   },
@@ -636,7 +636,7 @@ const getStyles = (theme: any) => StyleSheet.create({
   },
   helperText: {
     marginTop: 14,
-    color: "#6F6876",
+    color: theme.textSecondary,
     fontSize: 13,
     textAlign: "center",
   },

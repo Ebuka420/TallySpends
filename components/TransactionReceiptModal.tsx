@@ -2,15 +2,16 @@ import { Ionicons } from "@expo/vector-icons";
 import * as Sharing from "expo-sharing";
 import React, { useMemo, useRef } from "react";
 import {
-    Modal,
-    Pressable,
-    StyleSheet,
-    Text,
-    TouchableOpacity,
-    View,
+  Modal,
+  Pressable,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
 } from "react-native";
 import { captureRef } from "react-native-view-shot";
-import { MOCK_RECIPIENTS } from "../src/store";
+import { MOCK_RECIPIENTS, useAppStore } from "../src/store";
+import { getThemePalette } from "../src/theme";
 
 type Props = {
   visible: boolean;
@@ -26,6 +27,10 @@ export default function TransactionReceiptModal({
   onViewReceipt,
 }: Props) {
   const receiptRef = useRef<View>(null);
+  const { themePreference, themeMode } = useAppStore();
+  const theme = getThemePalette(themePreference, themeMode);
+  const isDark = themeMode === "dark";
+
   const normalizedTitle = useMemo(() => {
     if (!transaction?.title) return "Transaction Receipt";
     return transaction.title.replace(
@@ -94,55 +99,108 @@ export default function TransactionReceiptModal({
       onRequestClose={onClose}
     >
       <Pressable style={styles.backdrop} onPress={onClose}>
-        <Pressable ref={receiptRef} collapsable={false} style={styles.card}>
-          <View style={[styles.edgeNotch, styles.edgeBottomLeft]} />
-          <View style={[styles.edgeNotch, styles.edgeBottomRight]} />
+        <Pressable
+          ref={receiptRef}
+          collapsable={false}
+          style={[
+            styles.card,
+            {
+              backgroundColor: theme.surface,
+              borderColor: theme.border,
+            },
+          ]}
+        >
+          <View
+            style={[
+              styles.edgeNotch,
+              styles.edgeBottomLeft,
+              { backgroundColor: isDark ? "rgba(10, 10, 12, 0.7)" : "rgba(31, 20, 38, 0.35)" },
+            ]}
+          />
+          <View
+            style={[
+              styles.edgeNotch,
+              styles.edgeBottomRight,
+              { backgroundColor: isDark ? "rgba(10, 10, 12, 0.7)" : "rgba(31, 20, 38, 0.35)" },
+            ]}
+          />
 
           <View style={styles.cardHeader}>
             <View>
-              <Text style={styles.cardLabel}>Receipt</Text>
-              <Text style={styles.cardTitle}>Transaction completed</Text>
+              <Text style={[styles.cardLabel, { color: theme.accent }]}>RECEIPT</Text>
+              <Text style={[styles.cardTitle, { color: theme.textPrimary }]}>
+                Transaction completed
+              </Text>
             </View>
-            <View style={styles.statusBadge}>
-              <Ionicons name="checkmark-sharp" size={16} color="#275C4E" />
-              <Text style={styles.statusText}>Paid</Text>
+            <View
+              style={[
+                styles.statusBadge,
+                { backgroundColor: isDark ? "#133E23" : "#E7F6ED" },
+              ]}
+            >
+              <Ionicons
+                name="checkmark-sharp"
+                size={16}
+                color={isDark ? "#4ADE80" : "#275C4E"}
+              />
+              <Text
+                style={[
+                  styles.statusText,
+                  { color: isDark ? "#4ADE80" : "#275C4E" },
+                ]}
+              >
+                Paid
+              </Text>
             </View>
           </View>
 
           <View style={styles.amountBlock}>
-            <Text style={styles.amountLabel}>Total paid</Text>
-            <Text style={styles.amountValue}>{amountText}</Text>
-            <Text style={styles.amountMeta}>
-              {transaction.type?.toUpperCase() || "TRANSACTION"} •{" "}
-              {formattedDate}
+            <Text style={[styles.amountLabel, { color: theme.textSecondary }]}>
+              Total paid
+            </Text>
+            <Text style={[styles.amountValue, { color: theme.textPrimary }]}>
+              {amountText}
+            </Text>
+            <Text style={[styles.amountMeta, { color: theme.textSecondary }]}>
+              {transaction.type?.toUpperCase() || "TRANSACTION"} • {formattedDate}
             </Text>
           </View>
 
-          <View style={styles.infoList}>
-            <View style={styles.infoRow}>
-              <Text style={styles.infoLabel}>Description</Text>
+          <View style={[styles.infoList, { borderTopColor: theme.border }]}>
+            <View style={[styles.infoRow, { borderBottomColor: theme.border }]}>
+              <Text style={[styles.infoLabel, { color: theme.textSecondary }]}>
+                Description
+              </Text>
               <Text
-                style={styles.infoValue}
+                style={[styles.infoValue, { color: theme.textPrimary }]}
                 numberOfLines={2}
                 ellipsizeMode="tail"
               >
                 {normalizedTitle}
               </Text>
             </View>
-            <View style={styles.infoRow}>
-              <Text style={styles.infoLabel}>Category</Text>
-              <Text style={styles.infoValue}>
+            <View style={[styles.infoRow, { borderBottomColor: theme.border }]}>
+              <Text style={[styles.infoLabel, { color: theme.textSecondary }]}>
+                Category
+              </Text>
+              <Text style={[styles.infoValue, { color: theme.textPrimary }]}>
                 {transaction.category || "-"}
               </Text>
             </View>
-            <View style={styles.infoRow}>
-              <Text style={styles.infoLabel}>Time</Text>
-              <Text style={styles.infoValue}>{formattedTime}</Text>
+            <View style={[styles.infoRow, { borderBottomColor: theme.border }]}>
+              <Text style={[styles.infoLabel, { color: theme.textSecondary }]}>
+                Time
+              </Text>
+              <Text style={[styles.infoValue, { color: theme.textPrimary }]}>
+                {formattedTime}
+              </Text>
             </View>
-            <View style={styles.infoRow}>
-              <Text style={styles.infoLabel}>Transaction ID</Text>
+            <View style={[styles.infoRow, { borderBottomColor: theme.border }]}>
+              <Text style={[styles.infoLabel, { color: theme.textSecondary }]}>
+                Transaction ID
+              </Text>
               <Text
-                style={styles.infoValue}
+                style={[styles.infoValue, { color: theme.textPrimary }]}
                 numberOfLines={1}
                 ellipsizeMode="middle"
               >
@@ -151,19 +209,30 @@ export default function TransactionReceiptModal({
             </View>
           </View>
 
-          <View style={styles.divider} />
+          <View style={[styles.divider, { backgroundColor: theme.border }]} />
 
           <View style={styles.bottomRow}>
-            <TouchableOpacity style={styles.shareButton} onPress={handleShare}>
+            <TouchableOpacity
+              style={[styles.shareButton, { backgroundColor: theme.accent }]}
+              onPress={handleShare}
+            >
               <Ionicons name="share-outline" size={17} color="#FFFFFF" />
               <Text style={styles.shareButtonText}>Share receipt</Text>
             </TouchableOpacity>
             {onViewReceipt ? (
               <TouchableOpacity
-                style={styles.viewButton}
+                style={[
+                  styles.viewButton,
+                  {
+                    borderColor: theme.border,
+                    backgroundColor: isDark ? theme.surfaceSoft : "transparent",
+                  },
+                ]}
                 onPress={onViewReceipt}
               >
-                <Text style={styles.viewButtonText}>View full receipt</Text>
+                <Text style={[styles.viewButtonText, { color: theme.textPrimary }]}>
+                  View full receipt
+                </Text>
               </TouchableOpacity>
             ) : null}
           </View>
@@ -176,19 +245,17 @@ export default function TransactionReceiptModal({
 const styles = StyleSheet.create({
   backdrop: {
     flex: 1,
-    backgroundColor: "rgba(31, 20, 38, 0.28)",
+    backgroundColor: "rgba(0, 0, 0, 0.55)",
     justifyContent: "flex-end",
   },
   card: {
     position: "relative",
-    backgroundColor: "#FFFFFF",
     borderRadius: 32,
     padding: 22,
     marginHorizontal: 16,
     marginBottom: 28,
     overflow: "visible",
     borderWidth: 1,
-    borderColor: "#EDE7F1",
     shadowColor: "#000",
     shadowOpacity: 0.12,
     shadowOffset: { width: 0, height: 18 },
@@ -199,7 +266,6 @@ const styles = StyleSheet.create({
     position: "absolute",
     width: 34,
     height: 18,
-    backgroundColor: "rgba(31, 20, 38, 0.28)",
     borderTopLeftRadius: 18,
     borderTopRightRadius: 18,
   },
@@ -211,155 +277,105 @@ const styles = StyleSheet.create({
     right: 24,
     bottom: -9,
   },
-  sheet: {
-    backgroundColor: "#FFFFFF",
-    borderTopLeftRadius: 28,
-    borderTopRightRadius: 28,
-    paddingTop: 12,
-    overflow: "hidden",
-  },
-  handle: {
-    width: 64,
-    height: 4,
-    borderRadius: 2,
-    backgroundColor: "#E7E1EB",
-    alignSelf: "center",
-    marginBottom: 16,
-  },
-  body: {
-    paddingHorizontal: 20,
-    paddingBottom: 24,
-  },
-  heroTop: {
-    alignItems: "center",
-    marginBottom: 18,
-  },
-  iconBadge: {
-    width: 56,
-    height: 56,
-    borderRadius: 28,
-    backgroundColor: "#4B2C40",
-    justifyContent: "center",
-    alignItems: "center",
-    marginBottom: 14,
-  },
-  successTitle: {
-    color: "#251A2B",
-    fontSize: 20,
-    fontWeight: "800",
-    marginBottom: 4,
-  },
-  successSubtitle: {
-    color: "#837289",
-    fontSize: 13,
-    textAlign: "center",
-    lineHeight: 18,
-  },
-  receiptSummary: {
-    alignItems: "center",
-    marginBottom: 20,
-  },
-  receiptAmount: {
-    color: "#251A2B",
-    fontSize: 32,
-    fontWeight: "800",
-    marginBottom: 8,
-  },
-  receiptTagRow: {
-    flexDirection: "row",
-    gap: 10,
-    alignItems: "center",
-  },
-  receiptTag: {
-    color: "#5B4E91",
-    fontSize: 11,
-    fontWeight: "700",
-    textTransform: "uppercase",
-    backgroundColor: "#F2E9F8",
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-    borderRadius: 16,
-  },
-  receiptDate: {
-    color: "#8E7A9F",
-    fontSize: 11,
-    fontWeight: "600",
-  },
-  line: {
-    height: 1,
-    backgroundColor: "#F0EBF1",
-    marginVertical: 18,
-  },
-  rowPair: {
+  cardHeader: {
     flexDirection: "row",
     justifyContent: "space-between",
-    gap: 12,
-    marginBottom: 16,
+    alignItems: "flex-start",
   },
-  rowBlock: {
-    flex: 1,
-    minWidth: 0,
+  cardLabel: {
+    fontSize: 12,
+    fontWeight: "800",
+    letterSpacing: 1.4,
+    textTransform: "uppercase",
   },
-  rowLabel: {
-    color: "#8E7A9A",
+  cardTitle: {
+    fontSize: 19,
+    fontWeight: "800",
+    marginTop: 6,
+  },
+  statusBadge: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingHorizontal: 10,
+    paddingVertical: 7,
+    borderRadius: 16,
+    gap: 4,
+  },
+  statusText: {
+    fontSize: 12,
+    fontWeight: "800",
+  },
+  amountBlock: {
+    alignItems: "center",
+    paddingVertical: 26,
+  },
+  amountLabel: {
+    fontSize: 13,
+    fontWeight: "600",
+  },
+  amountValue: {
+    fontSize: 34,
+    fontWeight: "800",
+    marginTop: 7,
+  },
+  amountMeta: {
     fontSize: 11,
     fontWeight: "700",
-    marginBottom: 6,
-    letterSpacing: 0.7,
+    marginTop: 8,
   },
-  rowValue: {
-    color: "#251A2B",
-    fontSize: 14,
-    fontWeight: "700",
-    lineHeight: 20,
+  infoList: {
+    borderTopWidth: 1,
   },
-  actionsRow: {
+  infoRow: {
     flexDirection: "row",
-    gap: 12,
-    marginTop: 4,
-  },
-  actionButton: {
-    flex: 1,
-    backgroundColor: "#4B2C40",
-    borderRadius: 16,
-    paddingVertical: 14,
+    justifyContent: "space-between",
     alignItems: "center",
+    paddingVertical: 13,
+    borderBottomWidth: 1,
+    gap: 16,
   },
-  actionButtonText: {
+  infoLabel: {
+    fontSize: 12,
+    fontWeight: "600",
+  },
+  infoValue: {
+    fontSize: 13,
+    fontWeight: "700",
+    flex: 1,
+    textAlign: "right",
+  },
+  divider: {
+    height: 1,
+    marginVertical: 18,
+  },
+  bottomRow: {
+    flexDirection: "row",
+    gap: 10,
+  },
+  shareButton: {
+    flex: 1,
+    minHeight: 47,
+    borderRadius: 13,
+    justifyContent: "center",
+    alignItems: "center",
+    flexDirection: "row",
+    gap: 7,
+  },
+  shareButtonText: {
     color: "#FFFFFF",
-    fontSize: 14,
-    fontWeight: "700",
+    fontSize: 13,
+    fontWeight: "800",
   },
-  secondaryButton: {
+  viewButton: {
     flex: 1,
+    minHeight: 47,
     borderWidth: 1,
-    borderColor: "#E7E1EB",
-    borderRadius: 16,
-    paddingVertical: 14,
+    borderRadius: 13,
+    justifyContent: "center",
     alignItems: "center",
   },
-  secondaryText: {
-    color: "#5B4E91",
-    fontSize: 14,
-    fontWeight: "700",
+  viewButtonText: {
+    fontSize: 13,
+    fontWeight: "800",
   },
-  cardHeader: { flexDirection: "row", justifyContent: "space-between", alignItems: "flex-start" },
-  cardLabel: { color: "#7453B8", fontSize: 12, fontWeight: "800", letterSpacing: 1.4, textTransform: "uppercase" },
-  cardTitle: { color: "#251A2B", fontSize: 19, fontWeight: "800", marginTop: 6 },
-  statusBadge: { flexDirection: "row", alignItems: "center", backgroundColor: "#E7F6ED", paddingHorizontal: 10, paddingVertical: 7, borderRadius: 16, gap: 4 },
-  statusText: { color: "#275C4E", fontSize: 12, fontWeight: "800" },
-  amountBlock: { alignItems: "center", paddingVertical: 26 },
-  amountLabel: { color: "#83798A", fontSize: 13, fontWeight: "600" },
-  amountValue: { color: "#24182D", fontSize: 34, fontWeight: "800", marginTop: 7 },
-  amountMeta: { color: "#918999", fontSize: 11, fontWeight: "700", marginTop: 8 },
-  infoList: { borderTopWidth: 1, borderTopColor: "#F0EBF3" },
-  infoRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", paddingVertical: 13, borderBottomWidth: 1, borderBottomColor: "#F3EEF5", gap: 16 },
-  infoLabel: { color: "#8A8290", fontSize: 12, fontWeight: "600" },
-  infoValue: { color: "#2C2533", fontSize: 13, fontWeight: "700", flex: 1, textAlign: "right" },
-  divider: { height: 1, backgroundColor: "#EDE8F0", marginVertical: 18 },
-  bottomRow: { flexDirection: "row", gap: 10 },
-  shareButton: { flex: 1, minHeight: 47, backgroundColor: "#20142A", borderRadius: 13, justifyContent: "center", alignItems: "center", flexDirection: "row", gap: 7 },
-  shareButtonText: { color: "#FFFFFF", fontSize: 13, fontWeight: "800" },
-  viewButton: { flex: 1, minHeight: 47, borderWidth: 1, borderColor: "#DCD2EF", borderRadius: 13, justifyContent: "center", alignItems: "center" },
-  viewButtonText: { color: "#20142A", fontSize: 13, fontWeight: "800" },
 });

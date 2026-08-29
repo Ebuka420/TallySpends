@@ -1,26 +1,30 @@
 import { Ionicons } from "@expo/vector-icons";
 import DateTimePicker, {
-    DateTimePickerEvent,
+  DateTimePickerEvent,
 } from "@react-native-community/datetimepicker";
 import { Stack, useLocalSearchParams, useRouter } from "expo-router";
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import {
-    PanResponder,
-    Platform,
-    SafeAreaView,
-    ScrollView,
-    StyleSheet,
-    Text,
-    TextInput,
-    TouchableOpacity,
-    View
+  PanResponder,
+  Platform,
+  SafeAreaView,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View,
 } from "react-native";
 import { MOCK_RECIPIENTS, useAppStore } from "../src/store";
+import { getThemePalette } from "../src/theme";
 
 export default function TransactionHistoryScreen() {
   const router = useRouter();
   const params = useLocalSearchParams<{ category?: string }>();
-  const { transactions: transactionsRaw, loading } = useAppStore();
+  const { transactions: transactionsRaw, themePreference, themeMode } = useAppStore();
+  const theme = getThemePalette(themePreference, themeMode);
+  const isDark = themeMode === "dark";
+
   const transactions = (transactionsRaw || []) as any[];
 
   const [searchQuery, setSearchQuery] = useState("");
@@ -37,12 +41,11 @@ export default function TransactionHistoryScreen() {
     setSelectedCategory(params.category ?? null);
   }, [params.category]);
 
-  // Block horizontal pan gestures inside the transactions list so rows cannot swipe
+  // Block horizontal pan gestures inside the transactions list
   const blockPanResponder = useRef(
     PanResponder.create({
       onStartShouldSetPanResponder: () => false,
       onMoveShouldSetPanResponder: (_, gestureState) => {
-        // intercept horizontal moves larger than vertical moves
         return (
           Math.abs(gestureState.dx) > Math.abs(gestureState.dy) &&
           Math.abs(gestureState.dx) > 8
@@ -123,112 +126,187 @@ export default function TransactionHistoryScreen() {
   const getCategoryColor = (category: string) => {
     switch (category) {
       case "Food & Dining":
-        return { bg: "#FEF5ED", color: "#E67E22" };
+        return { bg: isDark ? "#3A2113" : "#FEF5ED", color: "#E67E22" };
       case "Transport":
-        return { bg: "#F5EEF8", color: "#8E44AD" };
+        return { bg: isDark ? "#281D33" : "#F5EEF8", color: "#8E44AD" };
       case "Shopping":
-        return { bg: "#FDEDEC", color: "#E74C3C" };
+        return { bg: isDark ? "#3D1719" : "#FDEDEC", color: "#E74C3C" };
       case "Bills & Utilities":
-        return { bg: "#EAF6EC", color: "#2ECC71" };
+        return { bg: isDark ? "#133E23" : "#EAF6EC", color: "#2ECC71" };
       case "Entertainment":
-        return { bg: "#F4F6F7", color: "#7F8C8D" };
+        return { bg: isDark ? "#27292C" : "#F4F6F7", color: "#95A5A6" };
       case "Income":
-        return { bg: "#EAF6EC", color: "#2ECC71" };
+        return { bg: isDark ? "#133E23" : "#EAF6EC", color: "#2ECC71" };
       default:
-        return { bg: "#F5F5F5", color: "#555" };
+        return { bg: isDark ? "#25262B" : "#F5F5F5", color: theme.textSecondary };
     }
   };
 
   return (
-    <SafeAreaView style={styles.container}>
+    <SafeAreaView style={[styles.container, { backgroundColor: theme.background }]}>
       <Stack.Screen options={{ headerShown: false }} />
 
       {/* --- TOP HEADER BAR --- */}
-      <View style={styles.header}>
+      <View
+        style={[
+          styles.header,
+          { backgroundColor: theme.surface, borderBottomColor: theme.border },
+        ]}
+      >
         <TouchableOpacity
           style={styles.headerBtn}
           onPress={() => router.back()}
         >
-          <Ionicons name="chevron-back" size={24} color="#1A1A1A" />
+          <Ionicons name="chevron-back" size={24} color={theme.textPrimary} />
         </TouchableOpacity>
-        <Text style={styles.headerTitle}>My Transactions</Text>
+        <Text style={[styles.headerTitle, { color: theme.textPrimary }]}>
+          My Transactions
+        </Text>
         <View style={styles.headerBtnPlaceholder} />
       </View>
 
-      <View style={styles.searchContainer}>
-        <View style={styles.searchBox}>
-          <Ionicons name="search-outline" size={18} color="#999" />
+      {/* Search & Filter Section */}
+      <View style={[styles.searchContainer, { backgroundColor: theme.background }]}>
+        <View
+          style={[
+            styles.searchBox,
+            {
+              backgroundColor: theme.surface,
+              borderColor: theme.border,
+            },
+          ]}
+        >
+          <Ionicons name="search-outline" size={18} color={theme.textSecondary} />
           <TextInput
             placeholder="Search transactions"
             value={searchQuery}
             onChangeText={setSearchQuery}
-            style={styles.searchInput}
-            placeholderTextColor="#999"
+            style={[styles.searchInput, { color: theme.textPrimary }]}
+            placeholderTextColor={theme.textSecondary}
           />
+          {searchQuery.length > 0 && (
+            <TouchableOpacity onPress={() => setSearchQuery("")}>
+              <Ionicons name="close-circle" size={16} color={theme.textSecondary} />
+            </TouchableOpacity>
+          )}
         </View>
+
+        {/* Filter Chips */}
         <View style={styles.filterRow}>
-          {(["all", "day", "month", "year"] as const).map((mode) => (
-            <TouchableOpacity
-              key={mode}
-              onPress={() => setFilterMode(mode)}
-              style={[
-                styles.filterChip,
-                filterMode === mode && styles.filterChipActive,
-              ]}
-            >
-              <Text
+          {(["all", "day", "month", "year"] as const).map((mode) => {
+            const isActive = filterMode === mode;
+            return (
+              <TouchableOpacity
+                key={mode}
+                onPress={() => setFilterMode(mode)}
                 style={[
-                  styles.filterChipText,
-                  filterMode === mode && styles.filterChipTextActive,
+                  styles.filterChip,
+                  {
+                    backgroundColor: isActive
+                      ? theme.accent
+                      : isDark ? theme.surfaceSoft : "#FFFFFF",
+                    borderColor: isActive ? theme.accent : theme.border,
+                  },
                 ]}
               >
-                {mode === "all"
-                  ? "All"
-                  : mode === "day"
+                <Text
+                  style={[
+                    styles.filterChipText,
+                    {
+                      color: isActive ? "#FFFFFF" : theme.textPrimary,
+                      fontWeight: isActive ? "700" : "500",
+                    },
+                  ]}
+                >
+                  {mode === "all"
+                    ? "All"
+                    : mode === "day"
                     ? "Day"
                     : mode === "month"
-                      ? "Month"
-                      : "Year"}
-              </Text>
-            </TouchableOpacity>
-          ))}
+                    ? "Month"
+                    : "Year"}
+                </Text>
+              </TouchableOpacity>
+            );
+          })}
+
           {filterMode !== "all" && (
             <TouchableOpacity
               onPress={() => setShowDatePicker(true)}
-              style={styles.filterChip}
+              style={[
+                styles.filterChip,
+                {
+                  backgroundColor: isDark ? theme.surfaceSoft : "#FFFFFF",
+                  borderColor: theme.accent,
+                },
+              ]}
             >
-              <Text style={styles.filterChipText}>
+              <Ionicons name="calendar-outline" size={12} color={theme.accent} style={{ marginRight: 4 }} />
+              <Text style={[styles.filterChipText, { color: theme.accent, fontWeight: "700" }]}>
                 {filterMode === "day"
                   ? selectedDate.toLocaleDateString("en-US")
                   : filterMode === "month"
-                    ? selectedDate.toLocaleDateString("en-US", {
-                        month: "short",
-                        year: "numeric",
-                      })
-                    : selectedDate.getFullYear()}
+                  ? selectedDate.toLocaleDateString("en-US", {
+                      month: "short",
+                      year: "numeric",
+                    })
+                  : selectedDate.getFullYear()}
               </Text>
             </TouchableOpacity>
           )}
         </View>
       </View>
 
-      <ScrollView contentContainerStyle={styles.scrollContent}>
-        <View style={styles.ledgerCard} {...blockPanResponder.panHandlers}>
+      {/* Date Picker Component */}
+      {showDatePicker && (
+        <DateTimePicker
+          value={selectedDate}
+          mode="date"
+          display="default"
+          onChange={onDateChange}
+        />
+      )}
+
+      {/* Transactions List */}
+      <ScrollView
+        contentContainerStyle={styles.scrollContent}
+        showsVerticalScrollIndicator={false}
+      >
+        <View
+          style={[
+            styles.ledgerCard,
+            {
+              backgroundColor: theme.surface,
+              borderColor: theme.border,
+            },
+          ]}
+          {...blockPanResponder.panHandlers}
+        >
           {filteredTransactions.length > 0 ? (
-            filteredTransactions.map((tx) => {
+            filteredTransactions.map((tx, idx) => {
               const catStyle = getCategoryColor(tx.category);
               const displayTitle = normalizeTransferTitle(tx.title);
+              const isIncome = tx.type === "income";
+
               return (
                 <TouchableOpacity
-                  key={tx.id}
-                  style={styles.row}
+                  key={tx.id || idx}
+                  style={[
+                    styles.row,
+                    {
+                      borderBottomColor: theme.border,
+                      borderBottomWidth: idx === filteredTransactions.length - 1 ? 0 : 1,
+                    },
+                  ]}
                   onPress={() =>
                     router.push({
                       pathname: "/transaction-details",
                       params: { id: tx.id },
                     })
                   }
+                  activeOpacity={0.7}
                 >
+                  {/* Category initial / icon box */}
                   <View
                     style={[
                       styles.initialBox,
@@ -241,48 +319,54 @@ export default function TransactionHistoryScreen() {
                       {tx.category ? tx.category.charAt(0) : "T"}
                     </Text>
                   </View>
+
+                  {/* Info Column */}
                   <View style={styles.infoCol}>
-                    <Text style={styles.txTitleText}>{displayTitle}</Text>
-                    <Text style={styles.txMeta}>
+                    <Text
+                      style={[styles.txTitleText, { color: theme.textPrimary }]}
+                      numberOfLines={1}
+                    >
+                      {displayTitle}
+                    </Text>
+                    <Text style={[styles.txMeta, { color: theme.textSecondary }]}>
                       {tx.date} • {tx.category}
                     </Text>
                   </View>
+
+                  {/* Amount Column */}
                   <View style={styles.rightCol}>
                     <Text
                       style={[
-                        styles.txAmount,
-                        tx.type === "income"
-                          ? styles.incomeText
-                          : styles.expenseText,
+                        styles.amountText,
+                        {
+                          color: isIncome
+                            ? isDark ? "#4ADE80" : "#15803D"
+                            : theme.textPrimary,
+                        },
                       ]}
                     >
-                      {tx.type === "income" ? "+" : "-"}
-                      {formatCurrency(tx.amount)}
+                      {isIncome ? "+" : "-"}
+                      {formatCurrency(Math.abs(Number(tx.amount || 0)))}
                     </Text>
                   </View>
                 </TouchableOpacity>
               );
             })
           ) : (
-            <View style={styles.emptyContainer}>
-              <Text style={styles.emptyText}>
-                {loading
-                  ? "Loading transactions..."
-                  : "No matching logs found."}
+            <View style={styles.emptyState}>
+              <Ionicons name="receipt-outline" size={44} color={theme.textSecondary} />
+              <Text style={[styles.emptyStateTitle, { color: theme.textPrimary }]}>
+                No transactions found
+              </Text>
+              <Text style={[styles.emptyStateSub, { color: theme.textSecondary }]}>
+                {searchQuery
+                  ? "Try searching for a different keyword or category."
+                  : "You have no transactions for the selected period."}
               </Text>
             </View>
           )}
         </View>
       </ScrollView>
-
-      {showDatePicker && (
-        <DateTimePicker
-          value={selectedDate}
-          mode="date"
-          display={Platform.OS === "ios" ? "spinner" : "default"}
-          onChange={onDateChange}
-        />
-      )}
     </SafeAreaView>
   );
 }
@@ -290,7 +374,6 @@ export default function TransactionHistoryScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#FAFAFA",
   },
   header: {
     height: 56,
@@ -298,275 +381,120 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "space-between",
     paddingHorizontal: 16,
-    backgroundColor: "#FFF",
     borderBottomWidth: 1,
-    borderBottomColor: "#F0F0F0",
   },
   headerBtn: {
-    width: 40,
-    height: 40,
+    width: 36,
+    height: 36,
     justifyContent: "center",
     alignItems: "flex-start",
-  },
-  headerBtnAdd: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    backgroundColor: "#4B2C40",
-    justifyContent: "center",
-    alignItems: "center",
   },
   headerTitle: {
     fontSize: 18,
     fontWeight: "700",
-    color: "#1A1A1A",
+  },
+  headerBtnPlaceholder: {
+    width: 36,
   },
   searchContainer: {
     paddingHorizontal: 16,
-    paddingVertical: 12,
-    backgroundColor: "#FFF",
-    borderBottomWidth: 1,
-    borderBottomColor: "#F5F5F5",
-  },
-  filterRow: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-    gap: 8,
-    marginTop: 12,
-  },
-  filterChip: {
-    borderWidth: 1,
-    borderColor: "#EAEAEA",
-    backgroundColor: "#FAFAFA",
-    borderRadius: 999,
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-  },
-  filterChipActive: {
-    borderColor: "#4B2C40",
-    backgroundColor: "#F6F3F5",
-  },
-  filterChipText: {
-    fontSize: 12,
-    color: "#666",
-  },
-  filterChipTextActive: {
-    color: "#4B2C40",
-    fontWeight: "600",
+    paddingTop: 12,
+    paddingBottom: 10,
   },
   searchBox: {
     flexDirection: "row",
     alignItems: "center",
-    backgroundColor: "#F6F6F6",
+    height: 44,
     borderRadius: 12,
     paddingHorizontal: 12,
-    height: 44,
+    borderWidth: 1,
+    gap: 8,
   },
   searchInput: {
     flex: 1,
     fontSize: 14,
-    color: "#1A1A1A",
-    paddingVertical: 8,
+    height: "100%",
+  },
+  filterRow: {
+    flexDirection: "row",
+    gap: 8,
+    marginTop: 10,
+    alignItems: "center",
+    flexWrap: "wrap",
+  },
+  filterChip: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingHorizontal: 14,
+    paddingVertical: 7,
+    borderRadius: 20,
+    borderWidth: 1,
+  },
+  filterChipText: {
+    fontSize: 12.5,
   },
   scrollContent: {
     padding: 16,
     paddingBottom: 40,
   },
   ledgerCard: {
-    backgroundColor: "#FAFAFA",
-    minHeight: 300,
+    borderRadius: 18,
+    borderWidth: 1,
+    overflow: "hidden",
   },
   row: {
     flexDirection: "row",
     alignItems: "center",
     paddingHorizontal: 16,
-    paddingVertical: 16,
-    marginBottom: 12,
-    backgroundColor: "#FFF",
-    borderRadius: 20,
-    shadowColor: "#000",
-    shadowOpacity: 0.05,
-    shadowOffset: { width: 0, height: 4 },
-    shadowRadius: 12,
-    elevation: 2,
+    paddingVertical: 14,
   },
   initialBox: {
-    width: 38,
-    height: 38,
-    borderRadius: 19,
-    alignItems: "center",
+    width: 40,
+    height: 40,
+    borderRadius: 12,
     justifyContent: "center",
+    alignItems: "center",
+    marginRight: 12,
   },
   initialText: {
-    fontSize: 14,
-    fontWeight: "700",
+    fontSize: 16,
+    fontWeight: "800",
   },
   infoCol: {
     flex: 1,
-    marginLeft: 12,
+    minWidth: 0,
+    paddingRight: 8,
   },
   txTitleText: {
-    fontSize: 14,
-    fontWeight: "600",
-    color: "#1A1A1A",
+    fontSize: 14.5,
+    fontWeight: "700",
+    marginBottom: 3,
   },
   txMeta: {
-    fontSize: 12,
-    color: "#888",
-    marginTop: 4,
-  },
-  txDate: {
-    fontSize: 12,
-    color: "#888",
-    marginTop: 6,
+    fontSize: 11.5,
   },
   rightCol: {
     alignItems: "flex-end",
+  },
+  amountText: {
+    fontSize: 14.5,
+    fontWeight: "800",
+  },
+  emptyState: {
+    paddingVertical: 48,
+    paddingHorizontal: 24,
+    alignItems: "center",
     justifyContent: "center",
   },
-  txAmount: {
+  emptyStateTitle: {
     fontSize: 16,
     fontWeight: "700",
-    color: "#1A1A1A",
-  },
-  incomeText: {
-    color: "#2ECC71",
-  },
-  expenseText: {
-    color: "#E74C3C",
-  },
-  emptyContainer: {
-    paddingVertical: 60,
-    alignItems: "center",
-  },
-  emptyText: {
-    fontSize: 14,
-    color: "#888",
-  },
-  modalBackdrop: {
-    flex: 1,
-    backgroundColor: "rgba(0,0,0,0.4)",
-    justifyContent: "flex-end",
-  },
-  modalKeyboardView: {
-    justifyContent: "flex-end",
-  },
-  modalScrollContent: {
-    justifyContent: "flex-end",
-    paddingTop: 16,
-  },
-  modalSheet: {
-    backgroundColor: "#FFF",
-    borderTopLeftRadius: 24,
-    borderTopRightRadius: 24,
-    padding: 20,
-    paddingBottom: Platform.OS === "ios" ? 40 : 24,
-    maxHeight: "88%",
-  },
-  modalHeader: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    marginBottom: 20,
-  },
-  modalTitle: {
-    fontSize: 18,
-    fontWeight: "700",
-    color: "#1A1A1A",
-  },
-  cancelText: {
-    fontSize: 14,
-    color: "#888",
-    fontWeight: "500",
-  },
-  modalBody: {
-    gap: 16,
-  },
-  typeTabs: {
-    flexDirection: "row",
-    backgroundColor: "#F2EFEF",
-    borderRadius: 10,
-    padding: 2,
-    marginBottom: 8,
-  },
-  typeTab: {
-    flex: 1,
-    paddingVertical: 10,
-    alignItems: "center",
-    borderRadius: 8,
-  },
-  typeTabActive: {
-    backgroundColor: "#FFF",
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.1,
-    shadowRadius: 2,
-    elevation: 1,
-  },
-  typeTabText: {
-    fontSize: 14,
-    color: "#666",
-    fontWeight: "500",
-  },
-  typeTabTextActive: {
-    color: "#4B2C40",
-    fontWeight: "700",
-  },
-  inputGroup: {
-    gap: 6,
-  },
-  inputLabel: {
-    fontSize: 13,
-    fontWeight: "600",
-    color: "#666",
-  },
-  textInput: {
-    borderWidth: 1,
-    borderColor: "#EBEBEB",
-    borderRadius: 10,
-    paddingHorizontal: 12,
-    height: 48,
-    fontSize: 14,
-    color: "#1A1A1A",
-    backgroundColor: "#FAFAFA",
-  },
-  tagsContainer: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-    gap: 6,
-    marginTop: 4,
-  },
-  tagBtn: {
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    borderRadius: 20,
-    borderWidth: 1,
-    borderColor: "#EBEBEB",
-    backgroundColor: "#FFF",
-  },
-  tagBtnActive: {
-    borderColor: "#4B2C40",
-    backgroundColor: "#F6F3F5",
-  },
-  tagText: {
-    fontSize: 12,
-    color: "#666",
-  },
-  tagTextActive: {
-    color: "#4B2C40",
-    fontWeight: "600",
-  },
-  saveBtn: {
-    backgroundColor: "#4B2C40",
-    borderRadius: 12,
-    height: 50,
-    justifyContent: "center",
-    alignItems: "center",
     marginTop: 12,
+    marginBottom: 6,
   },
-  saveBtnText: {
-    color: "#FFF",
-    fontSize: 16,
-    fontWeight: "700",
+  emptyStateSub: {
+    fontSize: 13,
+    textAlign: "center",
+    lineHeight: 18,
   },
 });
