@@ -27,6 +27,10 @@ import Animated, {
   withSpring,
   withTiming,
 } from "react-native-reanimated";
+import {
+  parseReceiptText,
+  type ParsedReceiptLineItem,
+} from "../src/utils/receiptParser";
 import { useAppStore } from "../src/store";
 import { getThemePalette } from "../src/theme";
 
@@ -111,11 +115,15 @@ export default function RadialFloatingBot() {
   const [calculatorResult, setCalculatorResult] = useState("0");
   const [calculatorHasResult, setCalculatorHasResult] = useState(false);
 
-  // Real Receipt State
+  // Real Receipt OCR State
   const [scannedImageUri, setScannedImageUri] = useState<string | null>(null);
   const [scannedMerchant, setScannedMerchant] = useState("");
   const [scannedAmount, setScannedAmount] = useState("");
   const [scannedCategory, setScannedCategory] = useState("Food & Dining");
+  const [scannedDate, setScannedDate] = useState(new Date().toISOString().slice(0, 10));
+  const [scannedItems, setScannedItems] = useState<ParsedReceiptLineItem[]>([]);
+  const [isAnalyzingReceipt, setIsAnalyzingReceipt] = useState(false);
+  const [ocrConfidence, setOcrConfidence] = useState<number | null>(null);
 
   /* ================================================================
       SHARED VALUES (UI WORKLET THREAD)
@@ -156,6 +164,8 @@ export default function RadialFloatingBot() {
       setScannedImageUri(null);
       setScannedMerchant("");
       setScannedAmount("");
+      setScannedItems([]);
+      setOcrConfidence(null);
     }
   }, []);
 
@@ -394,6 +404,85 @@ export default function RadialFloatingBot() {
     }
   };
 
+  const processCapturedReceiptImage = async (uri: string, base64?: string | null) => {
+    setScannedImageUri(uri);
+    setIsAnalyzingReceipt(true);
+    // Reset fields to clean initial state
+    setScannedMerchant("");
+    setScannedAmount("");
+    setScannedDate(new Date().toISOString().slice(0, 10));
+    setScannedItems([]);
+    setOcrConfidence(null);
+
+    try {
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium).catch(() => {});
+
+      let recognizedText = "";
+
+      if (base64) {
+        try {
+          const formData = new FormData();
+          formData.append("base64Image", `data:image/jpeg;base64,${base64}`);
+          formData.append("language", "eng");
+          formData.append("isOverlayRequired", "false");
+          formData.append("OCREngine", "2");
+
+          const controller = new AbortController();
+          const timeoutId = setTimeout(() => controller.abort(), 6500);
+
+          const response = await fetch("https://api.ocr.space/parse/image", {
+            method: "POST",
+            headers: {
+              apikey: "K88363712888957",
+            },
+            body: formData,
+            signal: controller.signal,
+          });
+          clearTimeout(timeoutId);
+
+          if (response.ok) {
+            const data = await response.json();
+            const parsedResults = data?.ParsedResults;
+            if (Array.isArray(parsedResults) && parsedResults[0]?.ParsedText) {
+              recognizedText = parsedResults[0].ParsedText;
+            }
+          }
+        } catch {
+          // Network or timeout - fallback to manual input without fake data
+        }
+      }
+
+      if (recognizedText && recognizedText.trim().length > 0) {
+        const parsed = parseReceiptText(recognizedText);
+
+        if (parsed.merchantName) {
+          setScannedMerchant(parsed.merchantName);
+        }
+        if (parsed.totalAmount && parsed.totalAmount > 0) {
+          setScannedAmount(String(parsed.totalAmount));
+        }
+        if (parsed.category) {
+          setScannedCategory(parsed.category);
+        }
+        if (parsed.date) {
+          setScannedDate(parsed.date);
+        }
+        if (parsed.lineItems && parsed.lineItems.length > 0) {
+          setScannedItems(parsed.lineItems);
+        }
+        setOcrConfidence(parsed.confidence);
+      } else {
+        setOcrConfidence(null);
+      }
+
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
+    } catch {
+      // Fallback
+    } finally {
+      setIsAnalyzingReceipt(false);
+    }
+  };
+
   const handleLaunchCamera = async () => {
     try {
       const permissionResult = await ImagePicker.requestCameraPermissionsAsync();
@@ -404,12 +493,12 @@ export default function RadialFloatingBot() {
 
       const result = await ImagePicker.launchCameraAsync({
         allowsEditing: true,
-        quality: 0.9,
+        quality: 0.8,
+        base64: true,
       });
 
       if (!result.canceled && result.assets?.[0]?.uri) {
-        setScannedImageUri(result.assets[0].uri);
-        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+        await processCapturedReceiptImage(result.assets[0].uri, result.assets[0].base64);
       }
     } catch (e: any) {
       Alert.alert("Camera Error", e.message || "Could not open camera.");
@@ -427,12 +516,12 @@ export default function RadialFloatingBot() {
       const result = await ImagePicker.launchImageLibraryAsync({
         mediaTypes: ["images"],
         allowsEditing: true,
-        quality: 0.9,
+        quality: 0.8,
+        base64: true,
       });
 
       if (!result.canceled && result.assets?.[0]?.uri) {
-        setScannedImageUri(result.assets[0].uri);
-        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+        await processCapturedReceiptImage(result.assets[0].uri, result.assets[0].base64);
       }
     } catch (e: any) {
       Alert.alert("Gallery Error", e.message || "Could not select image.");
@@ -454,7 +543,7 @@ export default function RadialFloatingBot() {
       amount: parsed,
       category: scannedCategory || "Food & Dining",
       type: "expense",
-      date: new Date().toISOString().slice(0, 10),
+      date: scannedDate || new Date().toISOString().slice(0, 10),
       receiptImage: scannedImageUri || undefined,
     });
 
@@ -468,6 +557,8 @@ export default function RadialFloatingBot() {
     setScannedImageUri(null);
     setScannedMerchant("");
     setScannedAmount("");
+    setScannedItems([]);
+    setOcrConfidence(null);
   };
 
   const CALCULATOR_BUTTONS = [
@@ -828,7 +919,7 @@ export default function RadialFloatingBot() {
       </Modal>
 
       {/* ================================================================
-          4. RECEIPT CAPTURE MODAL
+          4. RECEIPT CAPTURE & AI OCR SCANNER MODAL
       ================================================================= */}
       <Modal
         visible={activeModal === "scan"}
@@ -842,18 +933,14 @@ export default function RadialFloatingBot() {
           onPress={() => setActiveModal(null)}
         >
           <Pressable
-            style={[
-              styles.modalContent,
-              styles.scannerModalContent,
-              { backgroundColor: theme.surface },
-            ]}
+            style={[styles.modalContent, styles.scannerModalContent, { backgroundColor: theme.surface }]}
             onPress={(e) => e.stopPropagation()}
           >
             <View style={[styles.modalHandle, { backgroundColor: theme.border }]} />
 
             <View style={styles.modalHeader}>
               <Text style={[styles.modalTitle, { color: theme.textPrimary }]}>
-                {scannedImageUri ? "Receipt Attached" : "Capture Receipt"}
+                {scannedImageUri ? "Verify Receipt Details" : "Scan Receipt"}
               </Text>
               <TouchableOpacity onPress={() => setActiveModal(null)}>
                 <Ionicons name="close" size={24} color={theme.textPrimary} />
@@ -867,8 +954,31 @@ export default function RadialFloatingBot() {
               {!scannedImageUri ? (
                 <View style={{ gap: 14, paddingVertical: 10 }}>
                   <Text style={[styles.scannerIntroText, { color: theme.textSecondary }]}>
-                    Take a clear photo of your paper receipt or bill to attach it to your expense ledger.
+                    Take a clear photo of your paper receipt. Our OCR engine automatically extracts merchant name, date, and amount.
                   </Text>
+
+                  {/* Viewfinder Preview Container */}
+                  <View
+                    style={[
+                      styles.viewfinderBox,
+                      { backgroundColor: isDark ? "#120B1A" : "#F6F1FB", borderColor: theme.accent },
+                    ]}
+                  >
+                    <View style={[styles.viewfinderCornerTL, { borderColor: theme.accent }]} />
+                    <View style={[styles.viewfinderCornerTR, { borderColor: theme.accent }]} />
+                    <View style={[styles.viewfinderCornerBL, { borderColor: theme.accent }]} />
+                    <View style={[styles.viewfinderCornerBR, { borderColor: theme.accent }]} />
+
+                    <View style={styles.viewfinderContent}>
+                      <Ionicons name="scan-outline" size={48} color={theme.accent} />
+                      <Text style={[styles.viewfinderTip, { color: theme.textPrimary }]}>
+                        Align receipt inside frame
+                      </Text>
+                      <Text style={[styles.viewfinderSubTip, { color: theme.textSecondary }]}>
+                        Ensure good lighting & flat corners
+                      </Text>
+                    </View>
+                  </View>
 
                   <TouchableOpacity
                     style={[
@@ -889,7 +999,7 @@ export default function RadialFloatingBot() {
                         Take Photo with Camera
                       </Text>
                       <Text style={[styles.captureOptionSub, { color: theme.textSecondary }]}>
-                        Snap receipt with auto-crop & focus
+                        High-res optical capture & auto-crop
                       </Text>
                     </View>
                     <Ionicons name="chevron-forward" size={20} color={theme.textSecondary} />
@@ -919,14 +1029,27 @@ export default function RadialFloatingBot() {
                         Upload from Photo Library
                       </Text>
                       <Text style={[styles.captureOptionSub, { color: theme.textSecondary }]}>
-                        Select stored screenshot or invoice
+                        Select stored invoice, e-bill or screenshot
                       </Text>
                     </View>
                     <Ionicons name="chevron-forward" size={20} color={theme.textSecondary} />
                   </TouchableOpacity>
                 </View>
+              ) : isAnalyzingReceipt ? (
+                <View style={[styles.analyzingCard, { backgroundColor: theme.background, borderColor: theme.border }]}>
+                  <View style={[styles.analyzingIconBox, { backgroundColor: theme.accent }]}>
+                    <Ionicons name="sparkles" size={28} color="#FFFFFF" />
+                  </View>
+                  <Text style={[styles.analyzingTitle, { color: theme.textPrimary }]}>
+                    Analyzing Receipt OCR...
+                  </Text>
+                  <Text style={[styles.analyzingSub, { color: theme.textSecondary }]}>
+                    Detecting merchant, dates, taxes, and total payable amount
+                  </Text>
+                </View>
               ) : (
                 <View style={{ gap: 14, paddingBottom: 10 }}>
+                  {/* Photo Thumbnail & Retake */}
                   <View
                     style={[
                       styles.capturedImageContainer,
@@ -939,14 +1062,64 @@ export default function RadialFloatingBot() {
                       resizeMode="cover"
                     />
                     <TouchableOpacity
-                      style={[styles.retakeFloatingBadge, { backgroundColor: "rgba(0,0,0,0.72)" }]}
-                      onPress={() => setScannedImageUri(null)}
+                      style={[styles.retakeFloatingBadge, { backgroundColor: "rgba(0,0,0,0.75)" }]}
+                      onPress={() => {
+                        setScannedImageUri(null);
+                        setScannedMerchant("");
+                        setScannedAmount("");
+                        setScannedItems([]);
+                        setOcrConfidence(null);
+                      }}
                     >
                       <Ionicons name="refresh" size={15} color="#FFFFFF" />
                       <Text style={styles.retakeBadgeText}>Retake Photo</Text>
                     </TouchableOpacity>
                   </View>
 
+                  {/* OCR AI Badge or Photo Attached Guide */}
+                  {ocrConfidence ? (
+                    <View
+                      style={[
+                        styles.ocrConfidenceBanner,
+                        {
+                          backgroundColor: isDark ? "#1B2A1E" : "#EAF7ED",
+                          borderColor: isDark ? "#2A4B31" : "#CBE7D1",
+                        },
+                      ]}
+                    >
+                      <Ionicons name="checkmark-circle" size={16} color={isDark ? "#4ADE80" : "#16A34A"} />
+                      <Text
+                        style={[
+                          styles.ocrConfidenceText,
+                          { color: isDark ? "#86EFAC" : "#15803D" },
+                        ]}
+                      >
+                        AI Verified ({Math.round(ocrConfidence * 100)}% match) • Tap any field to edit
+                      </Text>
+                    </View>
+                  ) : (
+                    <View
+                      style={[
+                        styles.ocrConfidenceBanner,
+                        {
+                          backgroundColor: isDark ? theme.surfaceSoft : "#F4EFF9",
+                          borderColor: theme.border,
+                        },
+                      ]}
+                    >
+                      <Ionicons name="document-text-outline" size={16} color={theme.accent} />
+                      <Text
+                        style={[
+                          styles.ocrConfidenceText,
+                          { color: theme.textPrimary },
+                        ]}
+                      >
+                        Receipt Attached • Enter the amount & store below
+                      </Text>
+                    </View>
+                  )}
+
+                  {/* Form Inputs */}
                   <View>
                     <Text style={[styles.inputLabelSmall, { color: theme.textSecondary }]}>
                       Merchant / Store Name
@@ -978,8 +1151,8 @@ export default function RadialFloatingBot() {
                           backgroundColor: theme.background,
                           borderColor: theme.border,
                           color: theme.textPrimary,
-                          fontSize: 18,
-                          fontWeight: "700",
+                          fontSize: 20,
+                          fontWeight: "800",
                         },
                       ]}
                       placeholder="0.00"
@@ -987,6 +1160,26 @@ export default function RadialFloatingBot() {
                       keyboardType="decimal-pad"
                       value={scannedAmount}
                       onChangeText={setScannedAmount}
+                    />
+                  </View>
+
+                  <View>
+                    <Text style={[styles.inputLabelSmall, { color: theme.textSecondary }]}>
+                      Transaction Date
+                    </Text>
+                    <TextInput
+                      style={[
+                        styles.input,
+                        {
+                          backgroundColor: theme.background,
+                          borderColor: theme.border,
+                          color: theme.textPrimary,
+                        },
+                      ]}
+                      placeholder="YYYY-MM-DD"
+                      placeholderTextColor={theme.textSecondary}
+                      value={scannedDate}
+                      onChangeText={setScannedDate}
                     />
                   </View>
 
@@ -1027,6 +1220,30 @@ export default function RadialFloatingBot() {
                       );
                     })}
                   </View>
+
+                  {/* Itemized Line Items Breakdown if available */}
+                  {scannedItems.length > 0 && (
+                    <View
+                      style={[
+                        styles.itemizedBox,
+                        { backgroundColor: theme.background, borderColor: theme.border },
+                      ]}
+                    >
+                      <Text style={[styles.itemizedHeaderTitle, { color: theme.textPrimary }]}>
+                        Itemized Breakdown ({scannedItems.length} items)
+                      </Text>
+                      {scannedItems.map((item, i) => (
+                        <View key={i} style={styles.itemizedRow}>
+                          <Text style={[styles.itemizedName, { color: theme.textPrimary }]}>
+                            {item.quantity ? `${item.quantity}x ` : ""}{item.name}
+                          </Text>
+                          <Text style={[styles.itemizedPrice, { color: theme.accent }]}>
+                            ₦{item.price.toLocaleString()}
+                          </Text>
+                        </View>
+                      ))}
+                    </View>
+                  )}
 
                   <TouchableOpacity
                     style={[styles.submitBtn, { backgroundColor: theme.accent }]}
@@ -1414,6 +1631,137 @@ const styles = StyleSheet.create({
   retakeBadgeText: {
     color: "#FFFFFF",
     fontSize: 11.5,
+    fontWeight: "700",
+  },
+  viewfinderBox: {
+    width: "100%",
+    height: 190,
+    borderRadius: 20,
+    borderWidth: 1.5,
+    borderStyle: "dashed",
+    position: "relative",
+    justifyContent: "center",
+    alignItems: "center",
+    marginBottom: 6,
+    overflow: "hidden",
+  },
+  viewfinderCornerTL: {
+    position: "absolute",
+    top: 10,
+    left: 10,
+    width: 22,
+    height: 22,
+    borderTopWidth: 3,
+    borderLeftWidth: 3,
+    borderTopLeftRadius: 6,
+  },
+  viewfinderCornerTR: {
+    position: "absolute",
+    top: 10,
+    right: 10,
+    width: 22,
+    height: 22,
+    borderTopWidth: 3,
+    borderRightWidth: 3,
+    borderTopRightRadius: 6,
+  },
+  viewfinderCornerBL: {
+    position: "absolute",
+    bottom: 10,
+    left: 10,
+    width: 22,
+    height: 22,
+    borderBottomWidth: 3,
+    borderLeftWidth: 3,
+    borderBottomLeftRadius: 6,
+  },
+  viewfinderCornerBR: {
+    position: "absolute",
+    bottom: 10,
+    right: 10,
+    width: 22,
+    height: 22,
+    borderBottomWidth: 3,
+    borderRightWidth: 3,
+    borderBottomRightRadius: 6,
+  },
+  viewfinderContent: {
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 6,
+  },
+  viewfinderTip: {
+    fontSize: 14,
+    fontWeight: "700",
+    marginTop: 6,
+  },
+  viewfinderSubTip: {
+    fontSize: 12,
+  },
+  analyzingCard: {
+    padding: 24,
+    borderRadius: 20,
+    borderWidth: 1,
+    alignItems: "center",
+    justifyContent: "center",
+    marginVertical: 20,
+    gap: 10,
+  },
+  analyzingIconBox: {
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    alignItems: "center",
+    justifyContent: "center",
+    marginBottom: 6,
+  },
+  analyzingTitle: {
+    fontSize: 16,
+    fontWeight: "800",
+  },
+  analyzingSub: {
+    fontSize: 12.5,
+    textAlign: "center",
+    lineHeight: 18,
+  },
+  ocrConfidenceBanner: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 12,
+    borderWidth: 1,
+  },
+  ocrConfidenceText: {
+    fontSize: 12,
+    fontWeight: "700",
+  },
+  itemizedBox: {
+    padding: 14,
+    borderRadius: 16,
+    borderWidth: 1,
+    gap: 8,
+  },
+  itemizedHeaderTitle: {
+    fontSize: 13,
+    fontWeight: "700",
+    marginBottom: 4,
+  },
+  itemizedRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    paddingVertical: 3,
+  },
+  itemizedName: {
+    fontSize: 12.5,
+    fontWeight: "500",
+    flex: 1,
+    marginRight: 10,
+  },
+  itemizedPrice: {
+    fontSize: 12.5,
     fontWeight: "700",
   },
 });
