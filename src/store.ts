@@ -410,6 +410,59 @@ export const DEFAULT_SAVINGS_GOALS = [
   },
 ];
 
+export interface NotificationItem {
+  id: string;
+  type: "transaction" | "alert" | "insight" | "bill" | "system";
+  title: string;
+  description: string;
+  timestamp: string;
+  isUnread: boolean;
+  referenceId?: string;
+  route?: string;
+  amount?: number;
+}
+
+export const DEFAULT_NOTIFICATIONS: NotificationItem[] = [
+  {
+    id: "notif-1",
+    type: "alert",
+    title: "Budget Warning!",
+    description:
+      "You have used 85% of your 'Food & Dining' budget for this month. Only ₦90.00 remaining.",
+    timestamp: new Date(Date.now() - 10 * 60 * 1000).toISOString(),
+    isUnread: true,
+    route: "/budgetspending",
+  },
+  {
+    id: "notif-2",
+    type: "insight",
+    title: "Weekly Smart Insight",
+    description:
+      "Nice job! You spent 12% less on shopping this week compared to your baseline.",
+    timestamp: new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString(),
+    isUnread: true,
+    route: "/insightssum",
+  },
+  {
+    id: "notif-3",
+    type: "bill",
+    title: "Upcoming Subscription",
+    description:
+      "Your Adobe Creative Cloud subscription (₦54.99) is scheduled for automatic renewal.",
+    timestamp: new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString(),
+    isUnread: false,
+  },
+  {
+    id: "notif-4",
+    type: "system",
+    title: "Security Update",
+    description:
+      "Your budgeting account credentials were confirmed and secured.",
+    timestamp: new Date(Date.now() - 4 * 24 * 60 * 60 * 1000).toISOString(),
+    isUnread: false,
+  },
+];
+
 let globalIsAuthenticated = false;
 
 type AuthListener = (status: boolean) => void;
@@ -438,6 +491,7 @@ const setGlobalDarkModePreference = (pref: "light" | "dark" | "system") => {
 
 export function useAppStore() {
   const [transactions, setTransactions] = useState<any[]>([]);
+  const [notifications, setNotifications] = useState<NotificationItem[]>([]);
   const [budgets, setBudgets] = useState<Record<string, number>>({});
   const [savingsGoals, setSavingsGoals] = useState<any[]>([]);
   const [profileImage, setProfileImageState] = useState<string | null>(null);
@@ -742,6 +796,17 @@ export function useAppStore() {
 
         setSavingsGoals(DEFAULT_SAVINGS_GOALS);
       }
+
+      const storedNotifs = await AsyncStorage.getItem("ts_notifications");
+      if (storedNotifs !== null) {
+        setNotifications(JSON.parse(storedNotifs));
+      } else {
+        await AsyncStorage.setItem(
+          "ts_notifications",
+          JSON.stringify(DEFAULT_NOTIFICATIONS),
+        );
+        setNotifications(DEFAULT_NOTIFICATIONS);
+      }
     } catch (error) {
       console.error("Failed to load store data", error);
     } finally {
@@ -1011,23 +1076,118 @@ export function useAppStore() {
   );
 
   // ---------------------------------------------------------
-  // TRANSACTIONS
+  // NOTIFICATIONS
   // ---------------------------------------------------------
 
-  const addTransaction = useCallback(async (newTx: any) => {
-    const tx = {
-      ...newTx,
-      id: newTx.id ?? `tx-${Date.now()}`,
-    };
+  const addNotification = useCallback(
+    async (
+      newNotif: Omit<NotificationItem, "id" | "timestamp" | "isUnread"> & {
+        id?: string;
+        timestamp?: string;
+        isUnread?: boolean;
+      },
+    ) => {
+      const notif: NotificationItem = {
+        id: newNotif.id ?? `notif-${Date.now()}`,
+        type: newNotif.type,
+        title: newNotif.title,
+        description: newNotif.description,
+        timestamp: newNotif.timestamp ?? new Date().toISOString(),
+        isUnread: newNotif.isUnread ?? true,
+        referenceId: newNotif.referenceId,
+        route: newNotif.route,
+        amount: newNotif.amount,
+      };
 
-    setTransactions((prev) => {
-      const next = [tx, ...prev];
+      setNotifications((prev) => {
+        const next = [notif, ...prev];
+        AsyncStorage.setItem("ts_notifications", JSON.stringify(next));
+        return next;
+      });
+    },
+    [],
+  );
 
-      AsyncStorage.setItem("ts_txs", JSON.stringify(next));
-
+  const markNotificationAsRead = useCallback(async (id: string) => {
+    setNotifications((prev) => {
+      const next = prev.map((n) => (n.id === id ? { ...n, isUnread: false } : n));
+      AsyncStorage.setItem("ts_notifications", JSON.stringify(next));
       return next;
     });
   }, []);
+
+  const markAllNotificationsAsRead = useCallback(async () => {
+    setNotifications((prev) => {
+      const next = prev.map((n) => ({ ...n, isUnread: false }));
+      AsyncStorage.setItem("ts_notifications", JSON.stringify(next));
+      return next;
+    });
+  }, []);
+
+  const deleteNotification = useCallback(async (id: string) => {
+    setNotifications((prev) => {
+      const next = prev.filter((n) => n.id !== id);
+      AsyncStorage.setItem("ts_notifications", JSON.stringify(next));
+      return next;
+    });
+  }, []);
+
+  const clearAllNotifications = useCallback(async () => {
+    setNotifications([]);
+    AsyncStorage.setItem("ts_notifications", JSON.stringify([]));
+  }, []);
+
+  // ---------------------------------------------------------
+  // TRANSACTIONS
+  // ---------------------------------------------------------
+
+  const addTransaction = useCallback(
+    async (newTx: any) => {
+      const tx = {
+        ...newTx,
+        id: newTx.id ?? `tx-${Date.now()}`,
+      };
+
+      setTransactions((prev) => {
+        const next = [tx, ...prev];
+        AsyncStorage.setItem("ts_txs", JSON.stringify(next));
+        return next;
+      });
+
+      // Dispatch contextual notification automatically
+      const titleLower = (tx.title || "").toLowerCase();
+      const formattedAmount = `₦${Number(tx.amount || 0).toLocaleString(undefined, {
+        minimumFractionDigits: 2,
+        maximumFractionDigits: 2,
+      })}`;
+
+      let notifTitle = "Transaction Recorded";
+      let notifDesc = `${formattedAmount} was recorded under ${tx.category || "Expenses"}.`;
+      let notifType: NotificationItem["type"] = "transaction";
+      let notifRoute = `/transaction-details?id=${tx.id}`;
+
+      if (tx.type === "income") {
+        notifTitle = "Wallet Deposit Received";
+        notifDesc = `${formattedAmount} was credited to your Tally wallet successfully.`;
+      } else if (titleLower.includes("transfer to")) {
+        notifTitle = "Transfer Successful";
+        notifDesc = `Your transfer of ${formattedAmount} was processed and sent.`;
+      } else if (titleLower.includes("withdraw")) {
+        notifTitle = "Withdrawal Initiated";
+        notifDesc = `Your withdrawal of ${formattedAmount} to your bank account is underway.`;
+      }
+
+      addNotification({
+        type: notifType,
+        title: notifTitle,
+        description: notifDesc,
+        referenceId: tx.id,
+        route: notifRoute,
+        amount: Number(tx.amount || 0),
+      });
+    },
+    [addNotification],
+  );
 
   const deleteTransaction = useCallback(async (id: string) => {
     setTransactions((prev) => {
@@ -1290,6 +1450,15 @@ export function useAppStore() {
 
     savedCards,
     setSavedCards,
+
+    // Notifications
+    notifications,
+    unreadNotificationCount: notifications.filter((n) => n.isUnread).length,
+    addNotification,
+    markNotificationAsRead,
+    markAllNotificationsAsRead,
+    deleteNotification,
+    clearAllNotifications,
 
     resetData,
   };

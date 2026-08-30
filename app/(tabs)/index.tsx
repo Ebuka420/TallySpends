@@ -189,6 +189,7 @@ export default function App() {
 
   const {
     transactions,
+    unreadNotificationCount,
     themePreference,
     themeMode,
     username,
@@ -386,6 +387,7 @@ export default function App() {
                 {
                   backgroundColor: theme.surface,
                   borderColor: theme.border,
+                  position: "relative",
                 },
               ]}
               onPress={() => router.push("/notifications")}
@@ -396,6 +398,34 @@ export default function App() {
                 size={20}
                 color={theme.textPrimary}
               />
+              {unreadNotificationCount > 0 && (
+                <View
+                  style={{
+                    position: "absolute",
+                    top: -3,
+                    right: -3,
+                    minWidth: 16,
+                    height: 16,
+                    borderRadius: 8,
+                    backgroundColor: theme.accent,
+                    alignItems: "center",
+                    justifyContent: "center",
+                    paddingHorizontal: 3,
+                    borderWidth: 1.5,
+                    borderColor: theme.surface,
+                  }}
+                >
+                  <Text
+                    style={{
+                      color: "#FFFFFF",
+                      fontSize: 9,
+                      fontWeight: "800",
+                    }}
+                  >
+                    {unreadNotificationCount > 9 ? "9+" : unreadNotificationCount}
+                  </Text>
+                </View>
+              )}
             </TouchableOpacity>
 
             <TouchableOpacity

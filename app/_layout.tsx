@@ -1,6 +1,7 @@
 import { Stack, useRouter, useSegments } from "expo-router";
 import { useEffect } from "react";
 import { View } from "react-native";
+import { GestureHandlerRootView } from "react-native-gesture-handler";
 import RadialFloatingBot from "../components/RadialFloatingBot";
 import { useAppStore } from "../src/store";
 
@@ -90,42 +91,44 @@ export default function RootLayout() {
   }, [isAuthenticated, hasPasscode, isPasscodeVerified, segments, router]);
 
   return (
-    <View style={{ flex: 1 }}>
-      <Stack screenOptions={{ headerShown: false }}>
-        {/* Primary Route Groups */}
-        <Stack.Screen name="auth" />
-        <Stack.Screen name="ajo" />
-        <Stack.Screen name="ajo-details" />
-        <Stack.Screen name="ajo-create" />
-        <Stack.Screen name="(tabs)" />
-        <Stack.Screen name="setup-profile" />
-        <Stack.Screen name="passcode" />
-        <Stack.Screen name="onboarding" />
+    <GestureHandlerRootView style={{ flex: 1 }}>
+      <View style={{ flex: 1 }}>
+        <Stack screenOptions={{ headerShown: false }}>
+          {/* Primary Route Groups */}
+          <Stack.Screen name="auth" />
+          <Stack.Screen name="ajo" />
+          <Stack.Screen name="ajo-details" />
+          <Stack.Screen name="ajo-create" />
+          <Stack.Screen name="(tabs)" />
+          <Stack.Screen name="setup-profile" />
+          <Stack.Screen name="passcode" />
+          <Stack.Screen name="onboarding" />
 
-        {/* Standalone Sub-screens */}
-        <Stack.Screen name="budgetspending" />
-        <Stack.Screen name="customerservice" />
-        <Stack.Screen name="deposit" />
-        <Stack.Screen name="insightssum" />
-        <Stack.Screen name="invitation" />
-        <Stack.Screen name="linkbank" />
-        <Stack.Screen name="linkedcards" />
-        <Stack.Screen name="membership" />
-        <Stack.Screen name="notifications" />
-        <Stack.Screen name="profile" />
-        <Stack.Screen name="rateus" />
-        <Stack.Screen name="request" />
-        <Stack.Screen name="savingsprogress" />
-        <Stack.Screen name="settings" />
-        <Stack.Screen name="SObreakdown" />
-        <Stack.Screen name="support" />
-        <Stack.Screen name="transaction-details" />
-        <Stack.Screen name="transfer" />
-        <Stack.Screen name="withdraw" />
-      </Stack>
+          {/* Standalone Sub-screens */}
+          <Stack.Screen name="budgetspending" />
+          <Stack.Screen name="customerservice" />
+          <Stack.Screen name="deposit" />
+          <Stack.Screen name="insightssum" />
+          <Stack.Screen name="invitation" />
+          <Stack.Screen name="linkbank" />
+          <Stack.Screen name="linkedcards" />
+          <Stack.Screen name="membership" />
+          <Stack.Screen name="notifications" />
+          <Stack.Screen name="profile" />
+          <Stack.Screen name="rateus" />
+          <Stack.Screen name="request" />
+          <Stack.Screen name="savingsprogress" />
+          <Stack.Screen name="settings" />
+          <Stack.Screen name="SObreakdown" />
+          <Stack.Screen name="support" />
+          <Stack.Screen name="transaction-details" />
+          <Stack.Screen name="transfer" />
+          <Stack.Screen name="withdraw" />
+        </Stack>
 
-      {/* Floating Global Bot Overlay */}
-      {showSmartCoach && <RadialFloatingBot />}
-    </View>
+        {/* Floating Global Bot Overlay */}
+        {showSmartCoach && <RadialFloatingBot />}
+      </View>
+    </GestureHandlerRootView>
   );
 }
