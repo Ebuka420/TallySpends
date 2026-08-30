@@ -6,7 +6,6 @@ import {
   Alert,
   FlatList,
   Modal,
-  Platform,
   SafeAreaView,
   StyleSheet,
   Text,
@@ -263,32 +262,32 @@ export default function NotificationsScreen() {
           keyExtractor={(item) => item.key}
           contentContainerStyle={styles.filterListContent}
           renderItem={({ item }) => {
-            const isActive = activeFilter === item.key;
+            const isSelected = activeFilter === item.key;
             return (
               <TouchableOpacity
-                onPress={() => {
-                  setActiveFilter(item.key as FilterTab);
-                  Haptics.selectionAsync();
-                }}
                 style={[
                   styles.filterChip,
                   {
-                    backgroundColor: isActive
+                    backgroundColor: isSelected
                       ? theme.accent
                       : isDark
                       ? theme.surfaceSoft
-                      : "#FFFFFF",
-                    borderColor: isActive ? theme.accent : theme.border,
+                      : theme.surface,
+                    borderColor: isSelected ? theme.accent : theme.border,
                   },
                 ]}
+                onPress={() => {
+                  Haptics.selectionAsync();
+                  setActiveFilter(item.key as FilterTab);
+                }}
                 activeOpacity={0.75}
               >
                 <Text
                   style={[
                     styles.filterChipLabel,
                     {
-                      color: isActive ? "#FFFFFF" : theme.textPrimary,
-                      fontWeight: isActive ? "700" : "500",
+                      color: isSelected ? "#FFFFFF" : theme.textPrimary,
+                      fontWeight: isSelected ? "700" : "500",
                     },
                   ]}
                 >
@@ -299,18 +298,18 @@ export default function NotificationsScreen() {
                     style={[
                       styles.filterChipCount,
                       {
-                        backgroundColor: isActive
-                          ? "rgba(255,255,255,0.24)"
+                        backgroundColor: isSelected
+                          ? "rgba(255,255,255,0.25)"
                           : isDark
-                          ? theme.background
-                          : "#F0EEF4",
+                          ? theme.surface
+                          : "#F3EBF8",
                       },
                     ]}
                   >
                     <Text
                       style={[
                         styles.filterChipCountText,
-                        { color: isActive ? "#FFFFFF" : theme.textSecondary },
+                        { color: isSelected ? "#FFFFFF" : theme.textSecondary },
                       ]}
                     >
                       {item.count}
@@ -331,7 +330,6 @@ export default function NotificationsScreen() {
         showsVerticalScrollIndicator={false}
         renderItem={({ item }) => {
           const iconDetails = getNotificationIconDetails(item.type);
-
           return (
             <TouchableOpacity
               style={[
@@ -340,15 +338,15 @@ export default function NotificationsScreen() {
                   backgroundColor: item.isUnread
                     ? isDark
                       ? theme.surfaceSoft
-                      : "#FDFBFE"
+                      : "#FCFAFE"
                     : theme.surface,
-                  borderColor: item.isUnread ? theme.accent : theme.border,
+                  borderColor: item.isUnread ? theme.accent + "50" : theme.border,
                 },
               ]}
               onPress={() => handleNotificationPress(item)}
               activeOpacity={0.75}
             >
-              {/* Left Context Icon Box */}
+              {/* Left Icon Box */}
               <View
                 style={[
                   styles.iconBox,

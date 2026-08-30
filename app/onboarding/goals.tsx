@@ -66,7 +66,7 @@ export default function GoalsOnboardingScreen() {
     const exists = selectedGoals.includes(goalId);
 
     const nextGoals = exists
-      ? selectedGoals.filter((id) => id !== goalId)
+      ? selectedGoals.filter((id: string) => id !== goalId)
       : [...selectedGoals, goalId];
 
     await setOnboardingGoals(nextGoals);
