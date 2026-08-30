@@ -1110,29 +1110,8 @@ function RadialItemView({
     };
   });
 
-  const badgeAnimatedStyle = useAnimatedStyle(() => {
-    const isHovered = hoveredIndex.value === index;
-    return {
-      opacity: withTiming(isHovered ? 1 : 0, { duration: 150 }),
-      transform: [{ scale: withTiming(isHovered ? 1 : 0.8, { duration: 150 }) }],
-    };
-  });
-
   return (
     <Animated.View style={[styles.radialItemWrapper, animatedStyle]}>
-      {/* Label Tooltip on Active Hover */}
-      <Animated.View
-        style={[
-          styles.itemTooltip,
-          badgeAnimatedStyle,
-          { backgroundColor: theme.surface, borderColor: theme.border },
-        ]}
-      >
-        <Text style={[styles.itemTooltipText, { color: theme.textPrimary }]}>
-          {item.label}
-        </Text>
-      </Animated.View>
-
       <TouchableOpacity
         style={[
           styles.radialItemButton,
