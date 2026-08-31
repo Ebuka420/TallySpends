@@ -66,6 +66,11 @@ const invites = [
   },
 ];
 
+const completedCircles = [
+  { id: "market-2025", name: "Market Goal Circle", payout: 120000, ended: "Completed Apr 2025", img: "https://i.pravatar.cc/100?img=36" },
+  { id: "school-2024", name: "Back-to-school Ajo", payout: 84000, ended: "Completed Dec 2024", img: "https://i.pravatar.cc/100?img=8" },
+];
+
 const money = (n: number) => `₦${n.toLocaleString("en-NG")}`;
 
 export default function Ajo() {
@@ -208,6 +213,29 @@ export default function Ajo() {
                 </View>
               </TouchableOpacity>
             ))}
+            <Text style={[s.section, { color: t.textPrimary }]}>Completed Ajos</Text>
+            <View style={[s.completedList, { backgroundColor: t.surface, borderColor: t.border }]}>
+              {completedCircles.map((circle, index) => (
+                <View key={circle.id} style={[s.completedRow, index < completedCircles.length - 1 && { borderBottomWidth: 1, borderBottomColor: t.border }]}>
+                  <Image source={{ uri: circle.img }} style={s.completedImage} />
+                  <View style={{ flex: 1 }}>
+                    <Text style={[s.completedName, { color: t.textPrimary }]}>{circle.name}</Text>
+                    <Text style={[s.completedMeta, { color: t.textSecondary }]}>{circle.ended}</Text>
+                  </View>
+                  <View style={s.completedAmount}>
+                    <Ionicons name="checkmark-circle" size={15} color={t.success} />
+                    <Text style={[s.completedPayout, { color: t.textPrimary }]}>{money(circle.payout)}</Text>
+                  </View>
+                </View>
+              ))}
+            </View>
+            <View style={[s.ajoTip, { backgroundColor: t.accentSoft }]}>
+              <Ionicons name="shield-checkmark-outline" size={18} color={t.accent} />
+              <View style={{ flex: 1 }}>
+                <Text style={[s.ajoTipTitle, { color: t.textPrimary }]}>Ajo tip</Text>
+                <Text style={[s.ajoTipCopy, { color: t.textSecondary }]}>Set your contribution date just after payday so every collection feels easier to keep up with.</Text>
+              </View>
+            </View>
           </>
         ) : (
           <>
@@ -367,6 +395,16 @@ const s = StyleSheet.create({
   infoValue: { fontSize: 12, fontWeight: "800" },
   infoLabel: { fontSize: 9, marginTop: 3 },
   members: { fontSize: 10, fontWeight: "800" },
+  completedList: { borderWidth: 1, borderRadius: 17, paddingHorizontal: 15 },
+  completedRow: { minHeight: 66, flexDirection: "row", alignItems: "center", gap: 10 },
+  completedImage: { width: 38, height: 38, borderRadius: 19 },
+  completedName: { fontSize: 13, fontWeight: "800" },
+  completedMeta: { fontSize: 10.5, marginTop: 3 },
+  completedAmount: { alignItems: "flex-end", gap: 3 },
+  completedPayout: { fontSize: 12, fontWeight: "800" },
+  ajoTip: { flexDirection: "row", gap: 10, borderRadius: 16, padding: 14, marginTop: 14 },
+  ajoTipTitle: { fontSize: 12.5, fontWeight: "800" },
+  ajoTipCopy: { fontSize: 11.2, lineHeight: 16, marginTop: 3 },
   invite: { borderWidth: 1, borderRadius: 16, padding: 13, marginBottom: 10 },
   inviterImage: { width: 42, height: 42, borderRadius: 21 },
   inviteName: { fontSize: 13, fontWeight: "800" },

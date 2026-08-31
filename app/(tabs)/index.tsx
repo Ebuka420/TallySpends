@@ -611,7 +611,7 @@ export default function App() {
             Smart insights
           </Text>
 
-          <TouchableOpacity onPress={() => router.push("/budget")}>
+          <TouchableOpacity onPress={() => router.push("/insightssum" as any)}>
             <Text
               style={[
                 styles.viewAllText,
@@ -660,7 +660,7 @@ export default function App() {
                   borderColor: theme.border,
                 },
               ]}
-              onPress={() => router.push("/budget")}
+              onPress={() => router.push("/insightssum" as any)}
             >
               <View
                 style={[
@@ -886,7 +886,7 @@ export default function App() {
             </Text>
 
             <TouchableOpacity
-              onPress={() => router.push("/(tabs)/insights" as any)}
+              onPress={() => router.push("/joint-savings" as any)}
               activeOpacity={0.7}
             >
               <Text
@@ -941,7 +941,7 @@ export default function App() {
                     borderColor: theme.border,
                   },
                 ]}
-                onPress={() => router.push("/(tabs)/insights" as any)}
+                onPress={() => router.push({ pathname: "/joint-savings-details", params: { id: card.id } } as any)}
                 activeOpacity={0.84}
               >
                 <Image
