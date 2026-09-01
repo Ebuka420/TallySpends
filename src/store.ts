@@ -540,7 +540,9 @@ export function useAppStore() {
   ]);
 
   const [onboardingGoals, setOnboardingGoalsState] = useState<string[]>([]);
-  const [employmentStatus, setEmploymentStatusState] = useState<string | null>(null);
+  const [employmentStatus, setEmploymentStatusState] = useState<string | null>(
+    null,
+  );
 
   const [isAuthenticated, setIsAuthenticated] = useState(globalIsAuthenticated);
 
@@ -980,7 +982,9 @@ export function useAppStore() {
 
   const markNotificationAsRead = useCallback(async (id: string) => {
     setNotifications((prev) => {
-      const next = prev.map((n) => (n.id === id ? { ...n, isUnread: false } : n));
+      const next = prev.map((n) =>
+        n.id === id ? { ...n, isUnread: false } : n,
+      );
       AsyncStorage.setItem("ts_notifications", JSON.stringify(next));
       return next;
     });
@@ -1026,10 +1030,13 @@ export function useAppStore() {
 
       // Dispatch contextual notification automatically
       const titleLower = (tx.title || "").toLowerCase();
-      const formattedAmount = `₦${Number(tx.amount || 0).toLocaleString(undefined, {
-        minimumFractionDigits: 2,
-        maximumFractionDigits: 2,
-      })}`;
+      const formattedAmount = `₦${Number(tx.amount || 0).toLocaleString(
+        undefined,
+        {
+          minimumFractionDigits: 2,
+          maximumFractionDigits: 2,
+        },
+      )}`;
 
       let notifTitle = "Transaction Recorded";
       let notifDesc = `${formattedAmount} was recorded under ${tx.category || "Expenses"}.`;
@@ -1290,7 +1297,86 @@ export function useAppStore() {
       await AsyncStorage.setItem("ts_employment_status", status);
     },
     completeOnboarding: async () => {
-      await AsyncStorage.setItem("ts_onboarding_completed", "true");
+      try {
+        const pendingSignupRaw =
+          await AsyncStorage.getItem("ts_pending_signup");
+
+        if (pendingSignupRaw) {
+          const pendingSignup = JSON.parse(pendingSignupRaw) as {
+            fullName: string;
+            tallyTag: string;
+            phoneNumber: string;
+            email: string;
+            password: string;
+          };
+
+          const email = pendingSignup.email.trim().toLowerCase();
+          const tallyTag = pendingSignup.tallyTag
+            .trim()
+            .replace(/^@+/, "")
+            .toLowerCase();
+          const canonicalTallyTag = `@${tallyTag}`;
+
+          const fullName = pendingSignup.fullName.trim();
+          const phoneNumber = pendingSignup.phoneNumber.trim();
+
+          const storedUsersRaw = await AsyncStorage.getItem(
+            "ts_registered_users",
+          );
+          const storedUsers = storedUsersRaw ? JSON.parse(storedUsersRaw) : [];
+
+          if (Array.isArray(storedUsers)) {
+            const alreadyExists = storedUsers.some(
+              (user: any) =>
+                (user.email && user.email.toLowerCase() === email) ||
+                (user.tallyTag && user.tallyTag.toLowerCase() === tallyTag),
+            );
+
+            if (!alreadyExists) {
+              storedUsers.push({
+                fullName,
+                tallyTag,
+                email,
+                phoneNumber,
+                password: pendingSignup.password,
+              });
+
+              await AsyncStorage.setItem(
+                "ts_registered_users",
+                JSON.stringify(storedUsers),
+              );
+            }
+          }
+
+          setFullNameState(fullName);
+          setPhoneNumberState(phoneNumber);
+          setEmailState(email);
+          setTallyTagState(canonicalTallyTag);
+
+          await AsyncStorage.setItem("ts_profile_fullname", fullName);
+          await AsyncStorage.setItem("ts_profile_phone", phoneNumber);
+          await AsyncStorage.setItem("ts_profile_email", email);
+          await AsyncStorage.setItem("ts_profile_tallytag", canonicalTallyTag);
+          await AsyncStorage.setItem("ts_username", tallyTag);
+          await AsyncStorage.removeItem("ts_pending_signup");
+
+          await AsyncStorage.setItem(
+            USER_STORAGE_KEY,
+            JSON.stringify({
+              fullName,
+              email,
+              tallyTag,
+              phoneNumber,
+            }),
+          );
+        }
+
+        await AsyncStorage.setItem("ts_onboarding_completed", "true");
+        setGlobalAuth(true);
+      } catch (error) {
+        console.error("Failed to complete onboarding", error);
+        throw error;
+      }
     },
 
     // Notifications
