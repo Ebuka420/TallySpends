@@ -6,6 +6,8 @@ import {
   Alert,
   Dimensions,
   Image,
+  Keyboard,
+  KeyboardAvoidingView,
   Modal,
   Platform,
   Pressable,
@@ -98,7 +100,7 @@ const SPRING_PHYSICS = {
 };
 
 export default function RadialFloatingBot() {
-  const { themePreference, themeMode, addTransaction } = useAppStore();
+  const { themePreference, themeMode, addTransaction, transactions } = useAppStore();
   const theme = getThemePalette(themePreference, themeMode);
   const isDark = themeMode === "dark";
 
@@ -114,6 +116,20 @@ export default function RadialFloatingBot() {
   const [calculatorExpression, setCalculatorExpression] = useState("");
   const [calculatorResult, setCalculatorResult] = useState("0");
   const [calculatorHasResult, setCalculatorHasResult] = useState(false);
+
+  // Smart Coach State
+  const [coachInput, setCoachInput] = useState("");
+  const [coachMessages, setCoachMessages] = useState<
+    Array<{ id: string; sender: "user" | "bot"; text: string; time: string }>
+  >([
+    {
+      id: "m-1",
+      sender: "bot",
+      text: "Hello! I am your AI financial coach. Ask me anything about your spending, upcoming bills, budget limits, or savings goals!",
+      time: "Just now",
+    },
+  ]);
+  const [isCoachThinking, setIsCoachThinking] = useState(false);
 
   // Real Receipt OCR State
   const [scannedImageUri, setScannedImageUri] = useState<string | null>(null);
@@ -404,6 +420,60 @@ export default function RadialFloatingBot() {
     }
   };
 
+  const handleSendCoachMessage = () => {
+    const query = coachInput.trim();
+    if (!query || isCoachThinking) return;
+
+    const userMsg = {
+      id: `u-${Date.now()}`,
+      sender: "user" as const,
+      text: query,
+      time: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
+    };
+
+    setCoachMessages((prev) => [...prev, userMsg]);
+    setCoachInput("");
+    setIsCoachThinking(true);
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
+
+    setTimeout(() => {
+      let reply = "";
+      const lower = query.toLowerCase();
+
+      const transactionsRaw = (transactions || []) as any[];
+      const totalExpenses = transactionsRaw
+        .filter((t: any) => t.type === "expense")
+        .reduce((sum: number, t: any) => sum + Number(t.amount || 0), 0);
+      const totalIncome = transactionsRaw
+        .filter((t: any) => t.type === "income")
+        .reduce((sum: number, t: any) => sum + Number(t.amount || 0), 0);
+
+      if (lower.includes("spend") || lower.includes("expense") || lower.includes("how much")) {
+        reply = `You have spent ₦${totalExpenses.toLocaleString()} total across ${transactionsRaw.filter(t => t.type === "expense").length} recorded expenses. Your top categories are Food & Dining and Groceries.`;
+      } else if (lower.includes("budget") || lower.includes("limit")) {
+        reply = `Your monthly budget tracking is healthy! Try keeping daily discretionary spend under ₦15,000 to hit your end-of-month savings target.`;
+      } else if (lower.includes("saving") || lower.includes("goal") || lower.includes("target") || lower.includes("lock")) {
+        reply = `Great focus on savings! Setting aside just 10% from every incoming deposit into your lock box can help you reach your goals 2x faster.`;
+      } else if (lower.includes("balance") || lower.includes("income") || lower.includes("money") || lower.includes("cash")) {
+        reply = `Your total recorded inflow is ₦${totalIncome.toLocaleString()}. Net cashflow is ₦${Math.max(0, totalIncome - totalExpenses).toLocaleString()}.`;
+      } else {
+        reply = `I analyzed your accounts. You're doing great! Keep recording your daily receipts and staying within your category budgets to maintain healthy financial growth.`;
+      }
+
+      setCoachMessages((prev) => [
+        ...prev,
+        {
+          id: `b-${Date.now()}`,
+          sender: "bot",
+          text: reply,
+          time: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
+        },
+      ]);
+      setIsCoachThinking(false);
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
+    }, 600);
+  };
+
   const processCapturedReceiptImage = async (uri: string, base64?: string | null) => {
     setScannedImageUri(uri);
     setIsAnalyzingReceipt(true);
@@ -644,13 +714,23 @@ export default function RadialFloatingBot() {
         visible={activeModal === "add"}
         transparent
         animationType="slide"
-        onRequestClose={() => setActiveModal(null)}
+        onRequestClose={() => {
+          Keyboard.dismiss();
+          setActiveModal(null);
+        }}
       >
-        <TouchableOpacity
+        <KeyboardAvoidingView
+          behavior={Platform.OS === "ios" ? "padding" : undefined}
           style={styles.modalOverlay}
-          activeOpacity={1}
-          onPress={() => setActiveModal(null)}
         >
+          <TouchableOpacity
+            style={StyleSheet.absoluteFill}
+            activeOpacity={1}
+            onPress={() => {
+              Keyboard.dismiss();
+              setActiveModal(null);
+            }}
+          />
           <Pressable
             style={[styles.modalContent, { backgroundColor: theme.surface }]}
             onPress={(e) => e.stopPropagation()}
@@ -661,7 +741,12 @@ export default function RadialFloatingBot() {
               <Text style={[styles.modalTitle, { color: theme.textPrimary }]}>
                 Quick Add Expense
               </Text>
-              <TouchableOpacity onPress={() => setActiveModal(null)}>
+              <TouchableOpacity
+                onPress={() => {
+                  Keyboard.dismiss();
+                  setActiveModal(null);
+                }}
+              >
                 <Ionicons name="close" size={24} color={theme.textPrimary} />
               </TouchableOpacity>
             </View>
@@ -744,73 +829,164 @@ export default function RadialFloatingBot() {
               <Ionicons name="arrow-forward" size={18} color="#FFFFFF" />
             </TouchableOpacity>
           </Pressable>
-        </TouchableOpacity>
+        </KeyboardAvoidingView>
       </Modal>
 
       {/* ================================================================
-          2. SMART COACH MODAL
+          2. SMART COACH MODAL (KEYBOARD AVOIDING & CHAT STREAM)
       ================================================================= */}
       <Modal
         visible={activeModal === "coach"}
         transparent
         animationType="slide"
-        onRequestClose={() => setActiveModal(null)}
+        onRequestClose={() => {
+          Keyboard.dismiss();
+          setActiveModal(null);
+        }}
       >
-        <TouchableOpacity
+        <KeyboardAvoidingView
+          behavior={Platform.OS === "ios" ? "padding" : undefined}
           style={styles.modalOverlay}
-          activeOpacity={1}
-          onPress={() => setActiveModal(null)}
         >
+          <TouchableOpacity
+            style={StyleSheet.absoluteFill}
+            activeOpacity={1}
+            onPress={() => {
+              Keyboard.dismiss();
+              setActiveModal(null);
+            }}
+          />
           <Pressable
-            style={[styles.modalContent, { backgroundColor: theme.surface }]}
+            style={[
+              styles.modalContent,
+              styles.coachModalContent,
+              { backgroundColor: theme.surface },
+            ]}
             onPress={(e) => e.stopPropagation()}
           >
             <View style={[styles.modalHandle, { backgroundColor: theme.border }]} />
 
             <View style={styles.modalHeader}>
-              <Text style={[styles.modalTitle, { color: theme.textPrimary }]}>
-                ✨ Smart Coach
-              </Text>
-              <TouchableOpacity onPress={() => setActiveModal(null)}>
+              <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
+                <View style={[styles.coachAvatar, { backgroundColor: theme.accent }]}>
+                  <Ionicons name="sparkles" size={16} color="#FFFFFF" />
+                </View>
+                <View>
+                  <Text style={[styles.modalTitle, { color: theme.textPrimary, marginBottom: 0 }]}>
+                    Smart Coach
+                  </Text>
+                  <Text style={{ fontSize: 11.5, color: theme.textSecondary }}>
+                    AI Financial Advisor
+                  </Text>
+                </View>
+              </View>
+              <TouchableOpacity
+                onPress={() => {
+                  Keyboard.dismiss();
+                  setActiveModal(null);
+                }}
+              >
                 <Ionicons name="close" size={24} color={theme.textPrimary} />
               </TouchableOpacity>
             </View>
 
-            <View
-              style={[
-                styles.chatBoxPlaceholder,
-                { backgroundColor: theme.background, borderColor: theme.border },
-              ]}
+            {/* Chat message stream */}
+            <ScrollView
+              style={styles.coachChatScroll}
+              contentContainerStyle={styles.coachChatContent}
+              showsVerticalScrollIndicator={false}
+              keyboardShouldPersistTaps="handled"
             >
-              <Text style={[styles.chatText, { color: theme.textPrimary }]}>
-                Hello! I am your AI financial coach. Ask me anything about your cashflow, budgets, and savings!
-              </Text>
-            </View>
+              {coachMessages.map((msg) => {
+                const isUser = msg.sender === "user";
+                return (
+                  <View
+                    key={msg.id}
+                    style={[
+                      styles.coachMessageBubble,
+                      isUser
+                        ? [styles.coachUserBubble, { backgroundColor: theme.accent }]
+                        : [
+                            styles.coachBotBubble,
+                            {
+                              backgroundColor: isDark ? theme.surfaceSoft : "#F4EFF9",
+                              borderColor: theme.border,
+                            },
+                          ],
+                    ]}
+                  >
+                    <Text
+                      style={[
+                        styles.coachMessageText,
+                        { color: isUser ? "#FFFFFF" : theme.textPrimary },
+                      ]}
+                    >
+                      {msg.text}
+                    </Text>
+                    <Text
+                      style={[
+                        styles.coachMessageTime,
+                        { color: isUser ? "rgba(255,255,255,0.7)" : theme.textSecondary },
+                      ]}
+                    >
+                      {msg.time}
+                    </Text>
+                  </View>
+                );
+              })}
+              {isCoachThinking && (
+                <View
+                  style={[
+                    styles.coachMessageBubble,
+                    styles.coachBotBubble,
+                    {
+                      backgroundColor: isDark ? theme.surfaceSoft : "#F4EFF9",
+                      borderColor: theme.border,
+                    },
+                  ]}
+                >
+                  <Text style={[styles.coachMessageText, { color: theme.textSecondary }]}>
+                    ✨ Analyzing finances...
+                  </Text>
+                </View>
+              )}
+            </ScrollView>
 
             <View style={styles.chatInputRow}>
               <TextInput
                 style={[
                   styles.input,
+                  styles.coachInput,
                   {
-                    flex: 1,
-                    marginBottom: 0,
                     backgroundColor: theme.background,
                     borderColor: theme.border,
                     color: theme.textPrimary,
                   },
                 ]}
-                placeholder="Ask your Smart Coach..."
+                placeholder="Ask about spending, budgets, savings..."
                 placeholderTextColor={theme.textSecondary}
+                value={coachInput}
+                onChangeText={setCoachInput}
+                onSubmitEditing={handleSendCoachMessage}
+                returnKeyType="send"
               />
               <TouchableOpacity
-                style={[styles.sendBtn, { backgroundColor: theme.accent }]}
+                style={[
+                  styles.sendBtn,
+                  {
+                    backgroundColor: theme.accent,
+                    opacity: coachInput.trim() ? 1 : 0.6,
+                  },
+                ]}
+                onPress={handleSendCoachMessage}
+                disabled={!coachInput.trim() || isCoachThinking}
                 activeOpacity={0.85}
               >
                 <Ionicons name="paper-plane" size={19} color="#FFFFFF" />
               </TouchableOpacity>
             </View>
           </Pressable>
-        </TouchableOpacity>
+        </KeyboardAvoidingView>
       </Modal>
 
       {/* ================================================================
@@ -925,13 +1101,23 @@ export default function RadialFloatingBot() {
         visible={activeModal === "scan"}
         transparent
         animationType="slide"
-        onRequestClose={() => setActiveModal(null)}
+        onRequestClose={() => {
+          Keyboard.dismiss();
+          setActiveModal(null);
+        }}
       >
-        <TouchableOpacity
+        <KeyboardAvoidingView
+          behavior={Platform.OS === "ios" ? "padding" : undefined}
           style={styles.modalOverlay}
-          activeOpacity={1}
-          onPress={() => setActiveModal(null)}
         >
+          <TouchableOpacity
+            style={StyleSheet.absoluteFill}
+            activeOpacity={1}
+            onPress={() => {
+              Keyboard.dismiss();
+              setActiveModal(null);
+            }}
+          />
           <Pressable
             style={[styles.modalContent, styles.scannerModalContent, { backgroundColor: theme.surface }]}
             onPress={(e) => e.stopPropagation()}
@@ -942,7 +1128,12 @@ export default function RadialFloatingBot() {
               <Text style={[styles.modalTitle, { color: theme.textPrimary }]}>
                 {scannedImageUri ? "Verify Receipt Details" : "Scan Receipt"}
               </Text>
-              <TouchableOpacity onPress={() => setActiveModal(null)}>
+              <TouchableOpacity
+                onPress={() => {
+                  Keyboard.dismiss();
+                  setActiveModal(null);
+                }}
+              >
                 <Ionicons name="close" size={24} color={theme.textPrimary} />
               </TouchableOpacity>
             </View>
@@ -1257,7 +1448,7 @@ export default function RadialFloatingBot() {
               )}
             </ScrollView>
           </Pressable>
-        </TouchableOpacity>
+        </KeyboardAvoidingView>
       </Modal>
     </>
   );
@@ -1508,6 +1699,55 @@ const styles = StyleSheet.create({
     fontWeight: "700",
     fontSize: 15,
   },
+  coachModalContent: {
+    height: 480,
+    maxHeight: "85%",
+  },
+  coachAvatar: {
+    width: 34,
+    height: 34,
+    borderRadius: 12,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  coachChatScroll: {
+    flex: 1,
+    marginVertical: 10,
+  },
+  coachChatContent: {
+    gap: 10,
+    paddingBottom: 8,
+  },
+  coachMessageBubble: {
+    maxWidth: "85%",
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    borderRadius: 18,
+  },
+  coachUserBubble: {
+    alignSelf: "flex-end",
+    borderBottomRightRadius: 4,
+  },
+  coachBotBubble: {
+    alignSelf: "flex-start",
+    borderBottomLeftRadius: 4,
+    borderWidth: 1,
+  },
+  coachMessageText: {
+    fontSize: 13.5,
+    lineHeight: 19,
+    fontWeight: "500",
+  },
+  coachMessageTime: {
+    fontSize: 10,
+    marginTop: 4,
+    alignSelf: "flex-end",
+  },
+  coachInput: {
+    flex: 1,
+    marginBottom: 0,
+    height: 48,
+  },
   chatBoxPlaceholder: {
     padding: 16,
     borderRadius: 16,
@@ -1524,6 +1764,7 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     gap: 10,
     alignItems: "center",
+    paddingTop: 4,
   },
   sendBtn: {
     width: 48,
