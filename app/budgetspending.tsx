@@ -1,8 +1,7 @@
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
-import React, { useMemo, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import {
-  Dimensions,
   Modal,
   SafeAreaView,
   ScrollView,
@@ -16,66 +15,22 @@ import {
 import { useAppStore } from "../src/store";
 import { getThemePalette } from "../src/theme";
 
-const CATEGORY_META: Record<
-  string,
+const categories = [
   {
-    icon: keyof typeof Ionicons.glyphMap;
-    color: string;
-    soft: string;
-    darkColor: string;
-    darkSoft: string;
-  }
-> = {
-  "Food & Dining": {
-    icon: "fast-food-outline",
-    color: "#8B3A62",
-    soft: "#F8EDF3",
-    darkColor: "#E09ABF",
-    darkSoft: "#3D2232",
+    name: "Food & Dining",
+    icon: "fast-food-outline" as const,
+    fallback: 72000,
   },
-  Transport: {
-    icon: "car-outline",
-    color: "#5B4E91",
-    soft: "#F0EEF9",
-    darkColor: "#A397E0",
-    darkSoft: "#2A2346",
+  { name: "Transport", icon: "car-outline" as const, fallback: 32000 },
+  { name: "Shopping", icon: "bag-handle-outline" as const, fallback: 45000 },
+  {
+    name: "Bills & Utilities",
+    icon: "document-text-outline" as const,
+    fallback: 47000,
   },
-  Shopping: {
-    icon: "bag-handle-outline",
-    color: "#B45309",
-    soft: "#FEF3C7",
-    darkColor: "#FBBF24",
-    darkSoft: "#422808",
-  },
-  "Bills & Utilities": {
-    icon: "document-text-outline",
-    color: "#15803D",
-    soft: "#DCFCE7",
-    darkColor: "#4ADE80",
-    darkSoft: "#133E23",
-  },
-  Entertainment: {
-    icon: "film-outline",
-    color: "#7C3AED",
-    soft: "#F3E8FF",
-    darkColor: "#C084FC",
-    darkSoft: "#36165F",
-  },
-  "Health & Wellness": {
-    icon: "heart-outline",
-    color: "#BE123C",
-    soft: "#FFE4E6",
-    darkColor: "#FB7185",
-    darkSoft: "#4C101F",
-  },
-  Others: {
-    icon: "grid-outline",
-    color: "#475569",
-    soft: "#F1F5F9",
-    darkColor: "#94A3B8",
-    darkSoft: "#1E293B",
-  },
-};
+  { name: "Entertainment", icon: "film-outline" as const, fallback: 22000 },
+  { name: "Others", icon: "grid-outline" as const, fallback: 12000 },
+];
 
 export default function BudgetSpendingScreen() {
   const router = useRouter();
@@ -86,366 +41,330 @@ export default function BudgetSpendingScreen() {
     themePreference,
     themeMode,
   } = useAppStore();
-
-  const transactions = rawTransactions as any[];
   const theme = getThemePalette(themePreference, themeMode);
   const isDark = themeMode === "dark";
-
-  const [editingCategory, setEditingCategory] = useState<string | null>(null);
-  const [customBudgetInput, setCustomBudgetInput] = useState("");
-
-  const analyticsData = useMemo(() => {
-    let totalSpent = 0;
-    const catTotals: Record<string, { total: number; count: number }> = {};
-
-    transactions.forEach((tx) => {
-      if (tx.type === "expense") {
-        const amt = Number(tx.amount) || 0;
-        totalSpent += amt;
-        const cat = tx.category || "Others";
-        const normalizedCat = CATEGORY_META[cat] ? cat : "Others";
-        if (!catTotals[normalizedCat]) {
-          catTotals[normalizedCat] = { total: 0, count: 0 };
-        }
-        catTotals[normalizedCat].total += amt;
-        catTotals[normalizedCat].count += 1;
-      }
+  const [editing, setEditing] = useState<string | null>(null);
+  const [amount, setAmount] = useState("");
+  const recommendationsRef = useRef<ScrollView>(null);
+  const recommendationOffset = useRef(0);
+  const data = useMemo(() => {
+    const spending: Record<string, number> = {};
+    (rawTransactions as any[]).forEach((item) => {
+      if (item.type === "expense")
+        spending[item.category] =
+          (spending[item.category] || 0) + (Number(item.amount) || 0);
     });
-
-    if (totalSpent === 0) {
-      totalSpent = 228540;
-      catTotals["Food & Dining"] = { total: 72400, count: 18 };
-      catTotals["Transport"] = { total: 31200, count: 12 };
-      catTotals["Shopping"] = { total: 44800, count: 8 };
-      catTotals["Bills & Utilities"] = { total: 46200, count: 5 };
-      catTotals["Entertainment"] = { total: 21940, count: 6 };
-      catTotals["Others"] = { total: 12000, count: 3 };
-    }
-
-    let totalBudget = 0;
-    const categoriesList = Object.keys(CATEGORY_META).map((catName) => {
-      const spent = catTotals[catName]?.total || 0;
-      const count = catTotals[catName]?.count || 0;
-      const aiDefaultLimit =
-        budgets[catName] ||
-        (spent > 0 ? Math.ceil((spent * 1.25) / 1000) * 1000 : 30000);
-
-      totalBudget += aiDefaultLimit;
-      const ratio = aiDefaultLimit > 0 ? spent / aiDefaultLimit : 0;
-      let status: "on_track" | "near_limit" | "exceeded" = "on_track";
-      if (ratio > 1) status = "exceeded";
-      else if (ratio >= 0.8) status = "near_limit";
-
+    const hasTransactions = Object.values(spending).some(Boolean);
+    const items = categories.map((item) => {
+      const spent = hasTransactions ? spending[item.name] || 0 : item.fallback;
+      const limit =
+        budgets[item.name] ||
+        Math.max(Math.ceil((spent * 1.25) / 1000) * 1000, 30000);
       return {
-        name: catName,
+        ...item,
         spent,
-        count,
-        limit: aiDefaultLimit,
-        ratio: Math.min(ratio, 1.5),
-        percent: Math.round(ratio * 100),
-        status,
+        limit,
+        progress: Math.round((spent / limit) * 100),
       };
     });
-
-    const overallPercent = totalBudget > 0 ? Math.round((totalSpent / totalBudget) * 100) : 0;
-
     return {
-      totalSpent,
-      totalBudget,
-      overallPercent,
-      categoriesList,
+      items,
+      spent: items.reduce((sum, item) => sum + item.spent, 0),
+      limit: items.reduce((sum, item) => sum + item.limit, 0),
     };
-  }, [transactions, budgets]);
-
-  const handleSaveBudgetLimit = () => {
-    if (!editingCategory) return;
-    const num = parseFloat(customBudgetInput.replace(/[^0-9.]/g, ""));
-    if (!isNaN(num) && num > 0) {
-      updateBudget(editingCategory, num);
-    }
-    setEditingCategory(null);
-    setCustomBudgetInput("");
+  }, [rawTransactions, budgets]);
+  const progress = Math.round((data.spent / data.limit) * 100);
+  const remaining = Math.max(data.limit - data.spent, 0);
+  const daysLeft = Math.max(
+    new Date(new Date().getFullYear(), new Date().getMonth() + 1, 0).getDate() -
+      new Date().getDate(),
+    1,
+  );
+  const dailyGuide = Math.floor(remaining / daysLeft);
+  useEffect(() => {
+    const cardWidth = 217;
+    const timer = setInterval(() => {
+      recommendationOffset.current += 0.45;
+      if (recommendationOffset.current >= cardWidth * 3)
+        recommendationOffset.current = 0;
+      recommendationsRef.current?.scrollTo({
+        x: recommendationOffset.current,
+        animated: false,
+      });
+    }, 32);
+    return () => clearInterval(timer);
+  }, []);
+  const save = () => {
+    const value = Number(amount.replace(/[^0-9.]/g, ""));
+    if (editing && value > 0) updateBudget(editing, value);
+    setEditing(null);
+    setAmount("");
   };
-
+  const open = (name: string) => {
+    setEditing(name);
+    setAmount(
+      String(
+        budgets[name] ||
+          data.items.find((item) => item.name === name)?.limit ||
+          "",
+      ),
+    );
+  };
+  const month = new Date()
+    .toLocaleString("en-US", { month: "long" })
+    .toUpperCase();
   return (
-    <SafeAreaView style={[styles.container, { backgroundColor: theme.background }]}>
-      {/* Header */}
-      <View
-        style={[
-          styles.header,
-          { backgroundColor: theme.surface, borderColor: theme.border },
-        ]}
-      >
+    <SafeAreaView style={[s.safe, { backgroundColor: theme.background }]}>
+      <View style={s.header}>
         <TouchableOpacity
-          style={styles.backBtn}
           onPress={() => router.back()}
-          activeOpacity={0.7}
-        >
-          <Ionicons name="chevron-back" size={24} color={theme.textPrimary} />
-        </TouchableOpacity>
-        <Text style={[styles.headerTitle, { color: theme.textPrimary }]}>
-          Budget Based on Spending
-        </Text>
-        <View style={{ width: 32 }} />
-      </View>
-
-      <ScrollView
-        contentContainerStyle={styles.scrollContent}
-        showsVerticalScrollIndicator={false}
-      >
-        {/* Total Budget Utilization Hero */}
-        <View
           style={[
-            styles.heroCard,
+            s.back,
             { backgroundColor: theme.surface, borderColor: theme.border },
           ]}
         >
-          <Text style={[styles.heroMetaLabel, { color: theme.textSecondary }]}>
-            MONTHLY BUDGET UTILIZATION
+          <Ionicons name="chevron-back" size={23} color={theme.textPrimary} />
+        </TouchableOpacity>
+        <Text style={[s.title, { color: theme.textPrimary }]}>Budget</Text>
+        <TouchableOpacity
+          onPress={() => open("Others")}
+          style={[s.add, { borderColor: theme.accent }]}
+        >
+          <Ionicons name="add" size={19} color={theme.accent} />
+          <Text style={[s.addText, { color: theme.accent }]}>Add</Text>
+        </TouchableOpacity>
+      </View>
+      <ScrollView
+        contentContainerStyle={s.content}
+        showsVerticalScrollIndicator={false}
+      >
+        <View
+          style={[
+            s.totalCard,
+            { backgroundColor: theme.surface, borderColor: theme.border },
+          ]}
+        >
+          <Text style={[s.overline, { color: theme.textSecondary }]}>
+            MONTHLY TOTAL · {month}
           </Text>
-          <View style={styles.heroAmountRow}>
-            <Text style={[styles.heroBigAmount, { color: theme.textPrimary }]}>
-              ₦{analyticsData.totalSpent.toLocaleString()}
+          <View style={s.amountRow}>
+            <Text style={[s.total, { color: theme.textPrimary }]}>
+              ₦{data.limit.toLocaleString()}
             </Text>
-            <Text style={[styles.heroBudgetCap, { color: theme.textSecondary }]}>
-              / ₦{analyticsData.totalBudget.toLocaleString()}
+            <Text
+              style={[
+                s.percent,
+                { color: progress > 100 ? theme.danger : theme.accent },
+              ]}
+            >
+              {progress}%
             </Text>
           </View>
-
-          {/* Progress Bar */}
-          <View
-            style={[
-              styles.overallProgressBarBg,
-              { backgroundColor: isDark ? theme.surfaceSoft : "#EAE6EC" },
-            ]}
-          >
+          <Text style={[s.spent, { color: theme.textSecondary }]}>
+            Spent ₦{data.spent.toLocaleString()}
+          </Text>
+          <View style={[s.track, { backgroundColor: theme.surfaceSoft }]}>
             <View
               style={[
-                styles.overallProgressBarFill,
+                s.fill,
                 {
-                  width: `${Math.min(analyticsData.overallPercent, 100)}%`,
-                  backgroundColor:
-                    analyticsData.overallPercent > 100
-                      ? "#BE123C"
-                      : analyticsData.overallPercent > 80
-                      ? "#B45309"
-                      : theme.accent,
+                  backgroundColor: progress > 100 ? theme.danger : theme.accent,
+                  width: `${Math.min(progress, 100)}%`,
                 },
               ]}
             />
           </View>
-
-          <View style={styles.heroFooterRow}>
-            <Text style={[styles.heroFooterText, { color: theme.textSecondary }]}>
-              {analyticsData.overallPercent}% of total budget used
-            </Text>
-            <Text style={[styles.heroFooterRemaining, { color: theme.accent }]}>
-              ₦{(analyticsData.totalBudget - analyticsData.totalSpent).toLocaleString()} remaining
-            </Text>
+          <View style={[s.budgetStats, { borderTopColor: theme.border }]}>
+            <View style={s.budgetStat}>
+              <Text style={[s.budgetStatLabel, { color: theme.textSecondary }]}>
+                REMAINING
+              </Text>
+              <Text style={[s.budgetStatValue, { color: theme.textPrimary }]}>
+                ₦{remaining.toLocaleString()}
+              </Text>
+            </View>
+            <View style={s.budgetStat}>
+              <Text style={[s.budgetStatLabel, { color: theme.textSecondary }]}>
+                DAILY GUIDE
+              </Text>
+              <Text style={[s.budgetStatValue, { color: theme.accent }]}>
+                ₦{dailyGuide.toLocaleString()}
+              </Text>
+            </View>
           </View>
         </View>
-
-        {/* Philosophy Pill */}
-        <View
-          style={[
-            styles.philosophyPill,
-            {
-              backgroundColor: isDark ? theme.surfaceSoft : "#FAF7FA",
-              borderColor: theme.border,
-            },
-          ]}
-        >
-          <Ionicons name="options-outline" size={15} color={theme.accent} />
-          <Text style={[styles.philosophyText, { color: theme.textSecondary }]}>
-            Category caps adapt to your pace. Tap any card below to override limits.
+        <View style={s.aiHead}>
+          <View style={s.aiHeading}>
+            <Ionicons name="sparkles" size={15} color={theme.accent} />
+            <Text style={[s.section, { color: theme.textSecondary }]}>
+              AI RECOMMENDED
+            </Text>
+          </View>
+          <Text style={[s.aiHint, { color: theme.textSecondary }]}>
+            Based on spending
           </Text>
         </View>
-
-        {/* Categories Breakdown List */}
-        <View style={{ gap: 10 }}>
-          {analyticsData.categoriesList.map((cat) => {
-            const meta = CATEGORY_META[cat.name] || CATEGORY_META.Others;
-            const iconColor = isDark ? meta.darkColor : meta.color;
-            const iconBg = isDark ? meta.darkSoft : meta.soft;
-
-            const isExceeded = cat.status === "exceeded";
-            const isNearLimit = cat.status === "near_limit";
-
-            const statusColor = isExceeded
-              ? isDark ? "#FB7185" : "#BE123C"
-              : isNearLimit
-              ? isDark ? "#FBBF24" : "#B45309"
-              : isDark ? "#4ADE80" : "#15803D";
-
-            const statusBg = isExceeded
-              ? isDark ? "#4C101F" : "#FFE4E6"
-              : isNearLimit
-              ? isDark ? "#422808" : "#FEF3C7"
-              : isDark ? "#133E23" : "#DCFCE7";
-
-            const statusLabel = isExceeded
-              ? "Exceeded"
-              : isNearLimit
-              ? "Near Limit"
-              : "On Track";
-
+        <ScrollView
+          ref={recommendationsRef}
+          horizontal
+          scrollEnabled={false}
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={s.recommendations}
+        >
+          {[...data.items.slice(0, 3), ...data.items.slice(0, 3)].map(
+            (item, index) => (
+              <View
+                key={`${item.name}-${index}`}
+                style={[
+                  s.recommendation,
+                  { backgroundColor: theme.accentSoft },
+                ]}
+              >
+                <Text style={[s.recName, { color: theme.textPrimary }]}>
+                  {item.name}
+                </Text>
+                <Text style={[s.recAmount, { color: theme.accent }]}>
+                  ₦{item.limit.toLocaleString()}
+                </Text>
+                <Text style={[s.recCopy, { color: theme.textSecondary }]}>
+                  A comfortable limit for this month.
+                </Text>
+                <TouchableOpacity
+                  onPress={() => updateBudget(item.name, item.limit)}
+                  style={[s.useButton, { backgroundColor: theme.surface }]}
+                >
+                  <Text style={[s.useText, { color: theme.accent }]}>
+                    Use this limit
+                  </Text>
+                </TouchableOpacity>
+              </View>
+            ),
+          )}
+        </ScrollView>
+        <View style={s.sectionHead}>
+          <Text style={[s.section, { color: theme.textSecondary }]}>
+            CATEGORY BUDGETS
+          </Text>
+          <TouchableOpacity onPress={() => open("Others")}>
+            <Text style={[s.adjust, { color: theme.accent }]}>Adjust</Text>
+          </TouchableOpacity>
+        </View>
+        <View
+          style={[
+            s.list,
+            { backgroundColor: theme.surface, borderColor: theme.border },
+          ]}
+        >
+          {data.items.map((item, index) => {
+            const color = item.progress > 100 ? theme.danger : theme.accent;
             return (
               <TouchableOpacity
-                key={cat.name}
+                key={item.name}
+                onPress={() => open(item.name)}
                 style={[
-                  styles.categoryCard,
-                  {
-                    backgroundColor: theme.surface,
-                    borderColor: theme.border,
+                  s.row,
+                  index < data.items.length - 1 && {
+                    borderBottomWidth: 1,
+                    borderBottomColor: theme.border,
                   },
                 ]}
-                onPress={() => {
-                  setEditingCategory(cat.name);
-                  setCustomBudgetInput(String(cat.limit));
-                }}
-                activeOpacity={0.75}
               >
-                {/* Header Row */}
-                <View style={styles.catHeaderRow}>
-                  <View style={styles.catHeaderLeft}>
-                    <View style={[styles.catIconBox, { backgroundColor: iconBg }]}>
-                      <Ionicons name={meta.icon} size={17} color={iconColor} />
-                    </View>
-                    <View>
-                      <Text style={[styles.catName, { color: theme.textPrimary }]}>
-                        {cat.name}
-                      </Text>
-                      <Text style={[styles.catTxnCount, { color: theme.textSecondary }]}>
-                        {cat.count} transactions recorded
-                      </Text>
-                    </View>
-                  </View>
-
-                  <View style={[styles.statusBadge, { backgroundColor: statusBg }]}>
-                    <View style={[styles.statusDot, { backgroundColor: statusColor }]} />
-                    <Text style={[styles.statusBadgeText, { color: statusColor }]}>
-                      {statusLabel}
-                    </Text>
-                  </View>
+                <View style={[s.icon, { backgroundColor: theme.accentSoft }]}>
+                  <Ionicons name={item.icon} size={19} color={theme.accent} />
                 </View>
-
-                {/* Progress Bar */}
-                <View
-                  style={[
-                    styles.catProgressBarBg,
-                    { backgroundColor: isDark ? theme.surfaceSoft : "#EAE6EC" },
-                  ]}
-                >
-                  <View
-                    style={[
-                      styles.catProgressBarFill,
-                      {
-                        width: `${Math.min(cat.percent, 100)}%`,
-                        backgroundColor: statusColor,
-                      },
-                    ]}
-                  />
-                </View>
-
-                {/* Footer Row */}
-                <View style={styles.catFooterRow}>
-                  <Text style={[styles.catSpentText, { color: theme.textPrimary }]}>
-                    ₦{cat.spent.toLocaleString()}
-                    <Text style={{ color: theme.textSecondary, fontWeight: "500" }}>
-                      {" "}spent
-                    </Text>
+                <View style={{ flex: 1 }}>
+                  <Text style={[s.rowTitle, { color: theme.textPrimary }]}>
+                    {item.name}
                   </Text>
-                  <View style={{ flexDirection: "row", alignItems: "center", gap: 4 }}>
-                    <Text style={[styles.catLimitText, { color: theme.textSecondary }]}>
-                      Limit: ₦{cat.limit.toLocaleString()}
-                    </Text>
-                    <Ionicons name="create-outline" size={13} color={theme.accent} />
+                  <Text style={[s.rowSub, { color: theme.textSecondary }]}>
+                    ₦{item.spent.toLocaleString()} of ₦
+                    {item.limit.toLocaleString()}
+                  </Text>
+                  <View
+                    style={[s.rowTrack, { backgroundColor: theme.surfaceSoft }]}
+                  >
+                    <View
+                      style={[
+                        s.rowFill,
+                        {
+                          backgroundColor: color,
+                          width: `${Math.min(item.progress, 100)}%`,
+                        },
+                      ]}
+                    />
                   </View>
                 </View>
+                <Text style={[s.rowPercent, { color }]}>{item.progress}%</Text>
+                <Ionicons
+                  name="chevron-forward"
+                  size={16}
+                  color={theme.textSecondary}
+                />
               </TouchableOpacity>
             );
           })}
         </View>
+        <View style={[s.note, { backgroundColor: theme.accentSoft }]}>
+          <Ionicons name="bulb-outline" size={17} color={theme.accent} />
+          <Text style={[s.noteText, { color: theme.textSecondary }]}>
+            Tap a category to set a limit that works for your month.
+          </Text>
+        </View>
       </ScrollView>
-
-      {/* Adjust Budget Modal */}
       <Modal
-        visible={!!editingCategory}
         transparent
+        visible={!!editing}
         animationType="fade"
-        onRequestClose={() => setEditingCategory(null)}
+        onRequestClose={() => setEditing(null)}
       >
-        <TouchableWithoutFeedback onPress={() => setEditingCategory(null)}>
-          <View style={styles.modalOverlay}>
+        <TouchableWithoutFeedback onPress={() => setEditing(null)}>
+          <View style={s.overlay}>
             <TouchableWithoutFeedback>
-              <View
-                style={[
-                  styles.editBudgetModalCard,
-                  {
-                    backgroundColor: theme.surface,
-                    borderColor: theme.border,
-                  },
-                ]}
-              >
-                <View style={styles.modalHeaderRow}>
-                  <View style={{ flex: 1, marginRight: 8 }}>
-                    <Text style={[styles.modalTitle, { color: theme.textPrimary }]}>
-                      Adjust Spending Limit
-                    </Text>
-                    <Text style={[styles.modalSub, { color: theme.textSecondary }]}>
-                      {editingCategory}
-                    </Text>
-                  </View>
-                  <TouchableOpacity onPress={() => setEditingCategory(null)}>
-                    <Ionicons name="close" size={20} color={theme.textSecondary} />
-                  </TouchableOpacity>
-                </View>
-
-                <Text style={[styles.inputLabel, { color: theme.textSecondary }]}>
-                  Recommended Limit (₦)
+              <View style={[s.modal, { backgroundColor: theme.surface }]}>
+                <Text style={[s.modalTitle, { color: theme.textPrimary }]}>
+                  Set a budget
+                </Text>
+                <Text style={[s.modalSub, { color: theme.textSecondary }]}>
+                  {editing}
                 </Text>
                 <View
                   style={[
-                    styles.amountInputRow,
+                    s.inputRow,
                     {
-                      backgroundColor: isDark ? theme.surfaceSoft : "#F9F7FA",
+                      backgroundColor: isDark
+                        ? theme.surfaceSoft
+                        : theme.background,
                       borderColor: theme.border,
                     },
                   ]}
                 >
-                  <Text style={[styles.currencyPrefix, { color: theme.textPrimary }]}>₦</Text>
+                  <Text style={[s.naira, { color: theme.textPrimary }]}>₦</Text>
                   <TextInput
-                    style={[styles.budgetNumberInput, { color: theme.textPrimary }]}
+                    value={amount}
+                    onChangeText={setAmount}
                     keyboardType="numeric"
-                    value={customBudgetInput}
-                    onChangeText={setCustomBudgetInput}
-                    placeholder="Enter limit"
-                    placeholderTextColor={theme.textSecondary}
                     autoFocus
+                    placeholder="Amount"
+                    placeholderTextColor={theme.textSecondary}
+                    style={[s.input, { color: theme.textPrimary }]}
                   />
                 </View>
-
-                <View style={styles.modalButtonsRow}>
+                <View style={s.buttons}>
                   <TouchableOpacity
-                    style={[
-                      styles.cancelModalBtn,
-                      {
-                        backgroundColor: isDark ? theme.surfaceSoft : "#F3F0F4",
-                        borderColor: theme.border,
-                      },
-                    ]}
-                    onPress={() => setEditingCategory(null)}
+                    onPress={() => setEditing(null)}
+                    style={[s.cancel, { backgroundColor: theme.surfaceSoft }]}
                   >
-                    <Text style={[styles.cancelBtnText, { color: theme.textSecondary }]}>
+                    <Text
+                      style={[s.cancelText, { color: theme.textSecondary }]}
+                    >
                       Cancel
                     </Text>
                   </TouchableOpacity>
-
                   <TouchableOpacity
-                    style={[styles.saveModalBtn, { backgroundColor: theme.accent }]}
-                    onPress={handleSaveBudgetLimit}
+                    onPress={save}
+                    style={[s.save, { backgroundColor: theme.accent }]}
                   >
-                    <Text style={styles.saveBtnText}>Save Limit</Text>
+                    <Text style={s.saveText}>Save budget</Text>
                   </TouchableOpacity>
                 </View>
               </View>
@@ -456,252 +375,154 @@ export default function BudgetSpendingScreen() {
     </SafeAreaView>
   );
 }
-
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-  },
+const s = StyleSheet.create({
+  safe: { flex: 1 },
   header: {
-    height: 56,
+    height: 68,
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
-    paddingHorizontal: 16,
-    borderBottomWidth: 1,
+    paddingHorizontal: 20,
   },
-  backBtn: {
-    padding: 4,
-  },
-  headerTitle: {
-    fontSize: 18,
-    fontWeight: "700",
-  },
-  scrollContent: {
-    padding: 16,
-    paddingBottom: 80,
-  },
-  heroCard: {
-    borderRadius: 16,
-    padding: 16,
-    borderWidth: 1,
-    marginBottom: 12,
-  },
-  heroMetaLabel: {
-    fontSize: 10.5,
-    fontWeight: "700",
-    letterSpacing: 0.5,
-  },
-  heroAmountRow: {
-    flexDirection: "row",
-    alignItems: "baseline",
-    gap: 6,
-    marginTop: 4,
-    marginBottom: 10,
-  },
-  heroBigAmount: {
-    fontSize: 26,
-    fontWeight: "800",
-  },
-  heroBudgetCap: {
-    fontSize: 14,
-    fontWeight: "600",
-  },
-  overallProgressBarBg: {
-    height: 8,
-    borderRadius: 4,
-    width: "100%",
-    overflow: "hidden",
-    marginBottom: 8,
-  },
-  overallProgressBarFill: {
-    height: "100%",
-    borderRadius: 4,
-  },
-  heroFooterRow: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-  },
-  heroFooterText: {
-    fontSize: 11.5,
-    fontWeight: "500",
-  },
-  heroFooterRemaining: {
-    fontSize: 12,
-    fontWeight: "700",
-  },
-  philosophyPill: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 8,
-    paddingHorizontal: 12,
-    paddingVertical: 10,
-    borderRadius: 12,
-    borderWidth: 1,
-    marginBottom: 14,
-  },
-  philosophyText: {
-    fontSize: 11.5,
-    lineHeight: 16,
-    flex: 1,
-  },
-  categoryCard: {
+  back: {
+    height: 42,
+    width: 42,
     borderRadius: 14,
+    alignItems: "center",
+    justifyContent: "center",
     borderWidth: 1,
-    padding: 14,
   },
-  catHeaderRow: {
+  title: { fontSize: 22, fontWeight: "800", letterSpacing: -0.4 },
+  add: {
+    height: 42,
+    borderRadius: 12,
+    borderWidth: 1.5,
+    paddingHorizontal: 11,
+    flexDirection: "row",
+    gap: 5,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  addText: { fontSize: 12, fontWeight: "800" },
+  content: { padding: 20, paddingTop: 12, paddingBottom: 110 },
+  totalCard: { borderRadius: 25, padding: 21, borderWidth: 1 },
+  overline: { fontSize: 10.5, fontWeight: "800", letterSpacing: 1 },
+  amountRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "baseline",
+    marginTop: 17,
+  },
+  total: { fontSize: 31, fontWeight: "800", letterSpacing: -0.8 },
+  percent: { fontSize: 18, fontWeight: "800" },
+  spent: { fontSize: 13, marginTop: 5 },
+  track: { height: 8, borderRadius: 5, overflow: "hidden", marginTop: 19 },
+  fill: { height: "100%", borderRadius: 5 },
+  budgetStats: {
+    flexDirection: "row",
+    borderTopWidth: 1,
+    marginTop: 18,
+    paddingTop: 14,
+  },
+  budgetStat: { flex: 1 },
+  budgetStatLabel: { fontSize: 9.5, fontWeight: "800", letterSpacing: 0.8 },
+  budgetStatValue: { fontSize: 14, fontWeight: "800", marginTop: 5 },
+  aiHead: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
-    marginBottom: 10,
+    marginTop: 28,
+    marginBottom: 11,
+    paddingHorizontal: 3,
   },
-  catHeaderLeft: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 10,
-    flex: 1,
-    minWidth: 0,
-  },
-  catIconBox: {
-    width: 36,
-    height: 36,
+  aiHeading: { flexDirection: "row", alignItems: "center", gap: 6 },
+  aiHint: { fontSize: 10.5 },
+  recommendations: { gap: 10, paddingRight: 20 },
+  recommendation: { width: 207, borderRadius: 19, padding: 15 },
+  recName: { fontSize: 13, fontWeight: "800" },
+  recAmount: { fontSize: 19, fontWeight: "800", marginTop: 8 },
+  recCopy: { fontSize: 11, lineHeight: 15, marginTop: 3 },
+  useButton: {
+    height: 34,
     borderRadius: 10,
+    alignItems: "center",
     justifyContent: "center",
-    alignItems: "center",
-    flexShrink: 0,
+    marginTop: 14,
   },
-  catName: {
-    fontSize: 14,
-    fontWeight: "700",
-  },
-  catTxnCount: {
-    fontSize: 11,
-    marginTop: 1,
-  },
-  statusBadge: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 4,
-    paddingHorizontal: 8,
-    paddingVertical: 3,
-    borderRadius: 7,
-    flexShrink: 0,
-  },
-  statusDot: {
-    width: 5,
-    height: 5,
-    borderRadius: 2.5,
-  },
-  statusBadgeText: {
-    fontSize: 10,
-    fontWeight: "700",
-  },
-  catProgressBarBg: {
-    height: 6,
-    borderRadius: 3,
-    width: "100%",
-    overflow: "hidden",
-    marginBottom: 8,
-  },
-  catProgressBarFill: {
-    height: "100%",
-    borderRadius: 3,
-  },
-  catFooterRow: {
+  useText: { fontSize: 11.5, fontWeight: "800" },
+  sectionHead: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
+    marginTop: 28,
+    marginBottom: 11,
+    paddingHorizontal: 3,
   },
-  catSpentText: {
-    fontSize: 14,
-    fontWeight: "800",
-  },
-  catLimitText: {
-    fontSize: 12,
-    fontWeight: "500",
-  },
-
-  // Modals
-  modalOverlay: {
-    flex: 1,
-    backgroundColor: "rgba(0, 0, 0, 0.5)",
-    justifyContent: "center",
+  section: { fontSize: 11, fontWeight: "800", letterSpacing: 1 },
+  adjust: { fontSize: 12, fontWeight: "800" },
+  list: { borderRadius: 21, borderWidth: 1, paddingHorizontal: 15 },
+  row: {
+    flexDirection: "row",
     alignItems: "center",
+    gap: 11,
+    paddingVertical: 14,
+  },
+  icon: {
+    height: 42,
+    width: 42,
+    borderRadius: 14,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  rowTitle: { fontSize: 14, fontWeight: "800" },
+  rowSub: { fontSize: 11.5, marginTop: 3 },
+  rowTrack: { height: 4, borderRadius: 2, marginTop: 8, overflow: "hidden" },
+  rowFill: { height: "100%", borderRadius: 2 },
+  rowPercent: { fontSize: 12, fontWeight: "800" },
+  note: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 9,
+    borderRadius: 16,
+    padding: 14,
+    marginTop: 16,
+  },
+  noteText: { fontSize: 11.5, lineHeight: 16, flex: 1 },
+  overlay: {
+    flex: 1,
+    backgroundColor: "rgba(0,0,0,.42)",
+    justifyContent: "center",
     padding: 20,
   },
-  editBudgetModalCard: {
-    width: "100%",
-    maxWidth: 340,
-    borderRadius: 18,
+  modal: { borderRadius: 23, padding: 21 },
+  modalTitle: { fontSize: 18, fontWeight: "800" },
+  modalSub: { fontSize: 12, marginTop: 4 },
+  inputRow: {
+    height: 58,
+    borderRadius: 15,
     borderWidth: 1,
-    padding: 18,
-  },
-  modalHeaderRow: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    marginBottom: 14,
-  },
-  modalTitle: {
-    fontSize: 16,
-    fontWeight: "700",
-  },
-  modalSub: {
-    fontSize: 12,
-    marginTop: 2,
-  },
-  inputLabel: {
-    fontSize: 11.5,
-    fontWeight: "600",
-    marginBottom: 6,
-  },
-  amountInputRow: {
     flexDirection: "row",
     alignItems: "center",
-    borderWidth: 1,
-    borderRadius: 12,
-    paddingHorizontal: 12,
+    paddingHorizontal: 15,
+    marginTop: 20,
+  },
+  naira: { fontSize: 20, fontWeight: "800", marginRight: 7 },
+  input: { fontSize: 18, fontWeight: "800", height: "100%", flex: 1 },
+  buttons: { flexDirection: "row", gap: 10, marginTop: 16 },
+  cancel: {
     height: 48,
-    marginBottom: 16,
-  },
-  currencyPrefix: {
-    fontSize: 18,
-    fontWeight: "700",
-    marginRight: 6,
-  },
-  budgetNumberInput: {
-    flex: 1,
-    fontSize: 16,
-    fontWeight: "700",
-    height: "100%",
-  },
-  modalButtonsRow: {
-    flexDirection: "row",
-    gap: 10,
-  },
-  cancelModalBtn: {
-    flex: 1,
-    height: 44,
-    borderRadius: 12,
-    borderWidth: 1,
-    justifyContent: "center",
+    borderRadius: 14,
     alignItems: "center",
+    justifyContent: "center",
+    flex: 1,
   },
-  cancelBtnText: {
-    fontSize: 13,
-    fontWeight: "600",
-  },
-  saveModalBtn: {
+  cancelText: { fontSize: 13, fontWeight: "800" },
+  save: {
+    height: 48,
+    borderRadius: 14,
+    alignItems: "center",
+    justifyContent: "center",
     flex: 1.2,
-    height: 44,
-    borderRadius: 12,
-    justifyContent: "center",
-    alignItems: "center",
   },
-  saveBtnText: {
-    fontSize: 13,
-    fontWeight: "700",
-    color: "#FFFFFF",
-  },
+  saveText: { color: "#fff", fontSize: 13, fontWeight: "800" },
 });
