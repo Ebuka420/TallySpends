@@ -16,7 +16,10 @@ export default function RootLayout() {
 
   const topLevelGroup =
     segments && segments.length > 0 ? String(segments[0]) : "";
-  const showSmartCoach = topLevelGroup !== "auth";
+
+  // Do not show Smart Coach on Auth or Onboarding screens
+  const showSmartCoach =
+    topLevelGroup !== "auth" && topLevelGroup !== "onboarding";
 
   useEffect(() => {
     // Wait until Expo Router segments are populated
