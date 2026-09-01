@@ -327,7 +327,10 @@ export default function App() {
               ]}
             >
               {profileImage ? (
-                <Image source={{ uri: profileImage }} style={{ width: 40, height: 40, borderRadius: 20 }} />
+                <Image
+                  source={{ uri: profileImage }}
+                  style={{ width: 40, height: 40, borderRadius: 20 }}
+                />
               ) : (
                 <Ionicons name="person" size={20} color={theme.textPrimary} />
               )}
@@ -422,7 +425,9 @@ export default function App() {
                       fontWeight: "800",
                     }}
                   >
-                    {unreadNotificationCount > 9 ? "9+" : unreadNotificationCount}
+                    {unreadNotificationCount > 9
+                      ? "9+"
+                      : unreadNotificationCount}
                   </Text>
                 </View>
               )}
@@ -654,8 +659,8 @@ export default function App() {
                     themeMode === "dark"
                       ? theme.surface
                       : themePreference === "aurora"
-                      ? insight.tint
-                      : theme.surfaceSoft,
+                        ? insight.tint
+                        : theme.surfaceSoft,
                   borderWidth: themeMode === "dark" ? 1 : 0,
                   borderColor: theme.border,
                 },
@@ -666,7 +671,8 @@ export default function App() {
                 style={[
                   styles.insightIcon,
                   {
-                    backgroundColor: themeMode === "dark" ? theme.surfaceSoft : theme.surface,
+                    backgroundColor:
+                      themeMode === "dark" ? theme.surfaceSoft : theme.surface,
                   },
                 ]}
               >
@@ -677,8 +683,8 @@ export default function App() {
                     themeMode === "dark"
                       ? theme.accent
                       : themePreference === "aurora"
-                      ? insight.color
-                      : theme.accentSecondary
+                        ? insight.color
+                        : theme.accentSecondary
                   }
                 />
               </View>
@@ -811,7 +817,12 @@ export default function App() {
                     borderColor: theme.border,
                   },
                 ]}
-                onPress={() => router.push({ pathname: "/ajo-details", params: { groupId: card.ajoGroupId } })}
+                onPress={() =>
+                  router.push({
+                    pathname: "/ajo-details",
+                    params: { groupId: card.ajoGroupId },
+                  })
+                }
                 activeOpacity={0.84}
               >
                 <Image
