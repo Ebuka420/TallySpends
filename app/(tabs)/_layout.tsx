@@ -3,16 +3,23 @@ import { Ionicons } from "@expo/vector-icons";
 import { Tabs } from "expo-router";
 import React from "react";
 import {
+  Animated,
+  Dimensions,
   Pressable,
   StyleSheet,
-  View,
-  Dimensions,
-  Animated,
   Text,
+  View,
 } from "react-native";
 import { useAppStore } from "../../src/store";
 
-function CustomTabBar({ state, descriptors, navigation, themeMode, theme, tabBarAlpha }: any) {
+function CustomTabBar({
+  state,
+  descriptors,
+  navigation,
+  themeMode,
+  theme,
+  tabBarAlpha,
+}: any) {
   const slideAnim = React.useRef(new Animated.Value(state.index)).current;
 
   React.useEffect(() => {
@@ -35,16 +42,22 @@ function CustomTabBar({ state, descriptors, navigation, themeMode, theme, tabBar
   });
 
   return (
-    <View style={[styles.tabBarContainer, { width: containerWidth, borderColor: theme.border }]}>
+    <View
+      style={[
+        styles.tabBarContainer,
+        { width: containerWidth, borderColor: theme.border },
+      ]}
+    >
       {/* Background glass blur (fallback view when expo-blur isn't installed) */}
       <View style={StyleSheet.absoluteFill} />
       <View
         style={[
           styles.tabBarOverlay,
           {
-            backgroundColor: themeMode === "dark"
-              ? `rgba(26, 24, 29, ${Math.max(0.2, tabBarAlpha * 0.85)})`
-              : `rgba(255, 255, 255, ${Math.max(0.1, tabBarAlpha * 0.95)})`,
+            backgroundColor:
+              themeMode === "dark"
+                ? `rgba(26, 24, 29, ${Math.max(0.2, tabBarAlpha * 0.85)})`
+                : `rgba(255, 255, 255, ${Math.max(0.1, tabBarAlpha * 0.95)})`,
           },
         ]}
       />
@@ -56,12 +69,14 @@ function CustomTabBar({ state, descriptors, navigation, themeMode, theme, tabBar
           {
             width: tabWidth,
             transform: [{ translateX }],
-            backgroundColor: themeMode === "dark"
-              ? "rgba(255, 255, 255, 0.08)"
-              : "rgba(0, 0, 0, 0.05)",
-            borderColor: themeMode === "dark"
-              ? "rgba(255, 255, 255, 0.12)"
-              : "rgba(0, 0, 0, 0.08)",
+            backgroundColor:
+              themeMode === "dark"
+                ? "rgba(255, 255, 255, 0.08)"
+                : "rgba(0, 0, 0, 0.05)",
+            borderColor:
+              themeMode === "dark"
+                ? "rgba(255, 255, 255, 0.12)"
+                : "rgba(0, 0, 0, 0.08)",
           },
         ]}
       >
@@ -95,11 +110,18 @@ function CustomTabBar({ state, descriptors, navigation, themeMode, theme, tabBar
 
         // Determine icon name
         let iconName = "home-outline";
-        if (route.name === "index") iconName = isFocused ? "home" : "home-outline";
-        else if (route.name === "expenses") iconName = isFocused ? "document-text" : "document-text-outline";
-        else if (route.name === "budget") iconName = isFocused ? "pie-chart" : "pie-chart-outline";
-        else if (route.name === "analytics") iconName = isFocused ? "bar-chart" : "bar-chart-outline";
-        else if (route.name === "more") iconName = isFocused ? "ellipsis-horizontal" : "ellipsis-horizontal-outline";
+        if (route.name === "index")
+          iconName = isFocused ? "home" : "home-outline";
+        else if (route.name === "expenses")
+          iconName = isFocused ? "document-text" : "document-text-outline";
+        else if (route.name === "budget")
+          iconName = isFocused ? "wallet" : "wallet-outline";
+        else if (route.name === "analytics")
+          iconName = isFocused ? "bar-chart" : "bar-chart-outline";
+        else if (route.name === "more")
+          iconName = isFocused
+            ? "ellipsis-horizontal"
+            : "ellipsis-horizontal-outline";
 
         const label = options.title !== undefined ? options.title : route.name;
 

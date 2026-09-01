@@ -14,7 +14,8 @@ export default function RootLayout() {
   const hasPasscode = false;
   const isPasscodeVerified = false;
 
-  const topLevelGroup = segments && segments.length > 0 ? String(segments[0]) : "";
+  const topLevelGroup =
+    segments && segments.length > 0 ? String(segments[0]) : "";
   const showSmartCoach = topLevelGroup !== "auth";
 
   useEffect(() => {
@@ -25,15 +26,18 @@ export default function RootLayout() {
     const inAuthGroup = topLevelGroup === "auth";
     const inPasscodeScreen = topLevelGroup === "passcode";
     const inSetupGroup = topLevelGroup === "setup-profile";
+    const inOnboarding = topLevelGroup === "onboarding";
 
     const navigationTask = setTimeout(() => {
-      // 1. Unauthenticated user trying to access protected screens -> redirect to Auth
-      if (!isAuthenticated && !inAuthGroup && !inSetupGroup) {
+      // Unauthenticated users are allowed to remain on:
+      // Auth, Setup Profile, or Onboarding.
+      // Everything else requires authentication.
+      if (!isAuthenticated && !inAuthGroup && !inSetupGroup && !inOnboarding) {
         router.replace("/auth" as any);
         return;
       }
 
-      // 2. Authenticated user with active Passcode requirement
+      // Authenticated user with an active Passcode requirement
       if (
         isAuthenticated &&
         hasPasscode &&
@@ -44,11 +48,11 @@ export default function RootLayout() {
         return;
       }
 
-      // 3. Authenticated user sitting on Auth/Passcode screens -> redirect to Dashboard
-      if (
-        isAuthenticated &&
-        (inAuthGroup || (hasPasscode && isPasscodeVerified && inPasscodeScreen))
-      ) {
+      // Authenticated user sitting on the Auth screen
+      // should go to the Dashboard.
+      //
+      // Do NOT redirect the user away from Onboarding here.
+      if (isAuthenticated && inAuthGroup) {
         router.replace("/(tabs)" as any);
         return;
       }
