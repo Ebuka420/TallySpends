@@ -500,6 +500,8 @@ export function useAppStore() {
   const [profileAddress, setAddressState] = useState("");
   const [profileTallyTag, setTallyTagState] = useState("@EBUKA");
   const [loading, setLoading] = useState(true);
+  const [accessToken, setAccessTokenState] = useState<string | null>(null);
+  const [refreshToken, setRefreshTokenState] = useState<string | null>(null);
 
   const [themePreference, setThemePreferenceState] = useState<ThemeId>(
     globalThemePreference,
@@ -593,6 +595,13 @@ export function useAppStore() {
         TAB_BAR_OPACITY_STORAGE_KEY,
       );
 
+      const storedAccessToken = await AsyncStorage.getItem(
+        ACCESS_TOKEN_STORAGE_KEY,
+      );
+      const storedRefreshToken = await AsyncStorage.getItem(
+        REFRESH_TOKEN_STORAGE_KEY,
+      );
+
       const storedUsername = await AsyncStorage.getItem("ts_username");
 
       const storedCustomCategories = await AsyncStorage.getItem(
@@ -662,6 +671,9 @@ export function useAppStore() {
           setTabBarOpacityState(clampedOpacity);
         }
       }
+
+      setAccessTokenState(storedAccessToken ?? null);
+      setRefreshTokenState(storedRefreshToken ?? null);
 
       if (storedCustomCategories) {
         try {
@@ -774,10 +786,12 @@ export function useAppStore() {
       },
     ) => {
       if (accessToken) {
+        setAccessTokenState(accessToken);
         await AsyncStorage.setItem(ACCESS_TOKEN_STORAGE_KEY, accessToken);
       }
 
       if (refreshToken) {
+        setRefreshTokenState(refreshToken);
         await AsyncStorage.setItem(REFRESH_TOKEN_STORAGE_KEY, refreshToken);
       }
 
@@ -797,6 +811,9 @@ export function useAppStore() {
   );
 
   const logout = useCallback(async () => {
+    setAccessTokenState(null);
+    setRefreshTokenState(null);
+
     await AsyncStorage.multiRemove([
       ACCESS_TOKEN_STORAGE_KEY,
       REFRESH_TOKEN_STORAGE_KEY,
@@ -1232,6 +1249,8 @@ export function useAppStore() {
 
     loading,
     isAuthenticated,
+    token: accessToken,
+    refreshToken,
 
     themePreference,
     darkModePreference,

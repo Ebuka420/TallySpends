@@ -1,4 +1,5 @@
 import { Ionicons } from "@expo/vector-icons";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import * as Haptics from "expo-haptics";
 import * as ImagePicker from "expo-image-picker";
 import React, { useCallback, useState } from "react";
@@ -6,6 +7,7 @@ import {
   Alert,
   Dimensions,
   Image,
+  KeyboardAvoidingView,
   Modal,
   Platform,
   Pressable,
@@ -21,18 +23,17 @@ import Animated, {
   clamp,
   interpolate,
   runOnJS,
-  type SharedValue,
   useAnimatedStyle,
   useSharedValue,
   withSpring,
-  withTiming,
+  type SharedValue,
 } from "react-native-reanimated";
+import { useAppStore } from "../src/store";
+import { getThemePalette } from "../src/theme";
 import {
   parseReceiptText,
   type ParsedReceiptLineItem,
 } from "../src/utils/receiptParser";
-import { useAppStore } from "../src/store";
-import { getThemePalette } from "../src/theme";
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get("window");
 
@@ -120,11 +121,90 @@ export default function RadialFloatingBot() {
   const [scannedMerchant, setScannedMerchant] = useState("");
   const [scannedAmount, setScannedAmount] = useState("");
   const [scannedCategory, setScannedCategory] = useState("Food & Dining");
-  const [scannedDate, setScannedDate] = useState(new Date().toISOString().slice(0, 10));
+  const [scannedDate, setScannedDate] = useState(
+    new Date().toISOString().slice(0, 10),
+  );
   const [scannedItems, setScannedItems] = useState<ParsedReceiptLineItem[]>([]);
   const [isAnalyzingReceipt, setIsAnalyzingReceipt] = useState(false);
   const [ocrConfidence, setOcrConfidence] = useState<number | null>(null);
 
+  // Chat States and Backend Handler
+  const [chatMessages, setChatMessages] = useState<
+    Array<{ id: string; sender: "user" | "bot"; text: string }>
+  >([
+    {
+      id: "1",
+      sender: "bot",
+      text: "Hello! I am your AI financial coach. Ask me anything about your cashflow, budgets, and savings!",
+    },
+  ]);
+  const [chatInput, setChatInput] = useState("");
+  const [isChatLoading, setIsChatLoading] = useState(false);
+
+  const handleSendChatMessage = async () => {
+    if (!chatInput.trim() || isChatLoading) return;
+
+    const userMessageText = chatInput.trim();
+    const userMessageId = `msg-${Date.now()}`;
+
+    setChatMessages((prev) => [
+      ...prev,
+      { id: userMessageId, sender: "user", text: userMessageText },
+    ]);
+    setChatInput("");
+    setIsChatLoading(true);
+
+    try {
+      const token = await AsyncStorage.getItem("ts_access_token");
+      if (!token) {
+        throw new Error("Missing auth token");
+      }
+
+      const response = await fetch(
+        "https://tallyspendapi-production.up.railway.app/api/chat",
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${token}`,
+          },
+          body: JSON.stringify({ message: userMessageText }),
+        },
+      );
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error("❌ Backend Error Details:", errorText);
+        throw new Error(`Server status ${response.status}`);
+      }
+
+      const data = await response.json();
+
+      console.log("CHAT RESPONSE:", JSON.stringify(data, null, 2));
+
+      const botReplyText =
+        data.assistantMessage?.content || "I couldn't process that right now.";
+      setChatMessages((prev) => [
+        ...prev,
+        { id: `msg-${Date.now()}`, sender: "bot", text: botReplyText },
+      ]);
+    } catch (error) {
+      console.error("⚠️ Chat Error:", error);
+      setChatMessages((prev) => [
+        ...prev,
+        {
+          id: `msg-${Date.now()}`,
+          sender: "bot",
+          text: "⚠️ Sorry, I'm having trouble connecting to your financial backend right now.",
+        },
+      ]);
+    } finally {
+      setIsChatLoading(false);
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(
+        () => {},
+      );
+    }
+  };
   /* ================================================================
       SHARED VALUES (UI WORKLET THREAD)
   ================================================================= */
@@ -155,7 +235,9 @@ export default function RadialFloatingBot() {
   }, []);
 
   const playSuccessHaptic = useCallback(() => {
-    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
+    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(
+      () => {},
+    );
   }, []);
 
   const handleTriggerAction = useCallback((mode: ActionMode) => {
@@ -227,7 +309,7 @@ export default function RadialFloatingBot() {
       if (deg >= 245 && deg < 288) return 3; // Scan
       if (deg >= 288 && deg < 322) return 2; // Coach
       if (deg >= 322 && deg < 355) return 1; // Add
-      if (deg >= 355 || deg < 35) return 0;  // Calc
+      if (deg >= 355 || deg < 35) return 0; // Calc
     }
 
     return -1;
@@ -248,7 +330,10 @@ export default function RadialFloatingBot() {
         radialTouchX.value = event.translationX;
         radialTouchY.value = event.translationY;
 
-        const newHover = calculateHoveredItem(event.translationX, event.translationY);
+        const newHover = calculateHoveredItem(
+          event.translationX,
+          event.translationY,
+        );
         if (newHover !== hoveredIndex.value) {
           hoveredIndex.value = newHover;
           if (newHover !== -1) {
@@ -287,9 +372,13 @@ export default function RadialFloatingBot() {
           // Finished dragging -> Edge snap to left or right margin for clean docking
           const snapLeft = 20;
           const snapRight = SCREEN_WIDTH - BUTTON_SIZE - 20;
-          const targetSnapX = translationX.value < SCREEN_WIDTH / 2 ? snapLeft : snapRight;
+          const targetSnapX =
+            translationX.value < SCREEN_WIDTH / 2 ? snapLeft : snapRight;
 
-          translationX.value = withSpring(targetSnapX, { damping: 18, stiffness: 200 });
+          translationX.value = withSpring(targetSnapX, {
+            damping: 18,
+            stiffness: 200,
+          });
           runOnJS(playLightHaptic)();
         }
       }
@@ -341,7 +430,10 @@ export default function RadialFloatingBot() {
   const handleAddExpenseSubmit = () => {
     const parsed = parseFloat(expenseAmount);
     if (!expenseName.trim() || isNaN(parsed) || parsed <= 0) {
-      Alert.alert("Invalid Input", "Please enter a valid expense name and amount.");
+      Alert.alert(
+        "Invalid Input",
+        "Please enter a valid expense name and amount.",
+      );
       return;
     }
 
@@ -355,7 +447,10 @@ export default function RadialFloatingBot() {
     });
 
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-    Alert.alert("Expense Added", `₦${parsed.toLocaleString()} for "${expenseName.trim()}" saved.`);
+    Alert.alert(
+      "Expense Added",
+      `₦${parsed.toLocaleString()} for "${expenseName.trim()}" saved.`,
+    );
     setExpenseName("");
     setExpenseAmount("");
     setActiveModal(null);
@@ -404,7 +499,10 @@ export default function RadialFloatingBot() {
     }
   };
 
-  const processCapturedReceiptImage = async (uri: string, base64?: string | null) => {
+  const processCapturedReceiptImage = async (
+    uri: string,
+    base64?: string | null,
+  ) => {
     setScannedImageUri(uri);
     setIsAnalyzingReceipt(true);
     // Reset fields to clean initial state
@@ -475,7 +573,9 @@ export default function RadialFloatingBot() {
         setOcrConfidence(null);
       }
 
-      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(
+        () => {},
+      );
     } catch {
       // Fallback
     } finally {
@@ -485,9 +585,13 @@ export default function RadialFloatingBot() {
 
   const handleLaunchCamera = async () => {
     try {
-      const permissionResult = await ImagePicker.requestCameraPermissionsAsync();
+      const permissionResult =
+        await ImagePicker.requestCameraPermissionsAsync();
       if (!permissionResult.granted) {
-        Alert.alert("Permission Required", "Camera access is needed to capture receipt photos.");
+        Alert.alert(
+          "Permission Required",
+          "Camera access is needed to capture receipt photos.",
+        );
         return;
       }
 
@@ -498,7 +602,10 @@ export default function RadialFloatingBot() {
       });
 
       if (!result.canceled && result.assets?.[0]?.uri) {
-        await processCapturedReceiptImage(result.assets[0].uri, result.assets[0].base64);
+        await processCapturedReceiptImage(
+          result.assets[0].uri,
+          result.assets[0].base64,
+        );
       }
     } catch (e: any) {
       Alert.alert("Camera Error", e.message || "Could not open camera.");
@@ -507,9 +614,13 @@ export default function RadialFloatingBot() {
 
   const handlePickFromGallery = async () => {
     try {
-      const permissionResult = await ImagePicker.requestMediaLibraryPermissionsAsync();
+      const permissionResult =
+        await ImagePicker.requestMediaLibraryPermissionsAsync();
       if (!permissionResult.granted) {
-        Alert.alert("Permission Required", "Photo library access is needed to select receipts.");
+        Alert.alert(
+          "Permission Required",
+          "Photo library access is needed to select receipts.",
+        );
         return;
       }
 
@@ -521,7 +632,10 @@ export default function RadialFloatingBot() {
       });
 
       if (!result.canceled && result.assets?.[0]?.uri) {
-        await processCapturedReceiptImage(result.assets[0].uri, result.assets[0].base64);
+        await processCapturedReceiptImage(
+          result.assets[0].uri,
+          result.assets[0].base64,
+        );
       }
     } catch (e: any) {
       Alert.alert("Gallery Error", e.message || "Could not select image.");
@@ -583,7 +697,10 @@ export default function RadialFloatingBot() {
           <Pressable
             style={StyleSheet.absoluteFill}
             onPress={() => {
-              menuProgress.value = withSpring(0, { damping: 20, stiffness: 280 });
+              menuProgress.value = withSpring(0, {
+                damping: 20,
+                stiffness: 280,
+              });
               isMenuOpen.value = false;
               hoveredIndex.value = -1;
               setMenuActive(false);
@@ -609,7 +726,10 @@ export default function RadialFloatingBot() {
             theme={theme}
             isDark={isDark}
             onPress={() => {
-              menuProgress.value = withSpring(0, { damping: 20, stiffness: 280 });
+              menuProgress.value = withSpring(0, {
+                damping: 20,
+                stiffness: 280,
+              });
               isMenuOpen.value = false;
               hoveredIndex.value = -1;
               setMenuActive(false);
@@ -655,7 +775,9 @@ export default function RadialFloatingBot() {
             style={[styles.modalContent, { backgroundColor: theme.surface }]}
             onPress={(e) => e.stopPropagation()}
           >
-            <View style={[styles.modalHandle, { backgroundColor: theme.border }]} />
+            <View
+              style={[styles.modalHandle, { backgroundColor: theme.border }]}
+            />
 
             <View style={styles.modalHeader}>
               <Text style={[styles.modalTitle, { color: theme.textPrimary }]}>
@@ -697,7 +819,9 @@ export default function RadialFloatingBot() {
               onChangeText={setExpenseAmount}
             />
 
-            <Text style={[styles.inputLabelSmall, { color: theme.textSecondary }]}>
+            <Text
+              style={[styles.inputLabelSmall, { color: theme.textSecondary }]}
+            >
               Category
             </Text>
             <View style={styles.categoryPillsRow}>
@@ -713,8 +837,8 @@ export default function RadialFloatingBot() {
                         backgroundColor: isSelected
                           ? theme.accent
                           : isDark
-                          ? theme.surfaceSoft
-                          : "#F3EBF8",
+                            ? theme.surfaceSoft
+                            : "#F3EBF8",
                         borderColor: isSelected ? theme.accent : theme.border,
                       },
                     ]}
@@ -761,55 +885,148 @@ export default function RadialFloatingBot() {
           activeOpacity={1}
           onPress={() => setActiveModal(null)}
         >
-          <Pressable
-            style={[styles.modalContent, { backgroundColor: theme.surface }]}
-            onPress={(e) => e.stopPropagation()}
+          <KeyboardAvoidingView
+            behavior={Platform.OS === "ios" ? "padding" : "height"}
+            style={{
+              width: "100%",
+              alignItems: "center",
+              justifyContent: "flex-end",
+              flex: 1,
+            }}
           >
-            <View style={[styles.modalHandle, { backgroundColor: theme.border }]} />
-
-            <View style={styles.modalHeader}>
-              <Text style={[styles.modalTitle, { color: theme.textPrimary }]}>
-                ✨ Smart Coach
-              </Text>
-              <TouchableOpacity onPress={() => setActiveModal(null)}>
-                <Ionicons name="close" size={24} color={theme.textPrimary} />
-              </TouchableOpacity>
-            </View>
-
-            <View
+            <Pressable
               style={[
-                styles.chatBoxPlaceholder,
-                { backgroundColor: theme.background, borderColor: theme.border },
+                styles.modalContent,
+                {
+                  backgroundColor: theme.surface,
+                  height: "70%",
+                  width: "100%",
+                },
               ]}
+              onPress={(e) => e.stopPropagation()}
             >
-              <Text style={[styles.chatText, { color: theme.textPrimary }]}>
-                Hello! I am your AI financial coach. Ask me anything about your cashflow, budgets, and savings!
-              </Text>
-            </View>
+              <View
+                style={[styles.modalHandle, { backgroundColor: theme.border }]}
+              />
 
-            <View style={styles.chatInputRow}>
-              <TextInput
+              <View style={styles.modalHeader}>
+                <Text style={[styles.modalTitle, { color: theme.textPrimary }]}>
+                  ✨ Smart Coach
+                </Text>
+                <TouchableOpacity onPress={() => setActiveModal(null)}>
+                  <Ionicons name="close" size={24} color={theme.textPrimary} />
+                </TouchableOpacity>
+              </View>
+
+              {/* Dynamic Scrollable Chat Feed */}
+              <ScrollView
                 style={[
-                  styles.input,
+                  styles.chatBoxPlaceholder,
                   {
-                    flex: 1,
-                    marginBottom: 0,
                     backgroundColor: theme.background,
                     borderColor: theme.border,
-                    color: theme.textPrimary,
+                    flex: 1,
+                    padding: 12,
                   },
                 ]}
-                placeholder="Ask your Smart Coach..."
-                placeholderTextColor={theme.textSecondary}
-              />
-              <TouchableOpacity
-                style={[styles.sendBtn, { backgroundColor: theme.accent }]}
-                activeOpacity={0.85}
+                contentContainerStyle={{ paddingBottom: 16 }}
               >
-                <Ionicons name="paper-plane" size={19} color="#FFFFFF" />
-              </TouchableOpacity>
-            </View>
-          </Pressable>
+                {chatMessages.map((msg) => {
+                  const isUser = msg.sender === "user";
+                  return (
+                    <View
+                      key={msg.id}
+                      style={{
+                        alignSelf: isUser ? "flex-end" : "flex-start",
+                        backgroundColor: isUser
+                          ? theme.accent
+                          : theme.surfaceSoft || "#E5E5EA",
+                        borderRadius: 12,
+                        padding: 10,
+                        marginVertical: 4,
+                        maxWidth: "80%",
+                      }}
+                    >
+                      <Text
+                        style={{
+                          color: isUser ? "#FFFFFF" : theme.textPrimary,
+                          fontSize: 14,
+                        }}
+                      >
+                        {msg.text}
+                      </Text>
+                    </View>
+                  );
+                })}
+
+                {isChatLoading && (
+                  <View
+                    style={{
+                      alignSelf: "flex-start",
+                      backgroundColor: theme.surfaceSoft,
+                      borderRadius: 12,
+                      padding: 10,
+                      marginVertical: 4,
+                    }}
+                  >
+                    <Text
+                      style={{
+                        color: theme.textSecondary,
+                        fontStyle: "italic",
+                        fontSize: 13,
+                      }}
+                    >
+                      Smart Coach is typing...
+                    </Text>
+                  </View>
+                )}
+              </ScrollView>
+
+              {/* Interactive Input Row */}
+              <View
+                style={[
+                  styles.chatInputRow,
+                  {
+                    marginTop: 10,
+                    marginBottom: Platform.OS === "ios" ? 20 : 10,
+                  },
+                ]}
+              >
+                <TextInput
+                  style={[
+                    styles.input,
+                    {
+                      flex: 1,
+                      marginBottom: 0,
+                      backgroundColor: theme.background,
+                      borderColor: theme.border,
+                      color: theme.textPrimary,
+                    },
+                  ]}
+                  placeholder="Ask your Smart Coach..."
+                  placeholderTextColor={theme.textSecondary}
+                  value={chatInput}
+                  onChangeText={setChatInput}
+                  onSubmitEditing={handleSendChatMessage}
+                  returnKeyType="send"
+                />
+                <TouchableOpacity
+                  style={[
+                    styles.sendBtn,
+                    {
+                      backgroundColor: theme.accent,
+                      opacity: isChatLoading ? 0.6 : 1,
+                    },
+                  ]}
+                  activeOpacity={0.85}
+                  onPress={handleSendChatMessage}
+                  disabled={isChatLoading}
+                >
+                  <Ionicons name="paper-plane" size={19} color="#FFFFFF" />
+                </TouchableOpacity>
+              </View>
+            </Pressable>
+          </KeyboardAvoidingView>
         </TouchableOpacity>
       </Modal>
 
@@ -835,7 +1052,9 @@ export default function RadialFloatingBot() {
             ]}
             onPress={(e) => e.stopPropagation()}
           >
-            <View style={[styles.modalHandle, { backgroundColor: theme.border }]} />
+            <View
+              style={[styles.modalHandle, { backgroundColor: theme.border }]}
+            />
 
             <View style={styles.modalHeader}>
               <Text style={[styles.modalTitle, { color: theme.textPrimary }]}>
@@ -849,13 +1068,23 @@ export default function RadialFloatingBot() {
             <View
               style={[
                 styles.calculatorDisplay,
-                { backgroundColor: theme.background, borderColor: theme.border },
+                {
+                  backgroundColor: theme.background,
+                  borderColor: theme.border,
+                },
               ]}
             >
-              <Text style={[styles.calculatorExpression, { color: theme.textSecondary }]}>
+              <Text
+                style={[
+                  styles.calculatorExpression,
+                  { color: theme.textSecondary },
+                ]}
+              >
                 {calculatorExpression || "0"}
               </Text>
-              <Text style={[styles.calculatorResult, { color: theme.textPrimary }]}>
+              <Text
+                style={[styles.calculatorResult, { color: theme.textPrimary }]}
+              >
                 {calculatorResult}
               </Text>
             </View>
@@ -864,7 +1093,12 @@ export default function RadialFloatingBot() {
               {CALCULATOR_BUTTONS.map((row, rowIndex) =>
                 row.map((button, btnIndex) => {
                   if (!button) {
-                    return <View key={`${rowIndex}-${btnIndex}`} style={styles.calculatorButtonPlaceholder} />;
+                    return (
+                      <View
+                        key={`${rowIndex}-${btnIndex}`}
+                        style={styles.calculatorButtonPlaceholder}
+                      />
+                    );
                   }
                   const isOperator = ["÷", "×", "−", "+"].includes(button);
                   const isEquals = button === "=";
@@ -888,21 +1122,26 @@ export default function RadialFloatingBot() {
                           backgroundColor: isEquals
                             ? theme.accent
                             : isOperator || isClear || isBackspace
-                            ? theme.surfaceSoft
-                            : theme.background,
+                              ? theme.surfaceSoft
+                              : theme.background,
                           borderColor: theme.border,
                         },
                       ]}
                     >
                       {isBackspace ? (
-                        <Ionicons name="backspace-outline" size={20} color={theme.textPrimary} />
+                        <Ionicons
+                          name="backspace-outline"
+                          size={20}
+                          color={theme.textPrimary}
+                        />
                       ) : (
                         <Text
                           style={[
                             styles.calculatorButtonText,
                             {
                               color: isEquals ? "#FFFFFF" : theme.textPrimary,
-                              fontWeight: isEquals || isOperator ? "800" : "600",
+                              fontWeight:
+                                isEquals || isOperator ? "800" : "600",
                             },
                           ]}
                         >
@@ -933,10 +1172,16 @@ export default function RadialFloatingBot() {
           onPress={() => setActiveModal(null)}
         >
           <Pressable
-            style={[styles.modalContent, styles.scannerModalContent, { backgroundColor: theme.surface }]}
+            style={[
+              styles.modalContent,
+              styles.scannerModalContent,
+              { backgroundColor: theme.surface },
+            ]}
             onPress={(e) => e.stopPropagation()}
           >
-            <View style={[styles.modalHandle, { backgroundColor: theme.border }]} />
+            <View
+              style={[styles.modalHandle, { backgroundColor: theme.border }]}
+            />
 
             <View style={styles.modalHeader}>
               <Text style={[styles.modalTitle, { color: theme.textPrimary }]}>
@@ -953,28 +1198,71 @@ export default function RadialFloatingBot() {
             >
               {!scannedImageUri ? (
                 <View style={{ gap: 14, paddingVertical: 10 }}>
-                  <Text style={[styles.scannerIntroText, { color: theme.textSecondary }]}>
-                    Take a clear photo of your paper receipt. Our OCR engine automatically extracts merchant name, date, and amount.
+                  <Text
+                    style={[
+                      styles.scannerIntroText,
+                      { color: theme.textSecondary },
+                    ]}
+                  >
+                    Take a clear photo of your paper receipt. Our OCR engine
+                    automatically extracts merchant name, date, and amount.
                   </Text>
 
                   {/* Viewfinder Preview Container */}
                   <View
                     style={[
                       styles.viewfinderBox,
-                      { backgroundColor: isDark ? "#120B1A" : "#F6F1FB", borderColor: theme.accent },
+                      {
+                        backgroundColor: isDark ? "#120B1A" : "#F6F1FB",
+                        borderColor: theme.accent,
+                      },
                     ]}
                   >
-                    <View style={[styles.viewfinderCornerTL, { borderColor: theme.accent }]} />
-                    <View style={[styles.viewfinderCornerTR, { borderColor: theme.accent }]} />
-                    <View style={[styles.viewfinderCornerBL, { borderColor: theme.accent }]} />
-                    <View style={[styles.viewfinderCornerBR, { borderColor: theme.accent }]} />
+                    <View
+                      style={[
+                        styles.viewfinderCornerTL,
+                        { borderColor: theme.accent },
+                      ]}
+                    />
+                    <View
+                      style={[
+                        styles.viewfinderCornerTR,
+                        { borderColor: theme.accent },
+                      ]}
+                    />
+                    <View
+                      style={[
+                        styles.viewfinderCornerBL,
+                        { borderColor: theme.accent },
+                      ]}
+                    />
+                    <View
+                      style={[
+                        styles.viewfinderCornerBR,
+                        { borderColor: theme.accent },
+                      ]}
+                    />
 
                     <View style={styles.viewfinderContent}>
-                      <Ionicons name="scan-outline" size={48} color={theme.accent} />
-                      <Text style={[styles.viewfinderTip, { color: theme.textPrimary }]}>
+                      <Ionicons
+                        name="scan-outline"
+                        size={48}
+                        color={theme.accent}
+                      />
+                      <Text
+                        style={[
+                          styles.viewfinderTip,
+                          { color: theme.textPrimary },
+                        ]}
+                      >
                         Align receipt inside frame
                       </Text>
-                      <Text style={[styles.viewfinderSubTip, { color: theme.textSecondary }]}>
+                      <Text
+                        style={[
+                          styles.viewfinderSubTip,
+                          { color: theme.textSecondary },
+                        ]}
+                      >
                         Ensure good lighting & flat corners
                       </Text>
                     </View>
@@ -991,18 +1279,37 @@ export default function RadialFloatingBot() {
                     onPress={handleLaunchCamera}
                     activeOpacity={0.85}
                   >
-                    <View style={[styles.captureOptionIconBox, { backgroundColor: theme.accent }]}>
+                    <View
+                      style={[
+                        styles.captureOptionIconBox,
+                        { backgroundColor: theme.accent },
+                      ]}
+                    >
                       <Ionicons name="camera" size={24} color="#FFFFFF" />
                     </View>
                     <View style={styles.captureOptionInfo}>
-                      <Text style={[styles.captureOptionTitle, { color: theme.textPrimary }]}>
+                      <Text
+                        style={[
+                          styles.captureOptionTitle,
+                          { color: theme.textPrimary },
+                        ]}
+                      >
                         Take Photo with Camera
                       </Text>
-                      <Text style={[styles.captureOptionSub, { color: theme.textSecondary }]}>
+                      <Text
+                        style={[
+                          styles.captureOptionSub,
+                          { color: theme.textSecondary },
+                        ]}
+                      >
                         High-res optical capture & auto-crop
                       </Text>
                     </View>
-                    <Ionicons name="chevron-forward" size={20} color={theme.textSecondary} />
+                    <Ionicons
+                      name="chevron-forward"
+                      size={20}
+                      color={theme.textSecondary}
+                    />
                   </TouchableOpacity>
 
                   <TouchableOpacity
@@ -1019,31 +1326,72 @@ export default function RadialFloatingBot() {
                     <View
                       style={[
                         styles.captureOptionIconBox,
-                        { backgroundColor: isDark ? theme.background : "#EDE7F3" },
+                        {
+                          backgroundColor: isDark
+                            ? theme.background
+                            : "#EDE7F3",
+                        },
                       ]}
                     >
                       <Ionicons name="images" size={22} color={theme.accent} />
                     </View>
                     <View style={styles.captureOptionInfo}>
-                      <Text style={[styles.captureOptionTitle, { color: theme.textPrimary }]}>
+                      <Text
+                        style={[
+                          styles.captureOptionTitle,
+                          { color: theme.textPrimary },
+                        ]}
+                      >
                         Upload from Photo Library
                       </Text>
-                      <Text style={[styles.captureOptionSub, { color: theme.textSecondary }]}>
+                      <Text
+                        style={[
+                          styles.captureOptionSub,
+                          { color: theme.textSecondary },
+                        ]}
+                      >
                         Select stored invoice, e-bill or screenshot
                       </Text>
                     </View>
-                    <Ionicons name="chevron-forward" size={20} color={theme.textSecondary} />
+                    <Ionicons
+                      name="chevron-forward"
+                      size={20}
+                      color={theme.textSecondary}
+                    />
                   </TouchableOpacity>
                 </View>
               ) : isAnalyzingReceipt ? (
-                <View style={[styles.analyzingCard, { backgroundColor: theme.background, borderColor: theme.border }]}>
-                  <View style={[styles.analyzingIconBox, { backgroundColor: theme.accent }]}>
+                <View
+                  style={[
+                    styles.analyzingCard,
+                    {
+                      backgroundColor: theme.background,
+                      borderColor: theme.border,
+                    },
+                  ]}
+                >
+                  <View
+                    style={[
+                      styles.analyzingIconBox,
+                      { backgroundColor: theme.accent },
+                    ]}
+                  >
                     <Ionicons name="sparkles" size={28} color="#FFFFFF" />
                   </View>
-                  <Text style={[styles.analyzingTitle, { color: theme.textPrimary }]}>
+                  <Text
+                    style={[
+                      styles.analyzingTitle,
+                      { color: theme.textPrimary },
+                    ]}
+                  >
                     Analyzing Receipt OCR...
                   </Text>
-                  <Text style={[styles.analyzingSub, { color: theme.textSecondary }]}>
+                  <Text
+                    style={[
+                      styles.analyzingSub,
+                      { color: theme.textSecondary },
+                    ]}
+                  >
                     Detecting merchant, dates, taxes, and total payable amount
                   </Text>
                 </View>
@@ -1053,7 +1401,10 @@ export default function RadialFloatingBot() {
                   <View
                     style={[
                       styles.capturedImageContainer,
-                      { backgroundColor: theme.background, borderColor: theme.border },
+                      {
+                        backgroundColor: theme.background,
+                        borderColor: theme.border,
+                      },
                     ]}
                   >
                     <Image
@@ -1062,7 +1413,10 @@ export default function RadialFloatingBot() {
                       resizeMode="cover"
                     />
                     <TouchableOpacity
-                      style={[styles.retakeFloatingBadge, { backgroundColor: "rgba(0,0,0,0.75)" }]}
+                      style={[
+                        styles.retakeFloatingBadge,
+                        { backgroundColor: "rgba(0,0,0,0.75)" },
+                      ]}
                       onPress={() => {
                         setScannedImageUri(null);
                         setScannedMerchant("");
@@ -1087,14 +1441,19 @@ export default function RadialFloatingBot() {
                         },
                       ]}
                     >
-                      <Ionicons name="checkmark-circle" size={16} color={isDark ? "#4ADE80" : "#16A34A"} />
+                      <Ionicons
+                        name="checkmark-circle"
+                        size={16}
+                        color={isDark ? "#4ADE80" : "#16A34A"}
+                      />
                       <Text
                         style={[
                           styles.ocrConfidenceText,
                           { color: isDark ? "#86EFAC" : "#15803D" },
                         ]}
                       >
-                        AI Verified ({Math.round(ocrConfidence * 100)}% match) • Tap any field to edit
+                        AI Verified ({Math.round(ocrConfidence * 100)}% match) •
+                        Tap any field to edit
                       </Text>
                     </View>
                   ) : (
@@ -1102,12 +1461,18 @@ export default function RadialFloatingBot() {
                       style={[
                         styles.ocrConfidenceBanner,
                         {
-                          backgroundColor: isDark ? theme.surfaceSoft : "#F4EFF9",
+                          backgroundColor: isDark
+                            ? theme.surfaceSoft
+                            : "#F4EFF9",
                           borderColor: theme.border,
                         },
                       ]}
                     >
-                      <Ionicons name="document-text-outline" size={16} color={theme.accent} />
+                      <Ionicons
+                        name="document-text-outline"
+                        size={16}
+                        color={theme.accent}
+                      />
                       <Text
                         style={[
                           styles.ocrConfidenceText,
@@ -1121,7 +1486,12 @@ export default function RadialFloatingBot() {
 
                   {/* Form Inputs */}
                   <View>
-                    <Text style={[styles.inputLabelSmall, { color: theme.textSecondary }]}>
+                    <Text
+                      style={[
+                        styles.inputLabelSmall,
+                        { color: theme.textSecondary },
+                      ]}
+                    >
                       Merchant / Store Name
                     </Text>
                     <TextInput
@@ -1141,7 +1511,12 @@ export default function RadialFloatingBot() {
                   </View>
 
                   <View>
-                    <Text style={[styles.inputLabelSmall, { color: theme.textSecondary }]}>
+                    <Text
+                      style={[
+                        styles.inputLabelSmall,
+                        { color: theme.textSecondary },
+                      ]}
+                    >
                       Total Amount (₦)
                     </Text>
                     <TextInput
@@ -1164,7 +1539,12 @@ export default function RadialFloatingBot() {
                   </View>
 
                   <View>
-                    <Text style={[styles.inputLabelSmall, { color: theme.textSecondary }]}>
+                    <Text
+                      style={[
+                        styles.inputLabelSmall,
+                        { color: theme.textSecondary },
+                      ]}
+                    >
                       Transaction Date
                     </Text>
                     <TextInput
@@ -1183,7 +1563,12 @@ export default function RadialFloatingBot() {
                     />
                   </View>
 
-                  <Text style={[styles.inputLabelSmall, { color: theme.textSecondary }]}>
+                  <Text
+                    style={[
+                      styles.inputLabelSmall,
+                      { color: theme.textSecondary },
+                    ]}
+                  >
                     Category
                   </Text>
                   <View style={styles.categoryPillsRow}>
@@ -1199,9 +1584,11 @@ export default function RadialFloatingBot() {
                               backgroundColor: isSelected
                                 ? theme.accent
                                 : isDark
-                                ? theme.surfaceSoft
-                                : "#F3EBF8",
-                              borderColor: isSelected ? theme.accent : theme.border,
+                                  ? theme.surfaceSoft
+                                  : "#F3EBF8",
+                              borderColor: isSelected
+                                ? theme.accent
+                                : theme.border,
                             },
                           ]}
                         >
@@ -1209,7 +1596,9 @@ export default function RadialFloatingBot() {
                             style={[
                               styles.categoryPillText,
                               {
-                                color: isSelected ? "#FFFFFF" : theme.textPrimary,
+                                color: isSelected
+                                  ? "#FFFFFF"
+                                  : theme.textPrimary,
                                 fontWeight: isSelected ? "700" : "500",
                               },
                             ]}
@@ -1226,18 +1615,37 @@ export default function RadialFloatingBot() {
                     <View
                       style={[
                         styles.itemizedBox,
-                        { backgroundColor: theme.background, borderColor: theme.border },
+                        {
+                          backgroundColor: theme.background,
+                          borderColor: theme.border,
+                        },
                       ]}
                     >
-                      <Text style={[styles.itemizedHeaderTitle, { color: theme.textPrimary }]}>
+                      <Text
+                        style={[
+                          styles.itemizedHeaderTitle,
+                          { color: theme.textPrimary },
+                        ]}
+                      >
                         Itemized Breakdown ({scannedItems.length} items)
                       </Text>
                       {scannedItems.map((item, i) => (
                         <View key={i} style={styles.itemizedRow}>
-                          <Text style={[styles.itemizedName, { color: theme.textPrimary }]}>
-                            {item.quantity ? `${item.quantity}x ` : ""}{item.name}
+                          <Text
+                            style={[
+                              styles.itemizedName,
+                              { color: theme.textPrimary },
+                            ]}
+                          >
+                            {item.quantity ? `${item.quantity}x ` : ""}
+                            {item.name}
                           </Text>
-                          <Text style={[styles.itemizedPrice, { color: theme.accent }]}>
+                          <Text
+                            style={[
+                              styles.itemizedPrice,
+                              { color: theme.accent },
+                            ]}
+                          >
                             ₦{item.price.toLocaleString()}
                           </Text>
                         </View>
@@ -1246,12 +1654,21 @@ export default function RadialFloatingBot() {
                   )}
 
                   <TouchableOpacity
-                    style={[styles.submitBtn, { backgroundColor: theme.accent }]}
+                    style={[
+                      styles.submitBtn,
+                      { backgroundColor: theme.accent },
+                    ]}
                     onPress={handleSaveScannedReceipt}
                     activeOpacity={0.85}
                   >
-                    <Ionicons name="checkmark-circle-outline" size={20} color="#FFFFFF" />
-                    <Text style={styles.submitBtnText}>Save Receipt to Expenses</Text>
+                    <Ionicons
+                      name="checkmark-circle-outline"
+                      size={20}
+                      color="#FFFFFF"
+                    />
+                    <Text style={styles.submitBtnText}>
+                      Save Receipt to Expenses
+                    </Text>
                   </TouchableOpacity>
                 </View>
               )}
