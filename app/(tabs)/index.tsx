@@ -952,7 +952,12 @@ export default function App() {
                     borderColor: theme.border,
                   },
                 ]}
-                onPress={() => router.push({ pathname: "/joint-savings-details", params: { id: card.id } } as any)}
+                onPress={() =>
+                  router.push({
+                    pathname: "/joint-savings-details",
+                    params: { id: card.id },
+                  } as any)
+                }
                 activeOpacity={0.84}
               >
                 <Image
