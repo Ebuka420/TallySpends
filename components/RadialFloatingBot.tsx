@@ -4,35 +4,35 @@ import * as Haptics from "expo-haptics";
 import * as ImagePicker from "expo-image-picker";
 import React, { useCallback, useState } from "react";
 import {
-  Alert,
-  Dimensions,
-  Image,
-  KeyboardAvoidingView,
-  Modal,
-  Platform,
-  Pressable,
-  ScrollView,
-  StyleSheet,
-  Text,
-  TextInput,
-  TouchableOpacity,
-  View,
+    Alert,
+    Dimensions,
+    Image,
+    KeyboardAvoidingView,
+    Modal,
+    Platform,
+    Pressable,
+    ScrollView,
+    StyleSheet,
+    Text,
+    TextInput,
+    TouchableOpacity,
+    View,
 } from "react-native";
 import { Gesture, GestureDetector } from "react-native-gesture-handler";
 import Animated, {
-  clamp,
-  interpolate,
-  runOnJS,
-  useAnimatedStyle,
-  useSharedValue,
-  withSpring,
-  type SharedValue,
+    clamp,
+    interpolate,
+    runOnJS,
+    useAnimatedStyle,
+    useSharedValue,
+    withSpring,
+    type SharedValue,
 } from "react-native-reanimated";
 import { useAppStore } from "../src/store";
 import { getThemePalette } from "../src/theme";
 import {
-  parseReceiptText,
-  type ParsedReceiptLineItem,
+    parseReceiptText,
+    type ParsedReceiptLineItem,
 } from "../src/utils/receiptParser";
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get("window");
@@ -771,103 +771,108 @@ export default function RadialFloatingBot() {
           activeOpacity={1}
           onPress={() => setActiveModal(null)}
         >
-          <Pressable
-            style={[styles.modalContent, { backgroundColor: theme.surface }]}
-            onPress={(e) => e.stopPropagation()}
+          <KeyboardAvoidingView
+            behavior={Platform.OS === "ios" ? "padding" : "height"}
+            style={styles.modalKeyboardContainer}
           >
-            <View
-              style={[styles.modalHandle, { backgroundColor: theme.border }]}
-            />
-
-            <View style={styles.modalHeader}>
-              <Text style={[styles.modalTitle, { color: theme.textPrimary }]}>
-                Quick Add Expense
-              </Text>
-              <TouchableOpacity onPress={() => setActiveModal(null)}>
-                <Ionicons name="close" size={24} color={theme.textPrimary} />
-              </TouchableOpacity>
-            </View>
-
-            <TextInput
-              style={[
-                styles.input,
-                {
-                  backgroundColor: theme.background,
-                  borderColor: theme.border,
-                  color: theme.textPrimary,
-                },
-              ]}
-              placeholder="Expense Name (e.g. Lunch with team)"
-              placeholderTextColor={theme.textSecondary}
-              value={expenseName}
-              onChangeText={setExpenseName}
-            />
-
-            <TextInput
-              style={[
-                styles.input,
-                {
-                  backgroundColor: theme.background,
-                  borderColor: theme.border,
-                  color: theme.textPrimary,
-                },
-              ]}
-              placeholder="Amount (₦)"
-              placeholderTextColor={theme.textSecondary}
-              keyboardType="decimal-pad"
-              value={expenseAmount}
-              onChangeText={setExpenseAmount}
-            />
-
-            <Text
-              style={[styles.inputLabelSmall, { color: theme.textSecondary }]}
+            <Pressable
+              style={[styles.modalContent, { backgroundColor: theme.surface }]}
+              onPress={(e) => e.stopPropagation()}
             >
-              Category
-            </Text>
-            <View style={styles.categoryPillsRow}>
-              {CATEGORY_OPTIONS.map((cat) => {
-                const isSelected = expenseCategory === cat;
-                return (
-                  <TouchableOpacity
-                    key={cat}
-                    onPress={() => setExpenseCategory(cat)}
-                    style={[
-                      styles.categoryPill,
-                      {
-                        backgroundColor: isSelected
-                          ? theme.accent
-                          : isDark
-                            ? theme.surfaceSoft
-                            : "#F3EBF8",
-                        borderColor: isSelected ? theme.accent : theme.border,
-                      },
-                    ]}
-                  >
-                    <Text
+              <View
+                style={[styles.modalHandle, { backgroundColor: theme.border }]}
+              />
+
+              <View style={styles.modalHeader}>
+                <Text style={[styles.modalTitle, { color: theme.textPrimary }]}>
+                  Quick Add Expense
+                </Text>
+                <TouchableOpacity onPress={() => setActiveModal(null)}>
+                  <Ionicons name="close" size={24} color={theme.textPrimary} />
+                </TouchableOpacity>
+              </View>
+
+              <TextInput
+                style={[
+                  styles.input,
+                  {
+                    backgroundColor: theme.background,
+                    borderColor: theme.border,
+                    color: theme.textPrimary,
+                  },
+                ]}
+                placeholder="Expense Name (e.g. Lunch with team)"
+                placeholderTextColor={theme.textSecondary}
+                value={expenseName}
+                onChangeText={setExpenseName}
+              />
+
+              <TextInput
+                style={[
+                  styles.input,
+                  {
+                    backgroundColor: theme.background,
+                    borderColor: theme.border,
+                    color: theme.textPrimary,
+                  },
+                ]}
+                placeholder="Amount (₦)"
+                placeholderTextColor={theme.textSecondary}
+                keyboardType="decimal-pad"
+                value={expenseAmount}
+                onChangeText={setExpenseAmount}
+              />
+
+              <Text
+                style={[styles.inputLabelSmall, { color: theme.textSecondary }]}
+              >
+                Category
+              </Text>
+              <View style={styles.categoryPillsRow}>
+                {CATEGORY_OPTIONS.map((cat) => {
+                  const isSelected = expenseCategory === cat;
+                  return (
+                    <TouchableOpacity
+                      key={cat}
+                      onPress={() => setExpenseCategory(cat)}
                       style={[
-                        styles.categoryPillText,
+                        styles.categoryPill,
                         {
-                          color: isSelected ? "#FFFFFF" : theme.textPrimary,
-                          fontWeight: isSelected ? "700" : "500",
+                          backgroundColor: isSelected
+                            ? theme.accent
+                            : isDark
+                              ? theme.surfaceSoft
+                              : "#F3EBF8",
+                          borderColor: isSelected ? theme.accent : theme.border,
                         },
                       ]}
                     >
-                      {cat}
-                    </Text>
-                  </TouchableOpacity>
-                );
-              })}
-            </View>
+                      <Text
+                        style={[
+                          styles.categoryPillText,
+                          {
+                            color: isSelected ? "#FFFFFF" : theme.textPrimary,
+                            fontWeight: isSelected ? "700" : "500",
+                          },
+                        ]}
+                      >
+                        {cat}
+                      </Text>
+                    </TouchableOpacity>
+                  );
+                })}
+              </View>
 
-            <TouchableOpacity
-              style={[styles.submitBtn, { backgroundColor: theme.accent }]}
-              onPress={handleAddExpenseSubmit}
-              activeOpacity={0.85}
-            >
-              <Text style={styles.submitBtnText}>Save Expense</Text>
-              <Ionicons name="arrow-forward" size={18} color="#FFFFFF" />
-            </TouchableOpacity>
-          </Pressable>
+              <TouchableOpacity
+                style={[styles.submitBtn, { backgroundColor: theme.accent }]}
+                onPress={handleAddExpenseSubmit}
+                activeOpacity={0.85}
+              >
+                <Text style={styles.submitBtnText}>Save Expense</Text>
+                <Ionicons name="arrow-forward" size={18} color="#FFFFFF" />
+              </TouchableOpacity>
+            </Pressable>
+          </KeyboardAvoidingView>
         </TouchableOpacity>
       </Modal>
 
@@ -1841,6 +1846,11 @@ const styles = StyleSheet.create({
   modalOverlay: {
     flex: 1,
     backgroundColor: "rgba(0, 0, 0, 0.55)",
+    justifyContent: "flex-end",
+  },
+  modalKeyboardContainer: {
+    flex: 1,
+    width: "100%",
     justifyContent: "flex-end",
   },
   modalContent: {
