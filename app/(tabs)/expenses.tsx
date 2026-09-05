@@ -78,7 +78,11 @@ type ChartStyle = "line" | "area";
 export default function ExpensesScreen() {
   const router = useRouter();
 
-  const { transactions: rawTransactions = [], themePreference, themeMode } = useAppStore();
+  const {
+    transactions: rawTransactions = [],
+    themePreference,
+    themeMode,
+  } = useAppStore();
 
   const theme = getThemePalette(themePreference, themeMode);
 
@@ -257,12 +261,17 @@ export default function ExpensesScreen() {
           year: "numeric",
         });
 
-  const onDateChange = (_event: DateTimePickerEvent, selected?: Date) => {
-    setShowCalendar(Platform.OS === "ios");
+  const onDateChange = (event: DateTimePickerEvent, selected?: Date) => {
+    if (event.type === "dismissed") {
+      setShowCalendar(false);
+      return;
+    }
 
     if (selected) {
       setDate(selected);
     }
+
+    setShowCalendar(false);
   };
 
   const chartStyles: ChartStyle[] = ["line", "area"];
@@ -867,6 +876,17 @@ export default function ExpensesScreen() {
             },
           ]}
         >
+          <View style={styles.pickerHeader}>
+            <Text style={[styles.pickerTitle, { color: theme.textPrimary }]}>
+              Pick a date
+            </Text>
+            <TouchableOpacity onPress={() => setShowCalendar(false)}>
+              <Text style={[styles.pickerDoneText, { color: theme.accent }]}>
+                Done
+              </Text>
+            </TouchableOpacity>
+          </View>
+
           <DateTimePicker
             value={date}
             mode="date"
@@ -1321,6 +1341,25 @@ const styles = StyleSheet.create({
     borderTopWidth: 1,
     justifyContent: "center",
     paddingVertical: 8,
+  },
+
+  pickerHeader: {
+    alignItems: "center",
+    flexDirection: "row",
+    justifyContent: "space-between",
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    width: "100%",
+  },
+
+  pickerTitle: {
+    fontSize: 14,
+    fontWeight: "700",
+  },
+
+  pickerDoneText: {
+    fontSize: 14,
+    fontWeight: "700",
   },
 
   modal: {

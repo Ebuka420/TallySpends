@@ -4,6 +4,7 @@ import * as Haptics from "expo-haptics";
 import * as ImagePicker from "expo-image-picker";
 import React, { useCallback, useState } from "react";
 import {
+import {
   Alert,
   Dimensions,
   Image,
@@ -21,19 +22,19 @@ import {
 } from "react-native";
 import { Gesture, GestureDetector } from "react-native-gesture-handler";
 import Animated, {
-  clamp,
-  interpolate,
-  runOnJS,
-  useAnimatedStyle,
-  useSharedValue,
-  withSpring,
-  type SharedValue,
+    clamp,
+    interpolate,
+    runOnJS,
+    useAnimatedStyle,
+    useSharedValue,
+    withSpring,
+    type SharedValue,
 } from "react-native-reanimated";
 import { useAppStore } from "../src/store";
 import { getThemePalette } from "../src/theme";
 import {
-  parseReceiptText,
-  type ParsedReceiptLineItem,
+    parseReceiptText,
+    type ParsedReceiptLineItem,
 } from "../src/utils/receiptParser";
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get("window");
@@ -1870,6 +1871,11 @@ const styles = StyleSheet.create({
   modalOverlay: {
     flex: 1,
     backgroundColor: "rgba(0, 0, 0, 0.55)",
+    justifyContent: "flex-end",
+  },
+  modalKeyboardContainer: {
+    flex: 1,
+    width: "100%",
     justifyContent: "flex-end",
   },
   modalContent: {
