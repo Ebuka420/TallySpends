@@ -55,7 +55,8 @@
       "expo-web-browser",
       "expo-image",
       "expo-sharing",
-      "expo-status-bar"
+      "expo-status-bar",
+      "expo-notifications"
     ],
     "experiments": {
       "typedRoutes": true,
