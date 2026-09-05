@@ -4,7 +4,6 @@ import * as Haptics from "expo-haptics";
 import * as ImagePicker from "expo-image-picker";
 import React, { useCallback, useState } from "react";
 import {
-import {
   Alert,
   Dimensions,
   Image,
