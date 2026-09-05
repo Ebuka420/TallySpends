@@ -515,7 +515,7 @@ export function useAppStore() {
 
   const themeMode: ThemeMode =
     darkModePreference === "system"
-      ? (systemColorScheme ?? "light")
+      ? (systemColorScheme === "dark" ? "dark" : "light")
       : darkModePreference;
 
   const theme: ThemePalette = getThemePalette(themePreference, themeMode);

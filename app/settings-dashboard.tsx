@@ -218,7 +218,7 @@ const getStyles = (theme: any) =>
     previewScreen: { borderRadius: 14, overflow: "hidden", backgroundColor: theme.surfaceSoft, borderWidth: 1, borderColor: theme.border },
     previewContent: { height: 96, backgroundColor: theme.surfaceSoft },
     previewTabBar: { height: 50, flexDirection: "row", alignItems: "center", justifyContent: "space-around", paddingHorizontal: 10, backgroundColor: "transparent", borderTopWidth: 1, borderTopColor: `rgba(0,0,0,0.06)` },
-    previewTabBarOverlay: { ...StyleSheet.absoluteFillObject, borderRadius: 0 },
+    previewTabBarOverlay: { ...StyleSheet.absoluteFill, borderRadius: 0 },
     previewTab: { width: 32, height: 32, borderRadius: 11, alignItems: "center", justifyContent: "center", backgroundColor: "rgba(255,255,255,0.24)" },
     previewTabActive: { backgroundColor: theme.accent, shadowColor: theme.accent, shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.2, shadowRadius: 8, elevation: 3 },
     cardTextWrap: { flex: 1 },

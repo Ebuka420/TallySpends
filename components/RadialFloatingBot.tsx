@@ -1795,7 +1795,7 @@ function RadialItemView({
 
 const styles = StyleSheet.create({
   backdrop: {
-    ...StyleSheet.absoluteFillObject,
+    ...StyleSheet.absoluteFill,
     zIndex: 9990,
   },
   anchorContainer: {
