@@ -10,8 +10,15 @@ import {
   View,
 } from "react-native";
 
+import TransactionReceiptModal from "../../components/TransactionReceiptModal";
 import { MOCK_RECIPIENTS, useAppStore } from "../../src/store";
 import { getThemePalette } from "../../src/theme";
+
+const INSIGHT_CARD_WIDTH = 306;
+const GROUP_CARD_WIDTH = 260;
+const CAROUSEL_GAP = 12;
+const INSIGHT_SNAP = INSIGHT_CARD_WIDTH + CAROUSEL_GAP;
+const GROUP_SNAP = GROUP_CARD_WIDTH + CAROUSEL_GAP;
 
 const normalizeTransferTitle = (title: string) => {
   const transferRegex = /(Transfer to\s+)@([a-zA-Z0-9_]+)/i;
@@ -212,10 +219,15 @@ export default function App() {
   const [activeInsight, setActiveInsight] = useState(0);
   const [ajoIndex, setAjoIndex] = useState(0);
   const [jointIndex, setJointIndex] = useState(0);
+  const [selectedTx, setSelectedTx] = useState<any | null>(null);
 
   const insightScrollRef = useRef<ScrollView | null>(null);
   const ajoScrollRef = useRef<ScrollView | null>(null);
   const jointScrollRef = useRef<ScrollView | null>(null);
+
+  const isInsightDragging = useRef(false);
+  const isAjoDragging = useRef(false);
+  const isJointDragging = useRef(false);
 
   const transactionsRaw = (transactions || []) as any[];
 
@@ -242,15 +254,42 @@ export default function App() {
 
   useEffect(() => {
     const insightTimer = setInterval(() => {
-      setActiveInsight((prev) => (prev + 1) % insights.length);
+      if (isInsightDragging.current) return;
+      setActiveInsight((prev) => {
+        const next = (prev + 1) % insights.length;
+        insightScrollRef.current?.scrollTo({
+          x: next * INSIGHT_SNAP,
+          y: 0,
+          animated: true,
+        });
+        return next;
+      });
     }, 5000);
 
     const ajoTimer = setInterval(() => {
-      setAjoIndex((prev) => (prev + 1) % ajoGroupCards.length);
+      if (isAjoDragging.current) return;
+      setAjoIndex((prev) => {
+        const next = (prev + 1) % ajoGroupCards.length;
+        ajoScrollRef.current?.scrollTo({
+          x: next * GROUP_SNAP,
+          y: 0,
+          animated: true,
+        });
+        return next;
+      });
     }, 6000);
 
     const jointTimer = setInterval(() => {
-      setJointIndex((prev) => (prev + 1) % jointSavingsCards.length);
+      if (isJointDragging.current) return;
+      setJointIndex((prev) => {
+        const next = (prev + 1) % jointSavingsCards.length;
+        jointScrollRef.current?.scrollTo({
+          x: next * GROUP_SNAP,
+          y: 0,
+          animated: true,
+        });
+        return next;
+      });
     }, 7000);
 
     return () => {
@@ -259,42 +298,6 @@ export default function App() {
       clearInterval(jointTimer);
     };
   }, []);
-
-  useEffect(() => {
-    if (!insightScrollRef.current) return;
-
-    const cardWidth = 306 + 12;
-
-    insightScrollRef.current.scrollTo({
-      x: activeInsight * cardWidth,
-      y: 0,
-      animated: true,
-    });
-  }, [activeInsight]);
-
-  useEffect(() => {
-    if (!ajoScrollRef.current) return;
-
-    const cardWidth = 260 + 12;
-
-    ajoScrollRef.current.scrollTo({
-      x: ajoIndex * cardWidth,
-      y: 0,
-      animated: true,
-    });
-  }, [ajoIndex]);
-
-  useEffect(() => {
-    if (!jointScrollRef.current) return;
-
-    const cardWidth = 260 + 12;
-
-    jointScrollRef.current.scrollTo({
-      x: jointIndex * cardWidth,
-      y: 0,
-      animated: true,
-    });
-  }, [jointIndex]);
 
   return (
     <View
@@ -601,6 +604,39 @@ export default function App() {
               Transfer
             </Text>
           </TouchableOpacity>
+
+          <TouchableOpacity
+            style={styles.action}
+            onPress={() => router.push("/linkedcards")}
+            activeOpacity={0.7}
+          >
+            <View
+              style={[
+                styles.actionIcon,
+                {
+                  backgroundColor: theme.accent,
+                  shadowColor: theme.accent,
+                },
+              ]}
+            >
+              <Ionicons
+                name="card-outline"
+                size={21}
+                color="#FFFFFF"
+              />
+            </View>
+
+            <Text
+              style={[
+                styles.actionText,
+                {
+                  color: theme.textPrimary,
+                },
+              ]}
+            >
+              Cards
+            </Text>
+          </TouchableOpacity>
         </View>
 
         {/* Smart Insights Carousel */}
@@ -634,14 +670,28 @@ export default function App() {
           ref={insightScrollRef}
           horizontal
           showsHorizontalScrollIndicator={false}
+          snapToInterval={INSIGHT_SNAP}
+          snapToAlignment="start"
+          decelerationRate="fast"
+          disableIntervalMomentum={true}
           contentContainerStyle={styles.insightCarousel}
-          onMomentumScrollEnd={({ nativeEvent }) => {
-            const cardWidth = 306 + 12;
-
+          onScrollBeginDrag={() => {
+            isInsightDragging.current = true;
+          }}
+          onScrollEndDrag={({ nativeEvent }) => {
+            isInsightDragging.current = false;
             const nextInsight = Math.round(
-              nativeEvent.contentOffset.x / cardWidth,
+              nativeEvent.contentOffset.x / INSIGHT_SNAP,
             );
-
+            setActiveInsight(
+              Math.max(0, Math.min(nextInsight, insights.length - 1)),
+            );
+          }}
+          onMomentumScrollEnd={({ nativeEvent }) => {
+            isInsightDragging.current = false;
+            const nextInsight = Math.round(
+              nativeEvent.contentOffset.x / INSIGHT_SNAP,
+            );
             setActiveInsight(
               Math.max(0, Math.min(nextInsight, insights.length - 1)),
             );
@@ -733,8 +783,16 @@ export default function App() {
           style={styles.dots}
         >
           {insights.map((insight, index) => (
-            <View
+            <TouchableOpacity
               key={insight.title}
+              onPress={() => {
+                setActiveInsight(index);
+                insightScrollRef.current?.scrollTo({
+                  x: index * INSIGHT_SNAP,
+                  y: 0,
+                  animated: true,
+                });
+              }}
               style={[
                 styles.dot,
                 {
@@ -782,25 +840,28 @@ export default function App() {
             ref={ajoScrollRef}
             horizontal
             showsHorizontalScrollIndicator={false}
+            snapToInterval={GROUP_SNAP}
+            snapToAlignment="start"
+            decelerationRate="fast"
+            disableIntervalMomentum={true}
             contentContainerStyle={styles.groupCarousel}
-            onMomentumScrollEnd={({ nativeEvent }) => {
-              const cardWidth = 260 + 12;
-
+            onScrollBeginDrag={() => {
+              isAjoDragging.current = true;
+            }}
+            onScrollEndDrag={({ nativeEvent }) => {
+              isAjoDragging.current = false;
               const nextIndex = Math.round(
-                nativeEvent.contentOffset.x / cardWidth,
+                nativeEvent.contentOffset.x / GROUP_SNAP,
               );
-
               setAjoIndex(
                 Math.max(0, Math.min(nextIndex, ajoGroupCards.length - 1)),
               );
             }}
-            onScrollEndDrag={({ nativeEvent }) => {
-              const cardWidth = 260 + 12;
-
+            onMomentumScrollEnd={({ nativeEvent }) => {
+              isAjoDragging.current = false;
               const nextIndex = Math.round(
-                nativeEvent.contentOffset.x / cardWidth,
+                nativeEvent.contentOffset.x / GROUP_SNAP,
               );
-
               setAjoIndex(
                 Math.max(0, Math.min(nextIndex, ajoGroupCards.length - 1)),
               );
@@ -867,8 +928,16 @@ export default function App() {
             style={styles.dots}
           >
             {ajoGroupCards.map((card, index) => (
-              <View
+              <TouchableOpacity
                 key={card.id}
+                onPress={() => {
+                  setAjoIndex(index);
+                  ajoScrollRef.current?.scrollTo({
+                    x: index * GROUP_SNAP,
+                    y: 0,
+                    animated: true,
+                  });
+                }}
                 style={[
                   styles.dot,
                   {
@@ -917,25 +986,28 @@ export default function App() {
             ref={jointScrollRef}
             horizontal
             showsHorizontalScrollIndicator={false}
+            snapToInterval={GROUP_SNAP}
+            snapToAlignment="start"
+            decelerationRate="fast"
+            disableIntervalMomentum={true}
             contentContainerStyle={styles.groupCarousel}
-            onMomentumScrollEnd={({ nativeEvent }) => {
-              const cardWidth = 260 + 12;
-
+            onScrollBeginDrag={() => {
+              isJointDragging.current = true;
+            }}
+            onScrollEndDrag={({ nativeEvent }) => {
+              isJointDragging.current = false;
               const nextIndex = Math.round(
-                nativeEvent.contentOffset.x / cardWidth,
+                nativeEvent.contentOffset.x / GROUP_SNAP,
               );
-
               setJointIndex(
                 Math.max(0, Math.min(nextIndex, jointSavingsCards.length - 1)),
               );
             }}
-            onScrollEndDrag={({ nativeEvent }) => {
-              const cardWidth = 260 + 12;
-
+            onMomentumScrollEnd={({ nativeEvent }) => {
+              isJointDragging.current = false;
               const nextIndex = Math.round(
-                nativeEvent.contentOffset.x / cardWidth,
+                nativeEvent.contentOffset.x / GROUP_SNAP,
               );
-
               setJointIndex(
                 Math.max(0, Math.min(nextIndex, jointSavingsCards.length - 1)),
               );
@@ -1013,8 +1085,16 @@ export default function App() {
             style={styles.dots}
           >
             {jointSavingsCards.map((card, index) => (
-              <View
+              <TouchableOpacity
                 key={card.id}
+                onPress={() => {
+                  setJointIndex(index);
+                  jointScrollRef.current?.scrollTo({
+                    x: index * GROUP_SNAP,
+                    y: 0,
+                    animated: true,
+                  });
+                }}
                 style={[
                   styles.dot,
                   {
@@ -1095,6 +1175,7 @@ export default function App() {
                     time={getTimeLabel(tx.date)}
                     positive={isIncome}
                     theme={theme}
+                    onPress={() => setSelectedTx(tx)}
                   />
 
                   {index < recentTransactions.length - 1 && (
@@ -1134,6 +1215,13 @@ export default function App() {
           )}
         </View>
       </ScrollView>
+
+      {/* Transaction Receipt Modal */}
+      <TransactionReceiptModal
+        visible={!!selectedTx}
+        transaction={selectedTx}
+        onClose={() => setSelectedTx(null)}
+      />
     </View>
   );
 }
@@ -1148,6 +1236,7 @@ function Transaction({
   time,
   positive = false,
   theme,
+  onPress,
 }: {
   icon: any;
   tint: string;
@@ -1158,9 +1247,14 @@ function Transaction({
   time: string;
   positive?: boolean;
   theme: ReturnType<typeof getThemePalette>;
+  onPress?: () => void;
 }) {
   return (
-    <TouchableOpacity activeOpacity={0.72} style={styles.transactionItem}>
+    <TouchableOpacity
+      activeOpacity={0.72}
+      style={styles.transactionItem}
+      onPress={onPress}
+    >
       <View style={styles.transLeft}>
         <View
           style={[

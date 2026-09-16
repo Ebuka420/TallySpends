@@ -1,29 +1,30 @@
 import { Ionicons } from "@expo/vector-icons";
+import * as Clipboard from "expo-clipboard";
 import { useRouter } from "expo-router";
-import React, { useRef, useState } from "react";
+import React, { useMemo, useState } from "react";
 import {
+  Alert,
+  KeyboardAvoidingView,
+  Modal,
+  Platform,
   SafeAreaView,
-  StyleSheet,
-  Text,
-  TouchableOpacity,
-  View,
   ScrollView,
   Share,
-  Modal,
+  StyleSheet,
+  Text,
   TextInput,
-  Platform,
-  KeyboardAvoidingView,
-  Alert,
+  TouchableOpacity,
+  View,
 } from "react-native";
 import Svg, { Rect } from "react-native-svg";
 import { useAppStore } from "../src/store";
+import { getThemePalette } from "../src/theme";
 
 // Deterministic QR Code generator helper
 function generateMockQRCode(text: string): boolean[][] {
   const size = 21; // Version 1 QR code
   const grid = Array(size).fill(null).map(() => Array(size).fill(false));
 
-  // Draw finder patterns (7x7 nested squares)
   const drawFinderPattern = (x: number, y: number) => {
     for (let r = 0; r < 7; r++) {
       for (let c = 0; c < 7; c++) {
@@ -35,21 +36,16 @@ function generateMockQRCode(text: string): boolean[][] {
     }
   };
 
-  // Draw 3 Finders
-  drawFinderPattern(0, 0); // Top-Left
-  drawFinderPattern(14, 0); // Top-Right
-  drawFinderPattern(0, 14); // Bottom-Left
+  drawFinderPattern(0, 0);
+  drawFinderPattern(14, 0);
+  drawFinderPattern(0, 14);
 
-  // Timing patterns
   for (let i = 8; i < 14; i++) {
     grid[6][i] = i % 2 === 0;
     grid[i][6] = i % 2 === 0;
   }
-
-  // Draw a standard format module
   grid[13][8] = true;
 
-  // Fill rest deterministically based on text hash
   let hash = 0;
   for (let i = 0; i < text.length; i++) {
     hash = text.charCodeAt(i) + ((hash << 5) - hash);
@@ -57,7 +53,6 @@ function generateMockQRCode(text: string): boolean[][] {
 
   for (let r = 0; r < size; r++) {
     for (let c = 0; c < size; c++) {
-      // Skip finder zones & timing lines
       const inTL = r < 8 && c < 8;
       const inTR = r < 8 && c > 13;
       const inBL = r > 13 && c < 8;
@@ -65,7 +60,7 @@ function generateMockQRCode(text: string): boolean[][] {
 
       if (!inTL && !inTR && !inBL && !inTiming) {
         const val = Math.abs(Math.sin(hash + r * 17 + c * 31));
-        grid[r][c] = val > 0.48; // ~48% black modules density
+        grid[r][c] = val > 0.48;
       }
     }
   }
@@ -77,83 +72,87 @@ export default function RequestScreen() {
   const router = useRouter();
   const {
     username,
-    customCategories,
-    addCustomCategory,
-    deleteCustomCategory,
-    theme,
+    profileFullName,
+    themePreference,
+    themeMode,
   } = useAppStore();
+
+  const theme = getThemePalette(themePreference, themeMode);
+
+  // Tab State: 'receive' | 'split'
+  const [activeTab, setActiveTab] = useState<"receive" | "split">("receive");
+
+  // Receive Form
   const [requestAmount, setRequestAmount] = useState("");
   const [requestMemo, setRequestMemo] = useState("");
+  const [selectedCategory, setSelectedCategory] = useState<string>("Food");
   const [showConfigModal, setShowConfigModal] = useState(false);
-  const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
-  const [customCategory, setCustomCategory] = useState("");
-  const [customCategoryInput, setCustomCategoryInput] = useState("");
-  const [showCustomCategoryManager, setShowCustomCategoryManager] = useState(false);
+
+  // Split Bill Form
+  const [totalBill, setTotalBill] = useState("");
+  const [splitCount, setSplitCount] = useState(3);
+  const [splitDescription, setSplitDescription] = useState("Dinner with Friends");
 
   const formattedUsername = username || "ebuka";
-  const baseCategories = ["Food", "Transport", "Shopping", "Bills", "Rent", "Utility"];
-  const requestCategories = [...baseCategories, ...(customCategories || []), "Other", "Add Category"];
-  const quickAmounts = [100, 1000, 5000, 10000, 20000, 50000];
+  const displayName = profileFullName?.trim() || username || "Ebuka Daniel";
 
-  // Build the QR data string
-  let qrValue = `tallyspends://transfer?recipient=${formattedUsername}`;
-  if (requestAmount) {
-    qrValue += `&amount=${requestAmount}`;
-  }
-  if (requestMemo) {
-    qrValue += `&memo=${encodeURIComponent(requestMemo)}`;
-  }
+  const quickAmounts = [1000, 2000, 5000, 10000, 20000, 50000];
+  const categories = ["Food", "Transport", "Shopping", "Bills", "Entertainment", "Other"];
 
-  const qrMatrix = generateMockQRCode(qrValue);
-  const sizeMultiplier = 10; // each QR module will be 10x10 px
+  // Calculate per person for split bill
+  const perPersonAmount = useMemo(() => {
+    const total = parseFloat(totalBill) || 0;
+    if (total <= 0 || splitCount <= 0) return 0;
+    return total / splitCount;
+  }, [totalBill, splitCount]);
+
+  // Build the QR data strings
+  const receiveQrValue = useMemo(() => {
+    let url = `tallyspends://transfer?recipient=${formattedUsername}`;
+    if (requestAmount) url += `&amount=${requestAmount}`;
+    if (requestMemo) url += `&memo=${encodeURIComponent(requestMemo)}`;
+    return url;
+  }, [formattedUsername, requestAmount, requestMemo]);
+
+  const splitQrValue = useMemo(() => {
+    let url = `tallyspends://transfer?recipient=${formattedUsername}&amount=${perPersonAmount.toFixed(2)}`;
+    url += `&memo=${encodeURIComponent(`Split: ${splitDescription}`)}`;
+    return url;
+  }, [formattedUsername, perPersonAmount, splitDescription]);
+
+  const currentQrString = activeTab === "split" ? splitQrValue : receiveQrValue;
+  const qrMatrix = useMemo(() => generateMockQRCode(currentQrString), [currentQrString]);
+  const sizeMultiplier = 10;
 
   const handleShare = async () => {
     try {
-      const shareMessage = requestAmount
-        ? `Tally Request: @${formattedUsername} is requesting ₦${parseFloat(requestAmount).toFixed(2)}${requestMemo ? ` for ${requestMemo}` : ""}. Open the TallySpends app and scan this request: ${qrValue}`
-        : `Tally Request for @${formattedUsername}. Open the TallySpends app and scan this request: ${qrValue}`;
+      let shareMsg = "";
+      if (activeTab === "split") {
+        shareMsg = `Tally Bill Split: @${formattedUsername} requested ₦${perPersonAmount.toLocaleString(undefined, { minimumFractionDigits: 2 })} each for "${splitDescription}" (Total ₦${parseFloat(totalBill || "0").toLocaleString()} split ${splitCount} ways). Pay instantly on TallySpends: ${splitQrValue}`;
+      } else {
+        shareMsg = requestAmount
+          ? `Tally Payment Request: @${formattedUsername} is requesting ₦${parseFloat(requestAmount).toLocaleString(undefined, { minimumFractionDigits: 2 })}${requestMemo ? ` for "${requestMemo}"` : ""}. Pay via TallySpends: ${receiveQrValue}`
+          : `Pay @${formattedUsername} securely via TallySpends: ${receiveQrValue}`;
+      }
 
       await Share.share({
-        message: shareMessage,
-        url: qrValue,
+        message: shareMsg,
+        url: currentQrString,
         title: "Tally Request",
       });
     } catch (error: any) {
-      console.log("Error sharing request:", error.message);
+      Alert.alert("Share error", error.message || "Could not share link.");
     }
   };
 
-  const isRequestReady = Boolean(requestAmount && selectedCategory);
-
-  const handleDeleteCustomCategory = (category: string) => {
-    Alert.alert("Delete category", `Delete "${category}" from your saved categories?`, [
-      { text: "Cancel", style: "cancel" },
-      {
-        text: "Delete",
-        style: "destructive",
-        onPress: () => {
-          deleteCustomCategory(category);
-          if (selectedCategory === category) {
-            setSelectedCategory(null);
-            setRequestMemo("");
-          }
-        },
-      },
-    ]);
-  };
-
-  const handleSaveConfig = () => {
-    if (!isRequestReady) return;
-    const finalMemo = selectedCategory === "Other"
-      ? (customCategory.trim() || customCategoryInput.trim() || "Other")
-      : requestMemo || selectedCategory || "";
-    setRequestMemo(finalMemo);
-    setShowConfigModal(false);
+  const handleCopyLink = async () => {
+    await Clipboard.setStringAsync(currentQrString);
+    Alert.alert("Link Copied", "TallySpends payment link has been copied to your clipboard!");
   };
 
   return (
     <SafeAreaView style={[styles.safeArea, { backgroundColor: theme.background }]}>
-      {/* Header */}
+      {/* Top Header */}
       <View style={[styles.header, { backgroundColor: theme.surface, borderColor: theme.border }]}>
         <TouchableOpacity
           style={styles.backButton}
@@ -162,16 +161,190 @@ export default function RequestScreen() {
         >
           <Ionicons name="chevron-back" size={24} color={theme.textPrimary} />
         </TouchableOpacity>
-        <Text style={[styles.headerTitle, { color: theme.textPrimary }]}>Tally Request</Text>
-        <View style={{ width: 32 }} />
+        <Text style={[styles.headerTitle, { color: theme.textPrimary }]}>
+          QR Payment Hub
+        </Text>
+        <TouchableOpacity onPress={handleShare} activeOpacity={0.7}>
+          <Ionicons name="share-outline" size={22} color={theme.accent} />
+        </TouchableOpacity>
       </View>
 
-      <ScrollView contentContainerStyle={styles.scrollContainer} keyboardShouldPersistTaps="handled">
-        {/* Mockup Card */}
-        <View style={[styles.qrCardContainer, { backgroundColor: theme.surface, borderColor: theme.border }]}>
-          <Text style={[styles.qrCardTitle, { color: theme.textSecondary }]}>Share this Tally Request QR</Text>
+      {/* Segmented Mode Selector */}
+      <View style={[styles.tabBarWrap, { backgroundColor: theme.surface, borderColor: theme.border }]}>
+        <TouchableOpacity
+          style={[
+            styles.tabItem,
+            activeTab === "receive" && [styles.activeTabItem, { backgroundColor: theme.accent }],
+          ]}
+          onPress={() => setActiveTab("receive")}
+          activeOpacity={0.8}
+        >
+          <Ionicons
+            name="qr-code-outline"
+            size={16}
+            color={activeTab === "receive" ? "#FFFFFF" : theme.textSecondary}
+          />
+          <Text
+            style={[
+              styles.tabItemText,
+              { color: activeTab === "receive" ? "#FFFFFF" : theme.textSecondary },
+            ]}
+          >
+            My QR / Request
+          </Text>
+        </TouchableOpacity>
 
-          {/* QR Code Container */}
+        <TouchableOpacity
+          style={[
+            styles.tabItem,
+            activeTab === "split" && [styles.activeTabItem, { backgroundColor: theme.accent }],
+          ]}
+          onPress={() => setActiveTab("split")}
+          activeOpacity={0.8}
+        >
+          <Ionicons
+            name="people-outline"
+            size={16}
+            color={activeTab === "split" ? "#FFFFFF" : theme.textSecondary}
+          />
+          <Text
+            style={[
+              styles.tabItemText,
+              { color: activeTab === "split" ? "#FFFFFF" : theme.textSecondary },
+            ]}
+          >
+            Split Bill
+          </Text>
+        </TouchableOpacity>
+      </View>
+
+      <ScrollView
+        contentContainerStyle={styles.scrollContainer}
+        keyboardShouldPersistTaps="handled"
+        showsVerticalScrollIndicator={false}
+      >
+        {activeTab === "split" ? (
+          /* --- SPLIT BILL CONTROLS --- */
+          <View style={[styles.configCard, { backgroundColor: theme.surface, borderColor: theme.border }]}>
+            <Text style={[styles.configCardTitle, { color: theme.textPrimary }]}>
+              Split A Group Bill
+            </Text>
+            <Text style={[styles.configCardSubtitle, { color: theme.textSecondary }]}>
+              Enter the total amount to divide equally among your group.
+            </Text>
+
+            <Text style={[styles.inputFieldLabel, { color: theme.textSecondary }]}>Total Bill (₦)</Text>
+            <View style={[styles.amountInputBox, { backgroundColor: theme.surfaceSoft, borderColor: theme.border }]}>
+              <Text style={[styles.nairaPrefix, { color: theme.textPrimary }]}>₦</Text>
+              <TextInput
+                style={[styles.amountInputText, { color: theme.textPrimary }]}
+                placeholder="0.00"
+                placeholderTextColor={theme.textSecondary}
+                keyboardType="decimal-pad"
+                value={totalBill}
+                onChangeText={setTotalBill}
+              />
+            </View>
+
+            {/* Split Stepper */}
+            <View style={styles.stepperRow}>
+              <View>
+                <Text style={[styles.inputFieldLabel, { color: theme.textSecondary, marginBottom: 0 }]}>
+                  Number of People
+                </Text>
+                <Text style={[styles.stepperSub, { color: theme.accent }]}>
+                  {splitCount} Members (incl. you)
+                </Text>
+              </View>
+
+              <View style={styles.stepperControls}>
+                <TouchableOpacity
+                  style={[styles.stepperBtn, { backgroundColor: theme.surfaceSoft, borderColor: theme.border }]}
+                  onPress={() => setSplitCount((c) => Math.max(2, c - 1))}
+                  activeOpacity={0.7}
+                >
+                  <Ionicons name="remove" size={18} color={theme.textPrimary} />
+                </TouchableOpacity>
+                <Text style={[styles.stepperCount, { color: theme.textPrimary }]}>{splitCount}</Text>
+                <TouchableOpacity
+                  style={[styles.stepperBtn, { backgroundColor: theme.surfaceSoft, borderColor: theme.border }]}
+                  onPress={() => setSplitCount((c) => Math.min(10, c + 1))}
+                  activeOpacity={0.7}
+                >
+                  <Ionicons name="add" size={18} color={theme.textPrimary} />
+                </TouchableOpacity>
+              </View>
+            </View>
+
+            {/* Reason */}
+            <Text style={[styles.inputFieldLabel, { color: theme.textSecondary, marginTop: 12 }]}>
+              Description / Occasion
+            </Text>
+            <TextInput
+              style={[styles.textInputRegular, { backgroundColor: theme.surfaceSoft, borderColor: theme.border, color: theme.textPrimary }]}
+              value={splitDescription}
+              onChangeText={setSplitDescription}
+              placeholder="e.g. Sushi Dinner, Fuel, Rent"
+              placeholderTextColor={theme.textSecondary}
+            />
+
+            {/* Split Summary Banner */}
+            {perPersonAmount > 0 && (
+              <View style={[styles.splitSummaryBanner, { backgroundColor: theme.accentSoft }]}>
+                <Text style={[styles.splitSummaryLabel, { color: theme.textSecondary }]}>
+                  EACH PERSON PAYS
+                </Text>
+                <Text style={[styles.splitSummaryAmount, { color: theme.accent }]}>
+                  ₦{perPersonAmount.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                </Text>
+              </View>
+            )}
+          </View>
+        ) : (
+          /* --- RECEIVE / REQUEST CONTROLS --- */
+          <View style={[styles.configCard, { backgroundColor: theme.surface, borderColor: theme.border }]}>
+            <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
+              <Text style={[styles.configCardTitle, { color: theme.textPrimary }]}>
+                Request Settings
+              </Text>
+              <TouchableOpacity
+                onPress={() => setShowConfigModal(true)}
+                style={[styles.editBadge, { backgroundColor: theme.accentSoft }]}
+                activeOpacity={0.7}
+              >
+                <Ionicons name="create-outline" size={14} color={theme.accent} />
+                <Text style={[styles.editBadgeText, { color: theme.accent }]}>
+                  {requestAmount ? "Edit" : "Set Amount"}
+                </Text>
+              </TouchableOpacity>
+            </View>
+
+            {requestAmount ? (
+              <View style={styles.amountDisplayRow}>
+                <Text style={[styles.requestAmountBig, { color: theme.textPrimary }]}>
+                  ₦{parseFloat(requestAmount).toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                </Text>
+                {requestMemo ? (
+                  <Text style={[styles.requestMemoTag, { color: theme.textSecondary }]}>
+                    for "{requestMemo}"
+                  </Text>
+                ) : null}
+              </View>
+            ) : (
+              <Text style={[styles.noAmountNotice, { color: theme.textSecondary }]}>
+                No fixed amount set. Anyone scanning can send any desired amount.
+              </Text>
+            )}
+          </View>
+        )}
+
+        {/* --- QR CODE BADGE CARD --- */ }
+        <View style={[styles.qrCardContainer, { backgroundColor: theme.surface, borderColor: theme.border }]}>
+          <Text style={[styles.qrCardTitle, { color: theme.textSecondary }]}>
+            {activeTab === "split" ? "Scan to Pay Your Share" : "Scan to Pay"}
+          </Text>
+
+          {/* QR Code Graphic Box */}
           <View style={[styles.qrWrapper, { backgroundColor: "#FFFFFF", borderColor: theme.border }]}>
             <Svg width={210} height={210} viewBox="0 0 210 210">
               {qrMatrix.map((row, rIdx) =>
@@ -189,268 +362,135 @@ export default function RequestScreen() {
                     );
                   }
                   return null;
-                })
+                }),
               )}
             </Svg>
           </View>
 
-          {/* Username Tag Badge */}
+          {/* User Tag Pill */}
           <View style={[styles.usernameBadge, { backgroundColor: theme.accentSoft }]}>
-            <Text style={[styles.usernameText, { color: theme.accent }]}>@{formattedUsername}</Text>
+            <Ionicons name="at" size={14} color={theme.accent} />
+            <Text style={[styles.usernameText, { color: theme.accent }]}>{formattedUsername}</Text>
           </View>
-
-          {requestAmount ? (
-            <View style={styles.requestAmountInfoBadge}>
-              <Text style={[styles.requestAmountText, { color: theme.textPrimary }]}>
-                Requested: ₦{parseFloat(requestAmount).toFixed(2)}
-              </Text>
-              {requestMemo ? (
-                <Text style={[styles.requestMemoText, { color: theme.textSecondary }]} numberOfLines={1}>
-                  "{requestMemo}"
-                </Text>
-              ) : null}
-            </View>
-          ) : null}
+          <Text style={[styles.userFullNameText, { color: theme.textPrimary }]}>{displayName}</Text>
         </View>
 
-        {/* Viewfinder Instructions below the card */}
-        <Text style={[styles.instructionsText, { color: theme.textSecondary }]}>
-          Share the QR as an image to send a quick request to anyone on TallySpends.
-        </Text>
-        {/* Share Button (Primary) */}
-        <TouchableOpacity
-          style={[styles.shareButton, { backgroundColor: theme.accent, shadowColor: theme.accent }]}
-          onPress={handleShare}
-          activeOpacity={0.8}
-        >
-          <Text style={styles.shareButtonText}>Share QR Image</Text>
-        </TouchableOpacity>
+        {/* Action Buttons Row */}
+        <View style={styles.actionButtonsRow}>
+          <TouchableOpacity
+            style={[styles.primaryActionBtn, { backgroundColor: theme.accent }]}
+            onPress={handleShare}
+            activeOpacity={0.85}
+          >
+            <Ionicons name="share-social-outline" size={18} color="#FFFFFF" />
+            <Text style={styles.primaryActionBtnText}>Share Request</Text>
+          </TouchableOpacity>
 
-        {/* Add Amount and Note (Secondary) */}
-        <TouchableOpacity
-          style={[styles.configButton, { backgroundColor: theme.accentSoft }]}
-          onPress={() => setShowConfigModal(true)}
-          activeOpacity={0.7}
-        >
-          <Text style={[styles.configButtonText, { color: theme.accent }]}>
-            {requestAmount ? "Edit Amount and Note" : "Add Amount and Note"}
-          </Text>
-        </TouchableOpacity>
+          <TouchableOpacity
+            style={[styles.secondaryActionBtn, { backgroundColor: theme.surface, borderColor: theme.border }]}
+            onPress={handleCopyLink}
+            activeOpacity={0.7}
+          >
+            <Ionicons name="copy-outline" size={18} color={theme.textPrimary} />
+            <Text style={[styles.secondaryActionBtnText, { color: theme.textPrimary }]}>Copy Link</Text>
+          </TouchableOpacity>
+        </View>
       </ScrollView>
 
-      {/* --- ADD AMOUNT AND NOTE MODAL --- */}
-      <Modal visible={showConfigModal} animationType="slide" transparent={true} onRequestClose={() => setShowConfigModal(false)}>
+      {/* --- ADD / EDIT AMOUNT MODAL --- */}
+      <Modal visible={showConfigModal} animationType="slide" transparent>
         <View style={styles.modalBackdrop}>
-          <TouchableOpacity style={StyleSheet.absoluteFill} onPress={() => setShowConfigModal(false)} />
-
-          <KeyboardAvoidingView
-            behavior={Platform.OS === "ios" ? "padding" : "height"}
-            keyboardVerticalOffset={Platform.OS === "ios" ? 24 : 0}
-            style={styles.keyboardAvoidingContainer}
-          >
-            <View style={[styles.modalContent, { backgroundColor: theme.surface }]}>
-              <View style={[styles.modalPullBar, { backgroundColor: theme.border }]} />
-
-              <View style={[styles.modalHeader, { borderColor: theme.border }]}>
-                <Text style={[styles.modalTitle, { color: theme.textPrimary }]}>Request Details</Text>
-                <TouchableOpacity onPress={() => setShowConfigModal(false)}>
-                  <Ionicons name="close-circle" size={24} color={theme.textSecondary} />
-                </TouchableOpacity>
-              </View>
-
-              <ScrollView style={styles.modalBody} keyboardShouldPersistTaps="handled" contentContainerStyle={styles.modalBodyContent}>
-                <Text style={[styles.inputLabel, { color: theme.textSecondary }]}>Amount to Request</Text>
-                <View style={[styles.inputWrapper, { backgroundColor: theme.surfaceSoft }]}>
-                  <Text style={[styles.currencyPrefix, { color: theme.textPrimary }]}>₦</Text>
-                  <TextInput
-                    style={[styles.textInput, { color: theme.textPrimary }]}
-                    placeholder="0.00"
-                    placeholderTextColor={theme.textSecondary}
-                    keyboardType="decimal-pad"
-                    autoFocus
-                    value={requestAmount}
-                    onChangeText={setRequestAmount}
-                  />
-                </View>
-
-                <View style={styles.quickAmountsRow}>
-                  {quickAmounts.map((amount) => (
-                    <TouchableOpacity
-                      key={amount}
-                      style={[styles.quickAmountChip, { backgroundColor: theme.accentSoft }]}
-                      onPress={() => setRequestAmount(String(amount))}
-                      activeOpacity={0.8}
-                    >
-                      <Text style={[styles.quickAmountText, { color: theme.accent }]}>₦{amount.toLocaleString()}</Text>
-                    </TouchableOpacity>
-                  ))}
-                </View>
-
-                <View style={styles.categoryLabelRow}>
-                  <Text style={[styles.inputLabel, { color: theme.textSecondary, marginTop: 16 }]}>Choose a category</Text>
-                  {(customCategories || []).length > 0 ? (
-                    <TouchableOpacity
-                      style={[styles.categoryManageButton, { backgroundColor: theme.surfaceSoft }]}
-                      onPress={() => setShowCustomCategoryManager((prev) => !prev)}
-                      activeOpacity={0.8}
-                    >
-                      <Text style={[styles.categoryManageButtonText, { color: theme.textSecondary }]}>×</Text>
-                    </TouchableOpacity>
-                  ) : null}
-                </View>
-                <View style={styles.categoryRow}>
-                  {requestCategories.map((category) => {
-                    const isSelected = selectedCategory === category;
-                    const isCustomCategory = (customCategories || []).includes(category);
-                    const isAddBtn = category === "Add Category";
-                    return (
-                      <TouchableOpacity
-                        key={category}
-                        style={[
-                          styles.categoryChip,
-                          {
-                            backgroundColor: isSelected
-                              ? theme.accent
-                              : isAddBtn
-                                ? theme.accentSoft
-                                : theme.surfaceSoft,
-                            borderColor: isAddBtn
-                              ? isSelected
-                                ? theme.accent
-                                : theme.accentSecondary
-                              : "transparent",
-                            borderWidth: isAddBtn ? 1 : 0,
-                          },
-                        ]}
-                        onPress={() => {
-                          setSelectedCategory(category);
-                          setCustomCategory("");
-                          setCustomCategoryInput("");
-                          setRequestMemo(category === "Other" ? "" : category);
-                        }}
-                        onLongPress={() => {
-                          if (isCustomCategory) {
-                            handleDeleteCustomCategory(category);
-                          }
-                        }}
-                        activeOpacity={0.8}
-                      >
-                        <Text
-                          style={[
-                            styles.categoryChipText,
-                            {
-                              color: isSelected
-                                ? "#FFFFFF"
-                                : isAddBtn
-                                  ? theme.accent
-                                  : theme.textPrimary,
-                              fontWeight: isAddBtn ? "800" : "600",
-                            },
-                          ]}
-                        >
-                          {isAddBtn ? "＋" : category}
-                        </Text>
-                      </TouchableOpacity>
-                    );
-                  })}
-                </View>
-
-                {(customCategories || []).length > 0 && showCustomCategoryManager ? (
-                  <View style={[styles.customCategoriesList, { backgroundColor: theme.surfaceSoft }]}>
-                    {(customCategories || []).map((category) => (
-                      <View key={category} style={styles.customCategoryRow}>
-                        <Text style={[styles.customCategoryText, { color: theme.textPrimary }]}>{category}</Text>
-                        <TouchableOpacity
-                          style={styles.deleteCategoryButton}
-                          onPress={() => handleDeleteCustomCategory(category)}
-                          activeOpacity={0.8}
-                        >
-                          <Text style={styles.deleteCategoryButtonText}>×</Text>
-                        </TouchableOpacity>
-                      </View>
-                    ))}
-                  </View>
-                ) : null}
-
-                {selectedCategory ? (
-                  <TouchableOpacity
-                    style={[styles.clearSelectionButton, { backgroundColor: theme.surfaceSoft }]}
-                    onPress={() => {
-                      setSelectedCategory(null);
-                      setCustomCategory("");
-                      setCustomCategoryInput("");
-                      setRequestMemo("");
-                    }}
-                    activeOpacity={0.8}
-                  >
-                    <Text style={[styles.clearSelectionButtonText, { color: theme.textSecondary }]}>Clear</Text>
-                  </TouchableOpacity>
-                ) : null}
-
-                {(selectedCategory === "Other" || selectedCategory === "Add Category") ? (
-                  <View style={[styles.customInputWrapper, { backgroundColor: theme.surfaceSoft }]}>
-                    <Text style={[styles.inputLabel, { color: theme.textSecondary }]}>{selectedCategory === "Other" ? "Other category" : "New category"}</Text>
-                    <TextInput
-                      style={[styles.customInput, { color: theme.textPrimary }]}
-                      placeholder={selectedCategory === "Other" ? "Type a custom category" : "Type a new category name"}
-                      placeholderTextColor={theme.textSecondary}
-                      value={customCategoryInput}
-                      onChangeText={setCustomCategoryInput}
-                    />
-                  </View>
-                ) : null}
-
-                {selectedCategory === "Add Category" ? (
-                  <TouchableOpacity
-                    style={[styles.addCustomCategoryButton, { backgroundColor: theme.accentSoft }]}
-                    onPress={() => {
-                      const trimmed = customCategoryInput.trim();
-                      if (!trimmed) return;
-                      addCustomCategory(trimmed);
-                      setCustomCategory(trimmed);
-                      setSelectedCategory(trimmed);
-                      setRequestMemo(trimmed);
-                    }}
-                    activeOpacity={0.8}
-                  >
-                    <Text style={[styles.addCustomCategoryButtonText, { color: theme.accent }]}>Save this as my category</Text>
-                  </TouchableOpacity>
-                ) : null}
-
-                <Text style={[styles.helperText, { color: theme.textSecondary }]}>Pick a category so the request is faster and easier to organize.</Text>
-
-                <TouchableOpacity
-                  style={[
-                    styles.modalSaveButton,
-                    { backgroundColor: isRequestReady ? theme.accent : theme.surfaceSoft, shadowColor: theme.accent },
-                    !isRequestReady && styles.modalSaveButtonDisabled,
-                  ]}
-                  onPress={handleSaveConfig}
-                  activeOpacity={0.8}
-                  disabled={!isRequestReady}
-                >
-                  <Text style={[styles.modalSaveButtonText, !isRequestReady && { color: theme.textSecondary }]}>Apply Request Details</Text>
-                </TouchableOpacity>
-
-                {requestAmount ? (
-                  <TouchableOpacity
-                    style={styles.modalClearButton}
-                    onPress={() => {
-                      setRequestAmount("");
-                      setRequestMemo("");
-                      setSelectedCategory(null);
-                      setCustomCategory("");
-                      setCustomCategoryInput("");
-                      setShowConfigModal(false);
-                    }}
-                    activeOpacity={0.7}
-                  >
-                    <Text style={[styles.modalClearButtonText, { color: theme.danger }]}>Clear Request Details</Text>
-                  </TouchableOpacity>
-                ) : null}
-              </ScrollView>
+          <View style={[styles.modalContent, { backgroundColor: theme.surface, borderColor: theme.border }]}>
+            <View style={styles.modalHeader}>
+              <Text style={[styles.modalTitle, { color: theme.textPrimary }]}>Custom Request Amount</Text>
+              <TouchableOpacity onPress={() => setShowConfigModal(false)} activeOpacity={0.7}>
+                <Ionicons name="close" size={24} color={theme.textSecondary} />
+              </TouchableOpacity>
             </View>
-          </KeyboardAvoidingView>
+
+            <Text style={[styles.inputFieldLabel, { color: theme.textSecondary }]}>Amount (₦)</Text>
+            <View style={[styles.amountInputBox, { backgroundColor: theme.surfaceSoft, borderColor: theme.border }]}>
+              <Text style={[styles.nairaPrefix, { color: theme.textPrimary }]}>₦</Text>
+              <TextInput
+                style={[styles.amountInputText, { color: theme.textPrimary }]}
+                placeholder="0.00"
+                placeholderTextColor={theme.textSecondary}
+                keyboardType="decimal-pad"
+                autoFocus
+                value={requestAmount}
+                onChangeText={setRequestAmount}
+              />
+            </View>
+
+            {/* Quick Amounts */}
+            <View style={styles.quickAmountsRow}>
+              {quickAmounts.map((amt) => (
+                <TouchableOpacity
+                  key={amt}
+                  style={[styles.quickAmountChip, { backgroundColor: theme.accentSoft }]}
+                  onPress={() => setRequestAmount(String(amt))}
+                  activeOpacity={0.75}
+                >
+                  <Text style={[styles.quickAmountText, { color: theme.accent }]}>
+                    ₦{amt.toLocaleString()}
+                  </Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+
+            {/* Category selection */}
+            <Text style={[styles.inputFieldLabel, { color: theme.textSecondary, marginTop: 12 }]}>
+              Category
+            </Text>
+            <View style={styles.categoryRow}>
+              {categories.map((cat) => (
+                <TouchableOpacity
+                  key={cat}
+                  style={[
+                    styles.categoryChip,
+                    {
+                      backgroundColor: selectedCategory === cat ? theme.accent : theme.surfaceSoft,
+                      borderColor: theme.border,
+                    },
+                  ]}
+                  onPress={() => {
+                    setSelectedCategory(cat);
+                    setRequestMemo(cat);
+                  }}
+                  activeOpacity={0.8}
+                >
+                  <Text
+                    style={[
+                      styles.categoryChipText,
+                      { color: selectedCategory === cat ? "#FFFFFF" : theme.textPrimary },
+                    ]}
+                  >
+                    {cat}
+                  </Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+
+            {/* Note Memo */}
+            <Text style={[styles.inputFieldLabel, { color: theme.textSecondary, marginTop: 12 }]}>
+              Note / Memo
+            </Text>
+            <TextInput
+              style={[styles.textInputRegular, { backgroundColor: theme.surfaceSoft, borderColor: theme.border, color: theme.textPrimary }]}
+              value={requestMemo}
+              onChangeText={setRequestMemo}
+              placeholder="e.g. Lunch money, Tickets, Shared cab"
+              placeholderTextColor={theme.textSecondary}
+            />
+
+            <TouchableOpacity
+              style={[styles.saveDetailsBtn, { backgroundColor: theme.accent }]}
+              onPress={() => setShowConfigModal(false)}
+              activeOpacity={0.85}
+            >
+              <Text style={styles.saveDetailsBtnText}>Apply Request Details</Text>
+            </TouchableOpacity>
+          </View>
         </View>
       </Modal>
     </SafeAreaView>
@@ -460,7 +500,6 @@ export default function RequestScreen() {
 const styles = StyleSheet.create({
   safeArea: {
     flex: 1,
-    backgroundColor: "#F9FAF6",
   },
   header: {
     height: 56,
@@ -469,384 +508,301 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
     paddingHorizontal: 16,
     borderBottomWidth: 1,
-    borderColor: "rgba(91, 78, 145, 0.08)",
-    backgroundColor: "#FFFFFF",
   },
   backButton: {
     padding: 4,
   },
   headerTitle: {
-    fontSize: 16,
+    fontSize: 17,
     fontWeight: "700",
-    color: "#20142A",
-    letterSpacing: -0.3,
+  },
+  tabBarWrap: {
+    flexDirection: "row",
+    padding: 6,
+    marginHorizontal: 16,
+    marginTop: 12,
+    marginBottom: 8,
+    borderRadius: 14,
+    borderWidth: 1,
+    gap: 6,
+  },
+  tabItem: {
+    flex: 1,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 5,
+    paddingVertical: 9,
+    borderRadius: 10,
+  },
+  activeTabItem: {},
+  tabItemText: {
+    fontSize: 11.5,
+    fontWeight: "700",
   },
   scrollContainer: {
-    padding: 24,
-    alignItems: "center",
-  },
-  qrCardContainer: {
-    width: "100%",
-    backgroundColor: "#FFFFFF",
-    borderRadius: 32,
-    borderWidth: 1,
-    borderColor: "rgba(91, 78, 145, 0.06)",
-    paddingVertical: 32,
-    alignItems: "center",
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.02,
-    shadowRadius: 10,
-    elevation: 2,
-    marginBottom: 20,
-  },
-  qrCardTitle: {
-    fontSize: 13,
-    fontWeight: "600",
-    color: "#8E8E93",
-    marginBottom: 28,
-  },
-  qrWrapper: {
     padding: 16,
-    backgroundColor: "#FFFFFF",
-    borderRadius: 24,
+    paddingBottom: 60,
+  },
+  configCard: {
+    borderRadius: 18,
+    padding: 16,
     borderWidth: 1,
-    borderColor: "#EAEAEA",
-    shadowColor: "#20142A",
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.04,
-    shadowRadius: 8,
-    elevation: 1,
+    marginBottom: 14,
   },
-  usernameBadge: {
-    backgroundColor: "#F0EEFA",
-    borderRadius: 14,
-    paddingHorizontal: 16,
-    paddingVertical: 6,
-    marginTop: 24,
+  configCardTitle: {
+    fontSize: 15,
+    fontWeight: "800",
   },
-  usernameText: {
-    fontSize: 12,
-    fontWeight: "700",
-    color: "#5B4E91",
-  },
-  requestAmountInfoBadge: {
-    marginTop: 14,
-    alignItems: "center",
-    paddingHorizontal: 20,
-  },
-  requestAmountText: {
-    fontSize: 16,
-    fontWeight: "700",
-    color: "#20142A",
-  },
-  requestMemoText: {
-    fontSize: 12,
-    color: "#8E8E93",
-    fontStyle: "italic",
-    marginTop: 4,
-  },
-  instructionsText: {
-    fontSize: 11,
-    color: "#8E8E93",
-    textAlign: "center",
-    lineHeight: 16,
-    paddingHorizontal: 20,
-    marginBottom: 40,
-  },
-  shareButton: {
-    width: "100%",
-    backgroundColor: "#76A6EF", // matches mockup's primary blue color
-    borderRadius: 20,
-    height: 52,
-    justifyContent: "center",
-    alignItems: "center",
-    shadowColor: "#76A6EF",
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.15,
-    shadowRadius: 10,
-    elevation: 3,
+  configCardSubtitle: {
+    fontSize: 11.5,
+    marginTop: 2,
     marginBottom: 12,
   },
-  shareButtonText: {
-    color: "#FFFFFF",
-    fontSize: 14,
+  editBadge: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 8,
+  },
+  editBadgeText: {
+    fontSize: 11,
+    fontWeight: "800",
+  },
+  amountDisplayRow: {
+    marginTop: 4,
+  },
+  requestAmountBig: {
+    fontSize: 24,
+    fontWeight: "800",
+  },
+  requestMemoTag: {
+    fontSize: 12,
+    marginTop: 2,
+    fontStyle: "italic",
+  },
+  noAmountNotice: {
+    fontSize: 12,
+    lineHeight: 17,
+  },
+  inputFieldLabel: {
+    fontSize: 11,
+    fontWeight: "700",
+    textTransform: "uppercase",
+    letterSpacing: 0.5,
+    marginBottom: 6,
+  },
+  amountInputBox: {
+    flexDirection: "row",
+    alignItems: "center",
+    height: 48,
+    borderRadius: 12,
+    borderWidth: 1,
+    paddingHorizontal: 14,
+    marginBottom: 10,
+  },
+  nairaPrefix: {
+    fontSize: 18,
+    fontWeight: "800",
+    marginRight: 6,
+  },
+  amountInputText: {
+    flex: 1,
+    fontSize: 16,
     fontWeight: "700",
   },
-  configButton: {
-    width: "100%",
-    backgroundColor: "#F0EEFA",
-    borderRadius: 20,
-    height: 52,
+  stepperRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginTop: 6,
+  },
+  stepperSub: {
+    fontSize: 11,
+    fontWeight: "700",
+    marginTop: 2,
+  },
+  stepperControls: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+  },
+  stepperBtn: {
+    width: 36,
+    height: 36,
+    borderRadius: 10,
+    borderWidth: 1,
+    alignItems: "center",
     justifyContent: "center",
+  },
+  stepperCount: {
+    fontSize: 16,
+    fontWeight: "800",
+    minWidth: 20,
+    textAlign: "center",
+  },
+  textInputRegular: {
+    height: 46,
+    borderRadius: 12,
+    borderWidth: 1,
+    paddingHorizontal: 14,
+    fontSize: 13.5,
+  },
+  splitSummaryBanner: {
+    borderRadius: 14,
+    padding: 14,
+    marginTop: 14,
     alignItems: "center",
   },
-  configButtonText: {
-    color: "#5B4E91",
+  splitSummaryLabel: {
+    fontSize: 10,
+    fontWeight: "800",
+    letterSpacing: 0.8,
+  },
+  splitSummaryAmount: {
+    fontSize: 22,
+    fontWeight: "800",
+    marginTop: 4,
+  },
+  qrCardContainer: {
+    borderRadius: 20,
+    padding: 20,
+    borderWidth: 1,
+    alignItems: "center",
+    marginBottom: 16,
+  },
+  qrCardTitle: {
+    fontSize: 12,
+    fontWeight: "700",
+    letterSpacing: 0.5,
+    marginBottom: 14,
+    textTransform: "uppercase",
+  },
+  qrWrapper: {
+    padding: 14,
+    borderRadius: 18,
+    borderWidth: 1,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.1,
+    shadowRadius: 8,
+    elevation: 4,
+    marginBottom: 14,
+  },
+  usernameBadge: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    paddingHorizontal: 12,
+    paddingVertical: 5,
+    borderRadius: 14,
+    marginBottom: 4,
+  },
+  usernameText: {
+    fontSize: 13,
+    fontWeight: "800",
+  },
+  userFullNameText: {
+    fontSize: 11.5,
+    fontWeight: "600",
+  },
+  actionButtonsRow: {
+    flexDirection: "row",
+    gap: 10,
+  },
+  primaryActionBtn: {
+    flex: 1,
+    height: 48,
+    borderRadius: 14,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 6,
+  },
+  primaryActionBtnText: {
+    fontSize: 14,
+    fontWeight: "800",
+    color: "#FFFFFF",
+  },
+  secondaryActionBtn: {
+    flex: 1,
+    height: 48,
+    borderRadius: 14,
+    borderWidth: 1,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 6,
+  },
+  secondaryActionBtnText: {
     fontSize: 14,
     fontWeight: "700",
-  },
-
-  // Modal styling
-  keyboardAvoidingContainer: {
-    justifyContent: "flex-end",
   },
   modalBackdrop: {
     flex: 1,
-    backgroundColor: "rgba(0, 0, 0, 0.4)",
+    backgroundColor: "rgba(0,0,0,0.6)",
     justifyContent: "flex-end",
   },
   modalContent: {
-    backgroundColor: "#FFFFFF",
-    borderTopLeftRadius: 28,
-    borderTopRightRadius: 28,
-    paddingTop: 8,
-    paddingBottom: Platform.OS === "ios" ? 34 : 20,
-    maxHeight: "92%",
-  },
-  modalPullBar: {
-    width: 36,
-    height: 5,
-    borderRadius: 2.5,
-    backgroundColor: "#E2E8F0",
-    alignSelf: "center",
-    marginBottom: 12,
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    padding: 20,
+    paddingBottom: 36,
+    borderWidth: 1,
   },
   modalHeader: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
-    paddingHorizontal: 20,
-    paddingBottom: 16,
-    borderBottomWidth: 1,
-    borderColor: "rgba(91, 78, 145, 0.05)",
+    marginBottom: 16,
   },
   modalTitle: {
-    fontSize: 16,
-    fontWeight: "700",
-    color: "#20142A",
-  },
-  modalBody: {
-    padding: 20,
-  },
-  modalBodyContent: {
-    paddingBottom: 8,
-  },
-  inputLabel: {
-    fontSize: 12,
-    fontWeight: "600",
-    color: "#8E8E93",
-    marginBottom: 8,
-  },
-  inputWrapper: {
-    flexDirection: "row",
-    alignItems: "center",
-    backgroundColor: "#F8F8FA",
-    borderRadius: 16,
-    paddingHorizontal: 16,
-    height: 54,
+    fontSize: 17,
+    fontWeight: "800",
   },
   quickAmountsRow: {
     flexDirection: "row",
     flexWrap: "wrap",
     gap: 8,
-    marginTop: 10,
+    marginBottom: 10,
   },
   quickAmountChip: {
     paddingHorizontal: 12,
-    paddingVertical: 8,
-    borderRadius: 999,
-    backgroundColor: "#F0EEFA",
-    marginRight: 8,
-    marginBottom: 8,
+    paddingVertical: 7,
+    borderRadius: 10,
   },
   quickAmountText: {
     fontSize: 12,
-    fontWeight: "700",
-    color: "#5B4E91",
+    fontWeight: "800",
   },
   categoryRow: {
     flexDirection: "row",
     flexWrap: "wrap",
     gap: 8,
-    marginTop: 6,
+    marginBottom: 10,
   },
   categoryChip: {
     paddingHorizontal: 12,
     paddingVertical: 8,
-    borderRadius: 999,
-    backgroundColor: "#F4F4F6",
-    marginRight: 8,
-    marginBottom: 8,
-  },
-  categoryChipActive: {
-    backgroundColor: "#5B4E91",
+    borderRadius: 10,
+    borderWidth: 1,
   },
   categoryChipText: {
     fontSize: 12,
-    fontWeight: "600",
-    color: "#20142A",
+    fontWeight: "700",
   },
-  categoryChipTextActive: {
-    color: "#FFFFFF",
+  saveDetailsBtn: {
+    height: 48,
+    borderRadius: 14,
+    alignItems: "center",
+    justifyContent: "center",
+    marginTop: 18,
   },
-  addCategoryChip: {
-    backgroundColor: "#F3E8FF",
-    borderWidth: 1,
-    borderColor: "#C084FC",
-  },
-  addCategoryChipActive: {
-    backgroundColor: "#7C3AED",
-    borderColor: "#7C3AED",
-  },
-  addCategoryChipText: {
-    color: "#6D28D9",
-    fontSize: 16,
+  saveDetailsBtnText: {
+    fontSize: 14,
     fontWeight: "800",
-  },
-  addCategoryChipTextActive: {
     color: "#FFFFFF",
-  },
-  helperText: {
-    fontSize: 12,
-    color: "#8E8E93",
-    marginTop: 10,
-    lineHeight: 18,
-  },
-  customInputWrapper: {
-    marginTop: 12,
-    backgroundColor: "#F8F8FA",
-    borderRadius: 16,
-    paddingHorizontal: 14,
-    paddingVertical: 12,
-  },
-  addCustomCategoryButton: {
-    marginTop: 10,
-    alignSelf: "flex-start",
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    borderRadius: 999,
-    backgroundColor: "#F0EEFA",
-  },
-  addCustomCategoryButtonText: {
-    color: "#5B4E91",
-    fontSize: 12,
-    fontWeight: "700",
-  },
-  categoryLabelRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    marginTop: 16,
-  },
-  categoryManageButton: {
-    width: 28,
-    height: 28,
-    borderRadius: 14,
-    backgroundColor: "#F3F4F6",
-    justifyContent: "center",
-    alignItems: "center",
-    marginLeft: 8,
-  },
-  categoryManageButtonText: {
-    color: "#4B5563",
-    fontSize: 16,
-    fontWeight: "700",
-  },
-  customCategoriesList: {
-    marginTop: 10,
-    backgroundColor: "#F8F8FA",
-    borderRadius: 14,
-    padding: 10,
-  },
-  customCategoryRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    paddingVertical: 6,
-  },
-  customCategoryText: {
-    fontSize: 13,
-    color: "#20142A",
-    fontWeight: "600",
-  },
-  deleteCategoryButton: {
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 999,
-    backgroundColor: "#FEE2E2",
-  },
-  deleteCategoryButtonText: {
-    color: "#DC2626",
-    fontSize: 13,
-    fontWeight: "700",
-  },
-  clearSelectionButton: {
-    marginTop: 8,
-    alignSelf: "flex-start",
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-    borderRadius: 999,
-    backgroundColor: "#F3F4F6",
-  },
-  clearSelectionButtonText: {
-    color: "#4B5563",
-    fontSize: 11,
-    fontWeight: "700",
-  },
-  customInput: {
-    fontSize: 14,
-    color: "#20142A",
-    paddingVertical: 0,
-  },
-  currencyPrefix: {
-    fontSize: 18,
-    fontWeight: "600",
-    color: "#20142A",
-    marginRight: 4,
-  },
-  inputIcon: {
-    marginRight: 8,
-  },
-  textInput: {
-    flex: 1,
-    fontSize: 18,
-    fontWeight: "600",
-    color: "#20142A",
-  },
-  modalSaveButton: {
-    backgroundColor: "#5B4E91",
-    borderRadius: 18,
-    height: 52,
-    justifyContent: "center",
-    alignItems: "center",
-    marginTop: 24,
-    shadowColor: "#5B4E91",
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.15,
-    shadowRadius: 10,
-    elevation: 3,
-  },
-  modalSaveButtonDisabled: {
-    backgroundColor: "#CFCFD6",
-    shadowOpacity: 0,
-    elevation: 0,
-  },
-  modalSaveButtonText: {
-    color: "#FFFFFF",
-    fontSize: 14,
-    fontWeight: "700",
-  },
-  modalClearButton: {
-    backgroundColor: "transparent",
-    height: 44,
-    justifyContent: "center",
-    alignItems: "center",
-    marginTop: 10,
-  },
-  modalClearButtonText: {
-    color: "#EF4444",
-    fontSize: 13,
-    fontWeight: "600",
   },
 });
