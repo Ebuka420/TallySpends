@@ -189,6 +189,7 @@ export default function App() {
 
   const {
     transactions,
+    availableBalance,
     unreadNotificationCount,
     themePreference,
     themeMode,
@@ -219,15 +220,7 @@ export default function App() {
 
   const transactionsRaw = (transactions || []) as any[];
 
-  const totalIncome = transactionsRaw
-    .filter((t: any) => t.type === "income")
-    .reduce((sum: number, t: any) => sum + Number(t.amount || 0), 0);
-
-  const totalExpenses = transactionsRaw
-    .filter((t: any) => t.type === "expense")
-    .reduce((sum: number, t: any) => sum + Number(t.amount || 0), 0);
-
-  const currentBalance = 2926.78 + totalIncome - totalExpenses;
+  const currentBalance = availableBalance;
 
   const recentTransactions = useMemo(() => {
     return [...transactionsRaw]

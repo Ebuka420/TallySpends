@@ -427,7 +427,7 @@ export default function RadialFloatingBot() {
   /* ================================================================
       MODAL SUBMISSIONS
   ================================================================= */
-  const handleAddExpenseSubmit = () => {
+  const handleAddExpenseSubmit = async () => {
     const parsed = parseFloat(expenseAmount);
     if (!expenseName.trim() || isNaN(parsed) || parsed <= 0) {
       Alert.alert(
@@ -437,7 +437,7 @@ export default function RadialFloatingBot() {
       return;
     }
 
-    addTransaction({
+    const saved = await addTransaction({
       id: `tx-${Date.now()}`,
       title: expenseName.trim(),
       amount: parsed,
@@ -445,6 +445,7 @@ export default function RadialFloatingBot() {
       type: "expense",
       date: new Date().toISOString().slice(0, 10),
     });
+    if (!saved) return;
 
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     Alert.alert(
@@ -642,7 +643,7 @@ export default function RadialFloatingBot() {
     }
   };
 
-  const handleSaveScannedReceipt = () => {
+  const handleSaveScannedReceipt = async () => {
     const parsed = parseFloat(scannedAmount);
     const merchantName = scannedMerchant.trim() || "Receipt Expense";
 
@@ -651,7 +652,7 @@ export default function RadialFloatingBot() {
       return;
     }
 
-    addTransaction({
+    const saved = await addTransaction({
       id: `tx-${Date.now()}`,
       title: merchantName,
       amount: parsed,
@@ -660,6 +661,7 @@ export default function RadialFloatingBot() {
       date: scannedDate || new Date().toISOString().slice(0, 10),
       receiptImage: scannedImageUri || undefined,
     });
+    if (!saved) return;
 
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     Alert.alert(
