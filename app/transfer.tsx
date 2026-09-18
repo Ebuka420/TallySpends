@@ -32,7 +32,7 @@ if (
 
 export default function TransferScreen() {
   const router = useRouter();
-  const { addTransaction, transactions, theme, themeMode } = useAppStore();
+  const { addTransaction, availableBalance, theme, themeMode } = useAppStore();
   const styles = React.useMemo(() => getStyles(theme), [theme]);
   const [amount, setAmount] = useState("");
   const [memo, setMemo] = useState("");
@@ -103,14 +103,7 @@ export default function TransferScreen() {
     }
   }, [showScanner]);
 
-  const transactionsRaw = transactions || [];
-  const totalIncome = transactionsRaw
-    .filter((t: any) => t.type === "income")
-    .reduce((sum: number, t: any) => sum + t.amount, 0);
-  const totalExpenses = transactionsRaw
-    .filter((t: any) => t.type === "expense")
-    .reduce((sum: number, t: any) => sum + t.amount, 0);
-  const currentBalance = 2926.78 + totalIncome - totalExpenses;
+  const currentBalance = availableBalance;
 
   const recentRecipients = MOCK_RECIPIENTS.filter((r) => r.isRecent);
 
@@ -185,7 +178,7 @@ export default function TransferScreen() {
     }
   };
 
-  const executeTransfer = () => {
+  const executeTransfer = async () => {
     const value = parseFloat(amount);
     if (isNaN(value) || value <= 0) {
       Alert.alert("Invalid Amount", "Please enter a valid amount to transfer.");
@@ -211,7 +204,7 @@ export default function TransferScreen() {
       date: new Date().toISOString(),
     };
 
-    addTransaction(newTx);
+    if (!(await addTransaction(newTx))) return;
     setReceiptTransaction(newTx);
     setTransferStep("success");
   };
