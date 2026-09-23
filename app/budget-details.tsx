@@ -1,7 +1,9 @@
+import { completeTransaction } from "../src/transactionCompletion";
 import { Ionicons } from "@expo/vector-icons";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import React, { useRef, useState } from "react";
 import {
+  Alert,
   Modal,
   Pressable,
   ScrollView,
@@ -15,11 +17,16 @@ import {
   BudgetButton,
   BudgetCard,
   BudgetCopy,
-  BudgetDate,
   BudgetFrame,
   BudgetLoading,
   ui,
 } from "../components/BudgetUI";
+import {
+  ActionNotice,
+  BudgetDate,
+  Disclosure,
+  PlanningSheet,
+} from "../components/PlanningUI";
 import {
   budgetPayments,
   canonicalCategory,
@@ -55,8 +62,50 @@ export default function BudgetDetailsScreen() {
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
   const [notice, setNotice] = useState("");
+  const [manage, setManage] = useState(false);
+  const [newName, setNewName] = useState("");
   const lock = useRef(false);
   const op = useRef(operationId());
+  const changeBudget = async (type: "archive" | "restore" | "rename") => {
+    if (!budget || lock.current) return;
+    lock.current = true;
+    setBusy(true);
+    setError("");
+    try {
+      await runBudgetCommand(
+        type === "rename"
+          ? { type, budgetId: budget.id, name: newName }
+          : { type, budgetId: budget.id },
+        operationId(),
+      );
+      setManage(false);
+      setNotice(
+        type === "archive"
+          ? "Budget archived. Remaining money returned to your available balance."
+          : type === "restore"
+            ? "Budget restored. Add money when you’re ready."
+            : "Budget name updated.",
+      );
+    } catch (e) {
+      setError(
+        e instanceof Error ? e.message : "Could not update this budget.",
+      );
+    } finally {
+      lock.current = false;
+      setBusy(false);
+    }
+  };
+  const archive = () => {
+    if (budget)
+      Alert.alert(
+        "Delete this budget?",
+        `${money(budget.remainingAmount)} will return to your available balance. The bucket will be archived so its history is kept and it can be restored.`,
+        [
+          { text: "Cancel", style: "cancel" },
+          { text: "Archive budget", onPress: () => changeBudget("archive") },
+        ],
+      );
+  };
   let amountMinor = 0;
   try {
     amountMinor = minor(amount);
@@ -120,7 +169,9 @@ export default function BudgetDetailsScreen() {
               ? "Money moved between your budgets."
               : "Money is available to allocate again.",
       );
+      const recordedExpense = action === "record";
       setAction(null);
+      if (recordedExpense) completeTransaction(router, op.current);
     } catch (e) {
       setError(
         e instanceof Error
@@ -147,6 +198,7 @@ export default function BudgetDetailsScreen() {
       ? wallet.transactions.filter(
           (tx) =>
             tx.type === "expense" &&
+            !tx.planId &&
             !wallet.deductions[tx.id] &&
             canonicalCategory(tx.category) ===
               canonicalCategory(budget.category) &&
@@ -178,7 +230,33 @@ export default function BudgetDetailsScreen() {
     }
   };
   return (
-    <BudgetFrame title={budget?.name || "Budget details"} theme={theme}>
+    <BudgetFrame
+      backTo="/budgetspending"
+      backLabel="My budgets"
+      title={budget?.name || "Budget details"}
+      theme={theme}
+      action={
+        budget && (
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="Manage budget"
+            disabled={busy}
+            onPress={() => {
+              setNewName(budget.name);
+              setError("");
+              setManage(true);
+            }}
+            style={ui.back}
+          >
+            <Ionicons
+              name="ellipsis-horizontal"
+              size={23}
+              color={theme.textPrimary}
+            />
+          </Pressable>
+        )
+      }
+    >
       {!wallet || budgetError ? (
         <BudgetLoading
           theme={theme}
@@ -213,76 +291,146 @@ export default function BudgetDetailsScreen() {
                 : ""}
             </BudgetCopy>
           </BudgetCard>
-          <View style={[ui.row, { gap: 6 }]}>
-            {(
-              [
-                { key: "pay", label: "Pay", icon: "arrow-up-outline" },
-                { key: "add", label: "Add Money", icon: "add" },
-                { key: "move", label: "Move Money", icon: "swap-horizontal" },
-                {
-                  key: "release",
-                  label: "Release",
-                  icon: "arrow-down-outline",
-                },
-              ] as const
-            ).map((item) => (
-              <Pressable
-                key={item.key}
-                accessibilityRole="button"
-                accessibilityLabel={item.label}
-                onPress={() => startAction(item.key)}
-                style={{
-                  flex: 1,
-                  alignItems: "center",
-                  gap: 9,
-                  paddingVertical: 8,
-                }}
-              >
-                <View
-                  style={[
-                    ui.back,
-                    {
-                      backgroundColor: theme.accentSoft,
-                      width: 54,
-                      height: 54,
-                      borderRadius: 18,
-                    },
-                  ]}
-                >
-                  <Ionicons name={item.icon} size={24} color={theme.accent} />
-                </View>
-                <Text
-                  style={{
-                    fontSize: 11,
-                    color: theme.textPrimary,
-                    fontWeight: "700",
-                  }}
-                >
-                  {item.label}
-                </Text>
-              </Pressable>
-            ))}
-          </View>
-          {notice ? (
+          {budget.status === "archived" ? (
             <BudgetCard theme={theme} soft>
-              <Text
-                accessibilityLiveRegion="polite"
-                style={{ color: theme.accent }}
-              >
-                {notice}
-              </Text>
+              <BudgetCopy theme={theme}>
+                This budget is archived. Its remaining money was released and
+                its history is still here.
+              </BudgetCopy>
+              <BudgetButton
+                theme={theme}
+                title="Restore budget"
+                disabled={busy}
+                onPress={() => changeBudget("restore")}
+              />
             </BudgetCard>
+          ) : (
+            <>
+              {budget.endDate && budget.endDate < today() && (
+                <BudgetCard theme={theme} soft>
+                  <Text style={[ui.heading, { color: theme.textPrimary }]}>
+                    This period has ended.
+                  </Text>
+                  <BudgetCopy theme={theme}>
+                    Your remaining money is still yours. Move it to another
+                    bucket or release it when you start a new budget. Nothing
+                    resets automatically.
+                  </BudgetCopy>
+                  <BudgetButton
+                    theme={theme}
+                    secondary
+                    title="Create another budget"
+                    onPress={() => router.push("/add-budget")}
+                  />
+                </BudgetCard>
+              )}
+              {budget.remainingAmount === 0 && (
+                <BudgetCard theme={theme} soft>
+                  <Text style={[ui.heading, { color: theme.textPrimary }]}>
+                    This bucket is spent up.
+                  </Text>
+                  <BudgetCopy theme={theme}>
+                    Nothing else can be charged to it. Add more money, or
+                    archive it when you’re done.
+                  </BudgetCopy>
+                  <BudgetButton
+                    theme={theme}
+                    title="Add money"
+                    onPress={() => startAction("add")}
+                  />
+                  <BudgetButton
+                    theme={theme}
+                    secondary
+                    title="Archive empty bucket"
+                    disabled={busy}
+                    onPress={archive}
+                  />
+                </BudgetCard>
+              )}
+              <View style={[ui.row, { gap: 6 }]}>
+                {(
+                  [
+                    { key: "pay", label: "Pay", icon: "arrow-up-outline" },
+                    { key: "add", label: "Add Money", icon: "add" },
+                    {
+                      key: "move",
+                      label: "Move Money",
+                      icon: "swap-horizontal",
+                    },
+                    {
+                      key: "release",
+                      label: "Release",
+                      icon: "arrow-down-outline",
+                    },
+                  ] as const
+                ).map((item) => (
+                  <Pressable
+                    key={item.key}
+                    accessibilityRole="button"
+                    accessibilityLabel={item.label}
+                    disabled={
+                      busy ||
+                      (budget.remainingAmount === 0 &&
+                        (item.key === "move" || item.key === "release"))
+                    }
+                    onPress={() => startAction(item.key)}
+                    style={{
+                      flex: 1,
+                      alignItems: "center",
+                      gap: 9,
+                      paddingVertical: 8,
+                      opacity:
+                        budget.remainingAmount === 0 &&
+                        (item.key === "move" || item.key === "release")
+                          ? 0.4
+                          : 1,
+                    }}
+                  >
+                    <View
+                      style={[
+                        ui.back,
+                        {
+                          backgroundColor: theme.accentSoft,
+                          width: 54,
+                          height: 54,
+                          borderRadius: 18,
+                        },
+                      ]}
+                    >
+                      <Ionicons
+                        name={item.icon}
+                        size={24}
+                        color={theme.accent}
+                      />
+                    </View>
+                    <Text
+                      style={{
+                        fontSize: 11,
+                        color: theme.textPrimary,
+                        fontWeight: "700",
+                      }}
+                    >
+                      {item.label}
+                    </Text>
+                  </Pressable>
+                ))}
+              </View>
+            </>
+          )}
+          {notice ? (
+            <ActionNotice
+              message={notice}
+              theme={theme}
+              destination="/budgetspending"
+              label="My budgets"
+            />
           ) : null}
-          <BudgetCopy theme={theme}>
-            Demo budget · Move or release your money whenever you need it. No
-            penalties or waiting periods.
-          </BudgetCopy>
           {!action && error ? (
             <BudgetCopy theme={theme} error>
               {error}
             </BudgetCopy>
           ) : null}
-          {unassigned.length > 0 && (
+          {budget.status === "active" && unassigned.length > 0 && (
             <BudgetCard theme={theme}>
               <Text style={[ui.heading, { color: theme.textPrimary }]}>
                 Unassigned expenses
@@ -311,19 +459,29 @@ export default function BudgetDetailsScreen() {
             <Text style={[ui.heading, { color: theme.textPrimary, flex: 1 }]}>
               Activity
             </Text>
-            <Pressable
-              accessibilityRole="button"
-              onPress={() => startAction("record")}
-              style={{ paddingVertical: 12 }}
-            >
-              <Text
-                style={{ fontSize: 13, color: theme.accent, fontWeight: "700" }}
+            {budget.status === "active" && (
+              <Pressable
+                accessibilityRole="button"
+                disabled={busy || budget.remainingAmount === 0}
+                onPress={() => startAction("record")}
+                style={{
+                  paddingVertical: 12,
+                  opacity: budget.remainingAmount === 0 ? 0.4 : 1,
+                }}
               >
-                Record expense
-              </Text>
-            </Pressable>
+                <Text
+                  style={{
+                    fontSize: 13,
+                    color: theme.accent,
+                    fontWeight: "700",
+                  }}
+                >
+                  Record expense
+                </Text>
+              </Pressable>
+            )}
           </View>
-          <BudgetCard theme={theme}>
+          <Disclosure title="View activity" theme={theme}>
             {wallet.activity
               .filter((a) => a.budgetId === budget.id)
               .slice()
@@ -364,14 +522,13 @@ export default function BudgetDetailsScreen() {
                       fontWeight: "700",
                     }}
                   >
-                    {["spend", "release", "move-out"].includes(a.kind)
-                      ? "−"
-                      : "+"}
-                    {money(a.amount)}
+                    {a.amount > 0
+                      ? `${["spend", "release", "move-out", "archive"].includes(a.kind) ? "−" : "+"}${money(a.amount)}`
+                      : ""}
                   </Text>
                 </View>
               ))}
-          </BudgetCard>
+          </Disclosure>
           <Modal
             visible={!!action}
             transparent
@@ -459,7 +616,10 @@ export default function BudgetDetailsScreen() {
                         <>
                           <BudgetCopy theme={theme}>Move to</BudgetCopy>
                           {wallet.budgets
-                            .filter((b) => b.id !== budget.id)
+                            .filter(
+                              (b) =>
+                                b.id !== budget.id && b.status === "active",
+                            )
                             .map((b) => (
                               <Pressable
                                 key={b.id}
@@ -488,7 +648,8 @@ export default function BudgetDetailsScreen() {
                                 </Text>
                               </Pressable>
                             ))}
-                          {wallet.budgets.length < 2 && (
+                          {wallet.budgets.filter((b) => b.status === "active")
+                            .length < 2 && (
                             <BudgetCopy theme={theme}>
                               Create another budget first to move money between
                               buckets.
@@ -520,6 +681,14 @@ export default function BudgetDetailsScreen() {
                             value={date}
                             onChange={setDate}
                           />
+                          {(date > today() ||
+                            date < budget.startDate ||
+                            (budget.endDate && date > budget.endDate)) && (
+                            <BudgetCopy theme={theme} error>
+                              Choose a date within this budget’s period, no
+                              later than today.
+                            </BudgetCopy>
+                          )}
                           <BudgetCopy theme={theme}>
                             Only record an expense that is not already in your
                             transaction history. No payment will be sent.
@@ -548,7 +717,11 @@ export default function BudgetDetailsScreen() {
                           !amountMinor ||
                           amountMinor > limit ||
                           (action === "move" && !destination) ||
-                          (action === "record" && !title.trim())
+                          (action === "record" &&
+                            (!title.trim() ||
+                              date > today() ||
+                              date < budget.startDate ||
+                              !!(budget.endDate && date > budget.endDate)))
                         }
                         onPress={submit}
                       />
@@ -568,6 +741,64 @@ export default function BudgetDetailsScreen() {
               />
             </View>
           </Modal>
+          <PlanningSheet
+            visible={manage}
+            title="Manage budget"
+            theme={theme}
+            onClose={() => {
+              if (!busy) setManage(false);
+            }}
+          >
+            <BudgetCopy theme={theme}>Budget name</BudgetCopy>
+            <TextInput
+              accessibilityLabel="Rename budget"
+              value={newName}
+              onChangeText={setNewName}
+              maxLength={40}
+              editable={!busy}
+              style={[
+                ui.input,
+                { borderColor: theme.border, color: theme.textPrimary },
+              ]}
+            />
+            <BudgetButton
+              theme={theme}
+              title="Save name"
+              disabled={
+                busy || !newName.trim() || newName.trim() === budget.name
+              }
+              onPress={() => changeBudget("rename")}
+            />
+            {budget.status === "active" ? (
+              <>
+                <BudgetCopy theme={theme}>
+                  Deleting archives this bucket and releases{" "}
+                  {money(budget.remainingAmount)}. Transaction history is never
+                  deleted.
+                </BudgetCopy>
+                <BudgetButton
+                  theme={theme}
+                  secondary
+                  title="Delete budget (archive)"
+                  disabled={busy}
+                  onPress={archive}
+                />
+              </>
+            ) : (
+              <BudgetButton
+                theme={theme}
+                secondary
+                title="Restore budget"
+                disabled={busy}
+                onPress={() => changeBudget("restore")}
+              />
+            )}
+            {error ? (
+              <BudgetCopy theme={theme} error>
+                {error}
+              </BudgetCopy>
+            ) : null}
+          </PlanningSheet>
         </>
       )}
     </BudgetFrame>

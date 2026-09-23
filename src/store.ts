@@ -1085,6 +1085,11 @@ export function useAppStore() {
         notifDesc = `Your withdrawal of ${formattedAmount} to your bank account is underway.`;
       }
 
+      if (tx.demo) {
+        notifTitle = "Demo transaction recorded";
+        notifDesc = `${formattedAmount} was saved to your demo wallet. No bank transfer was made.`;
+      }
+
       addNotification({
         type: notifType,
         title: notifTitle,

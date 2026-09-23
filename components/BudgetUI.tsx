@@ -1,15 +1,20 @@
 import { Ionicons } from "@expo/vector-icons";
 import { BlurView } from "expo-blur";
-import { useRouter } from "expo-router";
+import { useRouter, type Href } from "expo-router";
 import React, { useEffect, useRef, useState } from "react";
 import {
   ActivityIndicator,
   Animated,
+  Keyboard,
+  KeyboardAvoidingView,
   Modal,
+  Platform,
   Pressable,
   ScrollView,
   StyleSheet,
   Text,
+  type TextInputProps,
+  type ViewStyle,
   View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
@@ -22,12 +27,14 @@ export function BudgetButton({
   theme,
   disabled,
   secondary = false,
+  pill = false,
 }: {
   title: string;
   onPress: () => void;
   theme: ThemePalette;
   disabled?: boolean;
   secondary?: boolean;
+  pill?: boolean;
 }) {
   return (
     <Pressable
@@ -40,6 +47,7 @@ export function BudgetButton({
         {
           backgroundColor: secondary ? theme.accentSoft : theme.accent,
           opacity: disabled ? 0.4 : pressed ? 0.75 : 1,
+          borderRadius: pill ? 30 : 16,
         },
       ]}
     >
@@ -60,11 +68,15 @@ export function BudgetFrame({
   theme,
   children,
   action,
+  backTo,
+  backLabel,
 }: {
   title: string;
   theme: ThemePalette;
   children: React.ReactNode;
   action?: React.ReactNode;
+  backTo?: Href;
+  backLabel?: string;
 }) {
   const router = useRouter();
   return (
@@ -72,11 +84,13 @@ export function BudgetFrame({
       <View style={ui.header}>
         <Pressable
           accessibilityRole="button"
-          accessibilityLabel="Go back"
+          accessibilityLabel={backLabel ? `Back to ${backLabel}` : "Go back"}
           onPress={() =>
-            router.canGoBack()
-              ? router.back()
-              : router.replace("/(tabs)/budget")
+            backTo
+              ? router.dismissTo(backTo)
+              : router.canGoBack()
+                ? router.back()
+                : router.replace("/(tabs)/budget")
           }
           style={[
             ui.back,
@@ -85,20 +99,41 @@ export function BudgetFrame({
         >
           <Ionicons name="chevron-back" size={22} color={theme.textPrimary} />
         </Pressable>
-        <Text
-          accessibilityRole="header"
-          style={[ui.heading, { color: theme.textPrimary, flex: 1 }]}
-        >
-          {title}
-        </Text>
+        <View style={{ flex: 1, gap: 3 }}>
+          {backTo && backLabel && (
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel={`Back to ${backLabel}`}
+              onPress={() => router.dismissTo(backTo)}
+            >
+              <Text
+                style={{ color: theme.accent, fontSize: 11, fontWeight: "600" }}
+              >
+                Back to {backLabel}
+              </Text>
+            </Pressable>
+          )}
+          <Text
+            accessibilityRole="header"
+            numberOfLines={2}
+            style={[ui.heading, { color: theme.textPrimary }]}
+          >
+            {title}
+          </Text>
+        </View>
         {action}
       </View>
-      <ScrollView
-        keyboardShouldPersistTaps="handled"
-        contentContainerStyle={ui.content}
+      <KeyboardAvoidingView
+        style={{ flex: 1 }}
+        behavior={Platform.OS === "ios" ? "padding" : undefined}
       >
-        {children}
-      </ScrollView>
+        <ScrollView
+          keyboardShouldPersistTaps="handled"
+          contentContainerStyle={ui.content}
+        >
+          {children}
+        </ScrollView>
+      </KeyboardAvoidingView>
     </SafeAreaView>
   );
 }
@@ -164,7 +199,7 @@ export function BudgetLoading({
       ) : (
         <>
           <ActivityIndicator color={theme.accent} />
-          <BudgetCopy theme={theme}>Loading your budgets…</BudgetCopy>
+          <BudgetCopy theme={theme}>Loading your plans…</BudgetCopy>
         </>
       )}
     </BudgetCard>
@@ -205,6 +240,9 @@ export function AmountPad({
   theme,
   title,
   available,
+  accessory,
+  limitLabel = "Available",
+  allowEmpty = false,
 }: {
   visible: boolean;
   value: string;
@@ -213,7 +251,10 @@ export function AmountPad({
   onDone: () => void;
   theme: ThemePalette;
   title: string;
-  available: number;
+  available?: number;
+  accessory?: React.ReactNode;
+  limitLabel?: string;
+  allowEmpty?: boolean;
 }) {
   const press = (key: string) => {
     if (key === "delete") return onChange(value.slice(0, -1));
@@ -225,7 +266,8 @@ export function AmountPad({
   try {
     amountMinor = minor(value);
   } catch {}
-  const valid = amountMinor > 0 && amountMinor <= available;
+  const overLimit = available !== undefined && amountMinor > available;
+  const valid = (amountMinor > 0 && !overLimit) || (allowEmpty && value === "");
   const [whole = "", fraction] = value.split(".");
   const displayed = `${whole ? Number(whole).toLocaleString("en-NG") : "0"}${fraction !== undefined ? `.${fraction}` : ""}`;
   return (
@@ -268,7 +310,8 @@ export function AmountPad({
             >
               ₦{displayed}
             </Text>
-            <View
+            {accessory}
+            {available !== undefined && <View
               style={[ui.balancePill, { backgroundColor: theme.surfaceSoft }]}
             >
               <Ionicons
@@ -277,23 +320,23 @@ export function AmountPad({
                 color={theme.textSecondary}
               />
               <Text style={{ color: theme.textSecondary, fontSize: 13 }}>
-                Available {money(available)}
+                {limitLabel} {money(available)}
               </Text>
-            </View>
+            </View>}
             <Text
               style={[
                 ui.padHint,
                 {
                   color:
-                    amountMinor > available
+                    overLimit
                       ? theme.danger
                       : theme.textSecondary,
                 },
               ]}
             >
-              {amountMinor > available
-                ? "Amount exceeds available money"
-                : "Set aside only what you need."}
+              {overLimit
+                ? "Amount exceeds the limit"
+                : "Enter an amount to continue."}
             </Text>
           </View>
           <View style={ui.keypad}>
@@ -352,6 +395,7 @@ export function AmountPad({
           <View style={ui.pillButton}>
             <BudgetButton
               title="Continue"
+              pill
               theme={theme}
               disabled={!valid}
               onPress={onDone}
@@ -361,6 +405,29 @@ export function AmountPad({
       </SafeAreaView>
     </Modal>
   );
+}
+/** Amount-only version of the budget keypad, usable inside forms and sheets. */
+export function AmountInput({
+  value = "", onChangeText, theme, title = "Enter amount", available, allowEmpty,
+  style, placeholder = "0.00", placeholderTextColor, accessibilityLabel,
+}: TextInputProps & { theme: ThemePalette; title?: string; available?: number; allowEmpty?: boolean }) {
+  const [open, setOpen] = useState(false);
+  const [draft, setDraft] = useState(value);
+  const { fontSize, fontWeight, fontFamily, letterSpacing, textAlign, ...fieldStyle } = StyleSheet.flatten(style) || {};
+  const [whole, fraction] = value.split(".");
+  const display = value ? `${Number(whole || 0).toLocaleString("en-NG")}${fraction !== undefined ? `.${fraction}` : ""}` : placeholder;
+  return <>
+    <Pressable
+      accessibilityRole="button"
+      accessibilityLabel={`${accessibilityLabel || title}: ${value || "0"} naira`}
+      onPress={() => { Keyboard.dismiss(); setDraft(value); setOpen(true); }}
+      style={[fieldStyle as ViewStyle, { justifyContent: "center" }]}
+    >
+      <Text numberOfLines={1} adjustsFontSizeToFit style={{ fontSize: fontSize || 20, fontWeight: fontWeight || "700", fontFamily, letterSpacing, textAlign, color: value ? theme.textPrimary : placeholderTextColor || theme.textSecondary }}>{display}</Text>
+    </Pressable>
+    <AmountPad visible={open} value={draft} onChange={setDraft} onClose={() => setOpen(false)}
+      onDone={() => { onChangeText?.(draft); setOpen(false); }} theme={theme} title={title} available={available} allowEmpty={allowEmpty} />
+  </>;
 }
 function DateWheel({
   values,
@@ -442,7 +509,7 @@ function DateWheel({
     </View>
   );
 }
-export function BudgetDate({
+export function SavingsDate({
   label,
   value,
   onChange,
@@ -609,6 +676,7 @@ export function BudgetDate({
                 <BudgetButton
                   theme={theme}
                   title="Continue"
+                  pill
                   onPress={() => {
                     onChange(localDate(draft));
                     setOpen(false);

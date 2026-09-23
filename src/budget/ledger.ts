@@ -20,16 +20,26 @@ export type Budget = {
   spentAmount: number;
   remainingAmount: number;
   period: "ongoing" | "custom";
+  frequency?: "once" | "weekly" | "biweekly" | "monthly";
   startDate: string;
   endDate?: string;
-  status: "active";
+  status: "active" | "archived";
   createdAt: string;
   updatedAt: string;
 };
 export type Activity = {
   id: string;
   budgetId: string;
-  kind: "fund" | "move-in" | "move-out" | "release" | "spend" | "reversal";
+  kind:
+    | "fund"
+    | "move-in"
+    | "move-out"
+    | "release"
+    | "spend"
+    | "reversal"
+    | "archive"
+    | "restore"
+    | "rename";
   amount: number;
   date: string;
   description: string;
@@ -45,6 +55,69 @@ export type Wallet = {
   operations: string[];
   deductions: Record<string, { budgetId: string; amount: number }>;
   review: Record<string, string>;
+  savings?: SavingsPlan[];
+  circles?: AjoCircle[];
+};
+export type Participant = {
+  tag: string;
+  displayName?: string;
+  avatarUri?: string;
+  userId?: string;
+  status: "accepted" | "invited" | "declined";
+};
+export type PlanActivity = {
+  id: string;
+  type: string;
+  amount: number;
+  tag: string;
+  date: string;
+  note: string;
+};
+export type SavingsPlan = {
+  id: string;
+  name: string;
+  kind: "personal" | "joint";
+  ownerTag: string;
+  target: number;
+  saved: number;
+  unlockDate: string;
+  status: "active" | "completed" | "archived";
+  participants: Participant[];
+  activity: PlanActivity[];
+  createdAt: string;
+  updatedAt: string;
+};
+export type AjoCircle = {
+  id: string;
+  trackingMode?: "external" | "legacy-demo";
+  name: string;
+  ownerTag: string;
+  contribution: number;
+  frequency: "weekly" | "monthly" | "biweekly";
+  nextDate: string;
+  firstDate?: string;
+  round: number;
+  status: "active" | "completed" | "archived";
+  participants: Participant[];
+  contributions: {
+    round: number;
+    tag: string;
+    amount: number;
+    date: string;
+    reference?: string;
+    recordId?: string;
+    voidedAt?: string;
+  }[];
+  payouts: {
+    round: number;
+    tag: string;
+    amount: number;
+    date: string;
+    reference?: string;
+  }[];
+  activity: PlanActivity[];
+  createdAt: string;
+  updatedAt: string;
 };
 export type Allocation = {
   name: string;
@@ -52,10 +125,14 @@ export type Allocation = {
   amount: number;
   startDate: string;
   endDate?: string;
+  frequency?: Budget["frequency"];
 };
 export type BudgetCommand =
   | { type: "allocate"; allocations: Allocation[] }
   | { type: "add" | "release"; budgetId: string; amount: number }
+  | { type: "archive"; budgetId: string }
+  | { type: "restore"; budgetId: string }
+  | { type: "rename"; budgetId: string; name: string }
   | { type: "move"; budgetId: string; destinationId: string; amount: number };
 
 export function minor(value: string): number {
@@ -113,10 +190,28 @@ export function totals(wallet: Wallet) {
   return {
     balance,
     remaining,
-    available: balance - remaining,
-    allocated: wallet.budgets.reduce((sum, b) => sum + b.allocatedAmount, 0),
+    available:
+      balance - remaining - reservedSavings(wallet) - reservedAjo(wallet),
+    allocated: wallet.budgets
+      .filter((b) => b.status === "active")
+      .reduce((sum, b) => sum + b.allocatedAmount, 0),
   };
 }
+export const reservedSavings = (wallet: Wallet) =>
+  (wallet.savings || []).reduce((sum, plan) => sum + plan.saved, 0);
+export const reservedAjo = (wallet: Wallet) =>
+  (wallet.circles || []).reduce(
+    (sum, circle) =>
+      sum +
+      (circle.trackingMode ? [] : circle.contributions)
+        .filter(
+          (c) =>
+            c.tag === circle.ownerTag &&
+            !circle.payouts.some((p) => p.round === c.round),
+        )
+        .reduce((total, c) => total + c.amount, 0),
+    0,
+  );
 function clone(wallet: Wallet): Wallet {
   return JSON.parse(JSON.stringify(wallet));
 }
@@ -151,26 +246,142 @@ function sufficient(balance: number, amount: number) {
       "Insufficient balance. Choose a smaller amount or add money first.",
     );
 }
-function assertWallet(wallet: Wallet) {
-  const summary = totals(wallet);
-  if (
-    !Number.isSafeInteger(summary.balance) ||
-    summary.balance < 0 ||
-    summary.available < 0
-  ) {
-    throw new Error(
-      "Not enough unallocated money. Release money from a budget before recording this transaction.",
-    );
-  }
+export function assertWallet(wallet: Wallet) {
   for (const b of wallet.budgets) {
     if (
       ![b.allocatedAmount, b.remainingAmount, b.spentAmount].every(
         (n) => Number.isSafeInteger(n) && n >= 0,
       ) ||
-      b.allocatedAmount !== b.spentAmount + b.remainingAmount
+      b.allocatedAmount !== b.spentAmount + b.remainingAmount ||
+      !["active", "archived"].includes(b.status) ||
+      (b.status === "archived" && b.remainingAmount !== 0)
     ) {
       throw new Error("Budget balances could not be validated.");
     }
+  }
+  if (
+    (wallet.savings !== undefined && !Array.isArray(wallet.savings)) ||
+    (wallet.circles !== undefined && !Array.isArray(wallet.circles))
+  )
+    throw new Error("Saved plans need review.");
+  const planIds = new Set<string>();
+  for (const plan of [...(wallet.savings || []), ...(wallet.circles || [])]) {
+    if (
+      !plan ||
+      typeof plan.id !== "string" ||
+      planIds.has(plan.id) ||
+      typeof plan.name !== "string" ||
+      !plan.name.trim() ||
+      !["active", "completed", "archived"].includes(plan.status) ||
+      !Array.isArray(plan.participants) ||
+      !Array.isArray(plan.activity) ||
+      !plan.participants.length ||
+      plan.participants.length > 10 ||
+      plan.participants[0]?.tag !== plan.ownerTag ||
+      plan.participants[0]?.status !== "accepted"
+    )
+      throw new Error("Saved plans need review.");
+    const tags = new Set<string>();
+    for (const member of plan.participants) {
+      if (
+        !member ||
+        !/^[a-z0-9][a-z0-9_.-]{2,29}$/.test(member.tag) ||
+        tags.has(member.tag) ||
+        !["accepted", "invited", "declined"].includes(member.status)
+      )
+        throw new Error("Saved participants need review.");
+      tags.add(member.tag);
+    }
+    planIds.add(plan.id);
+  }
+  for (const plan of wallet.savings || []) {
+    if (
+      !Number.isSafeInteger(plan.saved) ||
+      plan.saved < 0 ||
+      !Number.isSafeInteger(plan.target) ||
+      plan.target <= 0 ||
+      plan.saved > plan.target
+    )
+      throw new Error("Savings balances could not be validated.");
+    if (
+      !validDate(plan.unlockDate) ||
+      !["personal", "joint"].includes(plan.kind) ||
+      (plan.kind === "joint" && plan.participants.length < 2) ||
+      (plan.kind === "personal" && plan.participants.length !== 1) ||
+      (plan.status !== "active" && plan.saved !== 0) ||
+      (plan.saved > 0 && plan.participants.some((p) => p.status !== "accepted"))
+    )
+      throw new Error("Saved savings goals need review.");
+  }
+  for (const circle of wallet.circles || []) {
+    const count = circle.participants.length;
+    if (
+      !Number.isSafeInteger(circle.contribution) ||
+      (circle.trackingMode !== undefined &&
+        !["external", "legacy-demo"].includes(circle.trackingMode)) ||
+      circle.contribution <= 0 ||
+      !Number.isSafeInteger(circle.contribution * count) ||
+      count < 3 ||
+      !Number.isInteger(circle.round) ||
+      circle.round < 0 ||
+      circle.round > count ||
+      (circle.status === "active" && circle.round === count) ||
+      (circle.status === "completed" && circle.round !== count) ||
+      !validDate(circle.nextDate) ||
+      (circle.firstDate !== undefined && !validDate(circle.firstDate)) ||
+      !["weekly", "monthly", "biweekly"].includes(circle.frequency) ||
+      !Array.isArray(circle.contributions) ||
+      !Array.isArray(circle.payouts) ||
+      circle.payouts.length !== circle.round
+    )
+      throw new Error("Saved circle balances need review.");
+    const contributions = new Set<string>();
+    for (const contribution of circle.contributions) {
+      const key = `${contribution.round}:${contribution.tag}`;
+      if (
+        !Number.isInteger(contribution.round) ||
+        contribution.round < 0 ||
+        contribution.round >= count ||
+        contribution.round > circle.round ||
+        !circle.participants.some(
+          (p) => p.tag === contribution.tag && p.status === "accepted",
+        ) ||
+        contribution.amount !== circle.contribution ||
+        !validDate(contribution.date?.slice(0, 10)) ||
+        (contribution.voidedAt !== undefined &&
+          !validDate(contribution.voidedAt.slice(0, 10))) ||
+        (!contribution.voidedAt && contributions.has(key))
+      )
+        throw new Error("Saved circle contributions need review.");
+      if (!contribution.voidedAt) contributions.add(key);
+    }
+    for (let round = 0; round < circle.payouts.length; round++) {
+      const payout = circle.payouts[round];
+      if (
+        payout.round !== round ||
+        payout.tag !== circle.participants[round].tag ||
+        payout.amount !== circle.contribution * count ||
+        circle.participants.some((p) => !contributions.has(`${round}:${p.tag}`))
+      )
+        throw new Error("Saved circle payouts need review.");
+    }
+    if (
+      circle.status === "archived" &&
+      circle.round < count &&
+      circle.contributions.some((c) => !c.voidedAt)
+    )
+      throw new Error("A funded circle cannot be archived before completion.");
+  }
+  const summary = totals(wallet);
+  if (
+    !Number.isSafeInteger(summary.balance) ||
+    !Number.isSafeInteger(summary.available) ||
+    summary.balance < 0 ||
+    summary.available < 0
+  ) {
+    throw new Error(
+      "Not enough unallocated money. Release money from a budget or add demo funds before recording this transaction.",
+    );
   }
 }
 /** Reject malformed storage without overwriting it or silently inventing a new balance. */
@@ -249,6 +460,11 @@ export function applyBudgetCommand(
       if (!a.name.trim() || !a.category.trim() || a.name.trim().length > 40)
         throw new Error("Choose a budget name of 1–40 characters.");
       if (
+        a.frequency &&
+        !["once", "monthly", "weekly", "biweekly"].includes(a.frequency)
+      )
+        throw new Error("Choose a valid budget frequency.");
+      if (
         !validDate(a.startDate) ||
         (a.endDate && (!validDate(a.endDate) || a.endDate < a.startDate))
       )
@@ -266,6 +482,7 @@ export function applyBudgetCommand(
         spentAmount: 0,
         remainingAmount: a.amount,
         period: a.endDate ? "custom" : "ongoing",
+        frequency: a.frequency || "once",
         startDate: a.startDate,
         endDate: a.endDate,
         status: "active",
@@ -274,8 +491,40 @@ export function applyBudgetCommand(
       });
       entry(wallet, id, "fund", a.amount, now, "Allocated from demo balance");
     });
+  } else if (
+    command.type === "archive" ||
+    command.type === "restore" ||
+    command.type === "rename"
+  ) {
+    const b = bucket(wallet, command.budgetId);
+    if (command.type === "archive") {
+      if (b.status === "archived") return original;
+      const released = b.remainingAmount;
+      b.allocatedAmount -= released;
+      b.remainingAmount = 0;
+      b.status = "archived";
+      entry(
+        wallet,
+        b.id,
+        "archive",
+        released,
+        now,
+        "Archived; remaining money returned to available balance",
+      );
+    } else if (command.type === "restore") {
+      b.status = "active";
+      entry(wallet, b.id, "restore", 0, now, "Budget restored");
+    } else {
+      if (!command.name.trim() || command.name.trim().length > 40)
+        throw new Error("Use a name of 1–40 characters.");
+      b.name = command.name.trim();
+      entry(wallet, b.id, "rename", 0, now, `Renamed to ${b.name}`);
+    }
+    b.updatedAt = now;
   } else {
     const from = bucket(wallet, command.budgetId);
+    if (from.status !== "active")
+      throw new Error("Restore this budget before adding or moving money.");
     positive(command.amount);
     if (command.type === "add") {
       sufficient(totals(wallet).available, command.amount);
@@ -297,6 +546,8 @@ export function applyBudgetCommand(
         if (command.destinationId === from.id)
           throw new Error("Choose a different budget.");
         const to = bucket(wallet, command.destinationId);
+        if (to.status !== "active")
+          throw new Error("Choose an active destination budget.");
         to.allocatedAmount += command.amount;
         to.remainingAmount += command.amount;
         to.updatedAt = now;
@@ -374,6 +625,10 @@ export function upsertTransaction(
   }
   const old = original.transactions.find((t) => t.id === tx.id);
   if (old && JSON.stringify(old) === JSON.stringify(tx)) return original;
+  if (old?.planId || tx.planId)
+    throw new Error(
+      "Ajo settlement records cannot be edited from the transaction feed. Open the circle to view its history.",
+    );
   const wallet = clone(original);
   undoDeduction(wallet, tx.id, now);
   wallet.transactions = [
@@ -418,7 +673,8 @@ function undoDeduction(wallet: Wallet, id: string, now: string) {
   if (!previous) return;
   const b = bucket(wallet, previous.budgetId);
   b.spentAmount -= previous.amount;
-  b.remainingAmount += previous.amount;
+  if (b.status === "archived") b.allocatedAmount -= previous.amount;
+  else b.remainingAmount += previous.amount;
   b.updatedAt = now;
   entry(
     wallet,
@@ -436,6 +692,10 @@ export function removeTransaction(
   id: string,
   now = new Date().toISOString(),
 ) {
+  if (original.transactions.some((tx) => tx.id === id && tx.planId))
+    throw new Error(
+      "Ajo settlement records cannot be deleted. Their history keeps the circle balance correct.",
+    );
   const wallet = clone(original);
   undoDeduction(wallet, id, now);
   wallet.transactions = wallet.transactions.filter((t) => t.id !== id);

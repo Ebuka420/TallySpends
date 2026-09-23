@@ -14,6 +14,7 @@ import {
 import { money, today, totals } from "../src/budget/ledger";
 import { operationId, runBudgetCommand } from "../src/budget/repository";
 import { useAppStore } from "../src/store";
+import { AddAction, Disclosure, PlanTabs, PlanTip } from "../components/PlanningUI";
 
 export default function BudgetSpendingScreen() {
   const router = useRouter();
@@ -24,6 +25,9 @@ export default function BudgetSpendingScreen() {
     theme,
   } = useAppStore();
   const [showPlan, setShowPlan] = useState(false);
+  const [filter, setFilter] = useState("active");
+  const visibleBudgets =
+    wallet?.budgets.filter((b) => b.status === filter) || [];
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const lock = useRef(false);
@@ -74,6 +78,7 @@ export default function BudgetSpendingScreen() {
         planId.current,
       );
       setShowPlan(false);
+      setFilter("active");
       planId.current = operationId();
     } catch (e) {
       setError(
@@ -87,16 +92,11 @@ export default function BudgetSpendingScreen() {
   return (
     <BudgetFrame
       title="My Budget"
+      backTo="/(tabs)/budget"
+      backLabel="Budget"
       theme={theme}
       action={
-        <Pressable
-          accessibilityRole="button"
-          accessibilityLabel="Create budget"
-          onPress={() => router.push("/add-budget")}
-          style={[ui.back, { backgroundColor: theme.accentSoft }]}
-        >
-          <Ionicons name="add" size={24} color={theme.accent} />
-        </Pressable>
+        <AddAction theme={theme} onPress={() => router.push("/add-budget")} />
       }
     >
       {!wallet || budgetError ? (
@@ -108,16 +108,6 @@ export default function BudgetSpendingScreen() {
       ) : (
         summary && (
           <>
-            <View>
-              <Text
-                style={[ui.heading, { color: theme.textPrimary, fontSize: 27 }]}
-              >
-                Your money, given a purpose.
-              </Text>
-              <BudgetCopy theme={theme}>
-                Set aside what you want to spend. Adjust whenever life changes.
-              </BudgetCopy>
-            </View>
             <BudgetCard theme={theme}>
               <Text style={[ui.label, { color: theme.textSecondary }]}>
                 REMAINING IN YOUR BUDGETS
@@ -147,39 +137,26 @@ export default function BudgetSpendingScreen() {
                 </View>
               </View>
             </BudgetCard>
-            <BudgetCard theme={theme} soft>
-              <View style={ui.row}>
-                <Ionicons
-                  name="wallet-outline"
-                  size={24}
-                  color={theme.accent}
-                />
-                <View style={{ flex: 1 }}>
-                  <BudgetCopy theme={theme}>Available to allocate</BudgetCopy>
-                  <Text style={[ui.heading, { color: theme.textPrimary }]}>
-                    {money(summary.available)}
-                  </Text>
-                </View>
-              </View>
-              <BudgetCopy theme={theme}>
-                Demo balance · Allocations are saved on this device. No money
-                moves between bank accounts.
-              </BudgetCopy>
-            </BudgetCard>
-            <BudgetButton
-              theme={theme}
-              title="Create Budget"
-              onPress={() => router.push("/add-budget")}
-            />
+            <BudgetCopy theme={theme}>
+              {money(summary.available)} available to allocate · Saved on this
+              device
+            </BudgetCopy>
             <View style={[ui.row, { marginTop: 10 }]}>
               <Text style={[ui.heading, { color: theme.textPrimary, flex: 1 }]}>
                 Your budgets
               </Text>
               <BudgetCopy theme={theme}>
-                {wallet.budgets.length} buckets
+                {visibleBudgets.length} buckets
               </BudgetCopy>
             </View>
-            {!wallet.budgets.length && (
+            <PlanTip theme={theme} title="Give every naira a little direction" text="Start with essentials like food and transport. Check what is left before each purchase, and move money between budgets when plans change." />
+          <PlanTabs
+              theme={theme}
+              values={["active", "archived"]}
+              selected={filter}
+              onChange={setFilter}
+            />
+            {!visibleBudgets.length && (
               <BudgetCard theme={theme}>
                 <Ionicons
                   name="albums-outline"
@@ -187,15 +164,25 @@ export default function BudgetSpendingScreen() {
                   color={theme.accent}
                 />
                 <Text style={[ui.heading, { color: theme.textPrimary }]}>
-                  Make room for what matters
+                  {filter === "archived"
+                    ? "No archived budgets"
+                    : "Make room for what matters"}
                 </Text>
                 <BudgetCopy theme={theme}>
-                  Start with food, transport, or something of your own. Your
-                  first allocation comes from your available balance.
+                  {filter === "archived"
+                    ? "Deleted budgets stay here with their history. You can restore them anytime."
+                    : "Start with food, transport, or something of your own. Your first allocation comes from your available balance."}
                 </BudgetCopy>
+                {filter === "active" && (
+                  <BudgetButton
+                    theme={theme}
+                    title="Create budget"
+                    onPress={() => router.push("/add-budget")}
+                  />
+                )}
               </BudgetCard>
             )}
-            {wallet.budgets.map((b) => (
+            {visibleBudgets.map((b) => (
               <Pressable
                 key={b.id}
                 accessibilityRole="button"
@@ -228,11 +215,15 @@ export default function BudgetSpendingScreen() {
                         {b.name}
                       </Text>
                       <BudgetCopy theme={theme}>
-                        {b.endDate && b.endDate < today()
-                          ? "Period ended · money still yours"
-                          : b.startDate > today()
-                            ? `Starts ${b.startDate}`
-                            : b.category}
+                        {b.status === "archived"
+                          ? "Archived · history kept"
+                          : b.remainingAmount === 0
+                            ? "Spent up · add money or archive"
+                            : b.endDate && b.endDate < today()
+                              ? "Period ended · money still yours"
+                              : b.startDate > today()
+                                ? `Starts ${b.startDate}`
+                                : b.category}
                       </BudgetCopy>
                     </View>
                     <Ionicons
@@ -291,7 +282,11 @@ export default function BudgetSpendingScreen() {
                 {message}
               </BudgetCopy>
             ))}
-            <BudgetCard theme={theme} soft>
+            <Disclosure
+              title="Need a starting point?"
+              detail="Preview a sample plan"
+              theme={theme}
+            >
               <View style={ui.row}>
                 <Ionicons
                   name="sparkles-outline"
@@ -360,7 +355,7 @@ export default function BudgetSpendingScreen() {
                   onPress={() => setShowPlan(true)}
                 />
               )}
-            </BudgetCard>
+            </Disclosure>
           </>
         )
       )}

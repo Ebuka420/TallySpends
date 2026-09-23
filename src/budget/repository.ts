@@ -7,6 +7,11 @@ import {
   validateWallet,
 } from "./ledger";
 import type { BudgetCommand, Transaction, Wallet } from "./ledger";
+import {
+  applyPlanCommand,
+  migrateAjoTracking,
+  type PlanCommand,
+} from "./planning";
 
 // A single document commits feed + allocations together. Legacy ts_txs is retained as a migration backup.
 const KEY = "ts_demo_wallet_v1";
@@ -38,6 +43,13 @@ export function loadWallet(defaultTransactions: Transaction[]) {
     if (saved) {
       const parsed = JSON.parse(saved);
       validateWallet(parsed);
+      const migrated = migrateAjoTracking(parsed);
+      if (migrated !== parsed) {
+        const backupKey = "ts_demo_wallet_v1_before_ajo_tracking";
+        if (!(await AsyncStorage.getItem(backupKey)))
+          await AsyncStorage.setItem(backupKey, saved);
+        return commit(migrated);
+      }
       snapshot = parsed as Wallet;
       return snapshot;
     }
@@ -57,6 +69,8 @@ function mutate(change: (wallet: Wallet) => Wallet) {
 }
 export const runBudgetCommand = (command: BudgetCommand, id: string) =>
   mutate((wallet) => applyBudgetCommand(wallet, command, id));
+export const runPlanCommand = (command: PlanCommand, id: string) =>
+  mutate((wallet) => applyPlanCommand(wallet, command, id));
 export const saveWalletTransaction = (tx: Transaction) =>
   mutate((wallet) => upsertTransaction(wallet, tx));
 export const deleteWalletTransaction = (id: string) =>

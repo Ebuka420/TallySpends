@@ -6,12 +6,24 @@ import {
   BudgetButton,
   BudgetCard,
   BudgetCopy,
-  BudgetDate,
   BudgetFrame,
   BudgetLoading,
   ui,
 } from "../components/BudgetUI";
-import { minor, money, today, totals, validDate } from "../src/budget/ledger";
+import {
+  BudgetDate,
+  BudgetSchedule,
+  type BudgetFrequency,
+} from "../components/PlanningUI";
+import { advanceDate } from "../src/budget/planning";
+import {
+  localDate,
+  minor,
+  money,
+  today,
+  totals,
+  validDate,
+} from "../src/budget/ledger";
 import { operationId, runBudgetCommand } from "../src/budget/repository";
 import { useAppStore } from "../src/store";
 
@@ -40,6 +52,17 @@ export default function AddBudgetScreen() {
   const [start, setStart] = useState(today());
   const [end, setEnd] = useState(today());
   const [hasEnd, setHasEnd] = useState(false);
+  const [frequency, setFrequency] = useState<BudgetFrequency>("once");
+  const schedule = (next: BudgetFrequency, day: string) => {
+    setFrequency(next);
+    setStart(day);
+    setHasEnd(next !== "once");
+    if (next !== "once") {
+      const until = new Date(`${advanceDate(day, next)}T12:00:00`);
+      until.setDate(until.getDate() - 1);
+      setEnd(localDate(until));
+    }
+  };
   const [pad, setPad] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
@@ -74,6 +97,7 @@ export default function AddBudgetScreen() {
               amount: minor(amount),
               startDate: start,
               endDate: hasEnd ? end : undefined,
+              frequency,
             },
           ],
         },
@@ -96,7 +120,12 @@ export default function AddBudgetScreen() {
     }
   };
   return (
-    <BudgetFrame title="Create Budget" theme={theme}>
+    <BudgetFrame
+      title="Create Budget"
+      theme={theme}
+      backTo="/budgetspending"
+      backLabel="My budgets"
+    >
       {!wallet || budgetError ? (
         <BudgetLoading
           theme={theme}
@@ -122,16 +151,10 @@ export default function AddBudgetScreen() {
           <Text
             style={[
               ui.heading,
-              { fontSize: 29, lineHeight: 36, color: theme.textPrimary },
+              { fontSize: 24, lineHeight: 30, color: theme.textPrimary },
             ]}
           >
-            {
-              [
-                "What are you setting money aside for?",
-                "How much do you want available?",
-                "Fund your budget",
-              ][step]
-            }
+            {["Choose a purpose", "Set an amount", "Review your budget"][step]}
           </Text>
           {step === 0 && (
             <>
@@ -205,31 +228,38 @@ export default function AddBudgetScreen() {
                 </BudgetCard>
               </Pressable>
               <BudgetCard theme={theme}>
-                <BudgetDate
-                  label="Start date"
-                  value={start}
-                  onChange={setStart}
+                <BudgetSchedule
                   theme={theme}
+                  frequency={frequency}
+                  start={start}
+                  onChange={schedule}
                 />
-                <Pressable
-                  accessibilityRole="checkbox"
-                  accessibilityState={{ checked: hasEnd }}
-                  onPress={() => setHasEnd(!hasEnd)}
-                  style={{ paddingVertical: 12 }}
-                >
-                  <Text style={{ color: theme.accent, fontWeight: "700" }}>
-                    {hasEnd
-                      ? "✓ End on a date"
-                      : "+ Add an end date (optional)"}
-                  </Text>
-                </Pressable>
-                {hasEnd && (
+                {frequency === "once" && (
+                  <Pressable
+                    accessibilityRole="checkbox"
+                    accessibilityState={{ checked: hasEnd }}
+                    onPress={() => setHasEnd(!hasEnd)}
+                    style={{ paddingVertical: 12 }}
+                  >
+                    <Text style={{ color: theme.accent, fontWeight: "700" }}>
+                      {hasEnd
+                        ? "✓ End on a date"
+                        : "+ Add an end date (optional)"}
+                    </Text>
+                  </Pressable>
+                )}
+                {hasEnd && frequency === "once" && (
                   <BudgetDate
                     label="End date"
                     value={end}
                     onChange={setEnd}
                     theme={theme}
                   />
+                )}
+                {hasEnd && frequency !== "once" && (
+                  <BudgetCopy theme={theme}>
+                    This period: {start} → {end}
+                  </BudgetCopy>
                 )}
                 <BudgetCopy theme={theme}>
                   Dates guide transaction matching. Money never expires or
@@ -315,6 +345,14 @@ export default function AddBudgetScreen() {
             onDone={() => setPad(false)}
             title={`Set aside for ${name}`}
             available={available}
+            accessory={
+              <BudgetSchedule
+                theme={theme}
+                frequency={frequency}
+                start={start}
+                onChange={schedule}
+              />
+            }
           />
         </>
       )}

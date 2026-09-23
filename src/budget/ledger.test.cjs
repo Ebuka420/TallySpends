@@ -34,6 +34,96 @@ const setup = () =>
     allocation("Transport", 50000),
   ]);
 
+test("archiving a bucket releases remaining money, preserves spent money and history", () => {
+  let wallet = tx(setup(), expense());
+  const available = totals(wallet).available;
+  const budget = wallet.budgets[0];
+  const spent = budget.spentAmount;
+  const remaining = budget.remainingAmount;
+  wallet = run(
+    wallet,
+    { type: "archive", budgetId: budget.id },
+    "archive",
+    now,
+  );
+  assert.equal(totals(wallet).available, available + remaining);
+  assert.equal(wallet.budgets[0].remainingAmount, 0);
+  assert.equal(wallet.budgets[0].allocatedAmount, spent);
+  assert.equal(wallet.budgets[0].status, "archived");
+  assert.ok(wallet.activity.some((a) => a.kind === "spend"));
+  assert.throws(
+    () =>
+      run(
+        wallet,
+        { type: "add", budgetId: budget.id, amount: 100 },
+        "add",
+        now,
+      ),
+    /Restore/,
+  );
+});
+test("archived expense reversals return money to available, not a hidden bucket", () => {
+  let wallet = tx(setup(), expense());
+  wallet = run(
+    wallet,
+    { type: "archive", budgetId: wallet.budgets[0].id },
+    "archive",
+    now,
+  );
+  const available = totals(wallet).available;
+  wallet = removeTransaction(wallet, "expense", now);
+  assert.equal(totals(wallet).available, available + 7500);
+  assert.equal(wallet.budgets[0].remainingAmount, 0);
+  assert.equal(wallet.budgets[0].spentAmount, 0);
+  assert.equal(wallet.budgets[0].allocatedAmount, 0);
+});
+test("restore is unfunded, rename preserves identity, and new funding works", () => {
+  let wallet = setup();
+  const id = wallet.budgets[0].id;
+  wallet = run(wallet, { type: "archive", budgetId: id }, "archive", now);
+  wallet = run(wallet, { type: "restore", budgetId: id }, "restore", now);
+  assert.equal(wallet.budgets[0].remainingAmount, 0);
+  wallet = run(
+    wallet,
+    { type: "rename", budgetId: id, name: "Lunch money" },
+    "rename",
+    now,
+  );
+  wallet = run(wallet, { type: "add", budgetId: id, amount: 1000 }, "add", now);
+  assert.equal(wallet.budgets[0].id, id);
+  assert.equal(wallet.budgets[0].name, "Lunch money");
+  assert.equal(wallet.budgets[0].remainingAmount, 1000);
+  assert.throws(
+    () =>
+      run(wallet, { type: "rename", budgetId: id, name: "   " }, "bad", now),
+    /name/,
+  );
+});
+test("exhausted buckets cannot overspend, but can be topped up or archived", () => {
+  let wallet = fund(createWallet([]), [allocation("Food", 7500)]);
+  wallet = tx(wallet, expense({ budgetId: "fund-0" }));
+  assert.equal(wallet.budgets[0].remainingAmount, 0);
+  assert.throws(
+    () => tx(wallet, expense({ id: "second", budgetId: "fund-0" })),
+    /enough money/,
+  );
+  const available = totals(wallet).available;
+  const archived = run(
+    wallet,
+    { type: "archive", budgetId: "fund-0" },
+    "archive",
+    now,
+  );
+  assert.equal(totals(archived).available, available);
+  wallet = run(
+    wallet,
+    { type: "add", budgetId: "fund-0", amount: 1000 },
+    "add",
+    now,
+  );
+  assert.equal(wallet.budgets[0].remainingAmount, 1000);
+});
+
 test("amounts parse exactly to integer kobo and reject invalid input", () => {
   assert.equal(minor("0.29"), 29);
   assert.equal(minor("50000.01"), 5000001);

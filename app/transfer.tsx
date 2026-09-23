@@ -1,3 +1,6 @@
+import { completeTransaction } from "../src/transactionCompletion";
+import { TransferSteps, useTransferAction } from "../components/TransferUI";
+import { AmountInput } from "../components/BudgetUI";
 import { Ionicons } from "@expo/vector-icons";
 import { CameraView, useCameraPermissions } from "expo-camera";
 import { useRouter } from "expo-router";
@@ -8,7 +11,6 @@ import {
   Easing,
   Keyboard,
   KeyboardAvoidingView,
-  LayoutAnimation,
   Modal,
   Platform,
   SafeAreaView,
@@ -17,20 +19,12 @@ import {
   Text,
   TextInput,
   TouchableOpacity,
-  UIManager,
   View,
 } from "react-native";
-import TransactionReceiptModal from "../components/TransactionReceiptModal";
 import { MOCK_RECIPIENTS, useAppStore } from "../src/store";
 
-if (
-  Platform.OS === "android" &&
-  UIManager.setLayoutAnimationEnabledExperimental
-) {
-  UIManager.setLayoutAnimationEnabledExperimental(true);
-}
-
 export default function TransferScreen() {
+  const action = useTransferAction();
   const router = useRouter();
   const { addTransaction, availableBalance, theme, themeMode } = useAppStore();
   const styles = React.useMemo(() => getStyles(theme), [theme]);
@@ -41,32 +35,21 @@ export default function TransferScreen() {
     "all",
   );
   const [selectedRecipient, setSelectedRecipient] = useState<any>(null);
-  const [showReceiptModal, setShowReceiptModal] = useState(false);
-  const [receiptTransaction, setReceiptTransaction] = useState<any | null>(
-    null,
-  );
   const [showScanner, setShowScanner] = useState(false);
   const [scanned, setScanned] = useState(false);
   const [permission, requestPermission] = useCameraPermissions();
   const [showTransferModal, setShowTransferModal] = useState(false);
   const [transferStep, setTransferStep] = useState<
-    "amount" | "review" | "success"
+    "amount" | "review"
   >("amount");
   const [showAddRecipientModal, setShowAddRecipientModal] = useState(false);
   const [newRecipientUsername, setNewRecipientUsername] = useState("");
-  const quickAmounts = [500, 1000, 2000, 5000, 10000];
+  const quickAmounts = [200, 500, 1000, 2000, 5000, 10000];
 
   const scannerAnim = useRef(new Animated.Value(0)).current;
 
   // Animation for slide-up review screen
   const slideAnim = useRef(new Animated.Value(800)).current;
-
-  const setTransferStepWithAnimation = (
-    nextStep: "amount" | "review" | "success",
-  ) => {
-    LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
-    setTransferStep(nextStep);
-  };
 
   useEffect(() => {
     if (showScanner) {
@@ -155,9 +138,11 @@ export default function TransferScreen() {
         );
         if (found) {
           setShowScanner(false);
-          setTimeout(() => handleSelectRecipient(found), 300);
-          if (amountParam) setAmount(amountParam);
-          if (memoParam) setMemo(decodeURIComponent(memoParam));
+          setTimeout(() => {
+            handleSelectRecipient(found);
+            if (amountParam && /^\d{1,10}(\.\d{1,2})?$/.test(amountParam)) setAmount(amountParam);
+            if (memoParam) setMemo(memoParam.slice(0, 40));
+          }, 300);
           return;
         }
       }
@@ -179,8 +164,8 @@ export default function TransferScreen() {
   };
 
   const executeTransfer = async () => {
-    const value = parseFloat(amount);
-    if (isNaN(value) || value <= 0) {
+    const value = Number(amount);
+    if (!Number.isFinite(value) || value <= 0 || !selectedRecipient) {
       Alert.alert("Invalid Amount", "Please enter a valid amount to transfer.");
       return;
     }
@@ -193,7 +178,7 @@ export default function TransferScreen() {
       return;
     }
 
-    const finalCategory = memo.trim() || "Transfer";
+    const finalCategory = "Transfer";
     const newTx = {
       id: `tx-${Date.now()}`,
       title: `Transfer to @${selectedRecipient.username}`,
@@ -201,12 +186,17 @@ export default function TransferScreen() {
       category: finalCategory,
       type: "expense",
       memo: memo || finalCategory,
+      recipientName: selectedRecipient.name,
+      method: "Tally transfer",
+      methodDetail: `@${selectedRecipient.username}`,
+      demo: true,
       date: new Date().toISOString(),
     };
 
-    if (!(await addTransaction(newTx))) return;
-    setReceiptTransaction(newTx);
-    setTransferStep("success");
+    await action.run(() => addTransaction(newTx), () => {
+      setShowTransferModal(false);
+      completeTransaction(router, newTx.id);
+    });
   };
 
   const parsedAmount = parseFloat(amount);
@@ -245,6 +235,7 @@ export default function TransferScreen() {
   };
 
   const backToAmount = () => {
+    if (action.busy) return;
     Animated.timing(slideAnim, {
       toValue: 800,
       duration: 250,
@@ -255,6 +246,7 @@ export default function TransferScreen() {
   };
 
   const closeTransferFlow = () => {
+    if (action.busy) return;
     setShowTransferModal(false);
     setTransferStep("amount");
     setAmount("");
@@ -543,20 +535,6 @@ export default function TransferScreen() {
         </SafeAreaView>
       </Modal>
 
-      <TransactionReceiptModal
-        visible={showReceiptModal}
-        transaction={receiptTransaction}
-        onClose={() => setShowReceiptModal(false)}
-        onViewReceipt={() => {
-          if (!receiptTransaction) return;
-          setShowReceiptModal(false);
-          router.push({
-            pathname: "/transaction-details",
-            params: { id: receiptTransaction.id },
-          });
-        }}
-      />
-
       {/* --- ADD RECIPIENT MODAL --- */}
       <Modal
         visible={showAddRecipientModal}
@@ -644,7 +622,6 @@ export default function TransferScreen() {
             <View style={styles.transferSheet}>
               {selectedRecipient && (
                 <>
-                  {transferStep !== "success" ? (
                     <View style={{ flex: 1 }}>
                       {/* STAGE 1: Enter Amount (Send Money) */}
                       <View
@@ -703,6 +680,7 @@ export default function TransferScreen() {
                           keyboardShouldPersistTaps="handled"
                           showsVerticalScrollIndicator={false}
                         >
+                          <TransferSteps theme={theme} />
                           <Text style={styles.transferLabel}>You send</Text>
                           <View
                             style={[
@@ -711,22 +689,23 @@ export default function TransferScreen() {
                             ]}
                           >
                             <Text style={styles.transferCurrency}>₦</Text>
-                            <TextInput
+                            <AmountInput
                               style={styles.transferAmountInput}
                               placeholder="0"
                               placeholderTextColor="#CBC6D1"
-                              keyboardType="decimal-pad"
-                              autoFocus
+                              theme={theme} available={Math.round(availableBalance * 100)}
                               value={amount}
                               onChangeText={setAmount}
                             />
                           </View>
 
                           <View style={styles.transferQuickRow}>
-                            {quickAmounts.slice(0, 3).map((value) => (
+                            {quickAmounts.map((value) => (
                               <TouchableOpacity
                                 key={value}
                                 style={styles.transferQuickChip}
+                                accessibilityRole="button"
+                                accessibilityLabel={`Add ${value} naira`}
                                 onPress={() => addQuickAmount(value)}
                               >
                                 <Text style={styles.transferQuickText}>
@@ -774,9 +753,12 @@ export default function TransferScreen() {
 
                       {/* STAGE 2: Review (slides up over Stage 1) */}
                       <Animated.View
+                        pointerEvents={transferStep === "review" ? "auto" : "none"}
+                        accessibilityElementsHidden={transferStep !== "review"}
+                        importantForAccessibility={transferStep === "review" ? "auto" : "no-hide-descendants"}
                         style={[
                           styles.reviewContainer,
-                          { transform: [{ translateY: slideAnim }] },
+                          { transform: [{ translateY: slideAnim }], opacity: transferStep === "review" ? 1 : 0 },
                         ]}
                       >
                         <View style={styles.transferHeader}>
@@ -828,7 +810,8 @@ export default function TransferScreen() {
                           </View>
                         </View>
 
-                        <View style={styles.transferBody}>
+                        <ScrollView contentContainerStyle={styles.transferBody} showsVerticalScrollIndicator={false}>
+                          <TransferSteps theme={theme} current={2} />
                           <View style={styles.transferReviewRow}>
                             <Text style={styles.transferLabel}>You send</Text>
                             <Text style={styles.transferReviewAmount}>
@@ -877,109 +860,28 @@ export default function TransferScreen() {
                             </View>
                             <View>
                               <Text style={styles.transferSecurityTitle}>
-                                Secure transfer
+                                Demo transfer
                               </Text>
                               <Text style={styles.transferSecurityCopy}>
-                                Your money is safe with TallySpends.
+                                This updates your demo wallet only.
                               </Text>
                             </View>
                           </View>
 
+                          {!!action.error && <Text accessibilityLiveRegion="polite" style={{ color: theme.danger, marginBottom: 12 }}>{action.error}</Text>}
                           <TouchableOpacity
                             style={styles.transferPrimaryButton}
+                            disabled={action.busy}
                             onPress={executeTransfer}
                           >
                             <Text style={styles.transferPrimaryText}>
-                              Send Money
+                              {action.busy ? "Saving..." : "Confirm transfer"}
                             </Text>
                           </TouchableOpacity>
-                        </View>
+                        </ScrollView>
                       </Animated.View>
                     </View>
-                  ) : (
-                    /* STAGE 3: Done (Instant confirmation) */
-                    <ScrollView
-                      contentContainerStyle={styles.transferSuccessBody}
-                      showsVerticalScrollIndicator={false}
-                    >
-                      <View style={styles.transferSuccessIconContainer}>
-                        <View style={styles.successCircle}>
-                          <Ionicons
-                            name="checkmark"
-                            size={48}
-                            color="#FFFFFF"
-                          />
-                        </View>
-                        {/* Confetti Sparkles */}
-                        <Ionicons
-                          name="star"
-                          size={14}
-                          color="#FFD700"
-                          style={[styles.sparkle, { top: 0, left: 0 }]}
-                        />
-                        <Ionicons
-                          name="star"
-                          size={10}
-                          color="#FF69B4"
-                          style={[styles.sparkle, { top: 20, right: 0 }]}
-                        />
-                        <Ionicons
-                          name="ellipse"
-                          size={8}
-                          color="#00FFFF"
-                          style={[styles.sparkle, { bottom: 10, left: -5 }]}
-                        />
-                      </View>
 
-                      <Text style={styles.transferSuccessTitle}>
-                        Transfer Successful!
-                      </Text>
-
-                      <Text style={styles.transferSuccessLabel}>You sent</Text>
-                      <Text style={styles.transferSuccessAmount}>
-                        ₦
-                        {Number(amount || 0).toLocaleString(undefined, {
-                          minimumFractionDigits: 2,
-                        })}
-                      </Text>
-                      <Text style={styles.transferSuccessRecipient}>
-                        to {selectedRecipient.name}
-                        {`\n`}@{selectedRecipient.username}
-                      </Text>
-
-                      <TouchableOpacity
-                        style={styles.transferReceiptButton}
-                        onPress={() => {
-                          closeTransferFlow();
-                          router.push({
-                            pathname: "/transaction-details",
-                            params: { id: receiptTransaction?.id },
-                          });
-                        }}
-                      >
-                        <Ionicons
-                          name="receipt-outline"
-                          size={19}
-                          color={theme.accent}
-                        />
-                        <Text style={styles.transferReceiptText}>
-                          View Receipt
-                        </Text>
-                      </TouchableOpacity>
-
-                      <TouchableOpacity
-                        style={styles.transferHomeButton}
-                        onPress={() => {
-                          closeTransferFlow();
-                          router.replace("/");
-                        }}
-                      >
-                        <Text style={styles.transferHomeText}>
-                          Back to Home
-                        </Text>
-                      </TouchableOpacity>
-                    </ScrollView>
-                  )}
                 </>
               )}
             </View>
@@ -1797,6 +1699,7 @@ const getStyles = (theme: any) =>
       color: theme.textPrimary,
     },
     transferQuickRow: {
+      flexWrap: "wrap",
       flexDirection: "row",
       gap: 8,
       marginBottom: 16,
