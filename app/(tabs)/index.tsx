@@ -1,6 +1,9 @@
+import { HomeCarousel } from "../../components/HomeCarousel";
+import TransactionReceiptModal from "../../components/TransactionReceiptModal";
+import { getCompletedTransaction, subscribeCompletedTransaction, clearCompletedTransaction } from "../../src/transactionCompletion";
 import { Ionicons } from "@expo/vector-icons";
-import { useRouter } from "expo-router";
-import React, { useEffect, useMemo, useRef, useState } from "react";
+import { useFocusEffect, useRouter } from "expo-router";
+import React, { useCallback, useMemo, useState, useSyncExternalStore } from "react";
 import {
   Image,
   ScrollView,
@@ -12,6 +15,8 @@ import {
 
 import { MOCK_RECIPIENTS, useAppStore } from "../../src/store";
 import { getThemePalette } from "../../src/theme";
+import { usePlanningPeople } from "../../components/BudgetPeople";
+import { PlanningCarousels } from "../../components/PlanningCarousels";
 
 const normalizeTransferTitle = (title: string) => {
   const transferRegex = /(Transfer to\s+)@([a-zA-Z0-9_]+)/i;
@@ -55,60 +60,6 @@ const insights = [
     text: "Your Netflix subscription is due tomorrow on your linked Access Bank card.",
     tint: "#EAF2FF",
     color: "#315A92",
-  },
-];
-
-const ajoGroupCards = [
-  {
-    id: "ajo-1",
-    groupName: "Mama Ajo Circle",
-    ajoGroupId: "mama",
-    memberName: "Ada",
-    contribution: "₦25,000",
-    image: "https://i.pravatar.cc/100?img=12",
-  },
-  {
-    id: "ajo-2",
-    groupName: "Family Lift",
-    ajoGroupId: "family",
-    memberName: "Tosin",
-    contribution: "₦18,000",
-    image: "https://i.pravatar.cc/100?img=32",
-  },
-  {
-    id: "ajo-3",
-    groupName: "Weekend Savers",
-    ajoGroupId: "weekend",
-    memberName: "Mina",
-    contribution: "₦10,000",
-    image: "https://i.pravatar.cc/100?img=47",
-  },
-];
-
-const jointSavingsCards = [
-  {
-    id: "joint-1",
-    personName: "Titi",
-    goal: "New laptop",
-    contribution: "₦15,000",
-    timeline: "4 months",
-    image: "https://i.pravatar.cc/100?img=15",
-  },
-  {
-    id: "joint-2",
-    personName: "Bolu",
-    goal: "Holiday trip",
-    contribution: "₦22,000",
-    timeline: "6 months",
-    image: "https://i.pravatar.cc/100?img=27",
-  },
-  {
-    id: "joint-3",
-    personName: "Chika",
-    goal: "Home setup",
-    contribution: "₦12,500",
-    timeline: "3 months",
-    image: "https://i.pravatar.cc/100?img=41",
   },
 ];
 
@@ -187,8 +138,11 @@ const getTimeLabel = (value?: string) => {
 export default function App() {
   const router = useRouter();
 
+  const store = useAppStore();
+  const people = usePlanningPeople(store);
   const {
     transactions,
+    availableBalance,
     unreadNotificationCount,
     themePreference,
     themeMode,
@@ -196,7 +150,10 @@ export default function App() {
     profileFullName,
     profileNickname,
     profileImage,
-  } = useAppStore();
+    budgetWallet,
+    budgetError,
+    reloadBudgetWallet,
+  } = store;
 
   const theme = getThemePalette(themePreference, themeMode);
 
@@ -209,25 +166,23 @@ export default function App() {
     : profileFullName?.trim() || username || "User";
 
   const [balanceVisible, setBalanceVisible] = useState(true);
-  const [activeInsight, setActiveInsight] = useState(0);
-  const [ajoIndex, setAjoIndex] = useState(0);
-  const [jointIndex, setJointIndex] = useState(0);
+  const receiptId = useSyncExternalStore(subscribeCompletedTransaction, getCompletedTransaction, getCompletedTransaction);
+  const receipt = transactions.find(tx => tx.id === receiptId) || null;
+  const [receiptReady, setReceiptReady] = useState(false);
+  useFocusEffect(useCallback(() => {
+    setReceiptReady(false);
+    if (!receiptId) return;
+    // Let the previous native sheet dismiss and the dashboard transition finish.
+    const timer = setTimeout(() => setReceiptReady(true), 450);
+    return () => { clearTimeout(timer); setReceiptReady(false); };
+  }, [receiptId]));
 
-  const insightScrollRef = useRef<ScrollView | null>(null);
-  const ajoScrollRef = useRef<ScrollView | null>(null);
-  const jointScrollRef = useRef<ScrollView | null>(null);
+  const transactionsRaw = useMemo(
+    () => (transactions || []) as any[],
+    [transactions],
+  );
 
-  const transactionsRaw = (transactions || []) as any[];
-
-  const totalIncome = transactionsRaw
-    .filter((t: any) => t.type === "income")
-    .reduce((sum: number, t: any) => sum + Number(t.amount || 0), 0);
-
-  const totalExpenses = transactionsRaw
-    .filter((t: any) => t.type === "expense")
-    .reduce((sum: number, t: any) => sum + Number(t.amount || 0), 0);
-
-  const currentBalance = 2926.78 + totalIncome - totalExpenses;
+  const currentBalance = availableBalance;
 
   const recentTransactions = useMemo(() => {
     return [...transactionsRaw]
@@ -239,62 +194,6 @@ export default function App() {
       })
       .slice(0, 3);
   }, [transactionsRaw]);
-
-  useEffect(() => {
-    const insightTimer = setInterval(() => {
-      setActiveInsight((prev) => (prev + 1) % insights.length);
-    }, 5000);
-
-    const ajoTimer = setInterval(() => {
-      setAjoIndex((prev) => (prev + 1) % ajoGroupCards.length);
-    }, 6000);
-
-    const jointTimer = setInterval(() => {
-      setJointIndex((prev) => (prev + 1) % jointSavingsCards.length);
-    }, 7000);
-
-    return () => {
-      clearInterval(insightTimer);
-      clearInterval(ajoTimer);
-      clearInterval(jointTimer);
-    };
-  }, []);
-
-  useEffect(() => {
-    if (!insightScrollRef.current) return;
-
-    const cardWidth = 306 + 12;
-
-    insightScrollRef.current.scrollTo({
-      x: activeInsight * cardWidth,
-      y: 0,
-      animated: true,
-    });
-  }, [activeInsight]);
-
-  useEffect(() => {
-    if (!ajoScrollRef.current) return;
-
-    const cardWidth = 260 + 12;
-
-    ajoScrollRef.current.scrollTo({
-      x: ajoIndex * cardWidth,
-      y: 0,
-      animated: true,
-    });
-  }, [ajoIndex]);
-
-  useEffect(() => {
-    if (!jointScrollRef.current) return;
-
-    const cardWidth = 260 + 12;
-
-    jointScrollRef.current.scrollTo({
-      x: jointIndex * cardWidth,
-      y: 0,
-      animated: true,
-    });
-  }, [jointIndex]);
 
   return (
     <View
@@ -603,430 +502,19 @@ export default function App() {
           </TouchableOpacity>
         </View>
 
-        {/* Smart Insights Carousel */}
-        <View style={styles.sectionHeader}>
-          <Text
-            style={[
-              styles.sectionTitle,
-              {
-                color: theme.textPrimary,
-              },
-            ]}
-          >
-            Smart insights
-          </Text>
+        <HomeCarousel title="Smart insights" link="See all" onViewAll={() => router.push("/insightssum")}
+          theme={theme} themeMode={themeMode} themePreference={themePreference}
+          cards={insights.map(insight => ({ ...insight, id: insight.title, onPress: () => router.push("/insightssum") }))} />
 
-          <TouchableOpacity onPress={() => router.push("/insightssum" as any)}>
-            <Text
-              style={[
-                styles.viewAllText,
-                {
-                  color: theme.accentSecondary,
-                },
-              ]}
-            >
-              See all
-            </Text>
-          </TouchableOpacity>
-        </View>
-
-        <ScrollView
-          ref={insightScrollRef}
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          contentContainerStyle={styles.insightCarousel}
-          onMomentumScrollEnd={({ nativeEvent }) => {
-            const cardWidth = 306 + 12;
-
-            const nextInsight = Math.round(
-              nativeEvent.contentOffset.x / cardWidth,
-            );
-
-            setActiveInsight(
-              Math.max(0, Math.min(nextInsight, insights.length - 1)),
-            );
-          }}
-          scrollEventThrottle={16}
-        >
-          {insights.map((insight) => (
-            <TouchableOpacity
-              key={insight.title}
-              activeOpacity={0.85}
-              style={[
-                styles.insightCard,
-                {
-                  backgroundColor:
-                    themeMode === "dark"
-                      ? theme.surface
-                      : themePreference === "aurora"
-                        ? insight.tint
-                        : theme.surfaceSoft,
-                  borderWidth: themeMode === "dark" ? 1 : 0,
-                  borderColor: theme.border,
-                },
-              ]}
-              onPress={() => router.push("/insightssum" as any)}
-            >
-              <View
-                style={[
-                  styles.insightIcon,
-                  {
-                    backgroundColor:
-                      themeMode === "dark" ? theme.surfaceSoft : theme.surface,
-                  },
-                ]}
-              >
-                <Ionicons
-                  name={insight.icon}
-                  size={18}
-                  color={
-                    themeMode === "dark"
-                      ? theme.accent
-                      : themePreference === "aurora"
-                        ? insight.color
-                        : theme.accentSecondary
-                  }
-                />
-              </View>
-
-              <View style={styles.insightCopy}>
-                <Text
-                  style={[
-                    styles.insightTitle,
-                    {
-                      color: theme.textPrimary,
-                    },
-                  ]}
-                >
-                  {insight.title}
-                </Text>
-
-                <Text
-                  style={[
-                    styles.insightText,
-                    {
-                      color: theme.textSecondary,
-                    },
-                  ]}
-                >
-                  {insight.text}
-                </Text>
-              </View>
-
-              <Ionicons
-                name="chevron-forward"
-                size={16}
-                color={theme.accentSecondary}
-                style={styles.insightChevron}
-              />
-            </TouchableOpacity>
-          ))}
-        </ScrollView>
-
-        <View
-          accessibilityRole="progressbar"
-          accessibilityValue={{
-            now: activeInsight + 1,
-            min: 1,
-            max: insights.length,
-          }}
-          style={styles.dots}
-        >
-          {insights.map((insight, index) => (
-            <View
-              key={insight.title}
-              style={[
-                styles.dot,
-                {
-                  backgroundColor:
-                    index === activeInsight ? theme.accent : theme.border,
-                },
-                index === activeInsight && styles.activeDot,
-              ]}
-            />
-          ))}
-        </View>
-
-        {/* Ajo Group Activity */}
-        <View style={styles.groupSection}>
-          <View style={styles.sectionHeader}>
-            <Text
-              style={[
-                styles.sectionTitle,
-                {
-                  color: theme.textPrimary,
-                },
-              ]}
-            >
-              Ajo group activity
-            </Text>
-
-            <TouchableOpacity
-              onPress={() => router.push("/ajo")}
-              activeOpacity={0.7}
-            >
-              <Text
-                style={[
-                  styles.viewAllText,
-                  {
-                    color: theme.accentSecondary,
-                  },
-                ]}
-              >
-                Open Ajo
-              </Text>
-            </TouchableOpacity>
-          </View>
-
-          <ScrollView
-            ref={ajoScrollRef}
-            horizontal
-            showsHorizontalScrollIndicator={false}
-            contentContainerStyle={styles.groupCarousel}
-            onMomentumScrollEnd={({ nativeEvent }) => {
-              const cardWidth = 260 + 12;
-
-              const nextIndex = Math.round(
-                nativeEvent.contentOffset.x / cardWidth,
-              );
-
-              setAjoIndex(
-                Math.max(0, Math.min(nextIndex, ajoGroupCards.length - 1)),
-              );
-            }}
-            onScrollEndDrag={({ nativeEvent }) => {
-              const cardWidth = 260 + 12;
-
-              const nextIndex = Math.round(
-                nativeEvent.contentOffset.x / cardWidth,
-              );
-
-              setAjoIndex(
-                Math.max(0, Math.min(nextIndex, ajoGroupCards.length - 1)),
-              );
-            }}
-            scrollEventThrottle={16}
-          >
-            {ajoGroupCards.map((card) => (
-              <TouchableOpacity
-                key={card.id}
-                style={[
-                  styles.groupCard,
-                  {
-                    backgroundColor: theme.surfaceSoft,
-                    borderColor: theme.border,
-                  },
-                ]}
-                onPress={() =>
-                  router.push({
-                    pathname: "/ajo-details",
-                    params: { groupId: card.ajoGroupId },
-                  })
-                }
-                activeOpacity={0.84}
-              >
-                <Image
-                  source={{ uri: card.image }}
-                  style={styles.groupAvatar}
-                />
-
-                <View style={styles.groupCardCopy}>
-                  <Text
-                    style={[
-                      styles.groupCardTitle,
-                      {
-                        color: theme.textPrimary,
-                      },
-                    ]}
-                  >
-                    {card.groupName}
-                  </Text>
-
-                  <Text
-                    style={[
-                      styles.groupCardSubtitle,
-                      {
-                        color: theme.accentSecondary,
-                      },
-                    ]}
-                  >
-                    {card.memberName} added {card.contribution}
-                  </Text>
-                </View>
-              </TouchableOpacity>
-            ))}
-          </ScrollView>
-
-          <View
-            accessibilityRole="progressbar"
-            accessibilityValue={{
-              now: ajoIndex + 1,
-              min: 1,
-              max: ajoGroupCards.length,
-            }}
-            style={styles.dots}
-          >
-            {ajoGroupCards.map((card, index) => (
-              <View
-                key={card.id}
-                style={[
-                  styles.dot,
-                  {
-                    backgroundColor:
-                      index === ajoIndex ? theme.accent : theme.border,
-                  },
-                  index === ajoIndex && styles.activeDot,
-                ]}
-              />
-            ))}
-          </View>
-        </View>
-
-        {/* Joint Savings */}
-        <View style={styles.groupSection}>
-          <View style={styles.sectionHeader}>
-            <Text
-              style={[
-                styles.sectionTitle,
-                {
-                  color: theme.textPrimary,
-                },
-              ]}
-            >
-              Joint savings
-            </Text>
-
-            <TouchableOpacity
-              onPress={() => router.push("/joint-savings" as any)}
-              activeOpacity={0.7}
-            >
-              <Text
-                style={[
-                  styles.viewAllText,
-                  {
-                    color: theme.accentSecondary,
-                  },
-                ]}
-              >
-                View goal
-              </Text>
-            </TouchableOpacity>
-          </View>
-
-          <ScrollView
-            ref={jointScrollRef}
-            horizontal
-            showsHorizontalScrollIndicator={false}
-            contentContainerStyle={styles.groupCarousel}
-            onMomentumScrollEnd={({ nativeEvent }) => {
-              const cardWidth = 260 + 12;
-
-              const nextIndex = Math.round(
-                nativeEvent.contentOffset.x / cardWidth,
-              );
-
-              setJointIndex(
-                Math.max(0, Math.min(nextIndex, jointSavingsCards.length - 1)),
-              );
-            }}
-            onScrollEndDrag={({ nativeEvent }) => {
-              const cardWidth = 260 + 12;
-
-              const nextIndex = Math.round(
-                nativeEvent.contentOffset.x / cardWidth,
-              );
-
-              setJointIndex(
-                Math.max(0, Math.min(nextIndex, jointSavingsCards.length - 1)),
-              );
-            }}
-            scrollEventThrottle={16}
-          >
-            {jointSavingsCards.map((card) => (
-              <TouchableOpacity
-                key={card.id}
-                style={[
-                  styles.groupCard,
-                  {
-                    backgroundColor: theme.surfaceSoft,
-                    borderColor: theme.border,
-                  },
-                ]}
-                onPress={() =>
-                  router.push({
-                    pathname: "/joint-savings-details",
-                    params: { id: card.id },
-                  } as any)
-                }
-                activeOpacity={0.84}
-              >
-                <Image
-                  source={{ uri: card.image }}
-                  style={styles.groupAvatar}
-                />
-
-                <View style={styles.groupCardCopy}>
-                  <Text
-                    style={[
-                      styles.groupCardTitle,
-                      {
-                        color: theme.textPrimary,
-                      },
-                    ]}
-                  >
-                    {card.personName}
-                  </Text>
-
-                  <Text
-                    style={[
-                      styles.groupCardSubtitle,
-                      {
-                        color: theme.accentSecondary,
-                      },
-                    ]}
-                  >
-                    {card.contribution} saved for {card.goal}
-                  </Text>
-
-                  <Text
-                    style={[
-                      styles.groupCardMeta,
-                      {
-                        color: theme.textSecondary,
-                      },
-                    ]}
-                  >
-                    Goal in {card.timeline}
-                  </Text>
-                </View>
-              </TouchableOpacity>
-            ))}
-          </ScrollView>
-
-          <View
-            accessibilityRole="progressbar"
-            accessibilityValue={{
-              now: jointIndex + 1,
-              min: 1,
-              max: jointSavingsCards.length,
-            }}
-            style={styles.dots}
-          >
-            {jointSavingsCards.map((card, index) => (
-              <View
-                key={card.id}
-                style={[
-                  styles.dot,
-                  {
-                    backgroundColor:
-                      index === jointIndex ? theme.accent : theme.border,
-                  },
-                  index === jointIndex && styles.activeDot,
-                ]}
-              />
-            ))}
-          </View>
-        </View>
+        <PlanningCarousels
+          wallet={budgetWallet}
+          themeMode={themeMode}
+          themePreference={themePreference}
+          theme={theme}
+          people={people}
+          error={budgetError}
+          retry={reloadBudgetWallet}
+        />
 
         {/* Recent Transactions */}
         <View
@@ -1134,6 +622,8 @@ export default function App() {
           )}
         </View>
       </ScrollView>
+      <TransactionReceiptModal visible={receiptReady && !!receipt} transaction={receipt} onClose={clearCompletedTransaction}
+        onViewReceipt={() => { if (!receipt) return; clearCompletedTransaction(); router.push({ pathname: "/transaction-details", params: { id: receipt.id } }); }} />
     </View>
   );
 }

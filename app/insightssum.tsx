@@ -1,6 +1,8 @@
+import { SpendingQuestions } from "../components/SpendingQuestions";
+import { spendingSummary } from "../src/insights/summary";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
-import React, { useMemo, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import {
   Dimensions,
   Platform,
@@ -8,7 +10,6 @@ import {
   ScrollView,
   StyleSheet,
   Text,
-  TextInput,
   TouchableOpacity,
   UIManager,
   View,
@@ -26,16 +27,9 @@ if (
   UIManager.setLayoutAnimationEnabledExperimental(true);
 }
 
-const SUGGESTED_PROMPTS = [
-  "Where did most of my money go?",
-  "Why did I spend more this month?",
-  "How can I save ₦50,000 next month?",
-  "What category am I spending the most on?",
-];
-
 export default function InsightsSummaryScreen() {
   const router = useRouter();
-  const { themePreference, themeMode, transactions } = useAppStore();
+  const { themePreference, themeMode, transactions, availableBalance, budgetError, loading: isLoading, reloadBudgetWallet } = useAppStore();
   const theme = getThemePalette(themePreference, themeMode);
   const isDark = themeMode === "dark";
 
@@ -43,35 +37,17 @@ export default function InsightsSummaryScreen() {
 
   // --- CALENDAR DATE PICKER STATES ---
   const [currentCalendarDate, setCurrentCalendarDate] = useState(
-    new Date(2026, 4, 1),
-  ); // Default focused month: May 2026
-  const [startDate, setStartDate] = useState<Date | null>(new Date(2026, 4, 1));
-  const [endDate, setEndDate] = useState<Date | null>(new Date(2026, 4, 15));
+    new Date(new Date().getFullYear(), new Date().getMonth(), 1),
+  );
+  const [startDate, setStartDate] = useState<Date | null>(new Date(new Date().getFullYear(), new Date().getMonth(), 1));
+  const [endDate, setEndDate] = useState<Date | null>(new Date());
 
-  // --- ASK AI STATE ---
-  const [aiQuestion, setAiQuestion] = useState("");
-  const [isAskingAi, setIsAskingAi] = useState(false);
-  const [activeAiAnswer, setActiveAiAnswer] = useState<{
-    query: string;
-    summary: string;
-    details: string[];
-    actionableTip: string;
-  } | null>(null);
+  const scroll = useRef<ScrollView>(null);
+  const [selectedBucket, setSelectedBucket] = useState<number | null>(null);
 
-  // Dynamic Heatmap intensity blocks
-  const heatMapBlocks = useMemo(() => {
-    return Array(21)
-      .fill(0)
-      .map((_, i) => {
-        if ([8, 9, 10, 15, 16].includes(i)) {
-          return theme.accent;
-        }
-        if ([4, 5, 11, 12, 17].includes(i)) {
-          return isDark ? "#5C4A60" : "#C8B6C8";
-        }
-        return isDark ? theme.surfaceSoft : "#F0EEF2";
-      });
-  }, [theme, isDark]);
+  const data = useMemo(() => spendingSummary(transactions, activeTab, new Date(), startDate, endDate), [transactions, activeTab, startDate, endDate]);
+  const heatMapBlocks = data.buckets.map(bucket => bucket.amount === 0 ? (isDark ? theme.surfaceSoft : "#F0EEF2") : bucket.amount / data.max > .5 ? theme.accent : (isDark ? "#5C4A60" : "#C8B6C8"));
+  useEffect(() => { setSelectedBucket(null); }, [data]);
 
   // Calendar utilities
   const handleDatePress = (date: Date) => {
@@ -117,64 +93,6 @@ export default function InsightsSummaryScreen() {
     return grid;
   }, [currentCalendarDate]);
 
-  // Handle Ask AI
-  const handleAskAi = (questionText: string) => {
-    const q = questionText.trim();
-    if (!q) return;
-
-    setIsAskingAi(true);
-    const lower = q.toLowerCase();
-
-    setTimeout(() => {
-      let summary = "";
-      let details: string[] = [];
-      let actionableTip = "";
-
-      if (lower.includes("where") || lower.includes("most") || lower.includes("category")) {
-        summary = "Your biggest expense is Food & Dining, taking up 32% of total spend.";
-        details = [
-          "Total spent in Food & Dining: ₦185,000",
-          "Second highest: Transport (₦92,000)",
-          "Number of recorded transactions: 28 purchases",
-        ];
-        actionableTip = "Consider batching grocery orders or meal prepping to save an estimated ₦25,000.";
-      } else if (lower.includes("why") || lower.includes("more") || lower.includes("increase")) {
-        summary = "Your spending is up 12% compared to last month primarily due to Food & Dining and Shopping.";
-        details = [
-          "Food purchases increased by ₦16,200",
-          "Shopping had 3 large one-off equipment items",
-          "Utilities and recurring bills stayed steady",
-        ];
-        actionableTip = "Set a weekly dining cap and activate auto-alerts when approaching 80% limit.";
-      } else if (lower.includes("save") || lower.includes("50,000") || lower.includes("50000") || lower.includes("budget")) {
-        summary = "Here is your AI tailored plan to save ₦50,000 next month without compromising essentials:";
-        details = [
-          "Trim Food & Dining by 15% (Save ~₦22,000)",
-          "Limit impulsive shopping orders (Save ~₦18,000)",
-          "Audit recurring streaming & gym subscriptions (Save ~₦10,000)",
-        ];
-        actionableTip = "Enable Auto-Save on your balance right when your income hits.";
-      } else {
-        summary = "Based on your spending summary, your total outgoing is healthy and well-distributed across categories.";
-        details = [
-          "Daily average burn rate: ₦12,400/day",
-          "Budget categories on track: 6 out of 7",
-          "Savings rate: +18% higher than average",
-        ];
-        actionableTip = "Review your custom calendar view above to spot weekly expenditure spikes.";
-      }
-
-      setActiveAiAnswer({
-        query: q,
-        summary,
-        details,
-        actionableTip,
-      });
-      setIsAskingAi(false);
-      setAiQuestion("");
-    }, 300);
-  };
-
   return (
     <SafeAreaView
       style={[styles.container, { backgroundColor: theme.background }]}
@@ -188,7 +106,7 @@ export default function InsightsSummaryScreen() {
       >
         <TouchableOpacity
           style={styles.backButton}
-          onPress={() => router.back()}
+          onPress={() => router.canGoBack() ? router.back() : router.replace("/(tabs)")}
           activeOpacity={0.7}
         >
           <Ionicons name="chevron-back" size={24} color={theme.textPrimary} />
@@ -200,9 +118,14 @@ export default function InsightsSummaryScreen() {
       </View>
 
       <ScrollView
+        ref={scroll}
+        automaticallyAdjustKeyboardInsets
+        keyboardShouldPersistTaps="handled"
+        keyboardDismissMode="on-drag"
         contentContainerStyle={styles.scrollContainer}
         showsVerticalScrollIndicator={false}
       >
+        {budgetError && <TouchableOpacity onPress={reloadBudgetWallet}><Text style={{ color: theme.accent, paddingBottom: 12 }}>Retry loading transactions</Text></TouchableOpacity>}
         {/* --- TIMEFRAME TABS SEGMENTED CONTROL --- */}
         <View
           style={[
@@ -283,29 +206,28 @@ export default function InsightsSummaryScreen() {
               {activeTab === "week" ? "Weekly Summary" : "Monthly Summary"}
             </Text>
             <Text style={[styles.heroSummaryDateLabel, { color: theme.accent }]}>
-              {activeTab === "week" ? "Current Week" : "August 2026"}
+              {data.dateTitle}
             </Text>
 
             <View style={styles.heroContentMainRow}>
               <View style={styles.heroTextLeftLayout}>
                 <Text style={[styles.heroMainTitleBlurb, { color: theme.textPrimary }]}>
-                  Your spending habits improved this month 🎉
+                  {budgetError ? "Could not load your insights" : isLoading ? "Loading your insights…" : data.headline}
                 </Text>
                 <Text style={[styles.heroSubTextBody, { color: theme.textSecondary }]}>
-                  You spent 12% less on shopping and saved ₦140,000 more compared to
-                  last month.
+                  {budgetError || data.description}
                 </Text>
               </View>
               <View style={styles.heroGraphRightLayout}>
                 <Svg width="120" height="70" viewBox="0 0 120 70">
                   <Path
-                    d="M 5,60 Q 30,55 45,35 T 90,25 T 112,12"
+                    d={data.path}
                     fill="none"
                     stroke={theme.accent}
                     strokeWidth={2.5}
                     strokeLinecap="round"
                   />
-                  <Circle cx="112" cy="12" r="4" fill={theme.accent} />
+                  <Circle cx={data.lastPoint.x} cy={data.lastPoint.y} r="4" fill={theme.accent} />
                 </Svg>
               </View>
             </View>
@@ -324,10 +246,10 @@ export default function InsightsSummaryScreen() {
                     { backgroundColor: isDark ? "#133E23" : "#E8F8F5" },
                   ]}
                 >
-                  <Ionicons name="trending-up" size={12} color="#2ECC71" />
+                  <Ionicons name={data.change !== null && data.change < 0 ? "trending-down" : "trending-up"} size={12} color={data.change !== null && data.change > 0 ? theme.accent : "#2ECC71"} />
                 </View>
                 <Text style={[styles.heroInlineBadgeText, { color: theme.textPrimary }]}>
-                  +12% Improvement
+                  {data.changeLabel}
                 </Text>
               </View>
               <View
@@ -348,7 +270,7 @@ export default function InsightsSummaryScreen() {
                   ]}
                 />
                 <Text style={[styles.heroInlineBadgeText, { color: theme.textPrimary }]}>
-                  Financial Health: Good
+                  {data.balanceLabel}
                 </Text>
               </View>
               <View
@@ -370,7 +292,7 @@ export default function InsightsSummaryScreen() {
                   />
                 </View>
                 <Text style={[styles.heroInlineBadgeText, { color: theme.textPrimary }]}>
-                  Based on 124 txns
+                  {`Based on ${data.selected.length} txns`}
                 </Text>
               </View>
             </View>
@@ -391,7 +313,7 @@ export default function InsightsSummaryScreen() {
                 style={[styles.heroCardBottomBannerText, { color: theme.textSecondary }]}
                 numberOfLines={1}
               >
-                Biggest improvement: Shopping expenses reduced
+                {data.highlight}
               </Text>
             </View>
           </View>
@@ -485,7 +407,7 @@ export default function InsightsSummaryScreen() {
           Spending Intensity Map
         </Text>
         <Text style={[styles.patternsWidgetSubTextMeta, { color: theme.textSecondary }]}>
-          Visualizing high vs low transaction volume periods.
+          {selectedBucket !== null ? `${data.buckets[selectedBucket].label} · ${data.buckets[selectedBucket].count} expenses · ₦${(data.buckets[selectedBucket].amount / 100).toLocaleString("en-NG")}` : activeTab === "custom" ? data.description : "Spending amounts across your selected period. Tap a cell for details."}
         </Text>
 
         <View
@@ -495,8 +417,12 @@ export default function InsightsSummaryScreen() {
           ]}
         >
           {heatMapBlocks.map((color, idx) => (
-            <View
+            <TouchableOpacity
               key={idx}
+              accessible
+              accessibilityRole="button"
+              onPress={() => setSelectedBucket(idx === selectedBucket ? null : idx)}
+              accessibilityLabel={`${data.buckets[idx].label}: ${data.buckets[idx].count} expenses, ${data.buckets[idx].amount / 100} naira`}
               style={[
                 styles.gridHeatMapIndividualCell,
                 { backgroundColor: color },
@@ -506,159 +432,13 @@ export default function InsightsSummaryScreen() {
         </View>
 
         <View style={styles.gridHeatMapTimelineLabelsRow}>
-          <Text style={[styles.timelineLabelText, { color: theme.textSecondary }]}>Week 1</Text>
-          <Text style={[styles.timelineLabelText, { color: theme.textSecondary }]}>Week 2</Text>
-          <Text style={[styles.timelineLabelText, { color: theme.textSecondary }]}>Week 3</Text>
+          <Text style={[styles.timelineLabelText, { color: theme.textSecondary }]}>{data.start.toLocaleDateString("en-NG", { day: "numeric", month: "short" })}</Text>
+          <Text style={[styles.timelineLabelText, { color: theme.textSecondary }]}>{data.days} days</Text>
+          <Text style={[styles.timelineLabelText, { color: theme.textSecondary }]}>{data.end.toLocaleDateString("en-NG", { day: "numeric", month: "short" })}</Text>
         </View>
 
-        {/* --- ASK ABOUT YOUR SPENDING (AI SECTION) --- */}
-        <View
-          style={[
-            styles.askAiCard,
-            {
-              backgroundColor: isDark ? "#201824" : "#F8F2F7",
-              borderColor: isDark ? "#3A2938" : "#E8DCF0",
-              marginTop: 20,
-            },
-          ]}
-        >
-          <View style={styles.askAiHeader}>
-            <View
-              style={[
-                styles.askAiIconFrame,
-                { backgroundColor: isDark ? "#342335" : "#FFFFFF" },
-              ]}
-            >
-              <Ionicons name="chatbubbles-outline" size={19} color={theme.accent} />
-            </View>
-            <View style={styles.askAiTitleCol}>
-              <Text style={[styles.askAiTitle, { color: theme.textPrimary }]} numberOfLines={1}>
-                Ask about your spending
-              </Text>
-              <Text style={[styles.askAiSubtitle, { color: theme.textSecondary }]} numberOfLines={1}>
-                Instant answers from your transactions
-              </Text>
-            </View>
-          </View>
-
-          {/* Suggested Prompt Chips */}
-          <View style={styles.promptChipsContainer}>
-            {SUGGESTED_PROMPTS.map((prompt) => (
-              <TouchableOpacity
-                key={prompt}
-                style={[
-                  styles.promptChip,
-                  {
-                    backgroundColor: isDark ? theme.surface : "#FFFFFF",
-                    borderColor: isDark ? theme.border : "#E3D5EA",
-                  },
-                ]}
-                onPress={() => handleAskAi(prompt)}
-                activeOpacity={0.7}
-              >
-                <Text style={[styles.promptChipText, { color: theme.textPrimary }]}>
-                  {prompt}
-                </Text>
-                <Ionicons name="arrow-forward" size={11} color={theme.accent} style={{ flexShrink: 0 }} />
-              </TouchableOpacity>
-            ))}
-          </View>
-
-          {/* Active AI Answer Box */}
-          {activeAiAnswer && (
-            <View
-              style={[
-                styles.aiAnswerCard,
-                {
-                  backgroundColor: isDark ? theme.surface : "#FFFFFF",
-                  borderColor: isDark ? theme.border : "#E3D5EA",
-                },
-              ]}
-            >
-              {/* Question Echo */}
-              <View style={styles.aiQueryEchoRow}>
-                <Ionicons name="help-circle-outline" size={15} color={theme.accent} style={{ marginRight: 6 }} />
-                <Text style={[styles.aiQueryEchoText, { color: theme.textPrimary }]} numberOfLines={1}>
-                  {activeAiAnswer.query}
-                </Text>
-              </View>
-
-              {/* Summary */}
-              <View
-                style={[
-                  styles.aiSummaryBox,
-                  {
-                    backgroundColor: isDark ? theme.surfaceSoft : "#F9F6FA",
-                    borderColor: theme.border,
-                  },
-                ]}
-              >
-                <Text style={[styles.aiSummaryText, { color: theme.textPrimary }]}>
-                  {activeAiAnswer.summary}
-                </Text>
-              </View>
-
-              {/* Breakdown Bullets */}
-              <View style={styles.aiBulletsContainer}>
-                {activeAiAnswer.details.map((detail, idx) => (
-                  <View key={idx} style={styles.aiBulletRow}>
-                    <Ionicons name="checkmark-circle" size={15} color={theme.accent} style={{ marginTop: 2, flexShrink: 0 }} />
-                    <Text style={[styles.aiBulletText, { color: theme.textPrimary }]}>
-                      {detail}
-                    </Text>
-                  </View>
-                ))}
-              </View>
-
-              {/* Actionable Tip */}
-              {activeAiAnswer.actionableTip ? (
-                <View
-                  style={[
-                    styles.aiTipBox,
-                    {
-                      backgroundColor: isDark ? "#30261A" : "#FEF3C7",
-                      borderColor: isDark ? "#4D381F" : "#FDE68A",
-                    },
-                  ]}
-                >
-                  <Ionicons name="bulb" size={15} color="#D97706" style={{ marginTop: 1, flexShrink: 0 }} />
-                  <Text style={[styles.aiTipText, { color: isDark ? "#FCD34D" : "#92400E" }]}>
-                    {activeAiAnswer.actionableTip}
-                  </Text>
-                </View>
-              ) : null}
-            </View>
-          )}
-
-          {/* Query Input Bar */}
-          <View
-            style={[
-              styles.askAiInputContainer,
-              {
-                backgroundColor: isDark ? theme.surface : "#FFFFFF",
-                borderColor: isDark ? theme.border : "#E3D5EA",
-              },
-            ]}
-          >
-            <TextInput
-              style={[styles.askAiInput, { color: theme.textPrimary }]}
-              placeholder="e.g. Can I afford ₦40,000 this weekend?"
-              placeholderTextColor={theme.textSecondary}
-              value={aiQuestion}
-              onChangeText={setAiQuestion}
-              onSubmitEditing={() => handleAskAi(aiQuestion)}
-              returnKeyType="send"
-            />
-            <TouchableOpacity
-              style={[styles.askAiSendBtn, { backgroundColor: theme.accent }]}
-              onPress={() => handleAskAi(aiQuestion)}
-              disabled={isAskingAi || !aiQuestion.trim()}
-              activeOpacity={0.8}
-            >
-              <Ionicons name="sparkles" size={14} color="#FFFFFF" />
-            </TouchableOpacity>
-          </View>
-        </View>
+        <SpendingQuestions data={data} availableBalance={availableBalance} theme={theme} dark={isDark} disabled={isLoading || !!budgetError}
+          onAnswer={() => requestAnimationFrame(() => scroll.current?.scrollToEnd({ animated: true }))} />
       </ScrollView>
     </SafeAreaView>
   );
@@ -894,129 +674,5 @@ const styles = StyleSheet.create({
     fontSize: 11,
     fontWeight: "500",
   },
-  askAiCard: {
-    borderRadius: 18,
-    borderWidth: 1,
-    padding: 14,
-    marginBottom: 12,
-    overflow: "hidden",
-  },
-  askAiHeader: {
-    flexDirection: "row",
-    alignItems: "center",
-    marginBottom: 12,
-  },
-  askAiIconFrame: {
-    width: 34,
-    height: 34,
-    borderRadius: 10,
-    justifyContent: "center",
-    alignItems: "center",
-    marginRight: 9,
-  },
-  askAiTitleCol: {
-    flex: 1,
-  },
-  askAiTitle: {
-    fontSize: 14,
-    fontWeight: "700",
-  },
-  askAiSubtitle: {
-    fontSize: 11,
-    marginTop: 1,
-  },
-  promptChipsContainer: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-    gap: 6,
-    marginBottom: 12,
-  },
-  promptChip: {
-    flexDirection: "row",
-    alignItems: "center",
-    paddingHorizontal: 9,
-    paddingVertical: 6,
-    borderRadius: 9,
-    borderWidth: 1,
-    gap: 4,
-  },
-  promptChipText: {
-    fontSize: 11,
-    fontWeight: "500",
-  },
-  askAiInputContainer: {
-    flexDirection: "row",
-    alignItems: "center",
-    borderRadius: 12,
-    borderWidth: 1,
-    paddingHorizontal: 10,
-    height: 42,
-  },
-  askAiInput: {
-    flex: 1,
-    fontSize: 12,
-    height: "100%",
-  },
-  askAiSendBtn: {
-    width: 28,
-    height: 28,
-    borderRadius: 8,
-    justifyContent: "center",
-    alignItems: "center",
-  },
-  aiAnswerCard: {
-    borderRadius: 14,
-    borderWidth: 1,
-    padding: 12,
-    marginBottom: 12,
-  },
-  aiQueryEchoRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    marginBottom: 8,
-  },
-  aiQueryEchoText: {
-    fontSize: 12,
-    fontWeight: "700",
-    flex: 1,
-  },
-  aiSummaryBox: {
-    borderRadius: 9,
-    borderWidth: 1,
-    padding: 9,
-    marginBottom: 9,
-  },
-  aiSummaryText: {
-    fontSize: 12,
-    lineHeight: 17,
-    fontWeight: "500",
-  },
-  aiBulletsContainer: {
-    gap: 5,
-    marginBottom: 8,
-  },
-  aiBulletRow: {
-    flexDirection: "row",
-    alignItems: "flex-start",
-    gap: 6,
-  },
-  aiBulletText: {
-    fontSize: 11.5,
-    lineHeight: 16,
-    flex: 1,
-  },
-  aiTipBox: {
-    flexDirection: "row",
-    alignItems: "flex-start",
-    gap: 6,
-    borderRadius: 9,
-    borderWidth: 1,
-    padding: 8,
-  },
-  aiTipText: {
-    fontSize: 11,
-    lineHeight: 15,
-    fontWeight: "600",
-    flex: 1,
-  },
+
 });

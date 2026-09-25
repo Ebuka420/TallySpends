@@ -1,3 +1,4 @@
+import { AmountInput } from "../components/BudgetUI";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import React, { useRef, useState } from "react";
@@ -262,12 +263,13 @@ export default function RequestScreen() {
                 <Text style={[styles.inputLabel, { color: theme.textSecondary }]}>Amount to Request</Text>
                 <View style={[styles.inputWrapper, { backgroundColor: theme.surfaceSoft }]}>
                   <Text style={[styles.currencyPrefix, { color: theme.textPrimary }]}>₦</Text>
-                  <TextInput
+                  <AmountInput
+                    allowEmpty
                     style={[styles.textInput, { color: theme.textPrimary }]}
                     placeholder="0.00"
                     placeholderTextColor={theme.textSecondary}
-                    keyboardType="decimal-pad"
-                    autoFocus
+                    theme={theme}
+
                     value={requestAmount}
                     onChangeText={setRequestAmount}
                   />

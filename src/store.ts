@@ -1,7 +1,9 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useNavigation } from "expo-router";
 import { useCallback, useEffect, useState } from "react";
-import { useColorScheme } from "react-native";
+import { Alert, useColorScheme } from "react-native";
+import { deleteWalletTransaction, getWalletSnapshot, loadWallet, resetWallet, saveWalletTransaction, subscribeWallet } from "./budget/repository";
+import { totals, type Wallet } from "./budget/ledger";
 import type { ThemeId, ThemeMode, ThemePalette } from "./theme";
 import { getThemePalette } from "./theme";
 
@@ -485,6 +487,8 @@ const setGlobalDarkModePreference = (pref: "light" | "dark" | "system") => {
 };
 
 export function useAppStore() {
+  const [budgetWallet, setBudgetWallet] = useState<Wallet | null>(getWalletSnapshot);
+  const [budgetError, setBudgetError] = useState<string | null>(null);
   const [transactions, setTransactions] = useState<any[]>([]);
   const [notifications, setNotifications] = useState<NotificationItem[]>([]);
   const [budgets, setBudgets] = useState<Record<string, number>>({});
@@ -515,7 +519,7 @@ export function useAppStore() {
 
   const themeMode: ThemeMode =
     darkModePreference === "system"
-      ? (systemColorScheme ?? "light")
+      ? (systemColorScheme === "dark" ? "dark" : "light")
       : darkModePreference;
 
   const theme: ThemePalette = getThemePalette(themePreference, themeMode);
@@ -550,6 +554,23 @@ export function useAppStore() {
 
   const navigation = useNavigation();
 
+  useEffect(() => subscribeWallet((wallet) => {
+    setBudgetWallet(wallet);
+    setTransactions(wallet.transactions);
+    setBudgetError(null);
+  }), []);
+
+  const reloadBudgetWallet = useCallback(async () => {
+    try {
+      const wallet = await loadWallet(DEFAULT_TRANSACTIONS);
+      setBudgetWallet(wallet);
+      setTransactions(wallet.transactions);
+      setBudgetError(null);
+    } catch (error) {
+      setBudgetError(error instanceof Error ? error.message : 'Could not load your budgets.');
+    }
+  }, []);
+
   useEffect(() => {
     authListeners.push(setIsAuthenticated);
 
@@ -577,7 +598,7 @@ export function useAppStore() {
 
   const loadData = useCallback(async () => {
     try {
-      const storedTxs = await AsyncStorage.getItem("ts_txs");
+      await reloadBudgetWallet();
 
       const storedBudgets = await AsyncStorage.getItem("ts_bgts");
 
@@ -718,17 +739,6 @@ export function useAppStore() {
         setSavedCards(defaultCards);
       }
 
-      if (storedTxs !== null) {
-        setTransactions(JSON.parse(storedTxs));
-      } else {
-        await AsyncStorage.setItem(
-          "ts_txs",
-          JSON.stringify(DEFAULT_TRANSACTIONS),
-        );
-
-        setTransactions(DEFAULT_TRANSACTIONS);
-      }
-
       if (storedBudgets !== null) {
         setBudgets(JSON.parse(storedBudgets));
       } else {
@@ -763,14 +773,14 @@ export function useAppStore() {
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [reloadBudgetWallet]);
 
   useEffect(() => {
     const unsubscribe = navigation.addListener("focus", () => {
       loadData();
     });
 
-    loadData();
+    void Promise.resolve().then(loadData);
 
     return unsubscribe;
   }, [navigation, loadData]);
@@ -1039,11 +1049,15 @@ export function useAppStore() {
         id: newTx.id ?? `tx-${Date.now()}`,
       };
 
-      setTransactions((prev) => {
-        const next = [tx, ...prev];
-        AsyncStorage.setItem("ts_txs", JSON.stringify(next));
-        return next;
-      });
+      try {
+        await loadWallet(DEFAULT_TRANSACTIONS);
+        const before = getWalletSnapshot();
+        const after = await saveWalletTransaction(tx);
+        if (before === after) return true;
+      } catch (error) {
+        Alert.alert('Transaction not saved', error instanceof Error ? error.message : 'Please try again.');
+        return false;
+      }
 
       // Dispatch contextual notification automatically
       const titleLower = (tx.title || "").toLowerCase();
@@ -1071,6 +1085,11 @@ export function useAppStore() {
         notifDesc = `Your withdrawal of ${formattedAmount} to your bank account is underway.`;
       }
 
+      if (tx.demo) {
+        notifTitle = "Demo transaction recorded";
+        notifDesc = `${formattedAmount} was saved to your demo wallet. No bank transfer was made.`;
+      }
+
       addNotification({
         type: notifType,
         title: notifTitle,
@@ -1079,30 +1098,17 @@ export function useAppStore() {
         route: notifRoute,
         amount: Number(tx.amount || 0),
       });
+      return true;
     },
     [addNotification],
   );
 
   const deleteTransaction = useCallback(async (id: string) => {
-    setTransactions((prev) => {
-      const next = prev.filter((transaction) => transaction.id !== id);
-
-      AsyncStorage.setItem("ts_txs", JSON.stringify(next));
-
-      return next;
-    });
+    await deleteWalletTransaction(id);
   }, []);
 
   const updateTransaction = useCallback(async (updatedTx: any) => {
-    setTransactions((prev) => {
-      const next = prev.map((transaction) =>
-        transaction.id === updatedTx.id ? updatedTx : transaction,
-      );
-
-      AsyncStorage.setItem("ts_txs", JSON.stringify(next));
-
-      return next;
-    });
+    await saveWalletTransaction(updatedTx);
   }, []);
 
   const updateBudget = useCallback(async (category: string, limit: number) => {
@@ -1202,7 +1208,7 @@ export function useAppStore() {
       },
     ];
 
-    await AsyncStorage.setItem("ts_txs", JSON.stringify(DEFAULT_TRANSACTIONS));
+    await resetWallet(DEFAULT_TRANSACTIONS);
 
     await AsyncStorage.setItem("ts_bgts", JSON.stringify(DEFAULT_BUDGETS));
 
@@ -1240,6 +1246,10 @@ export function useAppStore() {
   }, []);
 
   return {
+    availableBalance: budgetWallet ? totals(budgetWallet).available / 100 : 0,
+    budgetWallet,
+    budgetError,
+    reloadBudgetWallet,
     transactions,
     budgets,
     savingsGoals,

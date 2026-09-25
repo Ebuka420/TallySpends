@@ -206,7 +206,7 @@ const styles = StyleSheet.create({
     elevation: 8,
   },
   tabBarOverlay: {
-    ...StyleSheet.absoluteFillObject,
+    ...StyleSheet.absoluteFill,
   },
   slidingIndicator: {
     position: "absolute",
