@@ -1,10 +1,11 @@
+import { AnalyticsReportSheet } from "../../components/AnalyticsReportSheet";
+import { analyticsRange, analyticsReport } from "../../src/analytics/report";
 import { Ionicons } from "@expo/vector-icons";
-import React, { useMemo, useState, useRef } from "react";
+import React, { useMemo, useState } from "react";
 import {
   Modal,
   SafeAreaView,
   ScrollView,
-  Share,
   StyleSheet,
   Text,
   TouchableOpacity,
@@ -12,7 +13,6 @@ import {
   View,
   type DimensionValue,
 } from "react-native";
-// view-shot and expo-sharing are imported dynamically at runtime
 import Svg, { Defs, LinearGradient, Path, Stop } from "react-native-svg";
 import { useAppStore } from "../../src/store";
 import { getThemePalette } from "../../src/theme";
@@ -20,7 +20,7 @@ import { getThemePalette } from "../../src/theme";
 type Timeframe = "weekly" | "monthly" | "yearly";
 
 const options: Record<Timeframe, string[]> = {
-  weekly: ["W1", "W2", "W3", "W4"],
+  weekly: Array.from({ length: Math.ceil(new Date(new Date().getFullYear(), new Date().getMonth() + 1, 0).getDate() / 7) }, (_, index) => `W${index + 1}`),
   monthly: [
     "Jan",
     "Feb",
@@ -76,7 +76,7 @@ const categoryMeta: Record<
 };
 
 export default function AnalyticsScreen() {
-  const { transactions: rawTransactions = [], themePreference, themeMode } = useAppStore();
+  const { transactions: rawTransactions = [], themePreference, themeMode, budgetWallet, budgetError } = useAppStore();
 
   const transactions = rawTransactions as any[];
 
@@ -145,7 +145,6 @@ export default function AnalyticsScreen() {
 
   const [showPeriods, setShowPeriods] = useState(false);
   const [showSharePreview, setShowSharePreview] = useState(false);
-  const shareRef = useRef<any>(null);
 
   const chooseTimeframe = (next: Timeframe) => {
     setTimeframe(next);
@@ -175,59 +174,8 @@ export default function AnalyticsScreen() {
     return period;
   }, [period, timeframe]);
 
-  const filteredTransactions = useMemo(() => {
-    if (timeframe === "yearly") {
-      return transactions.filter((tx) => {
-        const txDate = new Date(tx.date);
-
-        return (
-          !Number.isNaN(txDate.getTime()) &&
-          txDate.getFullYear() === selectedPeriod
-        );
-      });
-    }
-
-    if (timeframe === "monthly") {
-      const monthIndex = options.monthly.indexOf(period);
-
-      return transactions.filter((tx) => {
-        const txDate = new Date(tx.date);
-
-        return (
-          !Number.isNaN(txDate.getTime()) && txDate.getMonth() === monthIndex
-        );
-      });
-    }
-
-    const weekIndex = options.weekly.indexOf(period);
-
-    if (weekIndex < 0) {
-      return [];
-    }
-
-    const baseDate = new Date();
-    const month = baseDate.getMonth();
-    const year = baseDate.getFullYear();
-
-    const weekStart = weekIndex * 7 + 1;
-
-    const weekEnd = Math.min(
-      weekStart + 6,
-      new Date(year, month + 1, 0).getDate(),
-    );
-
-    return transactions.filter((tx) => {
-      const txDate = new Date(tx.date);
-
-      return (
-        !Number.isNaN(txDate.getTime()) &&
-        txDate.getFullYear() === year &&
-        txDate.getMonth() === month &&
-        txDate.getDate() >= weekStart &&
-        txDate.getDate() <= weekEnd
-      );
-    });
-  }, [period, timeframe, selectedPeriod, transactions]);
+  const report = useMemo(() => analyticsReport(transactions, analyticsRange(timeframe, period)), [transactions, timeframe, period]);
+  const filteredTransactions = report.selected;
 
   const totals = useMemo(() => {
     return filteredTransactions.reduce(
@@ -290,79 +238,7 @@ export default function AnalyticsScreen() {
       }));
   }, [filteredTransactions]);
 
-  const chartPoints = useMemo(() => {
-    if (timeframe === "yearly") {
-      return Array.from({ length: 12 }, (_, idx) => {
-        const label = options.monthly[idx];
-
-        const value = filteredTransactions.reduce((sum, tx) => {
-          const txDate = new Date(tx.date);
-
-          if (Number.isNaN(txDate.getTime()) || tx.type !== "expense") {
-            return sum;
-          }
-
-          return txDate.getMonth() === idx ? sum + Number(tx.amount || 0) : sum;
-        }, 0);
-
-        return {
-          label,
-          value,
-        };
-      });
-    }
-
-    if (timeframe === "monthly") {
-      const monthIndex = options.monthly.indexOf(period);
-
-      return Array.from({ length: 4 }, (_, idx) => {
-        const start = idx * 7 + 1;
-
-        const end =
-          idx === 3
-            ? new Date(new Date().getFullYear(), monthIndex + 1, 0).getDate()
-            : start + 6;
-
-        const value = filteredTransactions.reduce((sum, tx) => {
-          const txDate = new Date(tx.date);
-
-          if (Number.isNaN(txDate.getTime()) || tx.type !== "expense") {
-            return sum;
-          }
-
-          const day = txDate.getDate();
-
-          return day >= start && day <= end
-            ? sum + Number(tx.amount || 0)
-            : sum;
-        }, 0);
-
-        return {
-          label: `W${idx + 1}`,
-          value,
-        };
-      });
-    }
-
-    const weekIndex = options.weekly.indexOf(period);
-
-    return options.weekly.map((label, idx) => ({
-      label,
-      value: filteredTransactions
-        .filter((tx) => {
-          const txDate = new Date(tx.date);
-
-          if (Number.isNaN(txDate.getTime()) || tx.type !== "expense") {
-            return false;
-          }
-
-          const day = txDate.getDate();
-
-          return day >= idx * 7 + 1 && day <= idx * 7 + 7 && idx === weekIndex;
-        })
-        .reduce((sum, tx) => sum + Number(tx.amount || 0), 0),
-    }));
-  }, [filteredTransactions, period, timeframe]);
+  const chartPoints = useMemo(() => report.chart.map(point => ({ label: point.label, value: point.amount / 100 })), [report]);
 
   const maxPoint = Math.max(...chartPoints.map((point) => point.value), 1);
 
@@ -397,88 +273,6 @@ export default function AnalyticsScreen() {
   }, [chartPoints, maxPoint]);
 
   const chartLabel = timeframe === "yearly" ? `${selectedPeriod}` : `${period}`;
-
-  const reportTitle = `TallySpends ${chartLabel} analytics report`;
-  const financialScore = 82;
-
-  const reportSummary = `${formatCurrency(totals.spent)} spent, ${formatCurrency(totals.income)} earned, and ${formatCurrency(totals.saved)} saved during ${chartLabel}.`;
-
-  const insightText =
-    "Food spending was higher this week than last month. A ₦35 weekly cap could keep your budget on track.";
-
-  const shareBody = `${reportTitle}
-
-Financial score: ${financialScore}/100
-${reportSummary}
-
-Top categories:
-${categoryTotals
-  .slice(0, 3)
-  .map(
-    (item) => `• ${item.name}: ${item.share} (${formatCurrency(item.amount)})`,
-  )
-  .join("\n")}
-
-Insight:
-${insightText}`;
-
-  const handleShareReport = async () => {
-    try {
-      if (shareRef.current) {
-        // Try to dynamically load capture + sharing modules (optional deps)
-        let capture: any = null;
-        let SharingModule: any = null;
-        try {
-          // eslint-disable-next-line @typescript-eslint/ban-ts-comment
-          // @ts-ignore - optional dependency, require at runtime if installed
-          const vs: any = require("react-native-view-shot");
-          capture = vs?.captureRef || vs?.captureScreen || null;
-        } catch (e) {
-          // view-shot not available
-        }
-
-        try {
-          // eslint-disable-next-line @typescript-eslint/ban-ts-comment
-          // @ts-ignore - optional dependency, require at runtime if installed
-          SharingModule = require("expo-sharing");
-        } catch (e) {
-          // expo-sharing not available
-        }
-
-        if (capture) {
-          const uri = await capture(shareRef.current, {
-            format: "png",
-            quality: 0.9,
-          });
-
-          if (SharingModule && SharingModule.isAvailableAsync) {
-            try {
-              const available = await SharingModule.isAvailableAsync();
-              if (available && SharingModule.shareAsync) {
-                await SharingModule.shareAsync(uri, { dialogTitle: reportTitle });
-                return;
-              }
-            } catch (e) {
-              // fall back
-            }
-          }
-
-          // Fallback to native Share API with file URL
-          try {
-            await Share.share({ url: uri, title: reportTitle } as any);
-            return;
-          } catch (e) {
-            // fall through to text share
-          }
-        }
-      }
-
-      // Final fallback: share as text
-      await Share.share({ title: reportTitle, message: shareBody });
-    } catch (error) {
-      console.error("Error sharing analytics report:", error);
-    }
-  };
 
   return (
     <SafeAreaView
@@ -1192,103 +986,7 @@ ${insightText}`;
         </TouchableWithoutFeedback>
       </Modal>
 
-      <Modal
-        transparent
-        visible={showSharePreview}
-        animationType="slide"
-        onRequestClose={() => setShowSharePreview(false)}
-      >
-        <TouchableWithoutFeedback onPress={() => setShowSharePreview(false)}>
-          <View style={styles.overlay}>
-            <TouchableWithoutFeedback>
-              <View style={[styles.menu, styles.shareModal]}>
-                <View style={styles.shareHeader}>
-                  <Text style={styles.menuTitle}>Monthly Insights</Text>
-                  <TouchableOpacity onPress={() => setShowSharePreview(false)}>
-                    <Ionicons name="close" size={22} color="#20142A" />
-                  </TouchableOpacity>
-                </View>
-                <Text style={styles.shareSubtitle}>
-                  {chartLabel} financial summary
-                </Text>
-
-                <View ref={shareRef} collapsable={false} style={styles.sharePreviewCard}>
-                  <View style={styles.sharePreviewTop}>
-                    <View style={styles.sharePreviewLogo}>
-                      <Text style={styles.sharePreviewScore}>
-                        {financialScore}
-                      </Text>
-                      <Text style={styles.sharePreviewScoreSuffix}>/100</Text>
-                    </View>
-                    <View style={styles.sharePreviewMeta}>
-                      <Text style={styles.sharePreviewMetaLabel}>
-                        Financial health
-                      </Text>
-                      <Text style={styles.sharePreviewMetaValue}>
-                        {chartLabel}
-                      </Text>
-                    </View>
-                  </View>
-
-                  <View style={styles.sharePreviewBody}>
-                    <Text style={styles.sharePreviewTitle}>{reportTitle}</Text>
-                    <Text style={styles.sharePreviewSubtitle}>
-                      {reportSummary}
-                    </Text>
-                  </View>
-
-                  <View style={styles.shareStats}>
-                    <View style={styles.shareStatCard}>
-                      <Text style={styles.shareStatLabel}>Spent</Text>
-                      <Text style={styles.shareStatValue}>
-                        {formatCurrency(totals.spent)}
-                      </Text>
-                    </View>
-                    <View style={styles.shareStatCard}>
-                      <Text style={styles.shareStatLabel}>Income</Text>
-                      <Text style={styles.shareStatValue}>
-                        {formatCurrency(totals.income)}
-                      </Text>
-                    </View>
-                    <View style={styles.shareStatCard}>
-                      <Text style={styles.shareStatLabel}>Saved</Text>
-                      <Text style={styles.shareStatValue}>
-                        {formatCurrency(totals.saved)}
-                      </Text>
-                    </View>
-                  </View>
-
-                  <View style={styles.shareDivider} />
-
-                  <Text style={styles.sectionLabel}>Top categories</Text>
-                  {categoryTotals.slice(0, 3).map((item) => (
-                    <View key={item.name} style={styles.shareCategoryRow}>
-                      <Text style={styles.shareCategoryName}>{item.name}</Text>
-                      <Text style={styles.shareCategoryValue}>
-                        {item.share}
-                      </Text>
-                    </View>
-                  ))}
-
-                  <View style={styles.shareInsightCard}>
-                    <Text style={styles.shareInsightLabel}>Insight</Text>
-                    <Text style={styles.shareInsightText}>{insightText}</Text>
-                  </View>
-                </View>
-
-                <View style={styles.shareFooter}>
-                  <TouchableOpacity
-                    style={styles.shareActionButton}
-                    onPress={handleShareReport}
-                  >
-                    <Text style={styles.shareActionText}>Share report</Text>
-                  </TouchableOpacity>
-                </View>
-              </View>
-            </TouchableWithoutFeedback>
-          </View>
-        </TouchableWithoutFeedback>
-      </Modal>
+      <AnalyticsReportSheet visible={showSharePreview} onClose={() => setShowSharePreview(false)} report={report} theme={theme} dark={isDark} ready={!!budgetWallet && !budgetError} />
     </SafeAreaView>
   );
 }
@@ -1858,173 +1556,5 @@ const styles = StyleSheet.create({
   menuText: {
     fontSize: 14,
   },
-  shareModal: {
-    backgroundColor: "#FFF",
-    borderTopLeftRadius: 25,
-    borderTopRightRadius: 25,
-    padding: 20,
-    paddingBottom: 35,
-  },
 
-  shareHeader: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    marginBottom: 10,
-  },
-
-  shareSubtitle: {
-    fontSize: 12,
-    color: "#666",
-    marginBottom: 12,
-  },
-
-  sharePreviewCard: {
-    backgroundColor: "#FFF",
-    borderRadius: 18,
-    borderWidth: 1,
-    borderColor: "#EEE",
-    padding: 16,
-    marginBottom: 12,
-  },
-
-  sharePreviewTop: {
-    flexDirection: "row",
-    alignItems: "center",
-  },
-
-  sharePreviewLogo: {
-    alignItems: "center",
-    justifyContent: "center",
-    borderRadius: 12,
-    backgroundColor: "#F6F2FC",
-    padding: 12,
-    marginRight: 12,
-  },
-
-  sharePreviewScore: {
-    fontSize: 28,
-    fontWeight: "700",
-  },
-
-  sharePreviewScoreSuffix: {
-    fontSize: 12,
-    marginTop: 4,
-  },
-
-  sharePreviewMeta: {
-    flex: 1,
-  },
-
-  sharePreviewMetaLabel: {
-    fontSize: 10,
-    color: "#777",
-    fontWeight: "700",
-  },
-
-  sharePreviewMetaValue: {
-    fontSize: 14,
-    fontWeight: "700",
-    marginTop: 4,
-  },
-
-  sharePreviewBody: {
-    marginTop: 12,
-  },
-
-  sharePreviewTitle: {
-    fontSize: 16,
-    fontWeight: "700",
-  },
-
-  sharePreviewSubtitle: {
-    fontSize: 12,
-    color: "#666",
-    marginTop: 6,
-  },
-
-  shareStats: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    marginTop: 12,
-  },
-
-  shareStatCard: {
-    flex: 1,
-    alignItems: "center",
-  },
-
-  shareStatLabel: {
-    fontSize: 10,
-    color: "#777",
-  },
-
-  shareStatValue: {
-    fontSize: 14,
-    fontWeight: "700",
-    marginTop: 6,
-  },
-
-  shareDivider: {
-    height: 1,
-    backgroundColor: "#EEE",
-    marginVertical: 14,
-  },
-
-  sectionLabel: {
-    fontSize: 14,
-    fontWeight: "700",
-    marginBottom: 8,
-  },
-
-  shareCategoryRow: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    paddingVertical: 8,
-  },
-
-  shareCategoryName: {
-    fontSize: 14,
-  },
-
-  shareCategoryValue: {
-    fontSize: 13,
-    color: "#666",
-  },
-
-  shareInsightCard: {
-    backgroundColor: "#F6F2FC",
-    borderRadius: 12,
-    padding: 12,
-    marginTop: 10,
-  },
-
-  shareInsightLabel: {
-    fontSize: 12,
-    fontWeight: "700",
-  },
-
-  shareInsightText: {
-    fontSize: 12,
-    color: "#444",
-    marginTop: 6,
-  },
-
-  shareFooter: {
-    alignItems: "center",
-    marginTop: 12,
-  },
-
-  shareActionButton: {
-    backgroundColor: "#4B2C40",
-    paddingVertical: 12,
-    borderRadius: 12,
-    alignItems: "center",
-    paddingHorizontal: 24,
-  },
-
-  shareActionText: {
-    color: "#FFF",
-    fontWeight: "700",
-  },
 });

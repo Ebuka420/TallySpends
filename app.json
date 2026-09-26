@@ -53,10 +53,7 @@
       ],
       "expo-font",
       "expo-web-browser",
-      "expo-image",
-      "expo-sharing",
-      "expo-status-bar",
-      "expo-notifications"
+      "expo-sharing"
     ],
     "experiments": {
       "typedRoutes": true,
