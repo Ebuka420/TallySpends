@@ -1,4 +1,5 @@
 import { Ionicons } from "@expo/vector-icons";
+import * as Clipboard from "expo-clipboard";
 import * as Haptics from "expo-haptics";
 import { useRouter } from "expo-router";
 import React, { useMemo, useState } from "react";
@@ -6,12 +7,15 @@ import {
   Alert,
   FlatList,
   Modal,
+  Platform,
   SafeAreaView,
   StyleSheet,
   Text,
   TouchableOpacity,
   View,
 } from "react-native";
+import { usePushNotifications } from "../src/hooks/usePushNotifications";
+import { scheduleInstantLocalNotification } from "../src/services/pushNotificationService";
 import { NotificationItem, useAppStore } from "../src/store";
 import { getThemePalette } from "../src/theme";
 
@@ -33,6 +37,8 @@ export default function NotificationsScreen() {
 
   const theme = getThemePalette(themePreference, themeMode);
   const isDark = themeMode === "dark";
+
+  const { expoPushToken } = usePushNotifications();
 
   const [activeFilter, setActiveFilter] = useState<FilterTab>("all");
   const [showSimulatorModal, setShowSimulatorModal] = useState(false);
@@ -103,39 +109,62 @@ export default function NotificationsScreen() {
     );
   };
 
-  const handleSendTestPush = (type: NotificationItem["type"]) => {
+  const handleSendTestPush = async (type: NotificationItem["type"]) => {
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     setShowSimulatorModal(false);
 
+    let title = "";
+    let description = "";
+    let route = "";
+
     if (type === "transaction") {
+      title = "Inbound Payment Received";
+      description = "₦15,000.00 was credited to your TallySpends account from @chioma_k.";
+      route = "/(tabs)/expenses";
       addNotification({
         type: "transaction",
-        title: "Inbound Payment Received",
-        description: "₦15,000.00 was credited to your TallySpends account from @chioma_k.",
+        title,
+        description,
         amount: 15000,
-        route: "/(tabs)/expenses",
+        route,
       });
     } else if (type === "alert") {
+      title = "Budget Threshold Warning";
+      description = "You have exceeded 90% of your Shopping budget for this month. ₦1,200 remaining.";
+      route = "/budgetspending";
       addNotification({
         type: "alert",
-        title: "Budget Threshold Warning",
-        description: "You have exceeded 90% of your Shopping budget for this month. ₦1,200 remaining.",
-        route: "/budgetspending",
+        title,
+        description,
+        route,
       });
     } else if (type === "insight") {
+      title = "AI Smart Insight";
+      description = "Great news! You saved 18% on transport this week by tracking your ride-shares.";
+      route = "/insightssum";
       addNotification({
         type: "insight",
-        title: "AI Smart Insight",
-        description: "Great news! You saved 18% on transport this week by tracking your ride-shares.",
-        route: "/insightssum",
+        title,
+        description,
+        route,
       });
     } else {
+      title = "Scheduled Utility Bill";
+      description = "Your monthly Internet Subscription of ₦12,500 is due in 2 days.";
       addNotification({
         type: "bill",
-        title: "Scheduled Utility Bill",
-        description: "Your monthly Internet Subscription of ₦12,500 is due in 2 days.",
+        title,
+        description,
       });
     }
+
+    // Trigger local notification banner alert on physical device within 2 seconds
+    await scheduleInstantLocalNotification({
+      title: `🔔 ${title}`,
+      body: description,
+      data: { route },
+      delaySeconds: 2,
+    });
   };
 
   const getNotificationIconDetails = (type: NotificationItem["type"]) => {
@@ -233,6 +262,46 @@ export default function NotificationsScreen() {
             </TouchableOpacity>
           )}
         </View>
+      </View>
+
+      {/* Test Notification Quick Trigger Bar */}
+      <View
+        style={[
+          styles.testPushBar,
+          { backgroundColor: isDark ? theme.surfaceSoft : "#F5EEFA", borderColor: theme.border },
+        ]}
+      >
+        <View style={{ flex: 1 }}>
+          <Text style={[styles.testPushTitle, { color: theme.textPrimary }]}>
+            🔔 Test Notifications
+          </Text>
+          <Text style={[styles.testPushSub, { color: theme.textSecondary }]}>
+            {expoPushToken ? "Push Token Ready • Tap Test (2s)" : "Instant test alert on device"}
+          </Text>
+        </View>
+
+        <TouchableOpacity
+          style={[styles.testPushBtn, { backgroundColor: theme.accent }]}
+          onPress={() => handleSendTestPush("transaction")}
+          activeOpacity={0.8}
+        >
+          <Ionicons name="paper-plane" size={14} color="#FFFFFF" />
+          <Text style={styles.testPushBtnText}>Test (2s)</Text>
+        </TouchableOpacity>
+
+        {expoPushToken && (
+          <TouchableOpacity
+            style={[styles.copyTokenBtn, { borderColor: theme.accent }]}
+            onPress={async () => {
+              await Clipboard.setStringAsync(expoPushToken);
+              Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+              Alert.alert("Token Copied!", "Your ExpoPushToken has been copied to your clipboard.");
+            }}
+            activeOpacity={0.8}
+          >
+            <Ionicons name="copy-outline" size={14} color={theme.accent} />
+          </TouchableOpacity>
+        )}
       </View>
 
       {/* Filter Tabs */}
@@ -607,6 +676,46 @@ const styles = StyleSheet.create({
   },
   headerActionIcon: {
     padding: 4,
+  },
+  testPushBar: {
+    marginHorizontal: 16,
+    marginTop: 10,
+    marginBottom: 4,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    borderRadius: 14,
+    borderWidth: 1,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+  },
+  testPushTitle: {
+    fontSize: 13,
+    fontWeight: "700",
+  },
+  testPushSub: {
+    fontSize: 11,
+    marginTop: 2,
+  },
+  testPushBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 5,
+    paddingHorizontal: 12,
+    paddingVertical: 7,
+    borderRadius: 10,
+  },
+  testPushBtnText: {
+    color: "#FFFFFF",
+    fontSize: 11.5,
+    fontWeight: "700",
+  },
+  copyTokenBtn: {
+    padding: 7,
+    borderRadius: 10,
+    borderWidth: 1,
+    alignItems: "center",
+    justifyContent: "center",
   },
   filterBar: {
     paddingVertical: 10,

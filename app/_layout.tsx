@@ -3,11 +3,15 @@ import { useEffect } from "react";
 import { View } from "react-native";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import RadialFloatingBot from "../components/RadialFloatingBot";
+import { usePushNotifications } from "../src/hooks/usePushNotifications";
 import { useAppStore } from "../src/store";
 
 export default function RootLayout() {
   const segments = useSegments();
   const router = useRouter();
+
+  // Initialize global push notification listeners and token registration
+  const { expoPushToken } = usePushNotifications();
 
   // Pull authentication status from the global store instead of hardcoding it to false
   const { isAuthenticated } = useAppStore();
