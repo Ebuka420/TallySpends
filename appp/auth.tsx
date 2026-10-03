@@ -1,7 +1,7 @@
 import { Ionicons } from "@expo/vector-icons";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useRouter } from "expo-router";
-import { useMemo, useState } from "react";
+import React, { useMemo, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
@@ -16,10 +16,10 @@ import {
   View,
 } from "react-native";
 import DynamicLogo from "../components/DynamicLogo";
-import { API_URL } from "../src/api";
-import { recoverLocalSession } from "../src/register";
 import { useAppStore } from "../src/store";
 import { getThemePalette } from "../src/theme";
+
+const API_URL = process.env.EXPO_PUBLIC_API_URL;
 
 const LOCAL_USERS_KEY = "ts_registered_users";
 const PENDING_SIGNUP_KEY = "ts_pending_signup";
@@ -290,6 +290,7 @@ export default function AuthScreen() {
 
         console.log("=================================");
         console.log("AUTH REQUEST URL:", `${API_URL}${endpoint}`);
+        console.log("AUTH REQUEST PAYLOAD:", JSON.stringify(payload));
         console.log("=================================");
 
         const response = await fetch(`${API_URL}${endpoint}`, {
@@ -316,18 +317,7 @@ export default function AuthScreen() {
           }
         }
 
-        let recoveredLocalAccount = false;
-        if (!response.ok && response.status === 401) {
-          const localUsers = JSON.parse(await AsyncStorage.getItem(LOCAL_USERS_KEY) || "[]");
-          // Older onboarding created local accounts without a backend session.
-          const session = await recoverLocalSession(identifierTrimmed, password, localUsers);
-          if (session) {
-            data = session;
-            recoveredLocalAccount = true;
-          }
-        }
-
-        if (!response.ok && !recoveredLocalAccount) {
+        if (!response.ok) {
           console.log("=================================");
           console.log("AUTH API ERROR");
           console.log("Status:", response.status);
@@ -389,20 +379,13 @@ export default function AuthScreen() {
         /*
          * Save authentication tokens.
          */
-        console.log("LOGIN RESPONSE KEYS:", Object.keys(data));
-        console.log("HAS ACCESS TOKEN:", !!data.accessToken);
-        console.log("HAS TOKEN:", !!data.token);
 
-        const accessToken = data.accessToken || data.token;
-        if (typeof accessToken !== "string" || !accessToken.trim()) {
-          throw new Error("The server did not return an access token. Please try signing in again.");
+        if (data.accessToken) {
+          await AsyncStorage.setItem("ts_access_token", data.accessToken);
         }
-        await AsyncStorage.setItem("ts_access_token", accessToken);
 
         if (data.refreshToken) {
           await AsyncStorage.setItem("ts_refresh_token", data.refreshToken);
-        } else {
-          await AsyncStorage.removeItem("ts_refresh_token");
         }
 
         /*
@@ -439,7 +422,7 @@ export default function AuthScreen() {
          * TS2353 at lines 482 and 659.
          */
 
-        await login(accessToken, data.refreshToken, {
+        await login(data.accessToken, data.refreshToken, {
           userId,
           fullName: returnedFullName,
           email: returnedEmail,

@@ -1,9 +1,8 @@
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
-import React, { useMemo, useRef, useState } from "react";
+import React, { useMemo } from "react";
 import {
   Dimensions,
-  Alert,
   Pressable,
   SafeAreaView,
   StyleSheet,
@@ -21,22 +20,11 @@ export default function CompleteScreen() {
   const { completeOnboarding, theme } = useAppStore();
 
   const styles = useMemo(() => createStyles(theme), [theme]);
-  const [isSubmitting, setIsSubmitting] = useState(false);
-  const submitting = useRef(false);
 
   const handleGetStarted = async () => {
-    if (submitting.current) return;
-    submitting.current = true;
-    setIsSubmitting(true);
-    try {
-      await completeOnboarding();
-      router.replace("/(tabs)");
-    } catch (error) {
-      Alert.alert("Account setup", error instanceof Error ? error.message : "Unable to finish setup. Please try again.");
-    } finally {
-      submitting.current = false;
-      setIsSubmitting(false);
-    }
+    await completeOnboarding();
+
+    router.replace("/(tabs)");
   };
 
   return (
@@ -110,7 +98,6 @@ export default function CompleteScreen() {
         <View style={styles.bottomContainer}>
           <Pressable
             onPress={handleGetStarted}
-            disabled={isSubmitting}
             style={({ pressed }) => [
               styles.getStartedButton,
               {

@@ -1,4 +1,5 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import { registerSession } from "./register";
 import { useNavigation } from "expo-router";
 import { useCallback, useEffect, useState } from "react";
 import { Alert, useColorScheme } from "react-native";
@@ -1348,6 +1349,13 @@ export function useAppStore() {
 
           const fullName = pendingSignup.fullName.trim();
           const phoneNumber = pendingSignup.phoneNumber.trim();
+
+          const session = await registerSession({
+            fullName, email, tallyTag, phoneNumber, password: pendingSignup.password,
+          });
+          await login(session.accessToken, session.refreshToken, {
+            userId: session.userId, fullName, email,
+          });
 
           const storedUsersRaw = await AsyncStorage.getItem(
             "ts_registered_users",
