@@ -1,3 +1,4 @@
+import OnboardingReveal from "../../components/OnboardingReveal";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import React, { useMemo, useRef, useState } from "react";
@@ -50,18 +51,18 @@ export default function CompleteScreen() {
     >
       <View style={styles.container}>
         {/* Progress */}
-        <View style={styles.progressContainer}>
+        <OnboardingReveal order={0} style={styles.progressContainer}>
           <View style={styles.progressTrack}>
             <View style={styles.progressActive} />
           </View>
 
           <Text style={styles.progressText}>3 of 3</Text>
-        </View>
+        </OnboardingReveal>
 
         {/* Main Content */}
         <View style={styles.content}>
           {/* Success Icon */}
-          <View style={styles.iconOuter}>
+          <OnboardingReveal order={1} style={styles.iconOuter}>
             <View
               style={[
                 styles.iconInner,
@@ -72,18 +73,18 @@ export default function CompleteScreen() {
             >
               <Ionicons name="checkmark" size={42} color="#FFFFFF" />
             </View>
-          </View>
+          </OnboardingReveal>
 
-          <Text style={styles.eyebrow}>YOU'RE ALL SET</Text>
+          <OnboardingReveal order={2}><Text style={styles.eyebrow}>YOU'RE ALL SET</Text></OnboardingReveal>
 
-          <Text style={styles.title}>Welcome to{"\n"}TallySpends.</Text>
+          <OnboardingReveal order={3}><Text style={styles.title}>Welcome to{"\n"}TallySpends.</Text></OnboardingReveal>
 
-          <Text style={styles.description}>
+          <OnboardingReveal order={4}><Text style={styles.description}>
             Your money, your goals, and your spending — all in one place.
-          </Text>
+          </Text></OnboardingReveal>
 
           {/* Summary Glass Card */}
-          <View style={styles.summaryCard}>
+          <OnboardingReveal order={5} style={styles.summaryCard}>
             <View style={styles.summaryRow}>
               <View style={styles.summaryIcon}>
                 <Ionicons
@@ -103,11 +104,11 @@ export default function CompleteScreen() {
                 </Text>
               </View>
             </View>
-          </View>
+          </OnboardingReveal>
         </View>
 
         {/* Bottom */}
-        <View style={styles.bottomContainer}>
+        <OnboardingReveal order={6} style={styles.bottomContainer}>
           <Pressable
             onPress={handleGetStarted}
             disabled={isSubmitting}
@@ -126,7 +127,7 @@ export default function CompleteScreen() {
           </Pressable>
 
           <Text style={styles.helperText}>Let's make every naira count.</Text>
-        </View>
+        </OnboardingReveal>
       </View>
     </SafeAreaView>
   );

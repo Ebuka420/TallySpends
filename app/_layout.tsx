@@ -1,114 +1,96 @@
-import { Stack, useRouter, useSegments } from "expo-router";
-import { useEffect } from "react";
+import { Stack, useSegments } from "expo-router";
+import * as SplashScreen from "expo-splash-screen";
+import { useCallback, useState } from "react";
 import { View } from "react-native";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import RadialFloatingBot from "../components/RadialFloatingBot";
+import StartupScreen from "../components/StartupScreen";
 import { usePushNotifications } from "../src/hooks/usePushNotifications";
 import { useAppStore } from "../src/store";
 
+// Hold the native launch screen until the branded React loading screen has laid out.
+void SplashScreen.preventAutoHideAsync().catch(() => {});
+
+const authenticatedScreens = [
+  "(tabs)",
+  "add-budget",
+  "add-savings",
+  "ajo-create",
+  "ajo-create_from_git",
+  "ajo-details",
+  "ajo",
+  "ajo_from_head",
+  "budget-details",
+  "budgetspending",
+  "customerservice",
+  "deposit",
+  "insights",
+  "insightssum",
+  "invitation",
+  "joint-savings-details",
+  "joint-savings",
+  "linkbank",
+  "linkedcards",
+  "membership",
+  "notifications",
+  "profile",
+  "rateus",
+  "request",
+  "savings-details",
+  "savings-lock",
+  "savingsprogress",
+  "settings-about",
+  "settings-dashboard",
+  "settings-feedback",
+  "settings-login",
+  "settings-savings",
+  "settings-security",
+  "settings-themes",
+  "settings",
+  "SObreakdown",
+  "support",
+  "transaction-details",
+  "transaction-history",
+  "transfer",
+  "withdraw",
+  "youngins",
+] as const;
+
+function PushNotifications() {
+  usePushNotifications();
+  return null;
+}
+
 export default function RootLayout() {
   const segments = useSegments();
-  const router = useRouter();
+  const { isAuthenticated, loading, themeMode } = useAppStore();
+  const [introComplete, setIntroComplete] = useState(false);
+  const finishIntro = useCallback(() => setIntroComplete(true), []);
+  const showLaunchScreen = useCallback(() => {
+    void SplashScreen.hideAsync().catch(() => {});
+  }, []);
+  const topLevelGroup = String(segments[0] || "");
 
-  // Initialize global push notification listeners and token registration
-  const { expoPushToken } = usePushNotifications();
-
-  // Pull authentication status from the global store instead of hardcoding it to false
-  const { isAuthenticated } = useAppStore();
-  const hasPasscode = false;
-  const isPasscodeVerified = false;
-
-  const topLevelGroup =
-    segments && segments.length > 0 ? String(segments[0]) : "";
-
-  // Do not show Smart Coach on Auth or Onboarding screens
-  const showSmartCoach =
-    topLevelGroup !== "auth" && topLevelGroup !== "onboarding";
-
-  useEffect(() => {
-    // Wait until Expo Router segments are populated
-    if (!segments || !segments.length) return;
-
-    const topLevelGroup = String(segments[0]);
-    const inAuthGroup = topLevelGroup === "auth";
-    const inPasscodeScreen = topLevelGroup === "passcode";
-    const inSetupGroup = topLevelGroup === "setup-profile";
-    const inOnboarding = topLevelGroup === "onboarding";
-
-    const navigationTask = setTimeout(() => {
-      // Unauthenticated users are allowed to remain on:
-      // Auth, Setup Profile, or Onboarding.
-      // Everything else requires authentication.
-      if (!isAuthenticated && !inAuthGroup && !inSetupGroup && !inOnboarding) {
-        router.replace("/auth" as any);
-        return;
-      }
-
-      // Authenticated user with an active Passcode requirement
-      if (
-        isAuthenticated &&
-        hasPasscode &&
-        !isPasscodeVerified &&
-        !inPasscodeScreen
-      ) {
-        router.replace("/passcode" as any);
-        return;
-      }
-
-      // Authenticated user sitting on the Auth screen
-      // should go to the Dashboard.
-      //
-      // Do NOT redirect the user away from Onboarding here.
-      if (isAuthenticated && inAuthGroup) {
-        router.replace("/(tabs)" as any);
-        return;
-      }
-    }, 0);
-
-    return () => clearTimeout(navigationTask);
-  }, [isAuthenticated, hasPasscode, isPasscodeVerified, segments]);
+  // Do not mount any destination until startup data and the brand reveal are ready.
+  // Protected routes then select auth directly, without ever rendering the dashboard.
+  if (loading || !introComplete) {
+    return <StartupScreen dark={themeMode === "dark"} onReady={finishIntro} onLayout={showLaunchScreen} />;
+  }
 
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
       <View style={{ flex: 1 }}>
         <Stack screenOptions={{ headerShown: false }}>
-          {/* Primary Route Groups */}
-          <Stack.Screen name="auth" />
-          <Stack.Screen name="ajo" />
-          <Stack.Screen name="ajo-details" />
-          <Stack.Screen name="ajo-create" />
-          <Stack.Screen name="(tabs)" />
-          <Stack.Screen name="setup-profile" />
-          <Stack.Screen name="passcode" />
+          <Stack.Protected guard={!isAuthenticated}>
+            <Stack.Screen name="auth" options={{ animation: "none", gestureEnabled: false }} />
+          </Stack.Protected>
+          <Stack.Protected guard={isAuthenticated}>
+            {authenticatedScreens.map(name => <Stack.Screen key={name} name={name} />)}
+          </Stack.Protected>
           <Stack.Screen name="onboarding" />
-
-          {/* Standalone Sub-screens */}
-          <Stack.Screen name="budgetspending" />
-          <Stack.Screen name="customerservice" />
-          <Stack.Screen name="deposit" />
-          <Stack.Screen name="insightssum" />
-          <Stack.Screen name="invitation" />
-          <Stack.Screen name="linkbank" />
-          <Stack.Screen name="linkedcards" />
-          <Stack.Screen name="membership" />
-          <Stack.Screen name="notifications" />
-          <Stack.Screen name="profile" />
-          <Stack.Screen name="rateus" />
-          <Stack.Screen name="request" />
-          <Stack.Screen name="savingsprogress" />
-          <Stack.Screen name="savings-lock" />
-          <Stack.Screen name="joint-savings" />
-          <Stack.Screen name="joint-savings-details" />
-          <Stack.Screen name="settings" />
-          <Stack.Screen name="SObreakdown" />
-          <Stack.Screen name="support" />
-          <Stack.Screen name="transaction-details" />
-          <Stack.Screen name="transfer" />
-          <Stack.Screen name="withdraw" />
         </Stack>
-
-        {/* Floating Global Bot Overlay */}
-        {showSmartCoach && <RadialFloatingBot />}
+        <PushNotifications />
+        {isAuthenticated && topLevelGroup !== "onboarding" && <RadialFloatingBot />}
       </View>
     </GestureHandlerRootView>
   );

@@ -1,3 +1,4 @@
+import OnboardingReveal from "../../components/OnboardingReveal";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import React, { useMemo } from "react";
@@ -66,35 +67,35 @@ export default function JobScreen() {
     >
       <View style={styles.container}>
         {/* Progress */}
-        <View style={styles.progressContainer}>
+        <OnboardingReveal order={0} style={styles.progressContainer}>
           <View style={styles.progressTrack}>
             <View style={styles.progressActive} />
           </View>
 
           <Text style={styles.progressText}>2 of 3</Text>
-        </View>
+        </OnboardingReveal>
 
         {/* Header */}
         <View style={styles.header}>
-          <Text style={styles.eyebrow}>A LITTLE ABOUT YOU</Text>
+          <OnboardingReveal order={1}><Text style={styles.eyebrow}>A LITTLE ABOUT YOU</Text></OnboardingReveal>
 
-          <Text style={styles.title}>
+          <OnboardingReveal order={2}><Text style={styles.title}>
             What best describes{"\n"}your current status?
-          </Text>
+          </Text></OnboardingReveal>
 
-          <Text style={styles.description}>
+          <OnboardingReveal order={3}><Text style={styles.description}>
             This helps TallySpends personalize your experience.
-          </Text>
+          </Text></OnboardingReveal>
         </View>
 
         {/* Employment Options */}
         <View style={styles.optionsContainer}>
-          {OPTIONS.map((option) => {
+          {OPTIONS.map((option, index) => {
             const selected = employmentStatus === option.id;
 
             return (
-              <Pressable
-                key={option.id}
+              <OnboardingReveal key={option.id} order={4 + index}><Pressable
+
                 onPress={() => setEmploymentStatus(option.id)}
                 style={({ pressed }) => [
                   styles.option,
@@ -136,13 +137,13 @@ export default function JobScreen() {
                     />
                   )}
                 </View>
-              </Pressable>
+              </Pressable></OnboardingReveal>
             );
           })}
         </View>
 
         {/* Bottom */}
-        <View style={styles.bottomContainer}>
+        <OnboardingReveal order={7} style={styles.bottomContainer}>
           <Pressable
             onPress={handleContinue}
             disabled={!employmentStatus}
@@ -178,7 +179,7 @@ export default function JobScreen() {
           <Text style={styles.helperText}>
             You can change your preferences later.
           </Text>
-        </View>
+        </OnboardingReveal>
       </View>
     </SafeAreaView>
   );

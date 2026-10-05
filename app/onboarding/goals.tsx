@@ -1,3 +1,4 @@
+import OnboardingReveal from "../../components/OnboardingReveal";
 import { Ionicons } from "@expo/vector-icons";
 import { BlurView } from "expo-blur";
 import { router } from "expo-router";
@@ -114,7 +115,7 @@ export default function GoalsOnboardingScreen() {
         />
 
         {/* Header */}
-        <View style={styles.header}>
+        <OnboardingReveal order={0} style={styles.header}>
           <View style={styles.brandContainer}>
             <View
               style={[
@@ -149,10 +150,10 @@ export default function GoalsOnboardingScreen() {
           >
             1 of 3
           </Text>
-        </View>
+        </OnboardingReveal>
 
         {/* Progress */}
-        <View style={styles.progressContainer}>
+        <OnboardingReveal order={1} style={styles.progressContainer}>
           <View
             style={[
               styles.progressTrack,
@@ -170,7 +171,7 @@ export default function GoalsOnboardingScreen() {
               ]}
             />
           </View>
-        </View>
+        </OnboardingReveal>
 
         <ScrollView
           showsVerticalScrollIndicator={false}
@@ -178,7 +179,7 @@ export default function GoalsOnboardingScreen() {
         >
           {/* Intro */}
           <View style={styles.intro}>
-            <View
+            <OnboardingReveal order={2}
               style={[
                 styles.eyebrowContainer,
                 {
@@ -203,9 +204,9 @@ export default function GoalsOnboardingScreen() {
               >
                 LET'S PERSONALIZE YOUR EXPERIENCE
               </Text>
-            </View>
+            </OnboardingReveal>
 
-            <Text
+            <OnboardingReveal order={3}><Text
               style={[
                 styles.title,
                 {
@@ -215,9 +216,9 @@ export default function GoalsOnboardingScreen() {
             >
               What do you want to{"\n"}
               achieve with TallySpends?
-            </Text>
+            </Text></OnboardingReveal>
 
-            <Text
+            <OnboardingReveal order={4}><Text
               style={[
                 styles.subtitle,
                 {
@@ -227,7 +228,7 @@ export default function GoalsOnboardingScreen() {
             >
               Choose everything that matters to you. We'll use this to make
               TallySpends more useful for you.
-            </Text>
+            </Text></OnboardingReveal>
           </View>
 
           {/* Goal Cards */}
@@ -236,8 +237,8 @@ export default function GoalsOnboardingScreen() {
               const selected = selectedGoals.includes(goal.id);
 
               return (
-                <Pressable
-                  key={goal.id}
+                <OnboardingReveal key={goal.id} order={5 + index}><Pressable
+
                   onPress={() => toggleGoal(goal.id)}
                   style={({ pressed }) => [
                     styles.goalCardWrapper,
@@ -321,13 +322,13 @@ export default function GoalsOnboardingScreen() {
                       )}
                     </View>
                   </BlurView>
-                </Pressable>
+                </Pressable></OnboardingReveal>
               );
             })}
           </View>
 
           {/* Selection hint */}
-          <View style={styles.selectionHint}>
+          <OnboardingReveal order={9} style={styles.selectionHint}>
             <Ionicons
               name="information-circle-outline"
               size={15}
@@ -344,11 +345,11 @@ export default function GoalsOnboardingScreen() {
             >
               You can choose more than one
             </Text>
-          </View>
+          </OnboardingReveal>
         </ScrollView>
 
         {/* Bottom Action */}
-        <View
+        <OnboardingReveal order={10}
           style={[
             styles.bottomContainer,
             {
@@ -389,7 +390,7 @@ export default function GoalsOnboardingScreen() {
               </View>
             </Pressable>
           </BlurView>
-        </View>
+        </OnboardingReveal>
       </View>
     </SafeAreaView>
   );

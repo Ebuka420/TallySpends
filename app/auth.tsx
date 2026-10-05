@@ -14,8 +14,10 @@ import {
   TextInput,
   TouchableOpacity,
   View,
+  useWindowDimensions,
 } from "react-native";
-import DynamicLogo from "../components/DynamicLogo";
+import BrandMark, { BRAND_PURPLE, BRAND_PURPLE_DARK } from "../components/BrandMark";
+import AuthBackdrop, { AuthEntrance } from "../components/AuthBackdrop";
 import { API_URL } from "../src/api";
 import { recoverLocalSession } from "../src/register";
 import { useAppStore } from "../src/store";
@@ -26,6 +28,9 @@ const PENDING_SIGNUP_KEY = "ts_pending_signup";
 
 export default function AuthScreen() {
   const router = useRouter();
+  const { height: screenHeight } = useWindowDimensions();
+  const [contentHeight, setContentHeight] = useState(0);
+  const [viewportHeight, setViewportHeight] = useState(0);
 
   const {
     login,
@@ -55,8 +60,8 @@ export default function AuthScreen() {
       accentSoft: theme.accentSoft,
       tabTrack: isDark ? theme.surfaceSoft : theme.mutedBackground,
       tabActive: isDark ? theme.accentSoft : "#FFFFFF",
-      buttonBg: isDark ? theme.accent : theme.textPrimary,
-      buttonText: "#FFFFFF",
+      buttonBg: isDark ? BRAND_PURPLE_DARK : BRAND_PURPLE,
+      buttonText: isDark ? "#111014" : "#FFFFFF",
     }),
     [isDark, theme],
   );
@@ -623,44 +628,28 @@ export default function AuthScreen() {
         },
       ]}
     >
+      <AuthBackdrop color={isDark ? BRAND_PURPLE_DARK : BRAND_PURPLE} dark={isDark} />
       <KeyboardAvoidingView
         behavior={Platform.OS === "ios" ? "padding" : "height"}
         style={{ flex: 1 }}
       >
-        <ScrollView
-          contentContainerStyle={styles.scrollContent}
-          keyboardShouldPersistTaps="handled"
-          showsVerticalScrollIndicator={false}
-        >
+        <View style={[styles.authContent, { paddingTop: Math.min(96, Math.max(32, screenHeight * 0.10)) }]}>
           {/* Logo & Branding */}
           <View style={styles.brandContainer}>
-            <DynamicLogo size={76} style={{ marginBottom: 14 }} />
-
-            <Text
-              style={[
-                styles.brandName,
-                {
-                  color: authColors.textPrimary,
-                },
-              ]}
-            >
-              TallySpends
-            </Text>
-
-            <Text
-              style={[
-                styles.brandSubtitle,
-                {
-                  color: authColors.textSecondary,
-                },
-              ]}
-            >
-              Automate your budgets, track operations.
-            </Text>
+            <AuthEntrance delay={60}>
+              <BrandMark size={64} dark={isDark} />
+            </AuthEntrance>
+            <AuthEntrance delay={150} style={{ alignItems: "center", marginTop: 10 }}>
+              <Text style={[styles.brandName, { color: isDark ? BRAND_PURPLE_DARK : BRAND_PURPLE }]}>
+                TallySpends
+              </Text>
+              <Text style={[styles.brandSubtitle, { color: authColors.textSecondary }]}>
+                Automate your budgets, track operations.
+              </Text>
+            </AuthEntrance>
           </View>
-
           {/* Auth Mode Switcher */}
-          <View
+          <AuthEntrance delay={240}
             style={[
               styles.tabContainer,
               {
@@ -728,10 +717,10 @@ export default function AuthScreen() {
                 Sign Up
               </Text>
             </TouchableOpacity>
-          </View>
+          </AuthEntrance>
 
-          {/* Form */}
-          <View
+          {/* The card and tabs stay anchored; only overflowing form fields scroll. */}
+          <ScrollView
             style={[
               styles.formContainer,
               {
@@ -739,7 +728,16 @@ export default function AuthScreen() {
                 borderColor: authColors.border,
               },
             ]}
+            contentContainerStyle={styles.formContent}
+            keyboardShouldPersistTaps="handled"
+            showsVerticalScrollIndicator={false}
+            bounces={false}
+            overScrollMode="never"
+            scrollEnabled={contentHeight > viewportHeight + 1}
+            onLayout={event => setViewportHeight(event.nativeEvent.layout.height)}
+            onContentSizeChange={(_, height) => setContentHeight(height)}
           >
+            <AuthEntrance trigger={authMode} delay={320} fromY={8}>
             {/* SIGNUP FIELDS */}
             {authMode === "signup" && (
               <>
@@ -1096,8 +1094,9 @@ export default function AuthScreen() {
                 </Text>
               )}
             </TouchableOpacity>
-          </View>
-        </ScrollView>
+            </AuthEntrance>
+          </ScrollView>
+        </View>
       </KeyboardAvoidingView>
     </SafeAreaView>
   );
@@ -1108,20 +1107,23 @@ const styles = StyleSheet.create({
     flex: 1,
   },
 
-  scrollContent: {
+  authContent: {
+    flex: 1,
     paddingHorizontal: 20,
     paddingTop: 32,
     paddingBottom: 32,
-    justifyContent: "center",
+    alignSelf: "center",
+    width: "100%",
+    maxWidth: 460,
   },
 
   brandContainer: {
     alignItems: "center",
-    marginBottom: 28,
+    marginBottom: 26,
   },
 
   brandName: {
-    fontSize: 26,
+    fontSize: 28,
     fontWeight: "800",
     letterSpacing: -0.5,
     marginBottom: 4,
@@ -1145,6 +1147,8 @@ const styles = StyleSheet.create({
     paddingVertical: 10,
     alignItems: "center",
     borderRadius: 11,
+    borderWidth: 1,
+    borderColor: "transparent",
   },
 
   activeTabButton: {
@@ -1166,6 +1170,11 @@ const styles = StyleSheet.create({
   formContainer: {
     borderRadius: 20,
     borderWidth: 1,
+    flexGrow: 0,
+    flexShrink: 1,
+  },
+
+  formContent: {
     padding: 20,
   },
 
