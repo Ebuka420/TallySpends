@@ -1,9 +1,11 @@
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
-import React, { useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { useAppStore } from "../src/store";
+import { canSubmitFeedback, createFeedbackSubmission, FEEDBACK_TAGS, submitFeedback, toggleFeedbackTag } from "../src/feedback/service";
 import {
     ActivityIndicator,
+    Alert,
     KeyboardAvoidingView,
     Platform,
     SafeAreaView,
@@ -15,67 +17,54 @@ import {
     View,
 } from "react-native";
 
-const API_URL = process.env.EXPO_PUBLIC_API_URL;
-
-// Quick tags to help users pick feedback categories fast
-const FEEDBACK_TAGS = [
-  "Budgeting Tools",
-  "Expense Tracking",
-  "Ajo Circles",
-  "User Interface",
-  "App Performance",
-  "Customer Support",
-];
-
 export default function RateUsScreen() {
   const router = useRouter();
-  const { theme } = useAppStore();
+  const { theme, token, refreshToken, login } = useAppStore();
   const styles = React.useMemo(() => getStyles(theme), [theme]);
   const [rating, setRating] = useState<number>(0);
   const [selectedTags, setSelectedTags] = useState<string[]>([]);
   const [comments, setComments] = useState<string>("");
   const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
+  const [submitted, setSubmitted] = useState(false);
+  const submission = useRef(createFeedbackSubmission());
+  const requestController = useRef<AbortController | null>(null);
+  const mounted = useRef(true);
+  const canSubmit = canSubmitFeedback({ rating, tags: selectedTags, suggestions: comments });
+
+  useEffect(() => {
+    mounted.current = true;
+    return () => { mounted.current = false; requestController.current?.abort(); };
+  }, []);
 
   // Toggle quick-select improvement tags
   const toggleTag = (tag: string) => {
-    if (selectedTags.includes(tag)) {
-      setSelectedTags(selectedTags.filter((t) => t !== tag));
-    } else {
-      setSelectedTags([...selectedTags, tag]);
-    }
+    setSelectedTags(tags => toggleFeedbackTag(tags, tag));
   };
 
   const handleSubmitFeedback = async () => {
-    if (rating === 0) {
-      alert("Please select a star rating before submitting.");
-      return;
-    }
-
-    setIsSubmitting(true);
-
     try {
-      // Simulate sending the telemetry/feedback payload to the backend
-      setTimeout(() => {
-        setIsSubmitting(false);
-        alert("Thank you for your feedback! We appreciate your suggestions.");
-        router.back();
-      }, 2000);
-
-      /*
-      // When your backend guy builds the endpoint, toggle this fetch setup:
-      const response = await fetch(`${API_URL}/api/feedback`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          rating: rating,
-          tags: selectedTags,
-          suggestions: comments
-        })
-      });
-      */
+      const receipt = await submission.current.run({ rating, tags: selectedTags, suggestions: comments }, async (payload, key) => {
+        const controller = new AbortController();
+        requestController.current = controller;
+        const timeout = setTimeout(() => controller.abort(), 20000);
+        try {
+          return await submitFeedback(payload, {
+            token, refreshToken,
+            saveTokens: async (access, refresh) => { await login(access, refresh); },
+          }, key, controller.signal);
+        } catch (error) {
+          if (controller.signal.aborted) throw new Error("The request timed out. Your feedback is still here; retry to check the same submission.");
+          if (error instanceof TypeError) throw new Error("Couldn't connect. Check your internet connection and try again. Your feedback is still here.");
+          throw error;
+        } finally { clearTimeout(timeout); }
+      }, busy => { if (mounted.current) setIsSubmitting(busy); });
+      if (!receipt || !mounted.current) return;
+      setSubmitted(true);
+      Alert.alert("Thank you!", "Your feedback has been saved. We appreciate your suggestions.", [
+        { text: "OK", onPress: () => { if (mounted.current) router.back(); } },
+      ]);
     } catch (error) {
-      setIsSubmitting(false);
-      console.error("Error sending feedback:", error);
+      if (mounted.current) Alert.alert("Couldn't send feedback", error instanceof Error ? error.message : "Please try again. Your feedback is still here.");
     }
   };
 
@@ -118,12 +107,16 @@ export default function RateUsScreen() {
                 <TouchableOpacity
                   key={star}
                   onPress={() => setRating(star)}
+                  disabled={isSubmitting || submitted}
+                  accessibilityRole="radio"
+                  accessibilityLabel={`${star} ${star === 1 ? "star" : "stars"}`}
+                  accessibilityState={{ checked: star === rating, disabled: isSubmitting || submitted }}
                   activeOpacity={0.7}
                 >
                   <Ionicons
                     name={star <= rating ? "star" : "star-outline"}
                     size={40}
-                    color={star <= rating ? theme.warning : theme.border}
+                    color={star <= rating ? "#20142A" : theme.border}
                     style={{ marginHorizontal: 6 }}
                   />
                 </TouchableOpacity>
@@ -152,6 +145,9 @@ export default function RateUsScreen() {
                   key={tag}
                   style={[styles.tagChip, isSelected && styles.tagChipSelected]}
                   onPress={() => toggleTag(tag)}
+                  disabled={isSubmitting || submitted}
+                  accessibilityRole="checkbox"
+                  accessibilityState={{ checked: isSelected, disabled: isSubmitting || submitted }}
                 >
                   <Text
                     style={[
@@ -179,6 +175,8 @@ export default function RateUsScreen() {
               numberOfLines={5}
               value={comments}
               onChangeText={setComments}
+              editable={!isSubmitting && !submitted}
+              accessibilityLabel="Written feedback"
               textAlignVertical="top"
             />
           </View>
@@ -189,9 +187,11 @@ export default function RateUsScreen() {
           <TouchableOpacity
             style={[
               styles.submitButton,
-              rating === 0 && styles.submitButtonDisabled,
+              !canSubmit && styles.submitButtonDisabled,
             ]}
-            disabled={rating === 0 || isSubmitting}
+            disabled={!canSubmit || isSubmitting || submitted}
+            accessibilityRole="button"
+            accessibilityState={{ disabled: !canSubmit || isSubmitting || submitted, busy: isSubmitting }}
             onPress={handleSubmitFeedback}
           >
             {isSubmitting ? (
