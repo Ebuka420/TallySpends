@@ -1,7 +1,9 @@
 import { Ionicons } from "@expo/vector-icons";
 import React, { useEffect, useRef, useState } from "react";
 import { ScrollView, StyleSheet, Text, TouchableOpacity, View, useWindowDimensions } from "react-native";
+import { useReducedMotion } from "./AuthBackdrop";
 import type { ThemeId, ThemeMode, ThemePalette } from "../src/theme";
+import { getDashboardPalette } from "../src/theme";
 
 export type HomeCard = {
   id: string; title: string; text: string;
@@ -10,10 +12,12 @@ export type HomeCard = {
 };
 
 /** Smart Insights, Ajo and savings share the exact same visual component. */
-export function HomeCarousel({ title, link, onViewAll, cards, theme, themeMode, themePreference, interval = 5000 }: {
+export function HomeCarousel({ title, link, onViewAll, cards, theme, themeMode, interval = 5000 }: {
   title: string; link: string; onViewAll: () => void; cards: HomeCard[];
   theme: ThemePalette; themeMode: ThemeMode; themePreference: ThemeId; interval?: number;
 }) {
+  const cardTheme = getDashboardPalette(themeMode);
+  const reduced = useReducedMotion();
   const { width } = useWindowDimensions();
   const cardWidth = Math.min(306, width - 40);
   const stride = cardWidth + 12;
@@ -23,13 +27,13 @@ export function HomeCarousel({ title, link, onViewAll, cards, theme, themeMode, 
   const pausedUntil = useRef(0);
   const position = Math.min(index, Math.max(0, cards.length - 1));
   useEffect(() => {
-    if (cards.length < 2) return;
+    if (cards.length < 2 || reduced !== false) return;
     const timer = setInterval(() => {
       if (Date.now() >= pausedUntil.current) setIndex(value => (value + 1) % cards.length);
     }, interval);
     return () => clearInterval(timer);
-  }, [cards.length, interval]);
-  useEffect(() => { scroll.current?.scrollTo({ x: position * stride, animated: true }); }, [position, stride]);
+  }, [cards.length, interval, reduced]);
+  useEffect(() => { scroll.current?.scrollTo({ x: position * stride, animated: reduced === false }); }, [position, stride, reduced]);
   return <View>
     <View style={s.header}>
       <Text style={[s.heading, { color: theme.textPrimary }]}>{title}</Text>
@@ -43,15 +47,15 @@ export function HomeCarousel({ title, link, onViewAll, cards, theme, themeMode, 
       onScrollBeginDrag={() => { pausedUntil.current = Date.now() + 10000; }}
       onMomentumScrollEnd={({ nativeEvent }) => setIndex(Math.max(0, Math.min(cards.length - 1, Math.round(nativeEvent.contentOffset.x / stride))))}>
       {cards.map(card => <TouchableOpacity key={card.id} accessibilityRole="button" activeOpacity={0.85} onPress={card.onPress}
-        style={[s.card, { width: cardWidth, backgroundColor: themeMode === "dark" ? theme.surface : themePreference === "aurora" ? card.tint || "#F3EBF1" : theme.surfaceSoft, borderWidth: themeMode === "dark" ? 1 : 0, borderColor: theme.border }]}>
-        <View style={[s.icon, { backgroundColor: themeMode === "dark" ? theme.surfaceSoft : theme.surface }]}>
-          <Ionicons name={card.icon} size={18} color={themeMode === "dark" ? theme.accent : themePreference === "aurora" ? card.color || "#4B2C40" : theme.accentSecondary} />
+        style={[s.card, { width: cardWidth, backgroundColor: themeMode === "dark" ? cardTheme.surface : card.tint || cardTheme.accentSoft, borderWidth: themeMode === "dark" ? 1 : 0, borderColor: cardTheme.border }]}>
+        <View style={[s.icon, { backgroundColor: themeMode === "dark" ? cardTheme.surfaceSoft : cardTheme.surface }]}>
+          <Ionicons name={card.icon} size={18} color={themeMode === "dark" ? cardTheme.accent : card.color || cardTheme.accent} />
         </View>
         <View style={s.copy}>
-          <Text numberOfLines={2} style={[s.title, { color: theme.textPrimary }]}>{card.title}</Text>
-          <Text numberOfLines={3} style={[s.text, { color: theme.textSecondary }]}>{card.text}</Text>
+          <Text numberOfLines={2} style={[s.title, { color: cardTheme.textPrimary }]}>{card.title}</Text>
+          <Text numberOfLines={3} style={[s.text, { color: cardTheme.textSecondary }]}>{card.text}</Text>
         </View>
-        <Ionicons name="chevron-forward" size={16} color={theme.accentSecondary} style={{ alignSelf: "center" }} />
+        <Ionicons name="chevron-forward" size={16} color={cardTheme.accentSecondary} style={{ alignSelf: "center" }} />
       </TouchableOpacity>)}
     </ScrollView>
     <View style={s.dots} accessibilityLabel={`Card ${position + 1} of ${cards.length}`}>
@@ -72,3 +76,6 @@ const s = StyleSheet.create({
   text: { fontSize: 12, lineHeight: 17, marginTop: 6 },
   dots: { alignItems: "center", flexDirection: "row", gap: 5, justifyContent: "center", marginTop: 13 },
 });
+
+
+

@@ -139,4 +139,4 @@ categories; enter whitespace-only text versus multiline suggestions; submit and
 tap again while loading; verify success only after a receipt; interrupt the
 network and retry; verify one stored record and one email job; expire the token;
 force provider failure and confirm feedback stays saved while the worker retries.
-The other settings-feedback page and unrelated features are unchanged.
+The separate Settings feedback page has been removed. Rate Us remains available.

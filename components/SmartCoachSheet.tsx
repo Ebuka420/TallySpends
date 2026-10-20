@@ -2,7 +2,7 @@ import { Ionicons } from "@expo/vector-icons";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import * as Haptics from "expo-haptics";
 import { useRouter } from "expo-router";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, useSyncExternalStore } from "react";
 import {
   ActivityIndicator,
   KeyboardAvoidingView,
@@ -18,6 +18,9 @@ import {
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { CoachRequestError, requestCoachReply } from "../src/coach/chat";
 import type { ThemePalette } from "../src/theme";
+import { getProfileSnapshot, publishProfileTokens, subscribeProfile } from "../src/profile/repository";
+import { coachQuestionWithContext, loadCoachMemory, newConversation, saveCoachConversation, type CoachConversation, type MemoryFact } from "../src/coach/history";
+import CoachLibraryPanel from "./CoachLibraryPanel";
 type Message = {
   id: string;
   sender: "user" | "coach";
@@ -45,20 +48,48 @@ const prompts = [
     text: "Where should I start with managing my money?",
   },
 ] as const;
-export function SmartCoachSheet({
+export function SmartCoachSheet(props: Omit<Parameters<typeof AccountCoachSheet>[0], "owner">) {
+  const { scope } = useSyncExternalStore(subscribeProfile, getProfileSnapshot, getProfileSnapshot);
+  return <AccountCoachSheet key={scope || "signed-out"} {...props} owner={scope} />;
+}
+function AccountCoachSheet({
   visible,
   onClose,
   theme,
   dark,
+  owner,
 }: {
   visible: boolean;
   onClose: () => void;
   theme: ThemePalette;
   dark: boolean;
+  owner: string | null;
 }) {
   const insets = useSafeAreaInsets();
   const router = useRouter();
-  const [messages, setMessages] = useState<Message[]>([]);
+  const [chat, setChat] = useState<CoachConversation>(newConversation);
+  const messages = chat.messages;
+  const setMessages = (change: (previous: Message[]) => Message[]) => setChat(previous => ({ ...previous, updatedAt: new Date().toISOString(), messages: change(previous.messages) }));
+  const [mode, setMode] = useState<"chat" | "history" | "memory">("chat");
+  const [facts, setFacts] = useState<MemoryFact[]>([]);
+  const [memoryReady, setMemoryReady] = useState(false);
+  const [storageError, setStorageError] = useState<string | null>(null);
+  const [memoryError, setMemoryError] = useState<string | null>(null);
+  const [storageRevision, setStorageRevision] = useState(0);
+  useEffect(() => {
+    let active = true;
+    if (!owner) return;
+    void loadCoachMemory(owner).then(data => { if (active) { setFacts(data); setMemoryReady(true); setMemoryError(null); } })
+      .catch(() => { if (active) { setMemoryReady(false); setMemoryError("Couldn't load coach memory. Retry before sending a question."); } });
+    return () => { active = false; };
+  }, [owner, storageRevision]);
+  useEffect(() => {
+    let active = true;
+    if (owner && chat.messages.length) void saveCoachConversation(owner, chat)
+      .then(() => { if (active) setStorageError(null); })
+      .catch(() => { if (active) setStorageError("Couldn't save this conversation on this device. Please retry."); });
+    return () => { active = false; };
+  }, [owner, chat, storageRevision]);
   const [input, setInput] = useState("");
   const [busy, setBusy] = useState(false);
   const [failure, setFailure] = useState<{
@@ -71,7 +102,7 @@ export function SmartCoachSheet({
   const feed = useRef<ScrollView>(null);
   const composer = useRef<TextInput>(null);
   const followLatest = useRef(true);
-  const onAccent = dark ? theme.background : "#FFFFFF";
+  const onAccent = theme.onAccent;
   useEffect(
     () => () => {
       request.current?.abort();
@@ -80,7 +111,7 @@ export function SmartCoachSheet({
   );
   const send = async (retry?: string) => {
     const question = (retry ?? input).trim();
-    if (!question || locked.current) return;
+    if (!question || locked.current || !owner || !memoryReady) return;
     locked.current = true;
     setBusy(true);
     setFailure(null);
@@ -100,23 +131,27 @@ export function SmartCoachSheet({
     request.current = controller;
     const timeout = setTimeout(() => controller.abort(), 30000);
     try {
-      const token = await AsyncStorage.getItem("ts_access_token");
-      const refreshToken = await AsyncStorage.getItem("ts_refresh_token");
+      const session = getProfileSnapshot();
+      if (session.scope !== owner) return;
+      const { token, refreshToken } = session;
       const answer = await requestCoachReply(
-        question,
+        coachQuestionWithContext(question, facts, retry ? messages.slice(0, -1) : messages),
         token,
         controller.signal,
         fetch,
         {
           refreshToken,
           saveTokens: async (accessToken, nextRefreshToken) => {
+            if (getProfileSnapshot().scope !== owner) throw new Error("Account changed");
             await AsyncStorage.multiSet([
               ["ts_access_token", accessToken],
               ["ts_refresh_token", nextRefreshToken],
             ]);
+            if (getProfileSnapshot().scope === owner) publishProfileTokens(accessToken, nextRefreshToken);
           },
         },
       );
+      if (getProfileSnapshot().scope !== owner) return;
       setMessages((previous) => [
         ...previous,
         {
@@ -127,6 +162,7 @@ export function SmartCoachSheet({
       ]);
       Haptics.selectionAsync().catch(() => {});
     } catch (error) {
+      if (getProfileSnapshot().scope !== owner) return;
       setFailure({
         question,
         requiresSignIn: !controller.signal.aborted && error instanceof CoachRequestError && error.requiresSignIn,
@@ -262,12 +298,20 @@ export function SmartCoachSheet({
               }}
               scrollEventThrottle={100}
               onContentSizeChange={() => {
-                if (messages.length && followLatest.current)
+                if (mode === "chat" && messages.length && followLatest.current)
                   feed.current?.scrollToEnd({
                     animated: true,
                   });
               }}
             >
+              {mode !== "chat" ? <CoachLibraryPanel key={`${owner}-${mode}`} owner={owner} mode={mode} theme={theme} busy={busy}
+                activeId={chat.id} onBack={() => setMode("chat")}
+                onOpen={saved => { setChat(saved); setInput(""); setFailure(null); setMode("chat"); }}
+                onNew={() => { setChat(newConversation()); setInput(""); setFailure(null); setMode("chat"); }}
+                onMemoryChange={saved => { if (getProfileSnapshot().scope === owner) { setFacts(saved); setMemoryReady(true); setMemoryError(null); } }} /> : <>
+              {(storageError || memoryError) && <View><Text accessibilityLiveRegion="polite" style={{ color: theme.textSecondary }}>{[storageError, memoryError].filter(Boolean).join("\n")}</Text>
+                <Pressable accessibilityRole="button" onPress={() => setStorageRevision(value => value + 1)}><Text style={{ color: theme.accent }}>Retry saving/loading</Text></Pressable></View>}
+              {!owner && <Text style={{ color: theme.textSecondary }}>Sign in to use Smart Coach and your saved conversations.</Text>}
               {!messages.length ? (
                 <>
                   <View style={s.welcome}>
@@ -375,6 +419,11 @@ export function SmartCoachSheet({
                       </Pressable>
                     ))}
                   </View>
+                  <Text style={[s.promptLabel, { color: theme.textSecondary }]}>CHAT HISTORY</Text>
+                  <Pressable accessibilityRole="button" onPress={() => setMode("history")} style={[s.prompt, { width: "100%", backgroundColor: theme.surface, borderColor: theme.border }]}>
+                    <Ionicons name="time-outline" size={22} color={theme.accent} />
+                    <Text style={[s.promptTitle, { color: theme.textPrimary }]}>Go through past conversations</Text>
+                  </Pressable>
                 </>
               ) : (
                 <>
@@ -446,6 +495,11 @@ export function SmartCoachSheet({
                   )}
                 </>
               )}
+              <Text style={[s.promptLabel, { color: theme.textSecondary }]}>COACH MEMORY</Text>
+              <Pressable accessibilityRole="button" onPress={() => setMode("memory")} style={[s.prompt, { width: "100%", backgroundColor: theme.surface, borderColor: theme.border }]}>
+                <Ionicons name="bookmark-outline" size={22} color={theme.accent} />
+                <Text style={[s.promptTitle, { color: theme.textPrimary }]}>Manage saved goals and preferences</Text>
+              </Pressable>
               {busy && (
                 <View
                   accessibilityLiveRegion="polite"
@@ -520,10 +574,12 @@ export function SmartCoachSheet({
                   </Pressable>
                 </View>
               )}
+              </>}
             </ScrollView>
             <View
               style={[
                 s.composerArea,
+                { display: mode === "chat" ? "flex" : "none" },
                 {
                   borderColor: theme.border,
                 },
@@ -598,7 +654,7 @@ export function SmartCoachSheet({
                   accessibilityState={{
                     disabled: busy || !input.trim(),
                   }}
-                  disabled={busy || !input.trim()}
+                  disabled={busy || !input.trim() || !owner || !memoryReady}
                   onPress={() => send()}
                   style={[
                     s.send,
@@ -832,3 +888,4 @@ const s = StyleSheet.create({
     lineHeight: 14,
   },
 });
+

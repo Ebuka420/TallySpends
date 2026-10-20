@@ -20,6 +20,9 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context";
 import { localDate, minor, money } from "../src/budget/ledger";
 import type { ThemePalette } from "../src/theme";
+import Motion, { useAnimatedStyle, useSharedValue, withSpring, withTiming } from "react-native-reanimated";
+import { useReducedMotion } from "./AuthBackdrop";
+const MotionPressable = Motion.createAnimatedComponent(Pressable);
 
 export function BudgetButton({
   title,
@@ -36,31 +39,37 @@ export function BudgetButton({
   secondary?: boolean;
   pill?: boolean;
 }) {
+  const reduced = useReducedMotion();
+  const scale = useSharedValue(1);
+  const animated = useAnimatedStyle(() => ({ transform: [{ scale: reduced !== false ? 1 : scale.value }] }));
   return (
-    <Pressable
+    <MotionPressable
       accessibilityRole="button"
       accessibilityState={{ disabled: !!disabled }}
       disabled={disabled}
       onPress={onPress}
-      style={({ pressed }) => [
+      onPressIn={() => { if (reduced === false) scale.set(withTiming(1 - theme.identity.motion.distance / 600, { duration: 90 })); }}
+      onPressOut={() => { scale.set(reduced !== false ? 1 : withSpring(1, { damping: theme.identity.motion.damping, stiffness: theme.identity.motion.stiffness })); }}
+      style={[
         ui.button,
+        animated,
         {
           backgroundColor: secondary ? theme.accentSoft : theme.accent,
-          opacity: disabled ? 0.4 : pressed ? 0.75 : 1,
+          opacity: disabled ? 0.4 : 1,
           borderRadius: pill ? 30 : 16,
         },
       ]}
     >
       <Text
         style={{
-          color: secondary ? theme.accent : theme.background,
+          color: secondary ? theme.accent : theme.onAccent,
           fontWeight: "700",
           fontSize: 15,
         }}
       >
         {title}
       </Text>
-    </Pressable>
+    </MotionPressable>
   );
 }
 export function BudgetFrame({
@@ -812,3 +821,5 @@ export const ui = StyleSheet.create({
     justifyContent: "center",
   },
 });
+
+

@@ -8,9 +8,10 @@ import type { PeopleDirectory } from "./BudgetPeople";
 import { BudgetLoading } from "./BudgetUI";
 import { HomeCarousel, type HomeCard } from "./HomeCarousel";
 
-export function PlanningCarousels({ wallet, theme, themeMode, themePreference, people, error, retry }: {
+export function PlanningCarousels({ wallet, theme, themeMode, themePreference, people, error, retry, showSavings = true, showBudgets = false, autoAdjustLayout = false }: {
   wallet: Wallet | null; theme: ThemePalette; themeMode: ThemeMode; themePreference: ThemeId;
   people: PeopleDirectory; error: string | null; retry: () => void;
+  showSavings?: boolean; showBudgets?: boolean; autoAdjustLayout?: boolean;
 }) {
   const router = useRouter();
   if (!wallet || error) return <View style={{ marginTop: 20 }}><BudgetLoading theme={theme} error={error} retry={retry} /></View>;
@@ -27,8 +28,16 @@ export function PlanningCarousels({ wallet, theme, themeMode, themePreference, p
   }));
   if (!ajo.length) ajo.push({ id: "create-ajo", title: "Create your first circle", text: "Save with your people and keep track of everyone's turn.", icon: "people-outline", tint: "#F3EBF1", onPress: () => router.push("/ajo-create") });
   if (!joint.length) joint.push({ id: "create-joint", title: "Start saving together", text: "Choose a shared goal and take the first step with someone you trust.", icon: "wallet-outline", tint: "#EEE4F0", onPress: () => router.push("/savings-lock?mode=joint") });
-  return <>
-    <HomeCarousel title="Ajo group activity" link="Open Ajo" onViewAll={() => router.push("/ajo")} cards={ajo} theme={theme} themeMode={themeMode} themePreference={themePreference} interval={6000} />
-    <HomeCarousel title="Joint savings" link="View goals" onViewAll={() => router.push("/joint-savings")} cards={joint} theme={theme} themeMode={themeMode} themePreference={themePreference} interval={7000} />
-  </>;
+  const budgets: HomeCard[] = wallet.budgets.filter(b => b.status === "active").map(b => ({
+    id: b.id, title: b.name, text: `${Math.round(b.allocatedAmount ? b.spentAmount / b.allocatedAmount * 100 : 0)}% of this budget used.`,
+    icon: "pie-chart-outline", tint: "#EEE4F0", onPress: () => router.push("/(tabs)/budget"),
+  }));
+  if (!budgets.length) budgets.push({ id: "create-budget", title: "Plan your spending", text: "Set category limits and follow your budget progress.", icon: "pie-chart-outline", tint: "#EEE4F0", onPress: () => router.push("/(tabs)/budget") });
+  const sections = [
+    { id: "ajo", title: "Ajo group activity", link: "Open Ajo", route: "/ajo" as const, cards: ajo, visible: true, count: plans.ajo.length },
+    { id: "joint", title: "Joint savings", link: "View goals", route: "/joint-savings" as const, cards: joint, visible: showSavings, count: plans.joint.length },
+    { id: "budgets", title: "Budgets", link: "View budgets", route: "/(tabs)/budget" as const, cards: budgets, visible: showBudgets, count: wallet.budgets.filter(b => b.status === "active").length },
+  ].filter(s => s.visible);
+  if (autoAdjustLayout) sections.sort((a, b) => b.count - a.count);
+  return <>{sections.map(section => <HomeCarousel key={section.id} title={section.title} link={section.link} onViewAll={() => router.push(section.route)} cards={section.cards} theme={theme} themeMode={themeMode} themePreference={themePreference} interval={6000} />)}</>;
 }

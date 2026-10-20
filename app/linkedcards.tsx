@@ -1,14 +1,12 @@
+import { useThemeTokens } from "../src/ThemeExperience";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import * as Clipboard from "expo-clipboard";
-import React, { useMemo, useRef, useState } from "react";
+import React, { useMemo, useState } from "react";
 import {
   Alert,
-  Animated,
   Dimensions,
-  Easing,
   Modal,
-  PanResponder,
   SafeAreaView,
   ScrollView,
   StyleSheet,
@@ -19,11 +17,11 @@ import {
 } from "react-native";
 import { useAppStore } from "../src/store";
 import { getThemePalette } from "../src/theme";
+import LinkedCardCarousel from "../components/LinkedCardCarousel";
 
 const { width: SCREEN_WIDTH } = Dimensions.get("window");
 const CARD_WIDTH = SCREEN_WIDTH * 0.88;
 const CARD_HEIGHT = 224;
-const SWIPE_THRESHOLD = SCREEN_WIDTH * 0.35;
 
 export interface LinkedCard {
   id: string;
@@ -260,7 +258,7 @@ const PhysicalCardFace = ({
                 NETWORK: <Text style={{ color: theme.textPrimary, fontWeight: "700" }}>{card.network.toUpperCase()}</Text>
               </Text>
               <Text style={[styles.detailMetaSub, { color: theme.textSecondary }]}>
-                STATUS: <Text style={{ color: card.status === "Active" ? theme.success : "#EF4444", fontWeight: "700" }}>{card.status.toUpperCase()}</Text>
+                STATUS: <Text style={{ color: card.status === "Active" ? theme.success : theme.danger, fontWeight: "700" }}>{card.status.toUpperCase()}</Text>
               </Text>
             </View>
           </View>
@@ -281,7 +279,7 @@ const PhysicalCardFace = ({
                   styles.progressBarFill,
                   {
                     width: `${budgetUsage * 100}%`,
-                    backgroundColor: budgetUsage > 0.85 ? "#EF4444" : card.brandColor,
+                    backgroundColor: budgetUsage > 0.85 ? theme.danger : card.brandColor,
                   },
                 ]}
               />
@@ -301,12 +299,12 @@ const PhysicalCardFace = ({
                 <Ionicons
                   name={isFrozen ? "lock-open-outline" : "lock-closed-outline"}
                   size={13}
-                  color={isFrozen ? theme.success : "#EF4444"}
+                  color={isFrozen ? theme.success : theme.danger}
                 />
                 <Text
                   style={[
                     styles.backActionBtnText,
-                    { color: isFrozen ? theme.success : "#EF4444" },
+                    { color: isFrozen ? theme.success : theme.danger },
                   ]}
                 >
                   {isFrozen ? "Unfreeze" : "Freeze"}
@@ -483,11 +481,13 @@ const PhysicalCardFace = ({
 export default function LinkedCardsScreen() {
   const router = useRouter();
   const { themePreference, themeMode } = useAppStore();
-  const theme = getThemePalette(themePreference, themeMode);
+  const theme = useThemeTokens();
   const isDark = themeMode === "dark";
 
   const [cards, setCards] = useState<LinkedCard[]>(INITIAL_CARDS);
-  const [selectedCardForDetail, setSelectedCardForDetail] = useState<LinkedCard | null>(null);
+  const [selectedCardId, setSelectedCardId] = useState(INITIAL_CARDS[0].id);
+  const [detailCardId, setDetailCardId] = useState<string | null>(null);
+  const selectedCardForDetail = cards.find(card => card.id === detailCardId) ?? null;
   const [isNumberRevealed, setIsNumberRevealed] = useState(false);
   const [showAddModal, setShowAddModal] = useState(false);
 
@@ -501,95 +501,6 @@ export default function LinkedCardsScreen() {
     "mastercard",
   );
 
-  // --- TOP CARD DRAG / SWIPE ANIMATION STATE ---
-  const pan = useRef(new Animated.ValueXY()).current;
-  const gestureStartTime = useRef(0);
-
-  const cycleTopCardToBack = () => {
-    setCards((prev) => {
-      if (prev.length <= 1) return prev;
-      const [top, ...rest] = prev;
-      return [...rest, top];
-    });
-  };
-
-  const panResponder = useMemo(
-    () =>
-      PanResponder.create({
-        onStartShouldSetPanResponder: () => true,
-        onStartShouldSetPanResponderCapture: () => false,
-        onMoveShouldSetPanResponder: (_, gestureState) =>
-          Math.abs(gestureState.dx) > 4,
-        onMoveShouldSetPanResponderCapture: (_, gestureState) =>
-          Math.abs(gestureState.dx) > 4,
-
-        onPanResponderGrant: () => {
-          gestureStartTime.current = Date.now();
-          pan.stopAnimation();
-          pan.setValue({ x: 0, y: 0 });
-        },
-
-        onPanResponderMove: (_, gestureState) => {
-          pan.setValue({ x: gestureState.dx, y: gestureState.dy });
-        },
-
-        onPanResponderTerminationRequest: () => false,
-        onShouldBlockAppResponder: () => true,
-
-        onPanResponderRelease: (_, gestureState) => {
-          const moveDistance = Math.hypot(gestureState.dx, gestureState.dy);
-          const gestureDuration = Date.now() - gestureStartTime.current;
-
-          // TAP DETECTION: Movement < 10px and duration < 280ms
-          if (moveDistance < 10 && gestureDuration < 280) {
-            Animated.spring(pan, {
-              toValue: { x: 0, y: 0 },
-              useNativeDriver: false,
-            }).start();
-            setSelectedCardForDetail(cards[0]);
-            return;
-          }
-
-          // SWIPE DETECTION: Symmetric left & right check
-          const isSwipeRight =
-            gestureState.dx > SWIPE_THRESHOLD || gestureState.vx > 0.4;
-          const isSwipeLeft =
-            gestureState.dx < -SWIPE_THRESHOLD || gestureState.vx < -0.4;
-
-          if (isSwipeRight || isSwipeLeft) {
-            const flyDirection = isSwipeRight ? 1 : -1;
-            Animated.timing(pan, {
-              toValue: {
-                x: flyDirection * (SCREEN_WIDTH * 1.5),
-                y: gestureState.dy,
-              },
-              duration: 200,
-              easing: Easing.out(Easing.quad),
-              useNativeDriver: false,
-            }).start(() => {
-              pan.setValue({ x: 0, y: 0 });
-              cycleTopCardToBack();
-            });
-          } else {
-            // BELOW THRESHOLD: Spring animate back to center
-            Animated.spring(pan, {
-              toValue: { x: 0, y: 0 },
-              friction: 5,
-              tension: 50,
-              useNativeDriver: false,
-            }).start();
-          }
-        },
-      }),
-    [cards],
-  );
-
-  const topCardRotate = pan.x.interpolate({
-    inputRange: [-SCREEN_WIDTH, 0, SCREEN_WIDTH],
-    outputRange: ["-18deg", "0deg", "18deg"],
-    extrapolate: "clamp",
-  });
-
   const totalCardSpent = useMemo(() => {
     return cards.reduce((acc, c) => acc + c.spentThisMonth, 0);
   }, [cards]);
@@ -598,7 +509,11 @@ export default function LinkedCardsScreen() {
     return cards.reduce((acc, c) => acc + c.txnCount, 0);
   }, [cards]);
 
-  const topCard = cards[0];
+  const topCard = cards.find(card => card.id === selectedCardId) ?? cards[0];
+  const selectCard = (id: string) => {
+    setSelectedCardId(id);
+    setIsNumberRevealed(false);
+  };
 
   const toggleFreezeCard = (id: string) => {
     setCards((prev) =>
@@ -672,6 +587,7 @@ export default function LinkedCardsScreen() {
     };
 
     setCards((prev) => [newCard, ...prev]);
+    selectCard(newCard.id);
     setShowAddModal(false);
     setNewNumber("");
     setNewExpiry("");
@@ -699,10 +615,10 @@ export default function LinkedCardsScreen() {
         </TouchableOpacity>
         <View>
           <Text style={[styles.headerTitle, { color: theme.textPrimary }]}>
-            Linked Cards Deck
+            Linked Cards
           </Text>
           <Text style={[styles.headerSubtitle, { color: theme.textSecondary }]}>
-            Full Card Numbers & Insights
+            Choose a card. Keep everything in view.
           </Text>
         </View>
         <TouchableOpacity
@@ -753,7 +669,7 @@ export default function LinkedCardsScreen() {
         {/* Section Header with Reveal All Toggle */}
         <View style={styles.deckHeaderRow}>
           <Text style={[styles.sectionTitle, { color: theme.textPrimary }]}>
-            Active Card Stack
+            Your cards
           </Text>
           <TouchableOpacity
             style={styles.revealAllBtn}
@@ -771,109 +687,33 @@ export default function LinkedCardsScreen() {
           </TouchableOpacity>
         </View>
 
-        {/* --- STACK OF N CARDS (FANNED TILT PEEK EFFECT) --- */}
-        <View style={styles.fannedStackContainer}>
-          {/* Card 3 (Bottom background card) */}
-          {cards.length > 2 && (
-            <View
-              pointerEvents="none"
-              style={[
-                styles.stackedCardWrapper,
-                {
-                  transform: [
-                    { scale: 0.88 },
-                    { translateY: 26 },
-                    { rotate: cards[2].tiltAngle || "4deg" },
-                  ],
-                  opacity: 0.65,
-                  zIndex: 1,
-                },
-              ]}
-            >
-              <PhysicalCardFace
-                card={cards[2]}
-                isNumberRevealed={isNumberRevealed}
-                theme={theme}
-              />
-            </View>
-          )}
-
-          {/* Card 2 (Middle peek card) */}
-          {cards.length > 1 && (
-            <View
-              pointerEvents="none"
-              style={[
-                styles.stackedCardWrapper,
-                {
-                  transform: [
-                    { scale: 0.94 },
-                    { translateY: 14 },
-                    { rotate: cards[1].tiltAngle || "-4deg" },
-                  ],
-                  opacity: 0.88,
-                  zIndex: 2,
-                },
-              ]}
-            >
-              <PhysicalCardFace
-                card={cards[1]}
-                isNumberRevealed={isNumberRevealed}
-                theme={theme}
-              />
-            </View>
-          )}
-
-          {/* Card 1 (Top Interactive Card with PanResponder) */}
-          {cards.length > 0 && (
-            <Animated.View
-              {...panResponder.panHandlers}
-              style={[
-                styles.stackedCardWrapper,
-                {
-                  transform: [
-                    { translateX: pan.x },
-                    { translateY: pan.y },
-                    { rotate: topCardRotate },
-                  ],
-                  zIndex: 10,
-                },
-              ]}
-            >
-              <PhysicalCardFace
-                card={topCard}
-                isNumberRevealed={isNumberRevealed}
-                onToggleRevealNumber={() => setIsNumberRevealed((prev) => !prev)}
-                theme={theme}
-              />
-            </Animated.View>
-          )}
-        </View>
-
-        {/* Swipe Deck Indicators */}
-        <View style={styles.stackIndicatorRow}>
-          {cards.map((c, i) => (
-            <View
-              key={c.id}
-              style={[
-                styles.stackIndicatorDot,
-                {
-                  backgroundColor: i === 0 ? c.brandColor : theme.border,
-                  width: i === 0 ? 22 : 6,
-                },
-              ]}
-            />
-          ))}
-        </View>
-
+        <LinkedCardCarousel
+          cards={cards}
+          selectedId={topCard?.id ?? ""}
+          revealed={isNumberRevealed}
+          onSelect={selectCard}
+          onOpen={setDetailCardId}
+          theme={theme}
+        />
+        {topCard && (
+          <TouchableOpacity
+            style={[styles.linkNewCardBtn, { backgroundColor: theme.accent, marginBottom: 10 }]}
+            onPress={() => setDetailCardId(topCard.id)}
+            activeOpacity={0.85}
+          >
+            <Text style={styles.linkNewCardBtnText}>Manage card • {topCard.last4}</Text>
+            <Ionicons name="arrow-forward" size={18} color="#FFFFFF" />
+          </TouchableOpacity>
+        )}
         {/* Link New Card Button */}
         <TouchableOpacity
-          style={[styles.linkNewCardBtn, { backgroundColor: theme.accent }]}
+          style={[styles.linkNewCardBtn, { backgroundColor: theme.surfaceSoft, borderWidth: 1, borderColor: theme.border }]}
           onPress={() => setShowAddModal(true)}
           activeOpacity={0.85}
         >
-          <Ionicons name="add" size={20} color="#FFFFFF" />
-          <Text style={styles.linkNewCardBtnText}>
-            Link New Debit / Credit Card
+          <Ionicons name="add" size={20} color={theme.accent} />
+          <Text style={[styles.linkNewCardBtnText, { color: theme.accent }]}>
+            Link another card
           </Text>
         </TouchableOpacity>
 
@@ -993,6 +833,7 @@ export default function LinkedCardsScreen() {
       {/* Card Detail Modal (Triggered on Tap) */}
       <Modal
         visible={Boolean(selectedCardForDetail)}
+        onRequestClose={() => setDetailCardId(null)}
         animationType="fade"
         transparent
       >
@@ -1010,7 +851,7 @@ export default function LinkedCardsScreen() {
                 theme={theme}
                 onToggleFreeze={toggleFreezeCard}
                 onSetPrimary={setPrimaryCard}
-                onCloseDetail={() => setSelectedCardForDetail(null)}
+                onCloseDetail={() => setDetailCardId(null)}
               />
             )}
           </View>
@@ -1018,7 +859,7 @@ export default function LinkedCardsScreen() {
       </Modal>
 
       {/* Add Card Modal */}
-      <Modal visible={showAddModal} animationType="slide" transparent>
+      <Modal visible={showAddModal} onRequestClose={() => setShowAddModal(false)} animationType="slide" transparent>
         <View style={styles.modalOverlay}>
           <View
             style={[
@@ -1742,3 +1583,4 @@ const styles = StyleSheet.create({
     color: "#FFFFFF",
   },
 });
+

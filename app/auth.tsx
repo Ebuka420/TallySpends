@@ -1,6 +1,6 @@
 import { Ionicons } from "@expo/vector-icons";
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import { useRouter } from "expo-router";
+import { useLocalSearchParams, useRouter } from "expo-router";
 import { useMemo, useState } from "react";
 import {
   ActivityIndicator,
@@ -16,57 +16,52 @@ import {
   View,
   useWindowDimensions,
 } from "react-native";
-import BrandMark, { BRAND_PURPLE, BRAND_PURPLE_DARK } from "../components/BrandMark";
+import BrandMark from "../components/BrandMark";
 import AuthBackdrop, { AuthEntrance } from "../components/AuthBackdrop";
 import { API_URL } from "../src/api";
 import { recoverLocalSession } from "../src/register";
+import { savePendingSignup } from "../src/security/signup";
 import { useAppStore } from "../src/store";
-import { getThemePalette } from "../src/theme";
 
 const LOCAL_USERS_KEY = "ts_registered_users";
-const PENDING_SIGNUP_KEY = "ts_pending_signup";
 
 export default function AuthScreen() {
   const router = useRouter();
+  const { mode } = useLocalSearchParams<{ mode?: string }>();
   const { height: screenHeight } = useWindowDimensions();
   const [contentHeight, setContentHeight] = useState(0);
   const [viewportHeight, setViewportHeight] = useState(0);
 
   const {
     login,
-    setUsername,
-    setProfileFullName,
-    setProfilePhoneNumber,
-    setProfileEmail,
-    setProfileTallyTag,
-    themePreference,
+    theme,
     themeMode,
   } = useAppStore();
 
   const isDark = themeMode === "dark";
-  const theme = getThemePalette(themePreference || "aurora", themeMode);
+
 
   const authColors = useMemo(
     () => ({
       background: theme.background,
       surface: theme.surface,
       surfaceSoft: theme.surfaceSoft,
-      inputBg: isDark ? theme.surfaceSoft : "#FFFFFF",
+      inputBg: theme.surfaceSoft,
       border: theme.border,
       textPrimary: theme.textPrimary,
       textSecondary: theme.textSecondary,
-      placeholder: isDark ? theme.textSecondary : "#9E8FA6",
+      placeholder: theme.textSecondary,
       accent: theme.accent,
       accentSoft: theme.accentSoft,
       tabTrack: isDark ? theme.surfaceSoft : theme.mutedBackground,
-      tabActive: isDark ? theme.accentSoft : "#FFFFFF",
-      buttonBg: isDark ? BRAND_PURPLE_DARK : BRAND_PURPLE,
-      buttonText: isDark ? "#111014" : "#FFFFFF",
+      tabActive: theme.surface,
+      buttonBg: theme.accent,
+      buttonText: theme.onAccent,
     }),
     [isDark, theme],
   );
 
-  const [authMode, setAuthMode] = useState<"login" | "signup">("login");
+  const [authMode, setAuthMode] = useState<"login" | "signup">(mode === "signup" ? "signup" : "login");
 
   const [fullName, setFullName] = useState("");
   const [signupUsername, setSignupUsername] = useState("");
@@ -200,10 +195,7 @@ export default function AuthScreen() {
           phoneNumber: phoneTrimmed,
         };
 
-        await AsyncStorage.setItem(
-          PENDING_SIGNUP_KEY,
-          JSON.stringify(pendingSignup),
-        );
+        await savePendingSignup(pendingSignup);
 
         /*
          * Clear the auth form because the data is now safely stored
@@ -317,7 +309,7 @@ export default function AuthScreen() {
           try {
             data = JSON.parse(responseText);
           } catch {
-            console.log("AUTH RESPONSE WAS NOT JSON:", responseText);
+            // Never log raw authentication responses.
           }
         }
 
@@ -336,8 +328,6 @@ export default function AuthScreen() {
           console.log("=================================");
           console.log("AUTH API ERROR");
           console.log("Status:", response.status);
-          console.log("Response:", responseText);
-          console.log("Parsed data:", data);
           console.log("=================================");
 
           const backendValidationError =
@@ -402,52 +392,12 @@ export default function AuthScreen() {
         if (typeof accessToken !== "string" || !accessToken.trim()) {
           throw new Error("The server did not return an access token. Please try signing in again.");
         }
-        await AsyncStorage.setItem("ts_access_token", accessToken);
-
-        if (data.refreshToken) {
-          await AsyncStorage.setItem("ts_refresh_token", data.refreshToken);
-        } else {
-          await AsyncStorage.removeItem("ts_refresh_token");
-        }
-
-        /*
-         * Save complete backend user response.
-         */
-
-        await AsyncStorage.setItem("ts_user", JSON.stringify(data));
-
-        /*
-         * Update profile information.
-         */
-
-        await setProfileFullName(returnedFullName);
-
-        await setProfilePhoneNumber(returnedPhoneNumber);
-
-        await setProfileEmail(returnedEmail);
-
-        if (returnedTallyTag) {
-          await setProfileTallyTag(`@${returnedTallyTag.replace(/^@+/, "")}`);
-
-          await setUsername(returnedTallyTag.replace(/^@+/, ""));
-        }
-
-        /*
-         * IMPORTANT:
-         *
-         * login() only accepts:
-         * userId, fullName, email
-         *
-         * So DO NOT pass tallyTag here.
-         *
-         * This fixes your TypeScript errors:
-         * TS2353 at lines 482 and 659.
-         */
-
         await login(accessToken, data.refreshToken, {
           userId,
           fullName: returnedFullName,
           email: returnedEmail,
+          tallyTag: returnedTallyTag,
+          phoneNumber: returnedPhoneNumber,
         });
 
         /*
@@ -484,139 +434,15 @@ export default function AuthScreen() {
         }
 
         /*
-         * Only network/offline errors reach local authentication.
+         * Offline sign-in must never validate a cached account password.
          */
 
-        console.log("Backend unavailable. Attempting local authentication.");
-      }
-    }
-
-    /*
-     * ============================================================
-     * LOCAL / OFFLINE LOGIN
-     * ============================================================
-     */
-
-    try {
-      const storedUsersRaw = await AsyncStorage.getItem(LOCAL_USERS_KEY);
-
-      let localUsers: any[] = [];
-
-      if (storedUsersRaw) {
-        try {
-          localUsers = JSON.parse(storedUsersRaw);
-        } catch {
-          localUsers = [];
-        }
-      }
-
-      /*
-       * ============================================================
-       * FIND LOCAL USER
-       * ============================================================
-       */
-
-      const normalizedIdentifier = identifierTrimmed
-        .replace(/^@+/, "")
-        .toLowerCase();
-
-      const foundUser = localUsers.find(
-        (u) =>
-          (u.email && u.email.toLowerCase() === normalizedIdentifier) ||
-          (u.tallyTag && u.tallyTag.toLowerCase() === normalizedIdentifier) ||
-          (u.username && u.username.toLowerCase() === normalizedIdentifier),
-      );
-
-      if (!foundUser) {
-        Alert.alert(
-          "Account Not Found",
-          "We couldn't find an account with that email or TallyTag. Please check your details or create an account.",
-        );
-
+        Alert.alert("Connection unavailable", "Sign-in needs a connection to TallySpends. Your saved session can still be unlocked with your PIN.");
         setIsLoading(false);
         return;
       }
-
-      /*
-       * Check local password.
-       */
-
-      if (foundUser.password && foundUser.password !== password) {
-        Alert.alert(
-          "Authentication Error",
-          "Incorrect password. Please try again.",
-        );
-
-        setIsLoading(false);
-        return;
-      }
-
-      const assignedTallyTag = foundUser.tallyTag || foundUser.username || "";
-
-      const displayName = foundUser.fullName || assignedTallyTag || "User";
-
-      const userEmail = foundUser.email || "";
-
-      const userPhone = foundUser.phoneNumber || "";
-
-      loggedInUser = {
-        fullName: displayName,
-        tallyTag: assignedTallyTag,
-        email: userEmail,
-        phoneNumber: userPhone,
-      };
-
-      /*
-       * Update store.
-       */
-
-      if (assignedTallyTag) {
-        await setUsername(assignedTallyTag.replace(/^@+/, ""));
-
-        await setProfileTallyTag(`@${assignedTallyTag.replace(/^@+/, "")}`);
-      }
-
-      await setProfileFullName(displayName);
-
-      await setProfilePhoneNumber(userPhone);
-
-      await setProfileEmail(userEmail);
-
-      /*
-       * IMPORTANT:
-       * Keep tallyTag OUT of login().
-       *
-       * This fixes TS2353.
-       */
-
-      await login(undefined, undefined, {
-        fullName: displayName,
-        email: userEmail,
-      });
-
-      await AsyncStorage.setItem(
-        "ts_user",
-        JSON.stringify({
-          fullName: displayName,
-          tallyTag: assignedTallyTag,
-          email: userEmail,
-          phoneNumber: userPhone,
-        }),
-      );
-
-      setIsLoading(false);
-
-      router.replace("/(tabs)" as any);
-    } catch (localError: any) {
-      console.error("LOCAL AUTH ERROR:", localError);
-
-      Alert.alert(
-        "Authentication Error",
-        localError?.message || "Failed to log in. Please try again.",
-      );
-
-      setIsLoading(false);
     }
+
   };
 
   return (
@@ -628,7 +454,7 @@ export default function AuthScreen() {
         },
       ]}
     >
-      <AuthBackdrop color={isDark ? BRAND_PURPLE_DARK : BRAND_PURPLE} dark={isDark} />
+      <AuthBackdrop color={theme.accent} dark={isDark} />
       <KeyboardAvoidingView
         behavior={Platform.OS === "ios" ? "padding" : "height"}
         style={{ flex: 1 }}
@@ -640,7 +466,7 @@ export default function AuthScreen() {
               <BrandMark size={64} dark={isDark} />
             </AuthEntrance>
             <AuthEntrance delay={150} style={{ alignItems: "center", marginTop: 10 }}>
-              <Text style={[styles.brandName, { color: isDark ? BRAND_PURPLE_DARK : BRAND_PURPLE }]}>
+              <Text style={[styles.brandName, { color: theme.accent }]}>
                 TallySpends
               </Text>
               <Text style={[styles.brandSubtitle, { color: authColors.textSecondary }]}>
@@ -1258,3 +1084,4 @@ const styles = StyleSheet.create({
     letterSpacing: -0.2,
   },
 });
+

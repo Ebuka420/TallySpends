@@ -1,5 +1,6 @@
+import { ONBOARDING_THEME } from "../src/onboarding/brand";
 import { useFocusEffect } from "expo-router";
-import { useCallback, useRef, type ReactNode } from "react";
+import { useCallback, useState, type ReactNode } from "react";
 import { Animated, Easing, type StyleProp, type ViewStyle } from "react-native";
 import { useReducedMotion } from "./AuthBackdrop";
 
@@ -9,8 +10,9 @@ export default function OnboardingReveal({ children, order = 0, style }: {
   order?: number;
   style?: StyleProp<ViewStyle>;
 }) {
+  const theme = ONBOARDING_THEME;
   const reduced = useReducedMotion();
-  const progress = useRef(new Animated.Value(0)).current;
+  const [progress] = useState(() => new Animated.Value(0));
 
   useFocusEffect(useCallback(() => {
     if (reduced === null) return;
@@ -21,7 +23,7 @@ export default function OnboardingReveal({ children, order = 0, style }: {
     progress.setValue(0);
     const animation = Animated.timing(progress, {
       toValue: 1,
-      duration: 500,
+      duration: theme.identity.motion.duration + 180,
       delay: 80 + order * 85,
       easing: Easing.out(Easing.cubic),
       useNativeDriver: true,
@@ -31,12 +33,12 @@ export default function OnboardingReveal({ children, order = 0, style }: {
     return () => {
       animation.stop();
     };
-  }, [reduced, progress, order]));
+  }, [reduced, progress, order, theme.identity.motion.duration]));
 
   return (
     <Animated.View style={[style, {
       opacity: progress.interpolate({ inputRange: [0, 0.8, 1], outputRange: [0, 1, 1] }),
-      transform: [{ translateY: progress.interpolate({ inputRange: [0, 1], outputRange: [36, 0] }) }],
+      transform: [{ translateY: progress.interpolate({ inputRange: [0, 1], outputRange: [theme.identity.motion.distance * 3, 0] }) }],
     }]}>
       {children}
     </Animated.View>

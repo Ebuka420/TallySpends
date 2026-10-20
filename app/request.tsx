@@ -1,7 +1,7 @@
 import { AmountInput } from "../components/BudgetUI";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
-import React, { useRef, useState } from "react";
+import React, { useMemo, useRef, useState } from "react";
 import {
   SafeAreaView,
   StyleSheet,
@@ -9,7 +9,7 @@ import {
   TouchableOpacity,
   View,
   ScrollView,
-  Share,
+  ActivityIndicator,
   Modal,
   TextInput,
   Platform,
@@ -18,113 +18,73 @@ import {
 } from "react-native";
 import Svg, { Rect } from "react-native-svg";
 import { useAppStore } from "../src/store";
+import { captureRef, releaseCapture } from "react-native-view-shot";
+import * as Sharing from "expo-sharing";
+import { usePaymentIdentity } from "../src/qr/hooks";
+import { buildQrLink, validAmount } from "../src/qr/model";
+import { encodeQrMatrix } from "../src/qr/encoder";
 
-// Deterministic QR Code generator helper
-function generateMockQRCode(text: string): boolean[][] {
-  const size = 21; // Version 1 QR code
-  const grid = Array(size).fill(null).map(() => Array(size).fill(false));
-
-  // Draw finder patterns (7x7 nested squares)
-  const drawFinderPattern = (x: number, y: number) => {
-    for (let r = 0; r < 7; r++) {
-      for (let c = 0; c < 7; c++) {
-        const isBlack =
-          r === 0 || r === 6 || c === 0 || c === 6 ||
-          (r >= 2 && r <= 4 && c >= 2 && c <= 4);
-        grid[y + r][x + c] = isBlack;
-      }
-    }
-  };
-
-  // Draw 3 Finders
-  drawFinderPattern(0, 0); // Top-Left
-  drawFinderPattern(14, 0); // Top-Right
-  drawFinderPattern(0, 14); // Bottom-Left
-
-  // Timing patterns
-  for (let i = 8; i < 14; i++) {
-    grid[6][i] = i % 2 === 0;
-    grid[i][6] = i % 2 === 0;
-  }
-
-  // Draw a standard format module
-  grid[13][8] = true;
-
-  // Fill rest deterministically based on text hash
-  let hash = 0;
-  for (let i = 0; i < text.length; i++) {
-    hash = text.charCodeAt(i) + ((hash << 5) - hash);
-  }
-
-  for (let r = 0; r < size; r++) {
-    for (let c = 0; c < size; c++) {
-      // Skip finder zones & timing lines
-      const inTL = r < 8 && c < 8;
-      const inTR = r < 8 && c > 13;
-      const inBL = r > 13 && c < 8;
-      const inTiming = r === 6 || c === 6;
-
-      if (!inTL && !inTR && !inBL && !inTiming) {
-        const val = Math.abs(Math.sin(hash + r * 17 + c * 31));
-        grid[r][c] = val > 0.48; // ~48% black modules density
-      }
-    }
-  }
-
-  return grid;
-}
 
 export default function RequestScreen() {
   const router = useRouter();
   const {
-    username,
+    profileTallyTag,
     customCategories,
     addCustomCategory,
     deleteCustomCategory,
     theme,
   } = useAppStore();
+  const styles = getStyles(theme);
   const [requestAmount, setRequestAmount] = useState("");
   const [requestMemo, setRequestMemo] = useState("");
+  const [applied, setApplied] = useState({ amount: "", memo: "", category: null as string | null, customInput: "" });
   const [showConfigModal, setShowConfigModal] = useState(false);
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
   const [customCategory, setCustomCategory] = useState("");
   const [customCategoryInput, setCustomCategoryInput] = useState("");
   const [showCustomCategoryManager, setShowCustomCategoryManager] = useState(false);
+  const identity = usePaymentIdentity();
+  const qrView = useRef<View>(null);
+  const shareLock = useRef(false);
+  const [sharing, setSharing] = useState(false);
 
-  const formattedUsername = username || "ebuka";
+  const tallyTag = (identity.identity?.tallyTag || profileTallyTag || "").trim().replace(/^@+/, "");
   const baseCategories = ["Food", "Transport", "Shopping", "Bills", "Rent", "Utility"];
   const requestCategories = [...baseCategories, ...(customCategories || []), "Other", "Add Category"];
   const quickAmounts = [100, 1000, 5000, 10000, 20000, 50000];
 
   // Build the QR data string
-  let qrValue = `tallyspends://transfer?recipient=${formattedUsername}`;
-  if (requestAmount) {
-    qrValue += `&amount=${requestAmount}`;
-  }
-  if (requestMemo) {
-    qrValue += `&memo=${encodeURIComponent(requestMemo)}`;
-  }
-
-  const qrMatrix = generateMockQRCode(qrValue);
-  const sizeMultiplier = 10; // each QR module will be 10x10 px
+  const qr = useMemo(() => {
+    if (!identity.identity) return { value: "", matrix: [] as boolean[][], error: null as string | null };
+    try {
+      const value = buildQrLink({ paymentId: identity.identity.publicPaymentId, ...(applied.amount ? { amount: applied.amount } : {}), ...(applied.memo ? { memo: applied.memo } : {}) });
+      return { value, matrix: encodeQrMatrix(value), error: null };
+    } catch (error) { return { value: "", matrix: [] as boolean[][], error: error instanceof Error ? error.message : "Couldn't generate this QR request." }; }
+  }, [identity.identity, applied.amount, applied.memo]);
+  const qrMatrix = qr.matrix;
+  const quietZone = 4;
 
   const handleShare = async () => {
+    if (shareLock.current || !qr.value) return;
+    shareLock.current = true;
+    setSharing(true);
+    let uri: string | undefined;
     try {
-      const shareMessage = requestAmount
-        ? `Tally Request: @${formattedUsername} is requesting ₦${parseFloat(requestAmount).toFixed(2)}${requestMemo ? ` for ${requestMemo}` : ""}. Open the TallySpends app and scan this request: ${qrValue}`
-        : `Tally Request for @${formattedUsername}. Open the TallySpends app and scan this request: ${qrValue}`;
-
-      await Share.share({
-        message: shareMessage,
-        url: qrValue,
-        title: "Tally Request",
-      });
-    } catch (error: any) {
-      console.log("Error sharing request:", error.message);
-    }
+      if (Platform.OS === "web" || !(await Sharing.isAvailableAsync())) throw new Error("Image sharing isn't available on this device.");
+      await new Promise<void>(resolve => requestAnimationFrame(() => requestAnimationFrame(() => resolve())));
+      if (!qrView.current) throw new Error("The QR image is still loading. Please try again.");
+      uri = await captureRef(qrView.current, { format: "png", result: "tmpfile", width: 840, height: 840 });
+      await Sharing.shareAsync(uri, { mimeType: "image/png", UTI: "public.png", dialogTitle: "Share Tally Request QR" });
+    } catch { Alert.alert("Could not share QR", Platform.OS === "web" ? "QR image sharing is available in the iPhone and Android app." : "Couldn't export or share the QR image. Wait for the QR to appear and try again."); }
+    finally { if (uri) releaseCapture(uri); shareLock.current = false; setSharing(false); }
   };
 
-  const isRequestReady = Boolean(requestAmount && selectedCategory);
+  const isRequestReady = Boolean(validAmount(requestAmount) && selectedCategory && selectedCategory !== "Add Category");
+  const openConfig = () => {
+    setRequestAmount(applied.amount); setRequestMemo(applied.memo);
+    setSelectedCategory(applied.category); setCustomCategory(""); setCustomCategoryInput(applied.customInput);
+    setShowConfigModal(true);
+  };
 
   const handleDeleteCustomCategory = (category: string) => {
     Alert.alert("Delete category", `Delete "${category}" from your saved categories?`, [
@@ -148,7 +108,9 @@ export default function RequestScreen() {
     const finalMemo = selectedCategory === "Other"
       ? (customCategory.trim() || customCategoryInput.trim() || "Other")
       : requestMemo || selectedCategory || "";
+    if (finalMemo.length > 40 || /[\u0000-\u001f\u007f]/.test(finalMemo)) { Alert.alert("Invalid note", "Keep your request note to 40 characters without line breaks."); return; }
     setRequestMemo(finalMemo);
+    setApplied({ amount: requestAmount, memo: finalMemo, category: selectedCategory, customInput: customCategoryInput });
     setShowConfigModal(false);
   };
 
@@ -173,18 +135,18 @@ export default function RequestScreen() {
           <Text style={[styles.qrCardTitle, { color: theme.textSecondary }]}>Share this Tally Request QR</Text>
 
           {/* QR Code Container */}
-          <View style={[styles.qrWrapper, { backgroundColor: "#FFFFFF", borderColor: theme.border }]}>
-            <Svg width={210} height={210} viewBox="0 0 210 210">
+          <View ref={qrView} collapsable={false} style={[styles.qrWrapper, { backgroundColor: "#FFFFFF", borderColor: theme.border }]}>
+            {qr.value ? <Svg width={210} height={210} viewBox={`0 0 ${qrMatrix.length + quietZone * 2} ${qrMatrix.length + quietZone * 2}`}>
               {qrMatrix.map((row, rIdx) =>
                 row.map((isBlack, cIdx) => {
                   if (isBlack) {
                     return (
                       <Rect
                         key={`${rIdx}-${cIdx}`}
-                        x={cIdx * sizeMultiplier}
-                        y={rIdx * sizeMultiplier}
-                        width={sizeMultiplier}
-                        height={sizeMultiplier}
+                        x={cIdx + quietZone}
+                        y={rIdx + quietZone}
+                        width={1}
+                        height={1}
                         fill="#1C1C1E"
                       />
                     );
@@ -192,22 +154,28 @@ export default function RequestScreen() {
                   return null;
                 })
               )}
-            </Svg>
+            </Svg> : <View style={{ width: 210, height: 210, alignItems: "center", justifyContent: "center", padding: 16 }}>
+              {identity.loading ? <ActivityIndicator color={theme.accent} /> : <>
+                <Ionicons name="qr-code-outline" size={34} color={theme.accent} />
+                <Text accessibilityLiveRegion="polite" style={{ color: theme.accent, textAlign: "center", marginTop: 12 }}>{qr.error || identity.error || "Your personal QR is not available yet."}</Text>
+                <TouchableOpacity accessibilityRole="button" onPress={qr.error ? openConfig : identity.retry} style={{ padding: 12 }}><Text style={{ color: theme.accent, fontWeight: "700" }}>{qr.error ? "Edit request" : "Try again"}</Text></TouchableOpacity>
+              </>}
+            </View>}
           </View>
 
-          {/* Username Tag Badge */}
+          {/* TallyTag Badge */}
           <View style={[styles.usernameBadge, { backgroundColor: theme.accentSoft }]}>
-            <Text style={[styles.usernameText, { color: theme.accent }]}>@{formattedUsername}</Text>
+            <Text style={[styles.usernameText, { color: theme.accent }]}>{tallyTag ? `@${tallyTag}` : "TallyTag unavailable"}</Text>
           </View>
 
-          {requestAmount ? (
+          {applied.amount ? (
             <View style={styles.requestAmountInfoBadge}>
               <Text style={[styles.requestAmountText, { color: theme.textPrimary }]}>
-                Requested: ₦{parseFloat(requestAmount).toFixed(2)}
+                Requested: ₦{parseFloat(applied.amount).toFixed(2)}
               </Text>
-              {requestMemo ? (
+              {applied.memo ? (
                 <Text style={[styles.requestMemoText, { color: theme.textSecondary }]} numberOfLines={1}>
-                  "{requestMemo}"
+                  "{applied.memo}"
                 </Text>
               ) : null}
             </View>
@@ -220,21 +188,23 @@ export default function RequestScreen() {
         </Text>
         {/* Share Button (Primary) */}
         <TouchableOpacity
-          style={[styles.shareButton, { backgroundColor: theme.accent, shadowColor: theme.accent }]}
+          style={[styles.shareButton, { backgroundColor: theme.accent, shadowColor: theme.accent, opacity: !qr.value || sharing ? 0.5 : 1 }]}
           onPress={handleShare}
+          disabled={!qr.value || sharing}
           activeOpacity={0.8}
         >
-          <Text style={styles.shareButtonText}>Share QR Image</Text>
+          {sharing ? <ActivityIndicator color={theme.onAccent} /> : <Text style={styles.shareButtonText}>Share QR Image</Text>}
         </TouchableOpacity>
 
         {/* Add Amount and Note (Secondary) */}
         <TouchableOpacity
           style={[styles.configButton, { backgroundColor: theme.accentSoft }]}
-          onPress={() => setShowConfigModal(true)}
+          onPress={openConfig}
+          disabled={sharing}
           activeOpacity={0.7}
         >
           <Text style={[styles.configButtonText, { color: theme.accent }]}>
-            {requestAmount ? "Edit Amount and Note" : "Add Amount and Note"}
+            {applied.amount ? "Edit Amount and Note" : "Add Amount and Note"}
           </Text>
         </TouchableOpacity>
       </ScrollView>
@@ -342,7 +312,7 @@ export default function RequestScreen() {
                             styles.categoryChipText,
                             {
                               color: isSelected
-                                ? "#FFFFFF"
+                                ? theme.onAccent
                                 : isAddBtn
                                   ? theme.accent
                                   : theme.textPrimary,
@@ -439,6 +409,7 @@ export default function RequestScreen() {
                     style={styles.modalClearButton}
                     onPress={() => {
                       setRequestAmount("");
+                      setApplied({ amount: "", memo: "", category: null, customInput: "" });
                       setRequestMemo("");
                       setSelectedCategory(null);
                       setCustomCategory("");
@@ -459,10 +430,10 @@ export default function RequestScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+const getStyles = (theme: import("../src/theme").ThemePalette) => StyleSheet.create({
   safeArea: {
     flex: 1,
-    backgroundColor: "#F9FAF6",
+    backgroundColor: theme.surfaceSoft,
   },
   header: {
     height: 56,
@@ -472,7 +443,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     borderBottomWidth: 1,
     borderColor: "rgba(91, 78, 145, 0.08)",
-    backgroundColor: "#FFFFFF",
+    backgroundColor: theme.surface,
   },
   backButton: {
     padding: 4,
@@ -480,7 +451,7 @@ const styles = StyleSheet.create({
   headerTitle: {
     fontSize: 16,
     fontWeight: "700",
-    color: "#20142A",
+    color: theme.accent,
     letterSpacing: -0.3,
   },
   scrollContainer: {
@@ -489,13 +460,13 @@ const styles = StyleSheet.create({
   },
   qrCardContainer: {
     width: "100%",
-    backgroundColor: "#FFFFFF",
+    backgroundColor: theme.surface,
     borderRadius: 32,
     borderWidth: 1,
     borderColor: "rgba(91, 78, 145, 0.06)",
     paddingVertical: 32,
     alignItems: "center",
-    shadowColor: "#000",
+    shadowColor: theme.shadow,
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.02,
     shadowRadius: 10,
@@ -505,7 +476,7 @@ const styles = StyleSheet.create({
   qrCardTitle: {
     fontSize: 13,
     fontWeight: "600",
-    color: "#8E8E93",
+    color: theme.textSecondary,
     marginBottom: 28,
   },
   qrWrapper: {
@@ -513,15 +484,15 @@ const styles = StyleSheet.create({
     backgroundColor: "#FFFFFF",
     borderRadius: 24,
     borderWidth: 1,
-    borderColor: "#EAEAEA",
-    shadowColor: "#20142A",
+    borderColor: theme.border,
+    shadowColor: theme.accent,
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.04,
     shadowRadius: 8,
     elevation: 1,
   },
   usernameBadge: {
-    backgroundColor: "#F0EEFA",
+    backgroundColor: theme.accentSoft,
     borderRadius: 14,
     paddingHorizontal: 16,
     paddingVertical: 6,
@@ -530,7 +501,7 @@ const styles = StyleSheet.create({
   usernameText: {
     fontSize: 12,
     fontWeight: "700",
-    color: "#5B4E91",
+    color: theme.accent,
   },
   requestAmountInfoBadge: {
     marginTop: 14,
@@ -540,17 +511,17 @@ const styles = StyleSheet.create({
   requestAmountText: {
     fontSize: 16,
     fontWeight: "700",
-    color: "#20142A",
+    color: theme.accent,
   },
   requestMemoText: {
     fontSize: 12,
-    color: "#8E8E93",
+    color: theme.textSecondary,
     fontStyle: "italic",
     marginTop: 4,
   },
   instructionsText: {
     fontSize: 11,
-    color: "#8E8E93",
+    color: theme.textSecondary,
     textAlign: "center",
     lineHeight: 16,
     paddingHorizontal: 20,
@@ -558,12 +529,12 @@ const styles = StyleSheet.create({
   },
   shareButton: {
     width: "100%",
-    backgroundColor: "#76A6EF", // matches mockup's primary blue color
+    backgroundColor: theme.accent, // matches mockup's primary blue color
     borderRadius: 20,
     height: 52,
     justifyContent: "center",
     alignItems: "center",
-    shadowColor: "#76A6EF",
+    shadowColor: theme.accent,
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.15,
     shadowRadius: 10,
@@ -571,20 +542,20 @@ const styles = StyleSheet.create({
     marginBottom: 12,
   },
   shareButtonText: {
-    color: "#FFFFFF",
+    color: theme.onAccent,
     fontSize: 14,
     fontWeight: "700",
   },
   configButton: {
     width: "100%",
-    backgroundColor: "#F0EEFA",
+    backgroundColor: theme.accentSoft,
     borderRadius: 20,
     height: 52,
     justifyContent: "center",
     alignItems: "center",
   },
   configButtonText: {
-    color: "#5B4E91",
+    color: theme.accent,
     fontSize: 14,
     fontWeight: "700",
   },
@@ -599,7 +570,7 @@ const styles = StyleSheet.create({
     justifyContent: "flex-end",
   },
   modalContent: {
-    backgroundColor: "#FFFFFF",
+    backgroundColor: theme.surface,
     borderTopLeftRadius: 28,
     borderTopRightRadius: 28,
     paddingTop: 8,
@@ -610,7 +581,7 @@ const styles = StyleSheet.create({
     width: 36,
     height: 5,
     borderRadius: 2.5,
-    backgroundColor: "#E2E8F0",
+    backgroundColor: theme.border,
     alignSelf: "center",
     marginBottom: 12,
   },
@@ -626,7 +597,7 @@ const styles = StyleSheet.create({
   modalTitle: {
     fontSize: 16,
     fontWeight: "700",
-    color: "#20142A",
+    color: theme.accent,
   },
   modalBody: {
     padding: 20,
@@ -637,13 +608,13 @@ const styles = StyleSheet.create({
   inputLabel: {
     fontSize: 12,
     fontWeight: "600",
-    color: "#8E8E93",
+    color: theme.textSecondary,
     marginBottom: 8,
   },
   inputWrapper: {
     flexDirection: "row",
     alignItems: "center",
-    backgroundColor: "#F8F8FA",
+    backgroundColor: theme.surfaceSoft,
     borderRadius: 16,
     paddingHorizontal: 16,
     height: 54,
@@ -658,14 +629,14 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
     paddingVertical: 8,
     borderRadius: 999,
-    backgroundColor: "#F0EEFA",
+    backgroundColor: theme.accentSoft,
     marginRight: 8,
     marginBottom: 8,
   },
   quickAmountText: {
     fontSize: 12,
     fontWeight: "700",
-    color: "#5B4E91",
+    color: theme.accent,
   },
   categoryRow: {
     flexDirection: "row",
@@ -677,47 +648,47 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
     paddingVertical: 8,
     borderRadius: 999,
-    backgroundColor: "#F4F4F6",
+    backgroundColor: theme.surfaceSoft,
     marginRight: 8,
     marginBottom: 8,
   },
   categoryChipActive: {
-    backgroundColor: "#5B4E91",
+    backgroundColor: theme.accent,
   },
   categoryChipText: {
     fontSize: 12,
     fontWeight: "600",
-    color: "#20142A",
+    color: theme.accent,
   },
   categoryChipTextActive: {
-    color: "#FFFFFF",
+    color: theme.onAccent,
   },
   addCategoryChip: {
-    backgroundColor: "#F3E8FF",
+    backgroundColor: theme.accentSoft,
     borderWidth: 1,
-    borderColor: "#C084FC",
+    borderColor: theme.accent,
   },
   addCategoryChipActive: {
-    backgroundColor: "#7C3AED",
-    borderColor: "#7C3AED",
+    backgroundColor: theme.accent,
+    borderColor: theme.accent,
   },
   addCategoryChipText: {
-    color: "#6D28D9",
+    color: theme.accent,
     fontSize: 16,
     fontWeight: "800",
   },
   addCategoryChipTextActive: {
-    color: "#FFFFFF",
+    color: theme.onAccent,
   },
   helperText: {
     fontSize: 12,
-    color: "#8E8E93",
+    color: theme.textSecondary,
     marginTop: 10,
     lineHeight: 18,
   },
   customInputWrapper: {
     marginTop: 12,
-    backgroundColor: "#F8F8FA",
+    backgroundColor: theme.surfaceSoft,
     borderRadius: 16,
     paddingHorizontal: 14,
     paddingVertical: 12,
@@ -728,10 +699,10 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
     paddingVertical: 8,
     borderRadius: 999,
-    backgroundColor: "#F0EEFA",
+    backgroundColor: theme.accentSoft,
   },
   addCustomCategoryButtonText: {
-    color: "#5B4E91",
+    color: theme.accent,
     fontSize: 12,
     fontWeight: "700",
   },
@@ -745,19 +716,19 @@ const styles = StyleSheet.create({
     width: 28,
     height: 28,
     borderRadius: 14,
-    backgroundColor: "#F3F4F6",
+    backgroundColor: theme.surfaceSoft,
     justifyContent: "center",
     alignItems: "center",
     marginLeft: 8,
   },
   categoryManageButtonText: {
-    color: "#4B5563",
+    color: theme.textSecondary,
     fontSize: 16,
     fontWeight: "700",
   },
   customCategoriesList: {
     marginTop: 10,
-    backgroundColor: "#F8F8FA",
+    backgroundColor: theme.surfaceSoft,
     borderRadius: 14,
     padding: 10,
   },
@@ -769,7 +740,7 @@ const styles = StyleSheet.create({
   },
   customCategoryText: {
     fontSize: 13,
-    color: "#20142A",
+    color: theme.accent,
     fontWeight: "600",
   },
   deleteCategoryButton: {
@@ -779,7 +750,7 @@ const styles = StyleSheet.create({
     backgroundColor: "#FEE2E2",
   },
   deleteCategoryButtonText: {
-    color: "#DC2626",
+    color: theme.danger,
     fontSize: 13,
     fontWeight: "700",
   },
@@ -789,22 +760,22 @@ const styles = StyleSheet.create({
     paddingHorizontal: 10,
     paddingVertical: 6,
     borderRadius: 999,
-    backgroundColor: "#F3F4F6",
+    backgroundColor: theme.surfaceSoft,
   },
   clearSelectionButtonText: {
-    color: "#4B5563",
+    color: theme.textSecondary,
     fontSize: 11,
     fontWeight: "700",
   },
   customInput: {
     fontSize: 14,
-    color: "#20142A",
+    color: theme.accent,
     paddingVertical: 0,
   },
   currencyPrefix: {
     fontSize: 18,
     fontWeight: "600",
-    color: "#20142A",
+    color: theme.accent,
     marginRight: 4,
   },
   inputIcon: {
@@ -814,28 +785,28 @@ const styles = StyleSheet.create({
     flex: 1,
     fontSize: 18,
     fontWeight: "600",
-    color: "#20142A",
+    color: theme.accent,
   },
   modalSaveButton: {
-    backgroundColor: "#5B4E91",
+    backgroundColor: theme.accent,
     borderRadius: 18,
     height: 52,
     justifyContent: "center",
     alignItems: "center",
     marginTop: 24,
-    shadowColor: "#5B4E91",
+    shadowColor: theme.accent,
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.15,
     shadowRadius: 10,
     elevation: 3,
   },
   modalSaveButtonDisabled: {
-    backgroundColor: "#CFCFD6",
+    backgroundColor: theme.border,
     shadowOpacity: 0,
     elevation: 0,
   },
   modalSaveButtonText: {
-    color: "#FFFFFF",
+    color: theme.onAccent,
     fontSize: 14,
     fontWeight: "700",
   },
@@ -847,8 +818,10 @@ const styles = StyleSheet.create({
     marginTop: 10,
   },
   modalClearButtonText: {
-    color: "#EF4444",
+    color: theme.danger,
     fontSize: 13,
     fontWeight: "600",
   },
 });
+
+

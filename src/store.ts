@@ -1,16 +1,29 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { registerSession } from "./register";
+import { migrateOnboardingPin, readPin } from "./security/pin";
+import { profileScope } from "./profile/model";
+import { readPendingSignup, clearPendingSignup } from "./security/signup";
 import { useNavigation } from "expo-router";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useState, useSyncExternalStore } from "react";
+import { clearProfileSession, getProfileSnapshot, loadAccountProfile, publishProfileTokens, subscribeProfile, updateAccountProfile } from "./profile/repository";
+import type { ProfileUser } from "./profile/model";
 import { Alert, useColorScheme } from "react-native";
 import { deleteWalletTransaction, getWalletSnapshot, loadWallet, resetWallet, saveWalletTransaction, subscribeWallet } from "./budget/repository";
 import { totals, type Wallet } from "./budget/ledger";
-import type { ThemeId, ThemeMode, ThemePalette } from "./theme";
+import type { ThemeMode } from "./theme";
+import { useAppearance, hydrateAppearance, setThemePreference, setDarkModePreference } from "./appearance";
+import { useVisualTheme } from "./ThemeExperience";
 import { getThemePalette } from "./theme";
 
-const THEME_STORAGE_KEY = "ts_theme";
-const DARK_MODE_PREFERENCE_STORAGE_KEY = "ts_dark_mode_preference";
+
+
 const TAB_BAR_OPACITY_STORAGE_KEY = "ts_tab_bar_opacity";
+let globalTabBarOpacity = 0.72;
+const tabBarListeners = new Set<(opacity: number) => void>();
+function publishTabBarOpacity(opacity: number) {
+  globalTabBarOpacity = opacity;
+  tabBarListeners.forEach(listener => listener(opacity));
+}
 const DEFAULT_CUSTOM_CATEGORIES_STORAGE_KEY = "ts_custom_categories";
 
 const ACCESS_TOKEN_STORAGE_KEY = "ts_access_token";
@@ -20,9 +33,7 @@ const USER_STORAGE_KEY = "ts_user";
 const getCustomCategoriesStorageKey = (
   usernameValue: string | null | undefined,
 ) =>
-  `${DEFAULT_CUSTOM_CATEGORIES_STORAGE_KEY}_${(
-    usernameValue || "default"
-  ).replace(/[^a-zA-Z0-9_-]/g, "_")}`;
+  `${DEFAULT_CUSTOM_CATEGORIES_STORAGE_KEY}_${encodeURIComponent(usernameValue || "default")}`;
 
 export const MOCK_RECIPIENTS = [
   {
@@ -473,20 +484,6 @@ const setGlobalAuth = (status: boolean) => {
   authListeners.forEach((listener) => listener(status));
 };
 
-let globalThemePreference: ThemeId = "aurora";
-let globalDarkModePreference: "light" | "dark" | "system" = "system";
-let themeListeners: (() => void)[] = [];
-
-const setGlobalThemePreference = (pref: ThemeId) => {
-  globalThemePreference = pref;
-  themeListeners.forEach((listener) => listener());
-};
-
-const setGlobalDarkModePreference = (pref: "light" | "dark" | "system") => {
-  globalDarkModePreference = pref;
-  themeListeners.forEach((listener) => listener());
-};
-
 export function useAppStore() {
   const [budgetWallet, setBudgetWallet] = useState<Wallet | null>(getWalletSnapshot);
   const [budgetError, setBudgetError] = useState<string | null>(null);
@@ -494,28 +491,16 @@ export function useAppStore() {
   const [notifications, setNotifications] = useState<NotificationItem[]>([]);
   const [budgets, setBudgets] = useState<Record<string, number>>({});
   const [savingsGoals, setSavingsGoals] = useState<any[]>([]);
-  const [profileImage, setProfileImageState] = useState<string | null>(null);
-  const [profileFullName, setFullNameState] = useState("Goziechi Chigozie");
-  const [profilePhoneNumber, setPhoneNumberState] =
-    useState("+234 814 622 4577");
-  const [profileEmail, setEmailState] = useState("ebuka@example.com");
-  const [profileNickname, setNicknameState] = useState("Enter Nickname");
-  const [profileGender, setGenderState] = useState("Male");
-  const [profileDob, setDobState] = useState("**-**-11");
-  const [profileAddress, setAddressState] = useState("");
-  const [profileTallyTag, setTallyTagState] = useState("@EBUKA");
+  const accountProfile = useSyncExternalStore(subscribeProfile, getProfileSnapshot, getProfileSnapshot);
+  const { fullName: profileFullName, phoneNumber: profilePhoneNumber, email: profileEmail,
+    gender: profileGender, dob: profileDob, address: profileAddress,
+    avatarUrl: profileImage } = accountProfile.profile;
+  const profileTallyTag = accountProfile.profile.tallyTag ? `@${accountProfile.profile.tallyTag}` : "";
   const [loading, setLoading] = useState(true);
   const [accessToken, setAccessTokenState] = useState<string | null>(null);
   const [refreshToken, setRefreshTokenState] = useState<string | null>(null);
 
-  const [themePreference, setThemePreferenceState] = useState<ThemeId>(
-    globalThemePreference,
-  );
-
-  const [darkModePreference, setDarkModePreferenceState] = useState<
-    "light" | "dark" | "system"
-  >(globalDarkModePreference);
-
+  const { themePreference, darkModePreference } = useAppearance();
   const systemColorScheme = useColorScheme();
 
   const themeMode: ThemeMode =
@@ -523,13 +508,26 @@ export function useAppStore() {
       ? (systemColorScheme === "dark" ? "dark" : "light")
       : darkModePreference;
 
-  const theme: ThemePalette = getThemePalette(themePreference, themeMode);
+  const theme = useVisualTheme(getThemePalette(themePreference, themeMode));
 
-  const [tabBarOpacity, setTabBarOpacityState] = useState(0.72);
+  const [tabBarOpacity, setTabBarOpacityState] = useState(globalTabBarOpacity);
+  useEffect(() => {
+    tabBarListeners.add(setTabBarOpacityState);
+    return () => { tabBarListeners.delete(setTabBarOpacityState); };
+  }, []);
 
-  const [username, setUsernameState] = useState("ebuka");
+  const username = accountProfile.profile.tallyTag || accountProfile.profile.fullName;
 
   const [customCategories, setCustomCategoriesState] = useState<string[]>([]);
+  useEffect(() => {
+    let active = true;
+    setCustomCategoriesState([]);
+    if (accountProfile.scope) void AsyncStorage.getItem(getCustomCategoriesStorageKey(accountProfile.scope)).then(raw => {
+      if (!active) return;
+      try { const parsed = raw ? JSON.parse(raw) : []; if (Array.isArray(parsed)) setCustomCategoriesState(parsed.filter(value => typeof value === "string")); } catch { /* Ignore corrupt preferences. */ }
+    });
+    return () => { active = false; };
+  }, [accountProfile.scope]);
 
   const [savedCards, setSavedCards] = useState<any[]>([
     {
@@ -582,22 +580,7 @@ export function useAppStore() {
     };
   }, []);
 
-  useEffect(() => {
-    const handleThemeChange = () => {
-      setThemePreferenceState(globalThemePreference);
-      setDarkModePreferenceState(globalDarkModePreference);
-    };
-
-    themeListeners.push(handleThemeChange);
-
-    return () => {
-      themeListeners = themeListeners.filter(
-        (listener) => listener !== handleThemeChange,
-      );
-    };
-  }, []);
-
-  const loadData = useCallback(async () => {
+const loadData = useCallback(async () => {
     try {
       await reloadBudgetWallet();
 
@@ -605,13 +588,7 @@ export function useAppStore() {
 
       const storedGoals = await AsyncStorage.getItem("ts_goals");
 
-      const storedTheme = await AsyncStorage.getItem(THEME_STORAGE_KEY);
-
-      const isCustomized = await AsyncStorage.getItem("ts_theme_is_customized");
-
-      const storedDarkMode = await AsyncStorage.getItem(
-        DARK_MODE_PREFERENCE_STORAGE_KEY,
-      );
+      await hydrateAppearance();
 
       const storedTabBarOpacity = await AsyncStorage.getItem(
         TAB_BAR_OPACITY_STORAGE_KEY,
@@ -623,81 +600,39 @@ export function useAppStore() {
       const storedRefreshToken = await AsyncStorage.getItem(
         REFRESH_TOKEN_STORAGE_KEY,
       );
+      const legacyUsers = await AsyncStorage.getItem("ts_registered_users");
+      if (legacyUsers) {
+        try {
+          const users = JSON.parse(legacyUsers);
+          if (Array.isArray(users) && users.some(user => user && typeof user === "object" && "password" in user))
+            await AsyncStorage.setItem("ts_registered_users", JSON.stringify(users.map(entry => {
+              if (!entry || typeof entry !== "object") return entry;
+              const { password: _password, ...user } = entry; return user;
+            })));
+        } catch { /* A malformed legacy profile cache must not prevent session recovery. */ }
+      }
 
-      const storedUsername = await AsyncStorage.getItem("ts_username");
-
-      const storedCustomCategories = await AsyncStorage.getItem(
-        getCustomCategoriesStorageKey(storedUsername || "ebuka"),
-      );
-
+      await loadAccountProfile();
+      const profile = getProfileSnapshot();
+      const storedCustomCategories = profile.scope
+        ? await AsyncStorage.getItem(getCustomCategoriesStorageKey(profile.scope)) : null;
       const storedCards = await AsyncStorage.getItem("ts_cards");
-
-      const storedFullName = await AsyncStorage.getItem("ts_profile_fullname");
-      const storedPhone = await AsyncStorage.getItem("ts_profile_phone");
-      const storedEmail = await AsyncStorage.getItem("ts_profile_email");
-      const storedNickname = await AsyncStorage.getItem("ts_profile_nickname");
-      const storedGender = await AsyncStorage.getItem("ts_profile_gender");
-      const storedDob = await AsyncStorage.getItem("ts_profile_dob");
-      const storedAddress = await AsyncStorage.getItem("ts_profile_address");
-      const storedTallyTag = await AsyncStorage.getItem("ts_profile_tallytag");
-      const storedProfileImage = await AsyncStorage.getItem("ts_profile_image");
-
-      if (storedFullName) setFullNameState(storedFullName);
-      if (storedPhone) setPhoneNumberState(storedPhone);
-      if (storedEmail) setEmailState(storedEmail);
-      if (storedNickname) setNicknameState(storedNickname);
-      if (storedGender) setGenderState(storedGender);
-      if (storedDob) setDobState(storedDob);
-      if (storedAddress) setAddressState(storedAddress);
-      if (storedTallyTag) setTallyTagState(storedTallyTag);
-      if (storedProfileImage) setProfileImageState(storedProfileImage);
-
-      if (storedUsername) {
-        setUsernameState(storedUsername);
-      } else {
-        await AsyncStorage.setItem("ts_username", "ebuka");
-
-        setUsernameState("ebuka");
-      }
-
-      const validThemes = [
-        "aurora",
-        "sage",
-        "sunset",
-        "ocean",
-        "forest",
-        "crimson",
-        "midnight",
-        "pink",
-      ];
-      if (isCustomized === "true" && validThemes.includes(storedTheme || "")) {
-        setGlobalThemePreference(storedTheme as ThemeId);
-      } else {
-        setGlobalThemePreference("aurora");
-      }
-
-      if (
-        storedDarkMode === "light" ||
-        storedDarkMode === "dark" ||
-        storedDarkMode === "system"
-      ) {
-        setGlobalDarkModePreference(storedDarkMode);
-      }
-
       if (storedTabBarOpacity !== null) {
         const parsedOpacity = Number(storedTabBarOpacity);
 
         if (!Number.isNaN(parsedOpacity)) {
           const clampedOpacity = Math.max(0, Math.min(1, parsedOpacity));
 
-          setTabBarOpacityState(clampedOpacity);
+          publishTabBarOpacity(clampedOpacity);
         }
       }
 
-      setAccessTokenState(storedAccessToken ?? null);
-      setRefreshTokenState(storedRefreshToken ?? null);
+      setAccessTokenState(profile.token ?? storedAccessToken ?? null);
+      setRefreshTokenState(profile.refreshToken ?? storedRefreshToken ?? null);
+      // A saved server session returns to the app lock, not the sign-up screen.
+      if (storedAccessToken && profile.scope && getProfileSnapshot().scope === profile.scope && getProfileSnapshot().token) setGlobalAuth(true);
 
-      if (storedCustomCategories) {
+      if (storedCustomCategories && profile.scope === getProfileSnapshot().scope) {
         try {
           const parsedCategories = JSON.parse(storedCustomCategories);
 
@@ -790,12 +725,10 @@ export function useAppStore() {
     async (
       accessToken?: string,
       refreshToken?: string,
-      user?: {
-        userId?: number;
-        fullName?: string;
-        email?: string;
-      },
+      user?: ProfileUser,
+      options: { activate?: boolean } = {},
     ) => {
+      if (user) clearProfileSession();
       if (accessToken) {
         setAccessTokenState(accessToken);
         await AsyncStorage.setItem(ACCESS_TOKEN_STORAGE_KEY, accessToken);
@@ -804,24 +737,24 @@ export function useAppStore() {
       if (refreshToken) {
         setRefreshTokenState(refreshToken);
         await AsyncStorage.setItem(REFRESH_TOKEN_STORAGE_KEY, refreshToken);
+      } else if (user) {
+        setRefreshTokenState(null);
+        await AsyncStorage.removeItem(REFRESH_TOKEN_STORAGE_KEY);
       }
+      if (accessToken) publishProfileTokens(accessToken, refreshToken);
 
       if (user) {
         await AsyncStorage.setItem(USER_STORAGE_KEY, JSON.stringify(user));
-
-        if (user.fullName) {
-          await AsyncStorage.setItem("ts_username", user.fullName);
-
-          setUsernameState(user.fullName);
-        }
+        void loadAccountProfile(true);
       }
 
-      setGlobalAuth(true);
+      if (options.activate !== false) setGlobalAuth(true);
     },
     [],
   );
 
   const logout = useCallback(async () => {
+    clearProfileSession(true);
     setAccessTokenState(null);
     setRefreshTokenState(null);
 
@@ -834,116 +767,35 @@ export function useAppStore() {
     setGlobalAuth(false);
   }, []);
 
-  const setThemePreference = useCallback(async (themeId: ThemeId) => {
-    const validThemes: ThemeId[] = [
-      "aurora",
-      "sage",
-      "sunset",
-      "ocean",
-      "forest",
-      "crimson",
-      "midnight",
-      "pink",
-    ];
-    const validTheme = validThemes.includes(themeId) ? themeId : "aurora";
-
-    setGlobalThemePreference(validTheme);
-
-    await AsyncStorage.setItem(THEME_STORAGE_KEY, validTheme);
-    await AsyncStorage.setItem("ts_theme_is_customized", "true");
-  }, []);
-
-  const setDarkModePreference = useCallback(
-    async (mode: "light" | "dark" | "system") => {
-      const validMode =
-        mode === "light" || mode === "dark" || mode === "system"
-          ? mode
-          : "system";
-
-      setGlobalDarkModePreference(validMode);
-
-      await AsyncStorage.setItem(DARK_MODE_PREFERENCE_STORAGE_KEY, validMode);
-    },
-    [],
-  );
-
   const setTabBarOpacity = useCallback(async (opacity: number) => {
     const nextOpacity = Math.max(0.45, Math.min(0.98, opacity));
-
-    setTabBarOpacityState(nextOpacity);
 
     await AsyncStorage.setItem(
       TAB_BAR_OPACITY_STORAGE_KEY,
       String(nextOpacity),
     );
+    publishTabBarOpacity(nextOpacity);
   }, []);
 
-  const setUsername = useCallback(async (newUsername: string) => {
-    const cleanUsername = newUsername.replace(/^@/, "").trim();
-    setUsernameState(cleanUsername);
-    await AsyncStorage.setItem("ts_username", cleanUsername);
-
-    const tag = `@${cleanUsername}`;
-    setTallyTagState(tag);
-    await AsyncStorage.setItem("ts_profile_tallytag", tag);
-  }, []);
-
-  const setProfileFullName = useCallback(async (val: string) => {
-    setFullNameState(val);
-    await AsyncStorage.setItem("ts_profile_fullname", val);
-  }, []);
-
-  const setProfilePhoneNumber = useCallback(async (val: string) => {
-    setPhoneNumberState(val);
-    await AsyncStorage.setItem("ts_profile_phone", val);
-  }, []);
-
-  const setProfileEmail = useCallback(async (val: string) => {
-    setEmailState(val);
-    await AsyncStorage.setItem("ts_profile_email", val);
-  }, []);
-
-  const setProfileNickname = useCallback(async (val: string) => {
-    setNicknameState(val);
-    await AsyncStorage.setItem("ts_profile_nickname", val);
-  }, []);
-
-  const setProfileGender = useCallback(async (val: string) => {
-    setGenderState(val);
-    await AsyncStorage.setItem("ts_profile_gender", val);
-  }, []);
-
-  const setProfileDob = useCallback(async (val: string) => {
-    setDobState(val);
-    await AsyncStorage.setItem("ts_profile_dob", val);
-  }, []);
-
-  const setProfileAddress = useCallback(async (val: string) => {
-    setAddressState(val);
-    await AsyncStorage.setItem("ts_profile_address", val);
-  }, []);
-
-  const setProfileTallyTag = useCallback(async (val: string) => {
-    setTallyTagState(val);
-    await AsyncStorage.setItem("ts_profile_tallytag", val);
-  }, []);
-
-  const setProfileImage = useCallback(async (val: string | null) => {
-    setProfileImageState(val);
-    if (val) {
-      await AsyncStorage.setItem("ts_profile_image", val);
-    } else {
-      await AsyncStorage.removeItem("ts_profile_image");
-    }
-  }, []);
-
+  const setUsername = useCallback(async (value: string) => { await updateAccountProfile({ tallyTag: value.replace(/^@+/, "").trim() }, undefined, accountProfile.scope); }, [accountProfile.scope]);
+  const setProfileFullName = useCallback(async (value: string) => { await updateAccountProfile({ fullName: value }, undefined, accountProfile.scope); }, [accountProfile.scope]);
+  const setProfilePhoneNumber = useCallback(async (value: string) => { await updateAccountProfile({ phoneNumber: value }, undefined, accountProfile.scope); }, [accountProfile.scope]);
+  const setProfileEmail = useCallback(async (value: string) => { await updateAccountProfile({ email: value }, undefined, accountProfile.scope); }, [accountProfile.scope]);
+  const setProfileGender = useCallback(async (value: string) => { await updateAccountProfile({ gender: value }, undefined, accountProfile.scope); }, [accountProfile.scope]);
+  const setProfileDob = useCallback(async (value: string) => { await updateAccountProfile({ dob: value }, undefined, accountProfile.scope); }, [accountProfile.scope]);
+  const setProfileAddress = useCallback(async (value: string) => { await updateAccountProfile({ address: value }, undefined, accountProfile.scope); }, [accountProfile.scope]);
+  const setProfileTallyTag = useCallback(async (value: string) => { await updateAccountProfile({ tallyTag: value.replace(/^@+/, "").trim() }, undefined, accountProfile.scope); }, [accountProfile.scope]);
+  const setProfileImage = useCallback(async (value: string | null, name = "profile.jpg", type = "image/jpeg") => {
+    if (value) await updateAccountProfile({}, { uri: value, name, type }, accountProfile.scope);
+    else await updateAccountProfile({ avatarUrl: null }, undefined, accountProfile.scope);
+  }, [accountProfile.scope]);
   const addCustomCategory = useCallback(
     async (categoryName: string) => {
       const trimmed = categoryName?.trim();
 
-      if (!trimmed) return;
+      if (!trimmed || !accountProfile.scope) return;
 
-      const storageKey = getCustomCategoriesStorageKey(username || "ebuka");
+      const storageKey = getCustomCategoriesStorageKey(accountProfile.scope || "signed-out");
 
       setCustomCategoriesState((prev) => {
         const next = prev.includes(trimmed) ? prev : [...prev, trimmed];
@@ -953,16 +805,16 @@ export function useAppStore() {
         return next;
       });
     },
-    [username],
+    [accountProfile.scope],
   );
 
   const deleteCustomCategory = useCallback(
     async (categoryName: string) => {
       const trimmed = categoryName?.trim();
 
-      if (!trimmed) return;
+      if (!trimmed || !accountProfile.scope) return;
 
-      const storageKey = getCustomCategoriesStorageKey(username || "ebuka");
+      const storageKey = getCustomCategoriesStorageKey(accountProfile.scope || "signed-out");
 
       setCustomCategoriesState((prev) => {
         const next = prev.filter((item) => item !== trimmed);
@@ -972,7 +824,7 @@ export function useAppStore() {
         return next;
       });
     },
-    [username],
+    [accountProfile.scope],
   );
 
   // ---------------------------------------------------------
@@ -1220,7 +1072,8 @@ export function useAppStore() {
 
     await AsyncStorage.setItem("ts_username", "ebuka");
 
-    await AsyncStorage.setItem(DARK_MODE_PREFERENCE_STORAGE_KEY, "system");
+    await setDarkModePreference("system");
+    await setThemePreference("aurora");
 
     await AsyncStorage.removeItem("ts_theme_is_customized");
 
@@ -1237,9 +1090,9 @@ export function useAppStore() {
 
     setSavingsGoals(DEFAULT_SAVINGS_GOALS);
 
-    setUsernameState("ebuka");
 
-    setDarkModePreferenceState("system");
+
+
 
     setSavedCards(defaultCards);
 
@@ -1256,12 +1109,16 @@ export function useAppStore() {
     savingsGoals,
 
     profileImage,
+    profileLoading: accountProfile.loading,
+    profileSaving: accountProfile.saving,
+    profileError: accountProfile.error,
+    refreshProfile: () => loadAccountProfile(true),
     setProfileImage,
 
     loading,
     isAuthenticated,
-    token: accessToken,
-    refreshToken,
+    token: accountProfile.token || accessToken,
+    refreshToken: accountProfile.refreshToken || refreshToken,
 
     themePreference,
     darkModePreference,
@@ -1297,8 +1154,10 @@ export function useAppStore() {
     setProfilePhoneNumber,
     profileEmail,
     setProfileEmail,
-    profileNickname,
-    setProfileNickname,
+    // Inert compatibility for the inactive appp snapshot. No nickname state or
+    // persistence remains, and the active Profile screen has no nickname field.
+    profileNickname: "",
+    setProfileNickname: async (_value: string) => { throw new Error("Nickname has been removed. No change has been saved."); },
     profileGender,
     setProfileGender,
     profileDob,
@@ -1318,27 +1177,20 @@ export function useAppStore() {
     // Onboarding
     onboardingGoals,
     setOnboardingGoals: async (goals: string[]) => {
-      setOnboardingGoalsState(goals);
       await AsyncStorage.setItem("ts_onboarding_goals", JSON.stringify(goals));
+      setOnboardingGoalsState(goals);
     },
     employmentStatus,
     setEmploymentStatus: async (status: string) => {
-      setEmploymentStatusState(status);
       await AsyncStorage.setItem("ts_employment_status", status);
+      setEmploymentStatusState(status);
     },
     completeOnboarding: async () => {
       try {
-        const pendingSignupRaw =
-          await AsyncStorage.getItem("ts_pending_signup");
+        const pendingSignup = await readPendingSignup();
+        if (!pendingSignup && !getProfileSnapshot().token) throw new Error("Restart account setup or sign in to continue.");
 
-        if (pendingSignupRaw) {
-          const pendingSignup = JSON.parse(pendingSignupRaw) as {
-            fullName: string;
-            tallyTag: string;
-            phoneNumber: string;
-            email: string;
-            password: string;
-          };
+        if (pendingSignup) {
 
           const email = pendingSignup.email.trim().toLowerCase();
           const tallyTag = pendingSignup.tallyTag
@@ -1349,13 +1201,21 @@ export function useAppStore() {
 
           const fullName = pendingSignup.fullName.trim();
           const phoneNumber = pendingSignup.phoneNumber.trim();
+          const stagedPin = await readPin("email:" + email);
+          const current = getProfileSnapshot();
+          const resumedPin = !stagedPin && current.scope && current.profile.email.trim().toLowerCase() === email
+            ? await readPin(current.scope) : null;
+          if (!stagedPin && !resumedPin) throw new Error("Set your six-digit PIN before finishing setup.");
 
           const session = await registerSession({
             fullName, email, tallyTag, phoneNumber, password: pendingSignup.password,
           });
+          const pinOwner = profileScope({ userId: session.userId, email });
+          if (!pinOwner) throw new Error("Couldn't identify the new account.");
+          await migrateOnboardingPin(email, pinOwner);
           await login(session.accessToken, session.refreshToken, {
-            userId: session.userId, fullName, email,
-          });
+            userId: session.userId, fullName, email, tallyTag, phoneNumber,
+          }, { activate: false });
 
           const storedUsersRaw = await AsyncStorage.getItem(
             "ts_registered_users",
@@ -1375,7 +1235,6 @@ export function useAppStore() {
                 tallyTag,
                 email,
                 phoneNumber,
-                password: pendingSignup.password,
               });
 
               await AsyncStorage.setItem(
@@ -1385,27 +1244,9 @@ export function useAppStore() {
             }
           }
 
-          setFullNameState(fullName);
-          setPhoneNumberState(phoneNumber);
-          setEmailState(email);
-          setTallyTagState(canonicalTallyTag);
+          await clearPendingSignup();
 
-          await AsyncStorage.setItem("ts_profile_fullname", fullName);
-          await AsyncStorage.setItem("ts_profile_phone", phoneNumber);
-          await AsyncStorage.setItem("ts_profile_email", email);
-          await AsyncStorage.setItem("ts_profile_tallytag", canonicalTallyTag);
-          await AsyncStorage.setItem("ts_username", tallyTag);
-          await AsyncStorage.removeItem("ts_pending_signup");
 
-          await AsyncStorage.setItem(
-            USER_STORAGE_KEY,
-            JSON.stringify({
-              fullName,
-              email,
-              tallyTag,
-              phoneNumber,
-            }),
-          );
         }
 
         await AsyncStorage.setItem("ts_onboarding_completed", "true");

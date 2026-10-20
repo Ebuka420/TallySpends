@@ -1,13 +1,13 @@
+import { useThemeTokens } from "../src/ThemeExperience";
 import { Ionicons } from "@expo/vector-icons";
 import * as Clipboard from "expo-clipboard";
 import * as Haptics from "expo-haptics";
 import { useRouter } from "expo-router";
-import React, { useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import {
   Alert,
   FlatList,
   Modal,
-  Platform,
   SafeAreaView,
   StyleSheet,
   Text,
@@ -35,7 +35,7 @@ export default function NotificationsScreen() {
     themeMode,
   } = useAppStore();
 
-  const theme = getThemePalette(themePreference, themeMode);
+  const theme = useThemeTokens();
   const isDark = themeMode === "dark";
 
   const { expoPushToken } = usePushNotifications();
@@ -69,7 +69,10 @@ export default function NotificationsScreen() {
       if (diffHours < 24) return `${diffHours}h ago`;
       if (diffDays === 1) return "Yesterday";
       if (diffDays < 7) return `${diffDays}d ago`;
-      return date.toLocaleDateString("en-US", { month: "short", day: "numeric" });
+      return date.toLocaleDateString("en-US", {
+        month: "short",
+        day: "numeric",
+      });
     } catch {
       return "Recently";
     }
@@ -119,7 +122,8 @@ export default function NotificationsScreen() {
 
     if (type === "transaction") {
       title = "Inbound Payment Received";
-      description = "₦15,000.00 was credited to your TallySpends account from @chioma_k.";
+      description =
+        "₦15,000.00 was credited to your TallySpends account from @chioma_k.";
       route = "/(tabs)/expenses";
       addNotification({
         type: "transaction",
@@ -130,7 +134,8 @@ export default function NotificationsScreen() {
       });
     } else if (type === "alert") {
       title = "Budget Threshold Warning";
-      description = "You have exceeded 90% of your Shopping budget for this month. ₦1,200 remaining.";
+      description =
+        "You have exceeded 90% of your Shopping budget for this month. ₦1,200 remaining.";
       route = "/budgetspending";
       addNotification({
         type: "alert",
@@ -140,7 +145,8 @@ export default function NotificationsScreen() {
       });
     } else if (type === "insight") {
       title = "AI Smart Insight";
-      description = "Great news! You saved 18% on transport this week by tracking your ride-shares.";
+      description =
+        "Great news! You saved 18% on transport this week by tracking your ride-shares.";
       route = "/insightssum";
       addNotification({
         type: "insight",
@@ -150,7 +156,8 @@ export default function NotificationsScreen() {
       });
     } else {
       title = "Scheduled Utility Bill";
-      description = "Your monthly Internet Subscription of ₦12,500 is due in 2 days.";
+      description =
+        "Your monthly Internet Subscription of ₦12,500 is due in 2 days.";
       addNotification({
         type: "bill",
         title,
@@ -178,14 +185,14 @@ export default function NotificationsScreen() {
       case "alert":
         return {
           icon: "warning-outline" as const,
-          color: isDark ? "#F87171" : "#DC2626",
+          color: isDark ? "#F87171" : theme.danger,
           bg: isDark ? "#3D1719" : "#FEE2E2",
         };
       case "insight":
         return {
           icon: "sparkles-outline" as const,
-          color: isDark ? "#C084FC" : "#7C3AED",
-          bg: isDark ? "#281D33" : "#F3E8FF",
+          color: isDark ? theme.accent : theme.accent,
+          bg: isDark ? "#281D33" : theme.accentSoft,
         };
       case "bill":
         return {
@@ -203,7 +210,9 @@ export default function NotificationsScreen() {
   };
 
   return (
-    <SafeAreaView style={[styles.container, { backgroundColor: theme.background }]}>
+    <SafeAreaView
+      style={[styles.container, { backgroundColor: theme.background }]}
+    >
       {/* Header Bar */}
       <View
         style={[
@@ -224,8 +233,15 @@ export default function NotificationsScreen() {
             Notifications
           </Text>
           {unreadNotificationCount > 0 && (
-            <View style={[styles.unreadBadgePill, { backgroundColor: theme.accent }]}>
-              <Text style={styles.unreadBadgePillText}>{unreadNotificationCount}</Text>
+            <View
+              style={[
+                styles.unreadBadgePill,
+                { backgroundColor: theme.accent },
+              ]}
+            >
+              <Text style={styles.unreadBadgePillText}>
+                {unreadNotificationCount}
+              </Text>
             </View>
           )}
         </View>
@@ -249,7 +265,11 @@ export default function NotificationsScreen() {
             onPress={() => setShowSimulatorModal(true)}
             activeOpacity={0.7}
           >
-            <Ionicons name="add-circle-outline" size={22} color={theme.accent} />
+            <Ionicons
+              name="add-circle-outline"
+              size={22}
+              color={theme.accent}
+            />
           </TouchableOpacity>
 
           {notifications.length > 0 && (
@@ -258,7 +278,11 @@ export default function NotificationsScreen() {
               onPress={handleClearAll}
               activeOpacity={0.7}
             >
-              <Ionicons name="trash-outline" size={19} color={theme.textSecondary} />
+              <Ionicons
+                name="trash-outline"
+                size={19}
+                color={theme.textSecondary}
+              />
             </TouchableOpacity>
           )}
         </View>
@@ -268,7 +292,10 @@ export default function NotificationsScreen() {
       <View
         style={[
           styles.testPushBar,
-          { backgroundColor: isDark ? theme.surfaceSoft : "#F5EEFA", borderColor: theme.border },
+          {
+            backgroundColor: isDark ? theme.surfaceSoft : "#F5EEFA",
+            borderColor: theme.border,
+          },
         ]}
       >
         <View style={{ flex: 1 }}>
@@ -276,7 +303,9 @@ export default function NotificationsScreen() {
             🔔 Test Notifications
           </Text>
           <Text style={[styles.testPushSub, { color: theme.textSecondary }]}>
-            {expoPushToken ? "Push Token Ready • Tap Test (2s)" : "Instant test alert on device"}
+            {expoPushToken
+              ? "Push Token Ready • Tap Test (2s)"
+              : "Instant test alert on device"}
           </Text>
         </View>
 
@@ -294,8 +323,13 @@ export default function NotificationsScreen() {
             style={[styles.copyTokenBtn, { borderColor: theme.accent }]}
             onPress={async () => {
               await Clipboard.setStringAsync(expoPushToken);
-              Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-              Alert.alert("Token Copied!", "Your ExpoPushToken has been copied to your clipboard.");
+              Haptics.notificationAsync(
+                Haptics.NotificationFeedbackType.Success,
+              );
+              Alert.alert(
+                "Token Copied!",
+                "Your ExpoPushToken has been copied to your clipboard.",
+              );
             }}
             activeOpacity={0.8}
           >
@@ -315,7 +349,8 @@ export default function NotificationsScreen() {
             {
               key: "transaction",
               label: "Transactions",
-              count: notifications.filter((n) => n.type === "transaction").length,
+              count: notifications.filter((n) => n.type === "transaction")
+                .length,
             },
             {
               key: "alert",
@@ -340,8 +375,8 @@ export default function NotificationsScreen() {
                     backgroundColor: isSelected
                       ? theme.accent
                       : isDark
-                      ? theme.surfaceSoft
-                      : theme.surface,
+                        ? theme.surfaceSoft
+                        : theme.surface,
                     borderColor: isSelected ? theme.accent : theme.border,
                   },
                 ]}
@@ -370,8 +405,8 @@ export default function NotificationsScreen() {
                         backgroundColor: isSelected
                           ? "rgba(255,255,255,0.25)"
                           : isDark
-                          ? theme.surface
-                          : "#F3EBF8",
+                            ? theme.surface
+                            : theme.accentSoft,
                       },
                     ]}
                   >
@@ -409,7 +444,9 @@ export default function NotificationsScreen() {
                       ? theme.surfaceSoft
                       : "#FCFAFE"
                     : theme.surface,
-                  borderColor: item.isUnread ? theme.accent + "50" : theme.border,
+                  borderColor: item.isUnread
+                    ? theme.accent + "50"
+                    : theme.border,
                 },
               ]}
               onPress={() => handleNotificationPress(item)}
@@ -417,10 +454,7 @@ export default function NotificationsScreen() {
             >
               {/* Left Icon Box */}
               <View
-                style={[
-                  styles.iconBox,
-                  { backgroundColor: iconDetails.bg },
-                ]}
+                style={[styles.iconBox, { backgroundColor: iconDetails.bg }]}
               >
                 <Ionicons
                   name={iconDetails.icon}
@@ -446,13 +480,19 @@ export default function NotificationsScreen() {
                   </Text>
                   {item.isUnread && (
                     <View
-                      style={[styles.unreadDot, { backgroundColor: theme.accent }]}
+                      style={[
+                        styles.unreadDot,
+                        { backgroundColor: theme.accent },
+                      ]}
                     />
                   )}
                 </View>
 
                 <Text
-                  style={[styles.cardDescription, { color: theme.textSecondary }]}
+                  style={[
+                    styles.cardDescription,
+                    { color: theme.textSecondary },
+                  ]}
                   numberOfLines={3}
                 >
                   {item.description}
@@ -483,11 +523,7 @@ export default function NotificationsScreen() {
                 onPress={() => handleDelete(item.id)}
                 hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
               >
-                <Ionicons
-                  name="close"
-                  size={16}
-                  color={theme.textSecondary}
-                />
+                <Ionicons name="close" size={16} color={theme.textSecondary} />
               </TouchableOpacity>
             </TouchableOpacity>
           );
@@ -497,7 +533,7 @@ export default function NotificationsScreen() {
             <View
               style={[
                 styles.emptyIconBox,
-                { backgroundColor: isDark ? theme.surfaceSoft : "#F3EBF8" },
+                { backgroundColor: isDark ? theme.surfaceSoft : theme.accentSoft },
               ]}
             >
               <Ionicons
@@ -506,7 +542,9 @@ export default function NotificationsScreen() {
                 color={theme.accent}
               />
             </View>
-            <Text style={[styles.emptyStateTitle, { color: theme.textPrimary }]}>
+            <Text
+              style={[styles.emptyStateTitle, { color: theme.textPrimary }]}
+            >
               {activeFilter === "unread"
                 ? "No unread notifications"
                 : "No notifications found"}
@@ -541,7 +579,9 @@ export default function NotificationsScreen() {
             ]}
           >
             <View style={styles.simulatorHeader}>
-              <Text style={[styles.simulatorTitle, { color: theme.textPrimary }]}>
+              <Text
+                style={[styles.simulatorTitle, { color: theme.textPrimary }]}
+              >
                 Simulate Push Notification
               </Text>
               <TouchableOpacity onPress={() => setShowSimulatorModal(false)}>
@@ -549,26 +589,42 @@ export default function NotificationsScreen() {
               </TouchableOpacity>
             </View>
 
-            <Text
-              style={[styles.simulatorSub, { color: theme.textSecondary }]}
-            >
-              Trigger live real-time notifications to test updates, sounds, and badges:
+            <Text style={[styles.simulatorSub, { color: theme.textSecondary }]}>
+              Trigger live real-time notifications to test updates, sounds, and
+              badges:
             </Text>
 
             <View style={{ gap: 10 }}>
               <TouchableOpacity
                 style={[
                   styles.simOptionBtn,
-                  { backgroundColor: isDark ? theme.surfaceSoft : "#F4EEF8", borderColor: theme.border },
+                  {
+                    backgroundColor: isDark ? theme.surfaceSoft : "#F4EEF8",
+                    borderColor: theme.border,
+                  },
                 ]}
                 onPress={() => handleSendTestPush("transaction")}
               >
-                <Ionicons name="wallet-outline" size={20} color={theme.accent} />
+                <Ionicons
+                  name="wallet-outline"
+                  size={20}
+                  color={theme.accent}
+                />
                 <View style={{ flex: 1 }}>
-                  <Text style={[styles.simOptionTitle, { color: theme.textPrimary }]}>
+                  <Text
+                    style={[
+                      styles.simOptionTitle,
+                      { color: theme.textPrimary },
+                    ]}
+                  >
                     Payment & Transfer Alert
                   </Text>
-                  <Text style={[styles.simOptionDesc, { color: theme.textSecondary }]}>
+                  <Text
+                    style={[
+                      styles.simOptionDesc,
+                      { color: theme.textSecondary },
+                    ]}
+                  >
                     Incoming ₦15,000 credit notification
                   </Text>
                 </View>
@@ -577,16 +633,29 @@ export default function NotificationsScreen() {
               <TouchableOpacity
                 style={[
                   styles.simOptionBtn,
-                  { backgroundColor: isDark ? theme.surfaceSoft : "#F4EEF8", borderColor: theme.border },
+                  {
+                    backgroundColor: isDark ? theme.surfaceSoft : "#F4EEF8",
+                    borderColor: theme.border,
+                  },
                 ]}
                 onPress={() => handleSendTestPush("alert")}
               >
-                <Ionicons name="warning-outline" size={20} color="#DC2626" />
+                <Ionicons name="warning-outline" size={20} color={theme.danger} />
                 <View style={{ flex: 1 }}>
-                  <Text style={[styles.simOptionTitle, { color: theme.textPrimary }]}>
+                  <Text
+                    style={[
+                      styles.simOptionTitle,
+                      { color: theme.textPrimary },
+                    ]}
+                  >
                     Budget Warning
                   </Text>
-                  <Text style={[styles.simOptionDesc, { color: theme.textSecondary }]}>
+                  <Text
+                    style={[
+                      styles.simOptionDesc,
+                      { color: theme.textSecondary },
+                    ]}
+                  >
                     Over 90% budget spending limit
                   </Text>
                 </View>
@@ -595,16 +664,29 @@ export default function NotificationsScreen() {
               <TouchableOpacity
                 style={[
                   styles.simOptionBtn,
-                  { backgroundColor: isDark ? theme.surfaceSoft : "#F4EEF8", borderColor: theme.border },
+                  {
+                    backgroundColor: isDark ? theme.surfaceSoft : "#F4EEF8",
+                    borderColor: theme.border,
+                  },
                 ]}
                 onPress={() => handleSendTestPush("insight")}
               >
-                <Ionicons name="sparkles-outline" size={20} color="#7C3AED" />
+                <Ionicons name="sparkles-outline" size={20} color={theme.accent} />
                 <View style={{ flex: 1 }}>
-                  <Text style={[styles.simOptionTitle, { color: theme.textPrimary }]}>
+                  <Text
+                    style={[
+                      styles.simOptionTitle,
+                      { color: theme.textPrimary },
+                    ]}
+                  >
                     Weekly AI Smart Insight
                   </Text>
-                  <Text style={[styles.simOptionDesc, { color: theme.textSecondary }]}>
+                  <Text
+                    style={[
+                      styles.simOptionDesc,
+                      { color: theme.textSecondary },
+                    ]}
+                  >
                     Spending reduction analysis
                   </Text>
                 </View>
@@ -613,16 +695,29 @@ export default function NotificationsScreen() {
               <TouchableOpacity
                 style={[
                   styles.simOptionBtn,
-                  { backgroundColor: isDark ? theme.surfaceSoft : "#F4EEF8", borderColor: theme.border },
+                  {
+                    backgroundColor: isDark ? theme.surfaceSoft : "#F4EEF8",
+                    borderColor: theme.border,
+                  },
                 ]}
                 onPress={() => handleSendTestPush("bill")}
               >
                 <Ionicons name="calendar-outline" size={20} color="#2563EB" />
                 <View style={{ flex: 1 }}>
-                  <Text style={[styles.simOptionTitle, { color: theme.textPrimary }]}>
+                  <Text
+                    style={[
+                      styles.simOptionTitle,
+                      { color: theme.textPrimary },
+                    ]}
+                  >
                     Subscription Due Reminder
                   </Text>
-                  <Text style={[styles.simOptionDesc, { color: theme.textSecondary }]}>
+                  <Text
+                    style={[
+                      styles.simOptionDesc,
+                      { color: theme.textSecondary },
+                    ]}
+                  >
                     Upcoming bill renewal
                   </Text>
                 </View>
@@ -891,3 +986,4 @@ const styles = StyleSheet.create({
     fontSize: 11.5,
   },
 });
+

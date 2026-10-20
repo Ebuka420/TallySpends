@@ -9,7 +9,10 @@
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
     "ios": {
-      "supportsTablet": true
+      "supportsTablet": true,
+      "infoPlist": {
+        "NSCameraUsageDescription": "Allow TallySpends to use your camera for QR scanning and bank verification through Mono."
+      }
     },
     "android": {
       "adaptiveIcon": {
@@ -49,10 +52,12 @@
       [
         "expo-camera",
         {
-          "cameraPermission": "Allow TallySpends to access your camera to scan QR codes."
+          "cameraPermission": "Allow TallySpends to use your camera for QR scanning and bank verification through Mono."
         }
       ],
       "expo-font",
+      "expo-secure-store",
+      ["expo-local-authentication", { "faceIDPermission": "Allow TallySpends to use Face ID to unlock the app and confirm transfers." }],
       "expo-web-browser",
       "expo-sharing"
     ],

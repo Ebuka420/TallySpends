@@ -1,11 +1,17 @@
+import { useThemeTokens } from "../../src/ThemeExperience";
 import { HomeCarousel } from "../../components/HomeCarousel";
+import { usePreferences } from "../../src/settings";
+import DashboardBankCarousel from "../../components/DashboardBankCarousel";
+import { useDashboardAccounts } from "../../src/banking/useDashboardAccounts";
+import { OVERVIEW_ID, retainedSelection } from "../../src/banking/carousel";
 import TransactionReceiptModal from "../../components/TransactionReceiptModal";
 import { getCompletedTransaction, subscribeCompletedTransaction, clearCompletedTransaction } from "../../src/transactionCompletion";
 import { Ionicons } from "@expo/vector-icons";
 import { useFocusEffect, useRouter } from "expo-router";
-import React, { useCallback, useMemo, useState, useSyncExternalStore } from "react";
+import React, { useCallback, useEffect, useMemo, useState, useSyncExternalStore } from "react";
 import {
   Image,
+  RefreshControl,
   ScrollView,
   StyleSheet,
   Text,
@@ -103,11 +109,12 @@ const categoryMeta: Record<
   },
 };
 
-const formatCurrency = (amount: number) =>
-  `₦${amount.toLocaleString(undefined, {
+const formatCurrency = (amount: number, currency = "NGN") => currency === "NGN"
+  ? `₦${amount.toLocaleString(undefined, {
     minimumFractionDigits: 2,
     maximumFractionDigits: 2,
-  })}`;
+  })}`
+  : new Intl.NumberFormat(undefined, { style: "currency", currency }).format(amount);
 
 const getTimeLabel = (value?: string) => {
   if (!value) return "Recently added";
@@ -137,6 +144,8 @@ const getTimeLabel = (value?: string) => {
 
 export default function App() {
   const router = useRouter();
+  const settings = usePreferences();
+  const preferences = settings.values;
 
   const store = useAppStore();
   const people = usePlanningPeople(store);
@@ -148,24 +157,26 @@ export default function App() {
     themeMode,
     username,
     profileFullName,
-    profileNickname,
     profileImage,
     budgetWallet,
     budgetError,
     reloadBudgetWallet,
   } = store;
 
-  const theme = getThemePalette(themePreference, themeMode);
+  const theme = useThemeTokens();
+  const actionIconColor = theme.onAccent;
 
-  const isNicknameSet =
-    profileNickname &&
-    profileNickname.trim() !== "" &&
-    profileNickname.trim().toLowerCase() !== "enter nickname";
-  const displayName = isNicknameSet
-    ? profileNickname.trim()
-    : profileFullName?.trim() || username || "User";
+  const firstName = profileFullName?.trim().split(/\s+/)[0] || "";
 
   const [balanceVisible, setBalanceVisible] = useState(true);
+  const linked = useDashboardAccounts(username || store.profileEmail || "", {
+    token: store.token, refreshToken: store.refreshToken,
+    saveTokens: async (token, refresh) => { await store.login(token, refresh); },
+  });
+  const [selectedAccountId, setSelectedAccountId] = useState(OVERVIEW_ID);
+  const effectiveSelection = retainedSelection(selectedAccountId, linked.accounts);
+  useEffect(() => { if (effectiveSelection !== selectedAccountId) setSelectedAccountId(effectiveSelection); }, [effectiveSelection, selectedAccountId]);
+  const selectedAccount = linked.accounts.find(account => account.id === effectiveSelection);
   const receiptId = useSyncExternalStore(subscribeCompletedTransaction, getCompletedTransaction, getCompletedTransaction);
   const receipt = transactions.find(tx => tx.id === receiptId) || null;
   const [receiptReady, setReceiptReady] = useState(false);
@@ -178,11 +189,9 @@ export default function App() {
   }, [receiptId]));
 
   const transactionsRaw = useMemo(
-    () => (transactions || []) as any[],
-    [transactions],
+    () => (selectedAccount ? selectedAccount.currency ? selectedAccount.transactions || [] : [] : transactions || []) as any[],
+    [transactions, selectedAccount],
   );
-
-  const currentBalance = availableBalance;
 
   const recentTransactions = useMemo(() => {
     return [...transactionsRaw]
@@ -208,6 +217,7 @@ export default function App() {
         style={styles.container}
         contentContainerStyle={styles.contentContainer}
         showsVerticalScrollIndicator={false}
+        refreshControl={<RefreshControl refreshing={linked.loading} onRefresh={linked.retry} tintColor={theme.accent} />}
       >
         {/* Header Container */}
         <View style={styles.headerContainer}>
@@ -246,7 +256,7 @@ export default function App() {
                 numberOfLines={1}
                 ellipsizeMode="tail"
               >
-                Welcome, {displayName}
+                {firstName ? `Welcome, ${firstName}` : "Welcome"}
               </Text>
 
               <Text
@@ -319,7 +329,7 @@ export default function App() {
                 >
                   <Text
                     style={{
-                      color: "#FFFFFF",
+                      color: theme.onAccent,
                       fontSize: 9,
                       fontWeight: "800",
                     }}
@@ -353,61 +363,13 @@ export default function App() {
         </View>
 
         {/* Balance Section */}
-        <View style={styles.balance}>
-          <Text
-            style={[
-              styles.balanceLabel,
-              {
-                color: theme.textSecondary,
-              },
-            ]}
-          >
-            AVAILABLE BALANCE
-          </Text>
-
-          <TouchableOpacity
-            accessibilityRole="button"
-            accessibilityLabel={
-              balanceVisible ? "Hide balance" : "Show balance"
-            }
-            onPress={() => setBalanceVisible((visible) => !visible)}
-            activeOpacity={0.68}
-            style={styles.balanceAmountButton}
-          >
-            <Text
-              style={[
-                styles.balanceAmount,
-                {
-                  color: theme.textPrimary,
-                },
-                !balanceVisible && styles.hiddenBalanceAmount,
-              ]}
-            >
-              {balanceVisible
-                ? `₦${currentBalance.toLocaleString(undefined, {
-                    minimumFractionDigits: 2,
-                    maximumFractionDigits: 2,
-                  })}`
-                : "********"}
-            </Text>
-          </TouchableOpacity>
-
-          <View style={styles.trend}>
-            <Ionicons name="arrow-up" size={12} color={theme.accentSecondary} />
-
-            <Text
-              style={[
-                styles.trendText,
-                {
-                  color: theme.textSecondary,
-                },
-              ]}
-            >
-              8.5% from last month
-            </Text>
-          </View>
-        </View>
-
+        <DashboardBankCarousel
+          accounts={linked.accounts} selectedId={effectiveSelection} onSelect={setSelectedAccountId}
+          balance={budgetWallet ? availableBalance : null} visible={settings.loaded && balanceVisible && !preferences.privateMode}
+          onToggleBalance={() => setBalanceVisible(visible => !visible)}
+          onLink={() => router.push("/linkbank")} theme={theme} dark={themeMode === "dark"}
+          loading={linked.loading} error={linked.error} onRetry={linked.retry}
+        />
         {/* Quick Actions */}
         <View style={styles.quickActions}>
           <TouchableOpacity
@@ -424,7 +386,7 @@ export default function App() {
                 },
               ]}
             >
-              <Ionicons name="download-outline" size={22} color="#FFFFFF" />
+              <Ionicons name="download-outline" size={22} color={actionIconColor} />
             </View>
 
             <Text
@@ -453,7 +415,7 @@ export default function App() {
                 },
               ]}
             >
-              <Ionicons name="arrow-up-outline" size={20} color="#FFFFFF" />
+              <Ionicons name="arrow-up-outline" size={20} color={actionIconColor} />
             </View>
 
             <Text
@@ -485,7 +447,7 @@ export default function App() {
               <Ionicons
                 name="swap-horizontal-outline"
                 size={21}
-                color="#FFFFFF"
+                color={actionIconColor}
               />
             </View>
 
@@ -502,9 +464,9 @@ export default function App() {
           </TouchableOpacity>
         </View>
 
-        <HomeCarousel title="Smart insights" link="See all" onViewAll={() => router.push("/insightssum")}
+        {preferences.showInsights && <HomeCarousel title="Smart insights" link="See all" onViewAll={() => router.push("/insightssum")}
           theme={theme} themeMode={themeMode} themePreference={themePreference}
-          cards={insights.map(insight => ({ ...insight, id: insight.title, onPress: () => router.push("/insightssum") }))} />
+          cards={insights.map(insight => ({ ...insight, id: insight.title, onPress: () => router.push("/insightssum") }))} />}
 
         <PlanningCarousels
           wallet={budgetWallet}
@@ -514,6 +476,9 @@ export default function App() {
           people={people}
           error={budgetError}
           retry={reloadBudgetWallet}
+          showSavings={preferences.showSavings}
+          showBudgets={preferences.showBudgets}
+          autoAdjustLayout={preferences.autoAdjustLayout}
         />
 
         {/* Recent Transactions */}
@@ -537,6 +502,7 @@ export default function App() {
           </Text>
 
           <TouchableOpacity
+            disabled={!!selectedAccount}
             onPress={() => router.push("/transaction-history")}
             activeOpacity={0.7}
           >
@@ -548,7 +514,7 @@ export default function App() {
                 },
               ]}
             >
-              View all
+              {selectedAccount ? selectedAccount.bankName : "View all"}
             </Text>
           </TouchableOpacity>
         </View>
@@ -574,11 +540,12 @@ export default function App() {
                   <Transaction
                     icon={isIncome ? "arrow-down-outline" : meta.icon}
                     tint={isIncome ? theme.accentSoft : meta.soft}
-                    color={isIncome ? theme.success : meta.color}
+                    color={isIncome ? theme.success : theme.accent}
                     name={normalizeTransferTitle(tx.title || "Transaction")}
                     category={tx.category || "Others"}
                     amount={`${isIncome ? "+" : "-"}${formatCurrency(
                       Number(tx.amount || 0),
+                      selectedAccount?.currency || "NGN",
                     )}`}
                     time={getTimeLabel(tx.date)}
                     positive={isIncome}
@@ -616,7 +583,8 @@ export default function App() {
                   },
                 ]}
               >
-                No transactions yet.
+                {selectedAccount && !selectedAccount.currency ? "Transactions unavailable for this currency."
+                  : selectedAccount && !selectedAccount.transactions ? "Transactions unavailable for this account." : "No transactions yet."}
               </Text>
             </View>
           )}
@@ -802,63 +770,25 @@ const styles = StyleSheet.create({
     elevation: 3,
   },
 
-  balance: {
-    alignItems: "center",
-    paddingBottom: 27,
-    paddingTop: 48,
-  },
-
-  balanceLabel: {
-    fontSize: 10,
-    fontWeight: "700",
-    letterSpacing: 1.2,
-  },
-
-  balanceAmountButton: {
-    alignItems: "center",
-    justifyContent: "center",
-    marginTop: 7,
-    minWidth: 210,
-  },
-
-  balanceAmount: {
-    fontSize: 45,
-    fontWeight: "700",
-    letterSpacing: -2.1,
-  },
-
-  hiddenBalanceAmount: {
-    letterSpacing: 3,
-    transform: [{ translateY: -1 }],
-  },
-
-  trend: {
-    alignItems: "center",
-    flexDirection: "row",
-    gap: 5,
-    marginTop: 9,
-  },
-
-  trendText: {
-    fontSize: 13,
-  },
-
   quickActions: {
     flexDirection: "row",
-    justifyContent: "center",
+    justifyContent: "space-between",
+    paddingHorizontal: 18,
+    marginTop: 15,
     marginBottom: 26,
   },
 
   action: {
     alignItems: "center",
-    marginHorizontal: 16,
+    minWidth: 64,
+    minHeight: 64,
   },
 
   actionIcon: {
     alignItems: "center",
-    borderRadius: 31,
+    borderRadius: 24,
     elevation: 4,
-    height: 58,
+    height: 46,
     justifyContent: "center",
     shadowOffset: {
       width: 0,
@@ -866,7 +796,7 @@ const styles = StyleSheet.create({
     },
     shadowOpacity: 0.2,
     shadowRadius: 8,
-    width: 58,
+    width: 46,
   },
 
   actionText: {
@@ -1092,3 +1022,6 @@ const styles = StyleSheet.create({
     textAlign: "center",
   },
 });
+
+
+

@@ -12,53 +12,30 @@ import {
     View,
 } from "react-native";
 import { useAppStore } from "../src/store";
+import { useSecurity } from "../components/SecurityGate";
 
 
 const options = [
   {
-    id: "pin",
-    title: "Passcode Lock",
-    subtitle: "Require a passcode to open the app",
-  },
-  {
     id: "biometric",
     title: "Face / Fingerprint",
     subtitle: "Use biometrics when available",
-  },
-  {
-    id: "auto",
-    title: "Auto Sign-In",
-    subtitle: "Stay signed in on this device",
-  },
-  {
-    id: "reminders",
-    title: "Lock reminders",
-    subtitle: "Get a gentle prompt to re-secure the app",
-  },
-  {
-    id: "recovery",
-    title: "Recovery hints",
-    subtitle: "Show support hints for sign-in recovery",
   },
 ];
 
 export default function SettingsLoginScreen() {
   const router = useRouter();
   const { theme } = useAppStore();
+  const security = useSecurity();
   const styles = React.useMemo(() => getStyles(theme), [theme]);
-  const [values, setValues] = useState({
-    pin: true,
-    biometric: true,
-    auto: false,
-    reminders: true,
-    recovery: false,
-  });
+  const [saving, setSaving] = useState(false);
 
-  const toggle = (key: string) => {
-    setValues((prev) => ({
-      ...prev,
-      [key]: !prev[key as keyof typeof prev],
-    }));
+  const toggle = async () => {
+    if (saving) return;
+    setSaving(true);
+    try { await security.setBiometrics(!security.biometrics); }
+    catch (error) { Alert.alert("Biometric access", error instanceof Error ? error.message : "Couldn't update biometric access."); }
+    finally { setSaving(false); }
   };
 
   return (
@@ -87,6 +64,18 @@ export default function SettingsLoginScreen() {
           </View>
         </View>
 
+        <View style={styles.card}><View style={styles.cardTextWrap}>
+          <Text style={styles.cardTitle}>Six-digit app PIN</Text>
+          <Text style={styles.cardSubtitle}>Required when opening the app. Saved securely on this device.</Text>
+        </View><Ionicons name="shield-checkmark-outline" size={24} color={theme.accent} /></View>
+        <Pressable accessibilityRole="button" style={styles.card} onPress={() => router.push("/settings-password" as any)}>
+          <View style={styles.cardTextWrap}><Text style={styles.cardTitle}>Reset Password</Text><Text style={styles.cardSubtitle}>Change your password using your current password</Text></View>
+          <Ionicons name="chevron-forward" size={20} color={theme.textSecondary} />
+        </Pressable>
+        <Pressable accessibilityRole="button" style={styles.card} onPress={() => security.lock()}>
+          <View style={styles.cardTextWrap}><Text style={styles.cardTitle}>Reset app PIN</Text><Text style={styles.cardSubtitle}>On the lock screen, choose Forgot PIN and verify your account password</Text></View>
+          <Ionicons name="chevron-forward" size={20} color={theme.textSecondary} />
+        </Pressable>
         {options.map((item) => (
           <Pressable
             key={item.id}
@@ -97,11 +86,13 @@ export default function SettingsLoginScreen() {
           >
             <View style={styles.cardTextWrap}>
               <Text style={styles.cardTitle}>{item.title}</Text>
-              <Text style={styles.cardSubtitle}>{item.subtitle}</Text>
+              <Text style={styles.cardSubtitle}>{security.biometricIssue || "Use Face ID or fingerprint to open the app and confirm transfers. Your six-digit PIN remains available."}</Text>
             </View>
             <Switch
-              value={values[item.id as keyof typeof values]}
-              onValueChange={() => toggle(item.id)}
+              value={security.biometrics}
+              accessibilityLabel="Use Face ID or fingerprint for app access and transfers"
+              disabled={saving || (!!security.biometricIssue && !security.biometrics)}
+              onValueChange={() => void toggle()}
               thumbColor={theme.surface}
               trackColor={{ false: theme.border, true: theme.accent }}
             />
@@ -113,9 +104,9 @@ export default function SettingsLoginScreen() {
             styles.primaryAction,
             pressed && styles.primaryActionPressed,
           ]}
-          onPress={() => Alert.alert("Saved", "Login preferences updated.")}
+          onPress={() => security.lock()}
         >
-          <Text style={styles.primaryActionText}>Save Changes</Text>
+          <Text style={styles.primaryActionText}>Lock app now</Text>
         </Pressable>
       </ScrollView>
     </SafeAreaView>
@@ -143,7 +134,7 @@ const getStyles = (theme: any) =>
       borderRadius: 18,
       padding: 16,
       marginBottom: 16,
-      shadowColor: "#000",
+      shadowColor: theme.shadow,
       shadowOffset: { width: 0, height: 2 },
       shadowOpacity: 0.05,
       shadowRadius: 8,
@@ -185,5 +176,5 @@ const getStyles = (theme: any) =>
       alignItems: "center",
     },
     primaryActionPressed: { opacity: 0.9, transform: [{ scale: 0.995 }] },
-    primaryActionText: { color: theme.surface, fontWeight: "700" },
+    primaryActionText: { color: theme.onAccent, fontWeight: "700" },
   });

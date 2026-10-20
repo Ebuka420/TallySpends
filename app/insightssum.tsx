@@ -1,3 +1,4 @@
+import { useThemeTokens } from "../src/ThemeExperience";
 import { SpendingQuestions } from "../components/SpendingQuestions";
 import { spendingSummary } from "../src/insights/summary";
 import { Ionicons } from "@expo/vector-icons";
@@ -16,7 +17,6 @@ import {
 } from "react-native";
 import Svg, { Circle, Path } from "react-native-svg";
 import { useAppStore } from "../src/store";
-import { getThemePalette } from "../src/theme";
 
 const { width: SCREEN_WIDTH } = Dimensions.get("window");
 
@@ -29,8 +29,9 @@ if (
 
 export default function InsightsSummaryScreen() {
   const router = useRouter();
-  const { themePreference, themeMode, transactions, availableBalance, budgetError, loading: isLoading, reloadBudgetWallet } = useAppStore();
-  const theme = getThemePalette(themePreference, themeMode);
+  const { themeMode, transactions, availableBalance, budgetError, loading: isLoading, reloadBudgetWallet } = useAppStore();
+  const theme = useThemeTokens();
+  const styles = getStyles(theme);
   const isDark = themeMode === "dark";
 
   const [activeTab, setActiveTab] = useState<"week" | "month" | "custom">("month");
@@ -46,7 +47,7 @@ export default function InsightsSummaryScreen() {
   const [selectedBucket, setSelectedBucket] = useState<number | null>(null);
 
   const data = useMemo(() => spendingSummary(transactions, activeTab, new Date(), startDate, endDate), [transactions, activeTab, startDate, endDate]);
-  const heatMapBlocks = data.buckets.map(bucket => bucket.amount === 0 ? (isDark ? theme.surfaceSoft : "#F0EEF2") : bucket.amount / data.max > .5 ? theme.accent : (isDark ? "#5C4A60" : "#C8B6C8"));
+  const heatMapBlocks = data.buckets.map(bucket => bucket.amount === 0 ? (theme.surfaceSoft) : bucket.amount / data.max > .5 ? theme.accent : (theme.accentSoft));
   useEffect(() => { setSelectedBucket(null); }, [data]);
 
   // Calendar utilities
@@ -130,7 +131,7 @@ export default function InsightsSummaryScreen() {
         <View
           style={[
             styles.segmentedControlFrame,
-            { backgroundColor: isDark ? theme.surfaceSoft : "#F0EEF2", borderColor: theme.border },
+            { backgroundColor: theme.surfaceSoft, borderColor: theme.border },
           ]}
         >
           <TouchableOpacity
@@ -143,7 +144,7 @@ export default function InsightsSummaryScreen() {
             <Text
               style={[
                 styles.segmentTabText,
-                { color: activeTab === "week" ? "#FFFFFF" : theme.textSecondary },
+                { color: activeTab === "week" ? theme.onAccent : theme.textSecondary },
                 activeTab === "week" && styles.segmentTabTextActive,
               ]}
             >
@@ -160,7 +161,7 @@ export default function InsightsSummaryScreen() {
             <Text
               style={[
                 styles.segmentTabText,
-                { color: activeTab === "month" ? "#FFFFFF" : theme.textSecondary },
+                { color: activeTab === "month" ? theme.onAccent : theme.textSecondary },
                 activeTab === "month" && styles.segmentTabTextActive,
               ]}
             >
@@ -178,7 +179,7 @@ export default function InsightsSummaryScreen() {
             <Text
               style={[
                 styles.segmentTabText,
-                { color: activeTab === "custom" ? "#FFFFFF" : theme.textSecondary },
+                { color: activeTab === "custom" ? theme.onAccent : theme.textSecondary },
                 activeTab === "custom" && styles.segmentTabTextActive,
                 { marginRight: 4 },
               ]}
@@ -188,7 +189,7 @@ export default function InsightsSummaryScreen() {
             <Ionicons
               name="calendar-outline"
               size={13}
-              color={activeTab === "custom" ? "#FFFFFF" : theme.textSecondary}
+              color={activeTab === "custom" ? theme.onAccent : theme.textSecondary}
             />
           </TouchableOpacity>
         </View>
@@ -237,7 +238,7 @@ export default function InsightsSummaryScreen() {
               <View
                 style={[
                   styles.heroInlineBadge,
-                  { backgroundColor: isDark ? theme.surfaceSoft : "#FAFAFA", borderColor: theme.border },
+                  { backgroundColor: isDark ? theme.surfaceSoft : theme.surfaceSoft, borderColor: theme.border },
                 ]}
               >
                 <View
@@ -246,7 +247,7 @@ export default function InsightsSummaryScreen() {
                     { backgroundColor: isDark ? "#133E23" : "#E8F8F5" },
                   ]}
                 >
-                  <Ionicons name={data.change !== null && data.change < 0 ? "trending-down" : "trending-up"} size={12} color={data.change !== null && data.change > 0 ? theme.accent : "#2ECC71"} />
+                  <Ionicons name={data.change !== null && data.change < 0 ? "trending-down" : "trending-up"} size={12} color={data.change !== null && data.change > 0 ? theme.accent : theme.success} />
                 </View>
                 <Text style={[styles.heroInlineBadgeText, { color: theme.textPrimary }]}>
                   {data.changeLabel}
@@ -255,14 +256,14 @@ export default function InsightsSummaryScreen() {
               <View
                 style={[
                   styles.heroInlineBadge,
-                  { backgroundColor: isDark ? theme.surfaceSoft : "#FAFAFA", borderColor: theme.border },
+                  { backgroundColor: isDark ? theme.surfaceSoft : theme.surfaceSoft, borderColor: theme.border },
                 ]}
               >
                 <View
                   style={[
                     styles.badgeIconCircle,
                     {
-                      backgroundColor: "#2ECC71",
+                      backgroundColor: theme.success,
                       borderRadius: 4,
                       width: 8,
                       height: 8,
@@ -276,7 +277,7 @@ export default function InsightsSummaryScreen() {
               <View
                 style={[
                   styles.heroInlineBadge,
-                  { backgroundColor: isDark ? theme.surfaceSoft : "#FAFAFA", borderColor: theme.border },
+                  { backgroundColor: isDark ? theme.surfaceSoft : theme.surfaceSoft, borderColor: theme.border },
                 ]}
               >
                 <View
@@ -444,7 +445,7 @@ export default function InsightsSummaryScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+const getStyles = (theme: import("../src/theme").ThemePalette) => StyleSheet.create({
   container: {
     flex: 1,
   },
@@ -485,7 +486,7 @@ const styles = StyleSheet.create({
     borderRadius: 8,
   },
   segmentTabActive: {
-    shadowColor: "#000",
+    shadowColor: theme.shadow,
     shadowOffset: { width: 0, height: 1 },
     shadowOpacity: 0.1,
     shadowRadius: 2,
@@ -676,3 +677,6 @@ const styles = StyleSheet.create({
   },
 
 });
+
+
+

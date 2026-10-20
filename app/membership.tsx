@@ -131,7 +131,7 @@ export default function MembershipScreen() {
           <View style={[styles.tierCard, styles.freemiumCard]}>
             <View style={styles.tierHeader}>
               <View style={styles.tierIconContainer}>
-                <Ionicons name="leaf-outline" size={18} color="#5B4E91" />
+                <Ionicons name="leaf-outline" size={18} color={theme.accent} />
               </View>
               <View style={styles.tierTitleWrapper}>
                 <Text style={styles.tierTitle}>Freemium</Text>
@@ -150,7 +150,7 @@ export default function MembershipScreen() {
                   <Ionicons
                     name={feat.available ? "checkmark-circle" : "close-circle"}
                     size={16}
-                    color={feat.available ? "#27AE60" : "#C7C7CC"}
+                    color={feat.available ? theme.success : "#C7C7CC"}
                   />
                   <Text
                     style={[
@@ -189,7 +189,7 @@ export default function MembershipScreen() {
             <View style={styles.featureList}>
               {MVP_FEATURES.map((feat) => (
                 <View key={feat.id} style={styles.featureRow}>
-                  <Ionicons name="checkmark-circle" size={16} color="#27AE60" />
+                  <Ionicons name="checkmark-circle" size={16} color={theme.success} />
                   <Text style={styles.featureText}>{feat.text}</Text>
                 </View>
               ))}
@@ -231,7 +231,7 @@ export default function MembershipScreen() {
         {/* Billing Management Box Row */}
         <View style={styles.billingCard}>
           <View style={styles.billingIconFrame}>
-            <Ionicons name="document-text-outline" size={20} color="#5B4E91" />
+            <Ionicons name="document-text-outline" size={20} color={theme.accent} />
           </View>
           <View style={styles.billingTextFrame}>
             <Text style={styles.billingTitle}>Billing</Text>
@@ -239,7 +239,7 @@ export default function MembershipScreen() {
           </View>
           <TouchableOpacity style={styles.viewHistoryButton}>
             <Text style={styles.viewHistoryText}>View History</Text>
-            <Ionicons name="chevron-forward" size={14} color="#8E8E93" />
+            <Ionicons name="chevron-forward" size={14} color={theme.textSecondary} />
           </TouchableOpacity>
         </View>
       </ScrollView>
@@ -259,7 +259,7 @@ export default function MembershipScreen() {
           <Text style={styles.primaryUpgradeButtonText}>Upgrade to MVP</Text>
         </TouchableOpacity>
         <View style={styles.securityMetaRow}>
-          <Ionicons name="lock-closed-outline" size={12} color="#8E8E93" />
+          <Ionicons name="lock-closed-outline" size={12} color={theme.textSecondary} />
           <Text style={styles.securityMetaText}>Cancel anytime</Text>
           <View style={styles.metaDot} />
           <Text style={styles.securityMetaText}>No hidden fees</Text>
@@ -291,7 +291,7 @@ const getStyles = (theme: any) => StyleSheet.create({
   /* Premium Dark Status Card Styles */
   currentPlanCard: {
     position: "relative",
-    backgroundColor: theme.accent,
+    backgroundColor: theme.hero,
     borderRadius: 20,
     padding: 20,
     marginTop: 8,
@@ -306,7 +306,7 @@ const getStyles = (theme: any) => StyleSheet.create({
   },
   planLabel: {
     fontSize: 11,
-    color: "#A293B0",
+    color: theme.heroMuted,
     textTransform: "uppercase",
     letterSpacing: 0.5,
   },
@@ -330,16 +330,16 @@ const getStyles = (theme: any) => StyleSheet.create({
     width: 6,
     height: 6,
     borderRadius: 3,
-    backgroundColor: "#27AE60",
+    backgroundColor: theme.success,
     marginRight: 6,
   },
   activeBadgeText: {
-    color: "#27AE60",
+    color: theme.success,
     fontSize: 11,
     fontWeight: "700",
   },
   planSubtitleText: {
-    color: "#CEBFE2",
+    color: theme.heroMuted,
     fontSize: 13,
     lineHeight: 18,
     maxWidth: "80%",
@@ -457,7 +457,7 @@ const getStyles = (theme: any) => StyleSheet.create({
     flex: 1,
   },
   disabledFeatureText: {
-    color: "#AEAEB2",
+    color: theme.textSecondary,
     textDecorationLine: "line-through",
   },
   disabledButton: {
@@ -467,7 +467,7 @@ const getStyles = (theme: any) => StyleSheet.create({
     alignItems: "center",
   },
   disabledButtonText: {
-    color: "#A2A2A7",
+    color: theme.textSecondary,
     fontSize: 12,
     fontWeight: "700",
   },
@@ -612,3 +612,4 @@ const getStyles = (theme: any) => StyleSheet.create({
     backgroundColor: theme.border,
   },
 });
+

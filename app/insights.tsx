@@ -1,3 +1,4 @@
+import { useThemeTokens } from "../src/ThemeExperience";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import React, { useMemo, useState } from "react";
@@ -31,7 +32,7 @@ export default function InsightsScreen() {
   const router = useRouter();
   const { themePreference, themeMode } = useAppStore();
 
-  const theme = getThemePalette(themePreference, themeMode);
+  const theme = useThemeTokens();
   const [activeTab, setActiveTab] = useState<"week" | "month" | "custom">(
     "month",
   );
@@ -78,7 +79,7 @@ export default function InsightsScreen() {
   const heatMapBlocks = Array(21)
     .fill(0)
     .map((_, i) => {
-      if ([8, 9, 10, 15, 16].includes(i)) return "#4B2C40";
+      if ([8, 9, 10, 15, 16].includes(i)) return theme.accent;
       if ([4, 5, 11, 12, 17].includes(i)) return "#A6ACAF";
       return "#F0F0F2";
     });
@@ -147,7 +148,7 @@ export default function InsightsScreen() {
           onPress={() => router.back()}
           activeOpacity={0.7}
         >
-          <Ionicons name="chevron-back" size={24} color="#4B2C40" />
+          <Ionicons name="chevron-back" size={24} color={theme.accent} />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>Insights</Text>
         <View style={styles.headerRightPlaceholder} />
@@ -247,11 +248,11 @@ export default function InsightsScreen() {
                   <Path
                     d="M 5,60 Q 30,55 45,35 T 90,25 T 112,12"
                     fill="none"
-                    stroke="#4B2C40"
+                    stroke={theme.accent}
                     strokeWidth={2.5}
                     strokeLinecap="round"
                   />
-                  <Circle cx="112" cy="12" r="4" fill="#4B2C40" />
+                  <Circle cx="112" cy="12" r="4" fill={theme.accent} />
                 </Svg>
               </View>
             </View>
@@ -265,7 +266,7 @@ export default function InsightsScreen() {
                     { backgroundColor: "#E8F8F5" },
                   ]}
                 >
-                  <Ionicons name="trending-up" size={12} color="#2ECC71" />
+                  <Ionicons name="trending-up" size={12} color={theme.success} />
                 </View>
                 <Text style={styles.heroInlineBadgeText}>+12% Improvement</Text>
               </View>
@@ -274,7 +275,7 @@ export default function InsightsScreen() {
                   style={[
                     styles.badgeIconCircle,
                     {
-                      backgroundColor: "#2ECC71",
+                      backgroundColor: theme.success,
                       borderRadius: 4,
                       width: 8,
                       height: 8,
@@ -308,7 +309,7 @@ export default function InsightsScreen() {
               <Ionicons
                 name="star"
                 size={14}
-                color="#4B2C40"
+                color={theme.accent}
                 style={{ marginRight: 6 }}
               />
               <Text style={styles.heroCardBottomBannerText} numberOfLines={1}>
@@ -332,13 +333,13 @@ export default function InsightsScreen() {
           >
             <View style={styles.calendarNavbar}>
               <TouchableOpacity onPress={() => changeMonth("prev")}>
-                <Ionicons name="chevron-back" size={20} color="#4B2C40" />
+                <Ionicons name="chevron-back" size={20} color={theme.accent} />
               </TouchableOpacity>
               <Text style={styles.calendarMonthTitle}>
                 {monthYearHeaderLabel}
               </Text>
               <TouchableOpacity onPress={() => changeMonth("next")}>
-                <Ionicons name="chevron-forward" size={20} color="#4B2C40" />
+                <Ionicons name="chevron-forward" size={20} color={theme.accent} />
               </TouchableOpacity>
             </View>
 
@@ -486,7 +487,7 @@ export default function InsightsScreen() {
                     <Ionicons
                       name={tip.icon as any}
                       size={18}
-                      color="#4B2C40"
+                      color={theme.accent}
                     />
                     <Text
                       style={[
@@ -500,7 +501,7 @@ export default function InsightsScreen() {
                   <Ionicons
                     name={isExpanded ? "chevron-up" : "chevron-down"}
                     size={16}
-                    color="#4B2C40"
+                    color={theme.accent}
                   />
                 </View>
                 <Text
@@ -973,3 +974,4 @@ const styles = StyleSheet.create({
     backgroundColor: "#A0A0A0",
   },
 });
+

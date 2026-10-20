@@ -1,9 +1,11 @@
 import { Ionicons } from "@expo/vector-icons";
 import { Stack, useRouter } from "expo-router";
 import React from "react";
-import { useAppStore } from "../src/store";
+import { younginsApi } from "../src/youngins/api";
+import { useYounginsResource } from "../src/youngins/hooks";
+import { ageOn } from "../src/youngins/model";
 import {
-  Dimensions,
+  ActivityIndicator,
   Image,
   SafeAreaView,
   ScrollView,
@@ -13,33 +15,31 @@ import {
   View,
 } from "react-native";
 
-const { width } = Dimensions.get("window");
-
 // 1. Import your newly generated premium illustration
 const YounginsHeroImage = require("../assets/images/youngins_hero.png");
 
-// Mock Data matching the design
+// Profile-only benefits: no banking features are provisioned by this flow.
 const BENEFITS = [
   {
     id: "secure",
-    title: "Safe & Secure",
-    subtitle: "You're in control of their account.",
+    title: "Guardian Managed",
+    subtitle: "Manage their profile from your account.",
     icon: "shield-checkmark-outline",
     iconColor: "#5B4E91",
     bgColor: "#EEF0FC",
   },
   {
     id: "savings",
-    title: "Smart Savings",
-    subtitle: "Set goals and help them save.",
+    title: "Their Profile",
+    subtitle: "Keep their personal details up to date.",
     icon: "bar-chart-outline",
     iconColor: "#27AE60",
     bgColor: "#EEF7F1",
   },
   {
     id: "limits",
-    title: "Spending Limits",
-    subtitle: "Set limits and track their spending.",
+    title: "No Child Login",
+    subtitle: "No separate login credentials needed.",
     icon: "card-outline",
     iconColor: "#D35400",
     bgColor: "#FAF2EC",
@@ -54,28 +54,10 @@ const BENEFITS = [
   },
 ];
 
-const YOUNG_ACCOUNTS = [
-  {
-    id: "timmy",
-    name: "Timmy",
-    age: 12,
-    balance: "₦45,600.00",
-    avatar:
-      "https://images.unsplash.com/photo-1544005313-94ddf0286df2?w=120&auto=format&fit=crop&q=80",
-  },
-  {
-    id: "ada",
-    name: "Ada",
-    age: 10,
-    balance: "₦28,150.00",
-    avatar:
-      "https://images.unsplash.com/photo-1517841905240-472988babdf9?w=120&auto=format&fit=crop&q=80",
-  },
-];
-
 export default function YounginsScreen() {
   const router = useRouter();
-  const { theme } = useAppStore();
+  const client = useYounginsResource(younginsApi.list);
+  const { theme } = client;
   const styles = React.useMemo(() => getStyles(theme), [theme]);
   const benefitColors: Record<string, { icon: string; bg: string }> = {
     secure: { icon: theme.accentHighlight, bg: theme.accentSoft },
@@ -119,11 +101,11 @@ export default function YounginsScreen() {
             <Text style={styles.heroSubtitle}>
               Help them learn, save and grow with smart money habits.
             </Text>
-            <TouchableOpacity style={styles.heroButton} activeOpacity={0.8}>
+            <TouchableOpacity style={styles.heroButton} activeOpacity={0.8} onPress={() => router.push("/youngins-create")} accessibilityRole="button">
               <Ionicons
                 name="add"
                 size={18}
-                color={theme.surface}
+                color={theme.onAccent}
                 style={styles.heroButtonIcon}
               />
               <Text style={styles.heroButtonText}>Open Youngins Account</Text>
@@ -164,30 +146,26 @@ export default function YounginsScreen() {
         <View style={styles.sectionWrapper}>
           <View style={styles.sectionHeaderRow}>
             <Text style={styles.sectionTitle}>Your Youngins</Text>
-            <TouchableOpacity>
-              <Text style={styles.viewAllText}>View all</Text>
+            <TouchableOpacity onPress={client.retry} accessibilityRole="button" accessibilityLabel="Refresh Youngins profiles" disabled={client.loading}>
+              <Text style={styles.viewAllText}>Refresh</Text>
             </TouchableOpacity>
           </View>
 
           <View style={styles.cardContainer}>
-            {YOUNG_ACCOUNTS.map((account, index) => (
+            {client.loading && <ActivityIndicator style={{ padding: 20 }} color={theme.accent} />}
+            {client.error && <View style={{ paddingVertical: 16 }}><Text accessibilityLiveRegion="polite" style={{ color: theme.danger, lineHeight: 20 }}>{client.error}</Text></View>}
+            {!client.loading && !client.error && !client.data?.length && <Text style={[styles.accountAge, { paddingVertical: 20 }]}>No Youngins profiles yet. Create one to get started.</Text>}
+            {(client.data || []).map((account, index) => (
               <View key={account.id}>
-                <TouchableOpacity style={styles.accountRow} activeOpacity={0.7}>
-                  <Image
-                    source={{ uri: account.avatar }}
-                    style={styles.avatarImage}
-                  />
+                <TouchableOpacity style={styles.accountRow} activeOpacity={0.7} accessibilityRole="button" onPress={() => router.push({ pathname: "/youngins-overview", params: { id: account.id } })}>
+                  <View style={[styles.avatarImage, { alignItems: "center", justifyContent: "center" }]}><Ionicons name="person-outline" size={22} color={theme.textSecondary} /></View>
                   <View style={styles.accountDetails}>
-                    <Text style={styles.accountName}>{account.name}</Text>
-                    <Text style={styles.accountAge}>Age {account.age}</Text>
-                  </View>
-                  <View style={styles.balanceDetails}>
-                    <Text style={styles.balanceLabel}>Account Balance</Text>
-                    <Text style={styles.balanceValue}>{account.balance}</Text>
+                    <Text style={styles.accountName}>{account.firstName} {account.lastName}</Text>
+                    <Text style={styles.accountAge}>Age {ageOn(account.dateOfBirth)}</Text>
                   </View>
                   <Ionicons name="chevron-forward" size={18} color={theme.textSecondary} style={styles.rowChevron} />
                 </TouchableOpacity>
-                {index < YOUNG_ACCOUNTS.length - 1 && (
+                {index < (client.data?.length || 0) - 1 && (
                   <View style={styles.divider} />
                 )}
               </View>
@@ -199,8 +177,8 @@ export default function YounginsScreen() {
         <View style={styles.securityBanner}>
           <Ionicons name="shield-checkmark" size={20} color={theme.success} style={styles.securityIcon} />
           <Text style={styles.securityText}>
-            Youngins accounts follow strict security and privacy standards to
-            keep your child&apos;s money safe.
+            Youngins creates a child profile linked to your guardian account.
+            No wallet or bank account is opened by this flow.
           </Text>
         </View>
       </ScrollView>
@@ -268,7 +246,7 @@ const getStyles = (theme: any) =>
     marginRight: 4,
   },
   heroButtonText: {
-    color: theme.surface,
+    color: theme.onAccent,
     fontSize: 11,
     fontWeight: "700",
   },
@@ -349,7 +327,7 @@ const getStyles = (theme: any) =>
       backgroundColor: theme.surface,
       borderRadius: 16,
       paddingHorizontal: 16,
-      shadowColor: "#000000",
+      shadowColor: theme.shadow,
       shadowOffset: { width: 0, height: 1 },
       shadowOpacity: 0.03,
       shadowRadius: 8,
@@ -422,3 +400,4 @@ const getStyles = (theme: any) =>
       fontWeight: "500",
     },
   });
+

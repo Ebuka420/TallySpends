@@ -1,0 +1,8 @@
+{
+  "name": "tally-device-lock",
+  "version": "1.0.0",
+  "description": "Device screen-off detection for the TallySpends app lock",
+  "license": "UNLICENSED",
+  "author": "TallySpends",
+  "main": "index.ts"
+}

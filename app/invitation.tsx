@@ -188,6 +188,9 @@ export default function InvitationScreen() {
                   mission.completed && styles.missionButtonCompleted,
                 ]}
                 disabled={mission.completed}
+                onPress={mission.type === "ajo" ? () => router.push("/ajo-create") : undefined}
+                accessibilityRole="button"
+                accessibilityLabel={mission.type === "ajo" ? "Start an Ajo cycle" : undefined}
               >
                 <Text
                   style={[

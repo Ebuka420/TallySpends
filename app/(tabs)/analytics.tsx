@@ -1,5 +1,7 @@
+import { useThemeTokens } from "../../src/ThemeExperience";
 import { AnalyticsReportSheet } from "../../components/AnalyticsReportSheet";
 import { analyticsRange, analyticsReport } from "../../src/analytics/report";
+import { spendingRhythm } from "../../src/analytics/rhythm";
 import { Ionicons } from "@expo/vector-icons";
 import React, { useMemo, useState } from "react";
 import {
@@ -15,7 +17,6 @@ import {
 } from "react-native";
 import Svg, { Defs, LinearGradient, Path, Stop } from "react-native-svg";
 import { useAppStore } from "../../src/store";
-import { getThemePalette } from "../../src/theme";
 
 type Timeframe = "weekly" | "monthly" | "yearly";
 
@@ -76,11 +77,11 @@ const categoryMeta: Record<
 };
 
 export default function AnalyticsScreen() {
-  const { transactions: rawTransactions = [], themePreference, themeMode, budgetWallet, budgetError } = useAppStore();
+  const { transactions: rawTransactions = [], themeMode, budgetWallet, budgetError } = useAppStore();
 
   const transactions = rawTransactions as any[];
 
-  const theme = getThemePalette(themePreference, themeMode);
+  const theme = useThemeTokens();
 
   /*
    * Keep all screen colors tied to the active theme.
@@ -176,6 +177,7 @@ export default function AnalyticsScreen() {
 
   const report = useMemo(() => analyticsReport(transactions, analyticsRange(timeframe, period)), [transactions, timeframe, period]);
   const filteredTransactions = report.selected;
+  const rhythm = useMemo(() => spendingRhythm(report.selected), [report]);
 
   const totals = useMemo(() => {
     return filteredTransactions.reduce(
@@ -227,16 +229,17 @@ export default function AnalyticsScreen() {
     return Object.entries(categoryMap)
       .sort((a, b) => b[1] - a[1])
       .slice(0, 4)
-      .map(([name, amount]) => ({
+      .map(([name, amount], index) => ({
         name,
         amount,
         share: expenseTotal
           ? `${Math.round((amount / expenseTotal) * 100)}%`
           : "0%",
         icon: categoryMeta[name]?.icon ?? "ellipsis-horizontal",
-        tint: categoryMeta[name]?.tint ?? "#EFEFEB",
+        tint: theme.accentSoft,
+        chartColor: theme.chart[index % theme.chart.length],
       }));
-  }, [filteredTransactions]);
+  }, [filteredTransactions, theme]);
 
   const chartPoints = useMemo(() => report.chart.map(point => ({ label: point.label, value: point.amount / 100 })), [report]);
 
@@ -347,7 +350,7 @@ export default function AnalyticsScreen() {
                     style={[
                       styles.segmentText,
                       {
-                        color: isActive ? "#FFFFFF" : colors.textMuted,
+                        color: isActive ? theme.onAccent : colors.textMuted,
                         fontWeight: isActive ? "700" : "500",
                       },
                     ]}
@@ -689,7 +692,7 @@ export default function AnalyticsScreen() {
           ]}
         >
           {categoryTotals.length > 0 ? (
-            categoryTotals.map(({ name, amount, share, icon, tint }) => (
+            categoryTotals.map(({ name, amount, share, icon, chartColor }) => (
               <TouchableOpacity key={name} style={styles.categoryRow}>
                 <View
                   style={[
@@ -699,7 +702,7 @@ export default function AnalyticsScreen() {
                     },
                   ]}
                 >
-                  <Ionicons name={icon} size={18} color={colors.primary} />
+                  <Ionicons name={icon} size={18} color={chartColor} />
                 </View>
 
                 <View style={styles.categoryCopy}>
@@ -836,7 +839,7 @@ export default function AnalyticsScreen() {
           />
         </View>
 
-        <Heading title="Spending rhythm." action="This month" colors={colors} />
+        <Heading title="Spending rhythm." action={report.range.label} colors={colors} />
 
         <View
           style={[
@@ -855,60 +858,29 @@ export default function AnalyticsScreen() {
               },
             ]}
           >
-            Your busiest spending time is between 12 PM and 6 PM.
+            {rhythm.caption}
           </Text>
 
           <View style={styles.heatmap}>
-            {[
-              1, 2, 3, 4, 3, 2, 1, 0, 1, 2, 3, 4, 3, 2, 1, 0, 1, 2, 3, 4, 3, 2,
-              1, 0,
-            ].map((intensity, index) => (
+            {rhythm.cells.map(({ label, count, intensity }) => (
               <View
-                key={index}
+                key={label}
+                accessible
+                accessibilityLabel={`${label}: ${count} expense ${count === 1 ? "transaction" : "transactions"}`}
                 style={[
                   styles.heatCell,
                   {
                     backgroundColor: colors.heatmap[intensity],
                   },
                 ]}
-              />
+              ><Text style={{ fontSize: 9, textAlign: "center", lineHeight: 23, color: intensity >= 3 ? theme.background : colors.text }}>{label}</Text></View>
             ))}
           </View>
 
           <View style={styles.heatLabels}>
-            <Text
-              style={[
-                styles.heatLabelsText,
-                {
-                  color: colors.textSubtle,
-                },
-              ]}
-            >
-              6 AM
-            </Text>
-
-            <Text
-              style={[
-                styles.heatLabelsText,
-                {
-                  color: colors.textSubtle,
-                },
-              ]}
-            >
-              12 PM
-            </Text>
-
-            <Text
-              style={[
-                styles.heatLabelsText,
-                {
-                  color: colors.textSubtle,
-                },
-              ]}
-            >
-              6 PM
-            </Text>
+            <Text style={[styles.heatLabelsText, { color: colors.textSubtle }]}>Lighter: fewer transactions · Darker: more</Text>
           </View>
+          {rhythm.note && <Text style={[styles.heatLabelsText, { color: colors.textMuted, paddingHorizontal: 15, paddingBottom: 15 }]}>{rhythm.note}</Text>}
         </View>
       </ScrollView>
 
@@ -1558,3 +1530,8 @@ const styles = StyleSheet.create({
   },
 
 });
+
+
+
+
+

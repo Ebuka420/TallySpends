@@ -1,344 +1,214 @@
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
-import React, { useState } from "react";
-import {
-    ActivityIndicator,
-    Image,
-    SafeAreaView,
-    ScrollView,
-    StyleSheet,
-    Text,
-    TextInput,
-    TouchableOpacity,
-    View,
-} from "react-native";
+import React, { useEffect, useRef, useState, useSyncExternalStore } from "react";
+import { ActivityIndicator, Platform, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
 import { useAppStore } from "../src/store";
+import { BankRequestError, bankBackend, createBankRequest, getBankSetupIssue, getMonoAuthCode, monoPublicKey } from "../src/banking/backend";
+import type { LinkedBankAccount } from "../src/banking/backend";
+import MonoSession from "../components/MonoSession";
+import BankLogo from "../components/BankLogo";
+import { useDashboardAccounts } from "../src/banking/useDashboardAccounts";
+import { getProfileSnapshot, subscribeProfile } from "../src/profile/repository";
 
-const API_URL = process.env.EXPO_PUBLIC_API_URL;
-
-// Updated with live high-quality CDN URLs for Nigerian bank logos
-const POPULAR_BANKS = [
-  {
-    id: "1",
-    name: "Access Bank",
-    code: "044",
-    logoUrl: "https://logo.clearbit.com/accessbankplc.com",
-  },
-  {
-    id: "2",
-    name: "GTBank",
-    code: "058",
-    logoUrl: "https://logo.clearbit.com/gtbank.com",
-  },
-  {
-    id: "3",
-    name: "Zenith Bank",
-    code: "057",
-    logoUrl: "https://logo.clearbit.com/zenithbank.com",
-  },
-  {
-    id: "4",
-    name: "UBA",
-    code: "033",
-    logoUrl: "https://logo.clearbit.com/ubagroup.com",
-  },
-  {
-    id: "5",
-    name: "Kuda Bank",
-    code: "096",
-    logoUrl: "https://logo.clearbit.com/kudabank.com",
-  },
-];
+type Stage = "opening" | "connecting" | "confirming" | "refreshing" | "success" | "cancelled" | "error";
+const BRAND = "#20142A";
 
 export default function LinkBankScreen() {
   const router = useRouter();
-  const { theme } = useAppStore();
-  const styles = React.useMemo(() => getStyles(theme), [theme]);
-  const [searchQuery, setSearchQuery] = useState("");
-  const [selectedBank, setSelectedBank] = useState<string | null>(null);
-  const [isConnecting, setIsConnecting] = useState(false);
+  const { theme, token, refreshToken, login, profileFullName, profileEmail } = useAppStore();
+  const profile = useSyncExternalStore(subscribeProfile, getProfileSnapshot, getProfileSnapshot);
+  const savedAccounts = useDashboardAccounts(profile.scope || "", { token, refreshToken, saveTokens: async (next, refresh) => { await login(next, refresh); } });
+  const [accounts, setAccounts] = useState<LinkedBankAccount[]>([]);
+  const [stage, setStage] = useState<Stage>("opening");
+  const [message, setMessage] = useState("");
+  const [widgetOpen, setWidgetOpen] = useState(false);
+  const [attempt, setAttempt] = useState(0);
+  const inFlight = useRef(false);
+  const confirmed = useRef(false);
+  const handledSuccess = useRef(false);
+  const [uncertain, setUncertain] = useState(false);
+  const controller = useRef<AbortController | null>(null);
+  const mounted = useRef(true);
+  const generation = useRef(0);
+  const setupIssue = getBankSetupIssue();
+  const customer = { name: profileFullName?.trim(), email: profileEmail?.trim() };
+  const issue = setupIssue || (Platform.OS === "web" ? "Mono Connect is available in the iOS and Android app." : !token && !refreshToken ? "Sign in again to link your bank account." : !customer.name || !customer.email ? "Add your full name and email to your profile before linking." : null);
 
-  const filteredBanks = POPULAR_BANKS.filter((bank) =>
-    bank.name.toLowerCase().includes(searchQuery.toLowerCase()),
-  );
+  useEffect(() => {
+    mounted.current = true;
+    generation.current++;
+    confirmed.current = false; handledSuccess.current = false; inFlight.current = false;
+    setAccounts([]); setUncertain(false); setMessage(""); setStage("opening");
+    setAttempt(value => value + 1); setWidgetOpen(!issue);
+    return () => { mounted.current = false; generation.current++; controller.current?.abort(); };
+  }, [issue, profile.scope]);
 
-  const handleConnectBank = async () => {
-    if (!selectedBank) return;
-    setIsConnecting(true);
+  function retry() {
+    if (issue || inFlight.current) return;
+    confirmed.current = false;
+    handledSuccess.current = false;
+    setUncertain(false);
+    setMessage("");
+    setStage("opening");
+    setAttempt(value => value + 1);
+    setWidgetOpen(true);
+  }
+
+  async function finish(code?: string) {
+    if (inFlight.current) return;
+    inFlight.current = true;
+    const started = generation.current;
+    const requestController = new AbortController();
+    controller.current = requestController;
+    const timeout = setTimeout(() => requestController.abort(), 30000);
+    const request = createBankRequest({
+      token, refreshToken,
+      saveTokens: async (nextToken, nextRefreshToken) => { await login(nextToken, nextRefreshToken); },
+    }, requestController.signal);
     try {
-      setTimeout(() => {
-        setIsConnecting(false);
-        alert("Bank connected successfully!");
-        router.back();
-      }, 2500);
+      if (!confirmed.current) {
+        if (!code) throw new Error("Please complete Mono authorization again.");
+        setStage("confirming");
+        await bankBackend.confirmConnection(code, request);
+        if (!mounted.current || started !== generation.current) return;
+        confirmed.current = true;
+      }
+      if (!mounted.current || started !== generation.current) return;
+      setStage("refreshing");
+      const nextAccounts = await bankBackend.listAccounts(request);
+      if (!mounted.current || started !== generation.current) return;
+      setAccounts(nextAccounts);
+      setStage("success");
+      setMessage("Your bank account is linked successfully.");
     } catch (error) {
-      setIsConnecting(false);
-      console.error(error);
+      if (!mounted.current || started !== generation.current) return;
+      setStage("error");
+      setUncertain(error instanceof BankRequestError && error.uncertain);
+      setMessage(confirmed.current
+        ? "The backend confirmed bank linking. " + (error instanceof Error ? error.message : "We couldn't refresh your accounts. Try refreshing again.")
+        : requestController.signal.aborted
+          ? "The request timed out. The result is unconfirmed. Check your accounts before linking again."
+          : error instanceof TypeError
+            ? "Couldn't reach the bank service. Check your connection and try again."
+            : error instanceof Error ? error.message : "Couldn't link your bank account. Please try again.");
+    } finally {
+      clearTimeout(timeout);
+      if (started === generation.current) inFlight.current = false;
     }
-  };
+  }
+
+  async function checkAccounts() {
+    if (inFlight.current) return;
+    inFlight.current = true;
+    const started = generation.current;
+    setStage("refreshing");
+    const readController = new AbortController(); controller.current = readController;
+    const timer = setTimeout(() => readController.abort(), 30000);
+    try {
+      const nextAccounts = await bankBackend.listAccounts(createBankRequest({ token, refreshToken,
+        saveTokens: async (next, refresh) => { await login(next, refresh); } }, readController.signal));
+      if (!mounted.current || started !== generation.current) return;
+      setAccounts(nextAccounts); setUncertain(false); setStage("error");
+      setMessage("Review your linked accounts before starting a new connection. The previous link request is still unconfirmed.");
+    } catch (error) {
+      if (mounted.current && started === generation.current) { setStage("error"); setMessage(error instanceof Error ? error.message : "Couldn't refresh your accounts. Try again."); }
+    } finally { clearTimeout(timer); if (started === generation.current) inFlight.current = false; }
+  }
+
+  function onSuccess(data: unknown) {
+    if (!mounted.current || getProfileSnapshot().scope !== profile.scope || inFlight.current || confirmed.current || handledSuccess.current) return;
+    handledSuccess.current = true;
+    setWidgetOpen(false);
+    try { void finish(getMonoAuthCode(data)); }
+    catch (error) {
+      setStage("error");
+      setMessage(error instanceof Error ? error.message : "Mono authorization failed.");
+    }
+  }
+
+  const busy = !issue && ["opening", "connecting", "confirming", "refreshing"].includes(stage);
+  const status = issue || message || ({
+    opening: "Opening Mono Connect…", connecting: "Complete authorization in Mono Connect.",
+    confirming: "Confirming your connection…", refreshing: "Refreshing linked accounts…",
+    success: "Bank account linked.", cancelled: "Bank linking cancelled.", error: "Couldn't connect your bank.",
+  })[stage];
 
   return (
-    <SafeAreaView style={styles.container}>
-      {/* Header */}
-      <View style={styles.header}>
-        <TouchableOpacity
-          onPress={() => router.back()}
-          style={styles.backButton}
-        >
-          <Ionicons name="arrow-back" size={24} color={theme.textPrimary} />
-        </TouchableOpacity>
-        <Text style={[styles.headerTitle, { color: theme.textPrimary }]}>Link Bank Account</Text>
-        <View style={{ width: 40 }} />
+    <SafeAreaView style={{ flex: 1, backgroundColor: theme.background }}>
+      <View style={[styles.header, { backgroundColor: theme.surface }]}>
+        <Pressable accessibilityRole="button" accessibilityLabel="Go back" onPress={() => router.back()} hitSlop={12}>
+          <Ionicons name="arrow-back" size={22} color={theme.textPrimary} />
+        </Pressable>
+        <Text style={[styles.title, { color: theme.textPrimary }]}>Link Bank Account</Text>
+        <View style={{ width: 22 }} />
       </View>
-
-      <ScrollView
-        contentContainerStyle={styles.scrollContent}
-        showsVerticalScrollIndicator={false}
-      >
-        {/* Security Info Card */}
-        <View style={styles.infoCard}>
-          <Ionicons
-            name="shield-checkmark"
-            size={24}
-            color={theme.accent}
-            style={styles.infoIcon}
-          />
-          <View style={styles.infoTextContainer}>
-            <Text style={styles.infoTitle}>Secure Connection</Text>
-            <Text style={styles.infoSubtitle}>
-              We use bank-grade 256-bit encryption. Your credentials are never
-              stored and remain completely private.
-            </Text>
-          </View>
-        </View>
-
-        {/* Search Input */}
-        <Text style={styles.sectionLabel}>Search your bank</Text>
-        <View style={styles.searchBarContainer}>
-          <Ionicons
-            name="search"
-            size={20}
-            color="#9CA3AF"
-            style={styles.searchIcon}
-          />
-          <TextInput
-            style={styles.searchInput}
-            placeholder="e.g. GTBank, Access Bank..."
-            placeholderTextColor="#9CA3AF"
-            value={searchQuery}
-            onChangeText={setSearchQuery}
-          />
-        </View>
-
-        {/* Bank List */}
-        <Text style={styles.sectionLabel}>Popular Banks</Text>
-        <View style={styles.bankGrid}>
-          {filteredBanks.map((bank) => {
-            const isSelected = selectedBank === bank.id;
-            return (
-              <TouchableOpacity
-                key={bank.id}
-                style={[styles.bankCard, isSelected && styles.bankCardSelected]}
-                onPress={() => setSelectedBank(bank.id)}
-              >
-                {/* Logo Wrapper containing the live Image instead of Ionicons */}
-                <View style={styles.iconWrapper}>
-                  <Image
-                    source={{ uri: bank.logoUrl }}
-                    style={styles.bankLogoImage}
-                    resizeMode="contain"
-                  />
-                </View>
-
-                <Text
-                  style={[
-                    styles.bankName,
-                    isSelected && styles.bankNameSelected,
-                  ]}
-                >
-                  {bank.name}
-                </Text>
-                {isSelected && (
-                  <Ionicons
-                    name="checkmark-circle"
-                    size={22}
-                    color={theme.accent}
-                    style={styles.checkIcon}
-                  />
-                )}
-              </TouchableOpacity>
-            );
-          })}
-        </View>
-      </ScrollView>
-
-      {/* Bottom Button */}
-      <View style={styles.footer}>
-        <TouchableOpacity
-          style={[
-            styles.submitButton,
-            !selectedBank && styles.submitButtonDisabled,
-          ]}
-          disabled={!selectedBank || isConnecting}
-          onPress={handleConnectBank}
-        >
-          {isConnecting ? (
-            <ActivityIndicator color="#FFFFFF" />
-          ) : (
-            <Text style={styles.submitButtonText}>
-              {selectedBank
-                ? "Link Selected Account"
-                : "Choose a Bank to Continue"}
-            </Text>
+      <ScrollView contentContainerStyle={styles.content}>
+        <View style={[styles.panel, { backgroundColor: theme.surface, borderColor: theme.border }]}>
+          <Ionicons name={stage === "success" ? "checkmark-circle" : "shield-checkmark-outline"} size={40} color={theme.accent} />
+          <Text accessibilityLiveRegion="polite" style={[styles.status, { color: theme.textPrimary }]}>{status}</Text>
+          {busy && <ActivityIndicator color={theme.accent} />}
+          {!issue && (!busy || stage === "opening" || stage === "connecting") && (
+            <Pressable accessibilityRole="button" style={styles.button} onPress={stage === "success" ? () => router.back() : confirmed.current ? () => void finish() : uncertain ? () => void checkAccounts() : retry}>
+              <Text style={styles.buttonText}>{stage === "success" ? "Done" : confirmed.current ? "Refresh accounts" : uncertain ? "Check linked accounts" : busy ? "Continue linking" : "Try again"}</Text>
+            </Pressable>
           )}
-        </TouchableOpacity>
-      </View>
+          <Text style={[styles.helper, { color: theme.textSecondary }]}>Sandbox connection. Use Mono's test bank details to try linking an account.</Text>
+        </View>
+        {savedAccounts.loading && <ActivityIndicator color={theme.accent} />}
+        {savedAccounts.error && <Text accessibilityLiveRegion="polite" style={[styles.helper, { color: theme.textSecondary, marginBottom: 12 }]}>{savedAccounts.error}</Text>}
+        {(accounts.length > 0 || savedAccounts.accounts.length > 0) && (
+          <>
+            <Text style={[styles.title, { color: theme.textPrimary, marginBottom: 12 }]}>Linked bank accounts</Text>
+            {(accounts.length ? accounts : savedAccounts.accounts).map(account => (
+              <View key={account.id} style={[styles.account, { backgroundColor: theme.surface, borderColor: theme.border }]}>
+                <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+                  <BankLogo bank={account} size={18} color={theme.accent} />
+                  <Text style={[styles.accountTitle, { color: theme.textPrimary, flex: 1 }]}>{account.bankName}</Text>
+                </View>
+                <Text style={{ color: theme.textSecondary }}>{account.accountName}{account.maskedAccountNumber ? " · " + account.maskedAccountNumber : ""}</Text>
+                {account.currency && <Text style={{ color: theme.textSecondary }}>{account.currency}{typeof account.availableBalance === "number" ? " " + account.availableBalance.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : " · Balance unavailable"}</Text>}
+              </View>
+            ))}
+          </>
+        )}
+      </ScrollView>
+      {!issue && widgetOpen && (
+        <MonoSession
+          key={attempt}
+          publicKey={monoPublicKey}
+          customer={customer}
+          onSuccess={onSuccess}
+          onClose={() => {
+            setWidgetOpen(false);
+            if (!inFlight.current && !confirmed.current && !handledSuccess.current) setStage("cancelled");
+          }}
+          onEvent={event => {
+            if (handledSuccess.current) return;
+            if (event === "OPENED") setStage("connecting");
+            if (event === "ERROR") {
+              setWidgetOpen(false);
+              setStage("error");
+              setMessage("Couldn't complete authorization. Please try again.");
+            }
+            if (event === "EXIT" && !inFlight.current && !confirmed.current && !handledSuccess.current) {
+              setWidgetOpen(false); setStage("cancelled");
+            }
+          }}
+        />
+      )}
     </SafeAreaView>
   );
 }
-
-const getStyles = (theme: any) => StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: theme.background,
-  },
-  header: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    borderBottomWidth: 1,
-    borderColor: theme.border,
-    backgroundColor: theme.surface,
-  },
-  backButton: {
-    padding: 8,
-  },
-  headerTitle: {
-    fontSize: 18,
-    fontWeight: "700",
-    color: theme.textPrimary,
-  },
-  scrollContent: {
-    padding: 16,
-  },
-  infoCard: {
-    flexDirection: "row",
-    backgroundColor: theme.accentSoft,
-    padding: 16,
-    borderRadius: 16,
-    marginBottom: 24,
-    alignItems: "center",
-    borderWidth: 1,
-    borderColor: theme.border,
-  },
-  infoIcon: {
-    marginRight: 12,
-  },
-  infoTextContainer: {
-    flex: 1,
-  },
-  infoTitle: {
-    fontSize: 15,
-    fontWeight: "600",
-    color: theme.textPrimary,
-    marginBottom: 2,
-  },
-  infoSubtitle: {
-    fontSize: 13,
-    color: theme.textSecondary,
-    lineHeight: 18,
-  },
-  sectionLabel: {
-    fontSize: 13,
-    fontWeight: "600",
-    color: theme.textSecondary,
-    marginBottom: 8,
-    textTransform: "uppercase",
-    letterSpacing: 0.5,
-  },
-  searchBarContainer: {
-    flexDirection: "row",
-    backgroundColor: theme.surface,
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: theme.border,
-    alignItems: "center",
-    paddingHorizontal: 12,
-    marginBottom: 24,
-    height: 48,
-  },
-  searchIcon: {
-    marginRight: 8,
-  },
-  searchInput: {
-    flex: 1,
-    fontSize: 15,
-    color: theme.textPrimary,
-  },
-  bankGrid: {
-    gap: 12,
-  },
-  bankCard: {
-    flexDirection: "row",
-    alignItems: "center",
-    backgroundColor: theme.surface,
-    padding: 14,
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: theme.border,
-  },
-  bankCardSelected: {
-    borderColor: theme.accent,
-    backgroundColor: theme.accentSoft,
-  },
-  iconWrapper: {
-    width: 40,
-    height: 40,
-    borderRadius: 8,
-    backgroundColor: theme.surfaceSoft,
-    justifyContent: "center",
-    alignItems: "center",
-    marginRight: 14,
-    overflow: "hidden",
-  },
-  bankLogoImage: {
-    width: 30,
-    height: 30,
-    borderRadius: 4,
-  },
-  bankName: {
-    fontSize: 15,
-    fontWeight: "600",
-    color: theme.textPrimary,
-    flex: 1,
-  },
-  bankNameSelected: {
-    color: theme.accent,
-  },
-  checkIcon: {
-    marginLeft: 8,
-  },
-  footer: {
-    backgroundColor: theme.surface,
-    padding: 16,
-    borderTopWidth: 1,
-    borderColor: theme.border,
-  },
-  submitButton: {
-    backgroundColor: theme.accent,
-    height: 52,
-    borderRadius: 12,
-    justifyContent: "center",
-    alignItems: "center",
-  },
-  submitButtonDisabled: {
-    backgroundColor: theme.border,
-  },
-  submitButtonText: {
-    color: "#FFFFFF",
-    fontSize: 16,
-    fontWeight: "600",
-  },
+const styles = StyleSheet.create({
+  header: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", height: 58, paddingHorizontal: 20 },
+  title: { fontSize: 18, fontWeight: "700" },
+  content: { padding: 20, paddingBottom: 40 },
+  panel: { borderRadius: 18, borderWidth: 1, padding: 24, alignItems: "center", gap: 18, marginBottom: 24 },
+  status: { fontSize: 17, fontWeight: "600", textAlign: "center", lineHeight: 25 },
+  helper: { fontSize: 13, lineHeight: 20, textAlign: "center" },
+  button: { alignSelf: "stretch", backgroundColor: BRAND, borderRadius: 12, padding: 15, alignItems: "center" },
+  buttonText: { color: "#FFFFFF", fontSize: 15, fontWeight: "700" },
+  account: { borderRadius: 12, borderWidth: 1, padding: 16, gap: 6, marginBottom: 10 },
+  accountTitle: { fontSize: 15, fontWeight: "600" },
 });

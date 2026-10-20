@@ -1,3 +1,6 @@
+import { useThemeTokens } from "../src/ThemeExperience";
+import { getThemePalette } from "../src/theme";
+import BrandMark from "./BrandMark";
 import { Ionicons } from "@expo/vector-icons";
 import * as Sharing from "expo-sharing";
 import React, { forwardRef, useRef, useState } from "react";
@@ -8,11 +11,7 @@ import { captureRef } from "react-native-view-shot";
 import { reportMoney, reportText, type AnalyticsReport } from "../src/analytics/report";
 import type { ThemePalette } from "../src/theme";
 type ReportLook = "signature" | "paper";
-const ink = "#352333",
-  muted = "#857680",
-  paper = "#FCFAF6",
-  line = "#E9E1DF";
-const categoryColors = ["#6C4863", "#A7BAA2", "#DBA877", "#DCD4DF"];
+
 export function AnalyticsReportSheet({
   visible,
   onClose,
@@ -29,6 +28,7 @@ export function AnalyticsReportSheet({
   ready: boolean;
 }) {
   const insets = useSafeAreaInsets();
+  const s = getStyles(theme);
   const [look, setLook] = useState<ReportLook>("signature");
   const [busy, setBusy] = useState(false);
   const [measured, setMeasured] = useState(false);
@@ -107,7 +107,7 @@ export function AnalyticsReportSheet({
             borderColor: look === value ? theme.accent : theme.border,
             backgroundColor: theme.surface
           }]}><View style={[s.swatch, {
-              backgroundColor: value === "signature" ? ink : "#E5D9CB"
+              backgroundColor: value === "signature" ? theme.hero : theme.surfaceSoft
             }]} /><Text style={{
               color: theme.textPrimary,
               fontSize: 11,
@@ -128,8 +128,8 @@ export function AnalyticsReportSheet({
           <Pressable accessibilityRole="button" accessibilityLabel="Share report image" onPress={() => share()} disabled={busy || !ready || !measured} style={[s.shareButton, {
             backgroundColor: theme.accent,
             opacity: busy || !ready || !measured ? .5 : 1
-          }]}>{busy ? <ActivityIndicator color={dark ? theme.background : "#FFFFFF"} /> : <Ionicons name="share-outline" size={18} color={dark ? theme.background : "#FFFFFF"} />}<Text style={{
-              color: dark ? theme.background : "#FFFFFF",
+          }]}>{busy ? <ActivityIndicator color={theme.onAccent} /> : <Ionicons name="share-outline" size={18} color={theme.onAccent} />}<Text style={{
+              color: theme.onAccent,
               fontSize: 14,
               fontWeight: "700"
             }}>{busy ? "Preparing report…" : "Share report"}</Text></Pressable>
@@ -152,16 +152,21 @@ const ReportCard = forwardRef<View, {
   look,
   onLayout
 }, ref) {
+  const selectedTheme = useThemeTokens();
+  const theme = look === "paper" ? getThemePalette(selectedTheme.id, "light") : selectedTheme;
+  const s = getStyles(theme);
+  const ink = theme.textPrimary, muted = theme.textSecondary, line = theme.border;
+  const categoryColors = theme.chart;
   const signature = look === "signature";
-  const heroInk = signature ? "#FFF9F4" : ink;
-  const heroMuted = signature ? "#D9C9D3" : muted;
+  const heroInk = signature ? theme.onHero : ink;
+  const heroMuted = signature ? theme.heroMuted : muted;
   const max = Math.max(1, ...report.chart.map(point => point.amount));
   return <View ref={ref} collapsable={false} onLayout={onLayout} style={s.report}>
     <View style={[s.hero, {
-      backgroundColor: signature ? ink : "#F0E9E1"
+      backgroundColor: signature ? theme.hero : theme.surfaceSoft
     }]}>
-      <Svg pointerEvents="none" width={220} height={220} style={s.orbit}><Circle cx={145} cy={95} r={58} fill="none" stroke={signature ? "#82607A" : "#D7C8BA"} strokeWidth={1} /><Circle cx={145} cy={95} r={88} fill="none" stroke={signature ? "#82607A" : "#D7C8BA"} strokeWidth={1} /><Circle cx={145} cy={95} r={118} fill="none" stroke={signature ? "#82607A" : "#D7C8BA"} strokeWidth={1} /></Svg>
-      <View style={s.brandRow}><View style={s.brand}><Ionicons name="wallet-outline" color={heroInk} size={14} /><Text style={[s.brandText, {
+      <Svg pointerEvents="none" width={220} height={220} style={s.orbit}><Circle cx={145} cy={95} r={58} fill="none" stroke={signature ? theme.logoMiddle : theme.border} strokeWidth={1} /><Circle cx={145} cy={95} r={88} fill="none" stroke={signature ? theme.logoMiddle : theme.border} strokeWidth={1} /><Circle cx={145} cy={95} r={118} fill="none" stroke={signature ? theme.logoMiddle : theme.border} strokeWidth={1} /></Svg>
+      <View style={s.brandRow}><View style={s.brand}><BrandMark size={14} palette={{ ...theme, logoStart: heroInk, logoMiddle: heroInk, logoEnd: heroInk }} /><Text style={[s.brandText, {
             color: heroInk
           }]}>TALLYSPENDS</Text></View><Text style={[s.edition, {
           color: heroMuted
@@ -173,7 +178,7 @@ const ReportCard = forwardRef<View, {
         color: heroMuted
       }]}>{report.range.label}</Text>
       <View style={[s.heroRule, {
-        backgroundColor: signature ? "#685064" : "#D9CCBF"
+        backgroundColor: signature ? theme.heroEnd : theme.border
       }]} />
       <Text style={[s.caption, {
         color: heroMuted
@@ -198,23 +203,25 @@ const ReportCard = forwardRef<View, {
               maxWidth: 37,
               borderTopLeftRadius: 5,
               borderTopRightRadius: 5,
-              backgroundColor: point.amount === max ? "#6C4863" : point.amount ? "#C5B5C5" : line
+              backgroundColor: point.amount === max ? theme.accent : point.amount ? theme.accentSecondary : line
             }} /></View><Text style={s.barLabel}>{report.chart.length > 10 ? point.label.charAt(0) : point.label}</Text></View>)}</View>
       <View style={s.sectionHeading}><Text style={s.sectionTitle}>Where it went</Text><Text style={s.sectionMeta}>SHARE OF SPENDING</Text></View>
       {report.breakdown.length ? <><View style={s.categoryBand}>{report.breakdown.map((category, index) => <View key={index} style={{
             flex: category.share,
-            backgroundColor: categoryColors[index]
+            backgroundColor: categoryColors[index % categoryColors.length]
           }} />)}</View>{report.breakdown.map((category, index) => <View key={index} style={s.categoryRow}><View style={[s.categoryDot, {
-            backgroundColor: categoryColors[index]
+            backgroundColor: categoryColors[index % categoryColors.length]
           }]} /><Text numberOfLines={1} style={s.categoryName}>{category.name}</Text><Text style={s.categoryAmount}>{reportMoney(category.amount)}</Text><Text style={s.categoryPercent}>{Math.round(category.share * 100)}%</Text></View>)}</> : <Text style={s.noSpending}>No spending recorded for this period.</Text>}
-      <View style={s.takeaway}><Ionicons name="sparkles-outline" size={18} color="#6C4863" /><View style={{
+      <View style={s.takeaway}><Ionicons name="sparkles-outline" size={18} color={theme.accent} /><View style={{
           flex: 1
         }}><Text style={s.takeawayLabel}>THE TAKEAWAY</Text><Text style={s.takeawayText}>{report.takeaway}</Text></View></View>
       <View style={s.reportFooter}><Text style={s.footerTag}>Your money. Your story.</Text><Text style={s.footerCount}>{report.count} {report.count === 1 ? "transaction" : "transactions"}</Text></View>
     </View>
   </View>;
 });
-const s = StyleSheet.create({
+const getStyles = (theme: ThemePalette) => {
+  const ink = theme.textPrimary, muted = theme.textSecondary, paper = theme.surface, line = theme.border;
+  return StyleSheet.create({
   overlay: {
     flex: 1,
     justifyContent: "flex-end",
@@ -499,7 +506,7 @@ const s = StyleSheet.create({
     marginTop: 19
   },
   takeawayLabel: {
-    color: "#6C4863",
+    color: theme.accent,
     fontSize: 7,
     fontWeight: "700",
     letterSpacing: 1
@@ -518,7 +525,7 @@ const s = StyleSheet.create({
     alignItems: "center"
   },
   footerTag: {
-    color: "#6C4863",
+    color: theme.accent,
     fontSize: 9,
     fontWeight: "600"
   },
@@ -527,3 +534,5 @@ const s = StyleSheet.create({
     fontSize: 8
   }
 });
+};
+

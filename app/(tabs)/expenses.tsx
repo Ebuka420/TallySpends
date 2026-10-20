@@ -1,3 +1,4 @@
+import { useThemeTokens } from "../../src/ThemeExperience";
 import { Ionicons } from "@expo/vector-icons";
 import DateTimePicker, {
     DateTimePickerEvent,
@@ -84,7 +85,7 @@ export default function ExpensesScreen() {
     themeMode,
   } = useAppStore();
 
-  const theme = getThemePalette(themePreference, themeMode);
+  const theme = useThemeTokens();
 
   const [date, setDate] = useState(new Date());
   const [showCalendar, setShowCalendar] = useState(false);
@@ -1398,3 +1399,4 @@ const styles = StyleSheet.create({
     fontSize: 13,
   },
 });
+

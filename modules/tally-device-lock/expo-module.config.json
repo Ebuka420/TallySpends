@@ -1,0 +1,5 @@
+{
+  "platforms": ["apple", "android"],
+  "apple": { "modules": ["TallyDeviceLockModule"] },
+  "android": { "modules": ["expo.modules.tallydevicelock.TallyDeviceLockModule"] }
+}

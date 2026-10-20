@@ -1,8 +1,11 @@
+import { useThemeTokens } from "../src/ThemeExperience";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import {
   KeyboardAvoidingView,
+  Alert,
+  Linking,
   LayoutAnimation,
   Modal,
   Platform,
@@ -17,6 +20,7 @@ import {
 } from "react-native";
 import { useAppStore } from "../src/store";
 import { getThemePalette } from "../src/theme";
+import { careGreeting, careReply, helpTopics, supportEmail, supportMailUrl } from "../src/support/care";
 
 // Enable smooth layout animations for Android devices
 if (
@@ -43,7 +47,7 @@ interface ChatMessage {
 export default function CustomerServiceScreen() {
   const router = useRouter();
   const { themePreference, themeMode, username } = useAppStore();
-  const theme = getThemePalette(themePreference, themeMode);
+  const theme = useThemeTokens();
   const styles = useMemo(() => getStyles(theme), [theme]);
 
   const [expandedId, setExpandedId] = useState<number | null>(null);
@@ -56,49 +60,30 @@ export default function CustomerServiceScreen() {
     {
       id: "msg-1",
       sender: "support",
-      text: `Hello ${username || "there"}! Welcome to TallySpends 24/7 Priority Support. How can our customer care team assist you today?`,
+      text: careGreeting,
       time: "Just now",
     },
   ]);
 
-  const faqs: FAQItem[] = [
-    {
-      id: 1,
-      category: "Disputes",
-      question: "I don't recognize this charge, can I dispute it?",
-      answer:
-        "Yes, you can dispute unauthorized transactions. Tap on the charge in Transaction History or select 'Dispute A Charge' below. Our compliance team freezes the context and reviews it within 3-5 business days.",
-    },
-    {
-      id: 2,
-      category: "Sync",
-      question: "Why isn't a transaction made today showing up in my history?",
-      answer:
-        "Most merchant terminals process transactions instantly, but some banks delay data feeds by up to 2-4 hours. Pull down on the dashboard to force-refresh. If still missing after 24 hours, chat with us below.",
-    },
-    {
-      id: 3,
-      category: "Cards",
-      question: "How do I update card details or link a new card?",
-      answer:
-        "Go to the Cards section from your dashboard quick actions or Profile. Select 'Link New Card' to add Mastercard, Visa, or Verve cards with instant activation.",
-    },
-    {
-      id: 4,
-      category: "Budget",
-      question: "How do I modify or reset my monthly category budget limits?",
-      answer:
-        "Navigate to the Budget tab from the bottom bar. Select any category card, enter your target limit, and save. Your daily safe-to-spend allowance updates immediately.",
-    },
-    {
-      id: 5,
-      category: "Privacy",
-      question: "How do I hide or show my balance on the home screen?",
-      answer:
-        "On the main dashboard, tap the eye icon or tap directly on the balance numbers to toggle masking markers for full financial privacy.",
-    },
-  ];
-
+  const faqs: FAQItem[] = helpTopics;
+  const replyTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const previousTopic = useRef<string | null>(null);
+  const replyLock = useRef(false);
+  const emailLock = useRef(false);
+  useEffect(() => {
+    if (replyTimer.current) clearTimeout(replyTimer.current);
+    replyLock.current = false; previousTopic.current = null; setIsTyping(false);
+    setMessages([{ id: "care-greeting", sender: "support", text: careGreeting, time: "Just now" }]);
+    setChatInput("");
+    return () => { if (replyTimer.current) clearTimeout(replyTimer.current); };
+  }, [username]);
+  const handleEmailSupport = async () => {
+    if (emailLock.current) return;
+    emailLock.current = true;
+    try { await Linking.openURL(supportMailUrl()); }
+    catch { Alert.alert("Email Support", `An email app couldn't be opened. Contact ${supportEmail} from your preferred email app. No email has been sent.`); }
+    finally { emailLock.current = false; }
+  };
   const toggleAccordion = (id: number) => {
     LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
     setExpandedId(expandedId === id ? null : id);
@@ -113,7 +98,8 @@ export default function CustomerServiceScreen() {
 
   const handleSendMessage = (textToSend?: string) => {
     const text = (textToSend || chatInput).trim();
-    if (!text) return;
+    if (!text || replyLock.current) return;
+    replyLock.current = true;
 
     const userMsg: ChatMessage = {
       id: `user-${Date.now()}`,
@@ -127,20 +113,10 @@ export default function CustomerServiceScreen() {
 
     setIsTyping(true);
 
-    // Simulate smart support response
-    setTimeout(() => {
-      let reply = "Thank you for reaching out. We have logged this query and our payment support specialist is reviewing your account state.";
-      const lower = text.toLowerCase();
-      if (lower.includes("dispute") || lower.includes("charge") || lower.includes("unrecognized")) {
-        reply = "We take unrecognized charges very seriously. You can freeze your card under 'Linked Cards' immediately, and we have opened a priority ticket for our investigations team.";
-      } else if (lower.includes("card") || lower.includes("link")) {
-        reply = "To manage or link cards, head over to the Linked Cards screen from your Dashboard. All Nigerian debit and virtual cards are supported.";
-      } else if (lower.includes("budget") || lower.includes("limit")) {
-        reply = "You can customize your spending limits anytime in the Budget tab. Your daily allowance will recalculate automatically!";
-      } else if (lower.includes("qr") || lower.includes("transfer") || lower.includes("receive")) {
-        reply = "You can generate custom QR payment requests or split bills with friends from the QR code icon in the top header.";
-      }
-
+    replyTimer.current = setTimeout(() => {
+      const result = careReply(text, previousTopic.current);
+      previousTopic.current = result.topic;
+      const reply = result.text;
       const supportMsg: ChatMessage = {
         id: `supp-${Date.now()}`,
         sender: "support",
@@ -150,14 +126,16 @@ export default function CustomerServiceScreen() {
 
       setMessages((prev) => [...prev, supportMsg]);
       setIsTyping(false);
-    }, 1200);
+      replyLock.current = false; replyTimer.current = null;
+    }, 250);
   };
 
   useEffect(() => {
     if (showChatModal) {
-      setTimeout(() => {
+      const timer = setTimeout(() => {
         chatScrollRef.current?.scrollToEnd({ animated: true });
       }, 100);
+      return () => clearTimeout(timer);
     }
   }, [messages, showChatModal, isTyping]);
 
@@ -175,12 +153,7 @@ export default function CustomerServiceScreen() {
         <Text style={[styles.headerTitle, { color: theme.textPrimary }]}>
           Customer Support & Help
         </Text>
-        <TouchableOpacity
-          onPress={() => handleOpenChatWithPrompt()}
-          activeOpacity={0.7}
-        >
-          <Ionicons name="chatbubble-ellipses-outline" size={22} color={theme.accent} />
-        </TouchableOpacity>
+        <View style={{ width: 22 }} />
       </View>
 
       <ScrollView
@@ -195,23 +168,27 @@ export default function CustomerServiceScreen() {
             </View>
             <View>
               <Text style={styles.introTitle}>How can we help you?</Text>
-              <Text style={styles.introStatusText}>● Support Agents Online 24/7</Text>
+              <Text style={styles.introStatusText}>Automated help assistant</Text>
             </View>
           </View>
           <Text style={styles.introSubtitle}>
-            Find instant solutions to common issues below, or start a live priority chat with our team.
+            Find guidance for common issues below, or email support for account-specific help.
           </Text>
         </View>
 
-        {/* Quick Resolution Pills */}
+        {/* Quick Assistance Tiles */}
         <Text style={styles.sectionHeading}>Quick Assistance</Text>
         <View style={styles.quickAssistRow}>
           <TouchableOpacity
             style={[styles.quickAssistChip, { backgroundColor: theme.surface, borderColor: theme.border }]}
             onPress={() => handleOpenChatWithPrompt("I need to dispute a transaction.")}
             activeOpacity={0.75}
+            accessibilityRole="button"
+            accessibilityLabel="Get help with an unrecognized charge"
           >
-            <Ionicons name="shield-checkmark-outline" size={16} color={theme.accent} />
+            <View style={styles.quickAssistIcon}>
+              <Ionicons name="shield-checkmark-outline" size={21} color={theme.accent} />
+            </View>
             <Text style={[styles.quickAssistChipText, { color: theme.textPrimary }]}>Dispute Charge</Text>
           </TouchableOpacity>
 
@@ -219,8 +196,12 @@ export default function CustomerServiceScreen() {
             style={[styles.quickAssistChip, { backgroundColor: theme.surface, borderColor: theme.border }]}
             onPress={() => handleOpenChatWithPrompt("How do I link a new card or bank account?")}
             activeOpacity={0.75}
+            accessibilityRole="button"
+            accessibilityLabel="Get help with linked cards and bank accounts"
           >
-            <Ionicons name="card-outline" size={16} color={theme.accent} />
+            <View style={styles.quickAssistIcon}>
+              <Ionicons name="card-outline" size={21} color={theme.accent} />
+            </View>
             <Text style={[styles.quickAssistChipText, { color: theme.textPrimary }]}>Card Help</Text>
           </TouchableOpacity>
 
@@ -228,9 +209,13 @@ export default function CustomerServiceScreen() {
             style={[styles.quickAssistChip, { backgroundColor: theme.surface, borderColor: theme.border }]}
             onPress={() => handleOpenChatWithPrompt("I have a question about budget limits and savings.")}
             activeOpacity={0.75}
+            accessibilityRole="button"
+            accessibilityLabel="Get help with budget limits"
           >
-            <Ionicons name="pie-chart-outline" size={16} color={theme.accent} />
-            <Text style={[styles.quickAssistChipText, { color: theme.textPrimary }]}>Budget Inquiries</Text>
+            <View style={styles.quickAssistIcon}>
+              <Ionicons name="pie-chart-outline" size={21} color={theme.accent} />
+            </View>
+            <Text style={[styles.quickAssistChipText, { color: theme.textPrimary }]}>Budget Help</Text>
           </TouchableOpacity>
         </View>
 
@@ -274,7 +259,7 @@ export default function CustomerServiceScreen() {
                   >
                     <Ionicons name="chatbubbles-outline" size={14} color={theme.accent} />
                     <Text style={[styles.faqAskMoreText, { color: theme.accent }]}>
-                      Ask support about this
+                      Ask Care about this
                     </Text>
                   </TouchableOpacity>
                 </View>
@@ -289,21 +274,25 @@ export default function CustomerServiceScreen() {
           <View style={styles.contactTextContainer}>
             <Text style={styles.contactTitle}>Still need assistance?</Text>
             <Text style={styles.contactSubtitle}>
-              Our financial support specialists are available around the clock.
+              Try automated help or contact us by email.
             </Text>
+            <TouchableOpacity onPress={handleEmailSupport} accessibilityRole="button" style={styles.faqAskMoreBtn}>
+              <Ionicons name="mail-outline" size={14} color={theme.accent} />
+              <Text style={[styles.faqAskMoreText, { color: theme.accent }]}>Email Support</Text>
+            </TouchableOpacity>
           </View>
           <TouchableOpacity
             style={styles.chatButton}
             onPress={() => handleOpenChatWithPrompt()}
             activeOpacity={0.8}
           >
-            <Text style={styles.chatButtonText}>Chat Now</Text>
+            <Text style={styles.chatButtonText}>Ask Care</Text>
           </TouchableOpacity>
         </View>
       </ScrollView>
 
       {/* LIVE CHAT MODAL */}
-      <Modal visible={showChatModal} animationType="slide" transparent>
+      <Modal visible={showChatModal} animationType="slide" transparent onRequestClose={() => setShowChatModal(false)}>
         <SafeAreaView style={styles.chatModalOverlay}>
           <KeyboardAvoidingView
             behavior={Platform.OS === "ios" ? "padding" : "height"}
@@ -317,7 +306,7 @@ export default function CustomerServiceScreen() {
                 </View>
                 <View>
                   <Text style={[styles.agentName, { color: theme.textPrimary }]}>TallySpends Care</Text>
-                  <Text style={styles.agentOnlineStatus}>Active • Instant Replies</Text>
+                  <Text style={styles.agentOnlineStatus}>Automated help • No account access</Text>
                 </View>
               </View>
               <TouchableOpacity
@@ -328,6 +317,11 @@ export default function CustomerServiceScreen() {
                 <Ionicons name="close" size={24} color={theme.textPrimary} />
               </TouchableOpacity>
             </View>
+
+            <TouchableOpacity onPress={handleEmailSupport} accessibilityRole="button" style={[styles.faqAskMoreBtn, { marginHorizontal: 16 }]}>
+              <Ionicons name="mail-outline" size={14} color={theme.accent} />
+              <Text style={[styles.faqAskMoreText, { color: theme.accent }]}>Email Support</Text>
+            </TouchableOpacity>
 
             {/* Chat Messages */}
             <ScrollView
@@ -377,7 +371,7 @@ export default function CustomerServiceScreen() {
 
               {isTyping && (
                 <View style={[styles.typingBubble, { backgroundColor: theme.surface, borderColor: theme.border }]}>
-                  <Text style={[styles.typingText, { color: theme.textSecondary }]}>Support is typing...</Text>
+                  <Text style={[styles.typingText, { color: theme.textSecondary }]}>Care is preparing a reply...</Text>
                 </View>
               )}
             </ScrollView>
@@ -398,10 +392,12 @@ export default function CustomerServiceScreen() {
                 placeholder="Type your message..."
                 placeholderTextColor={theme.textSecondary}
                 onSubmitEditing={() => handleSendMessage()}
+                maxLength={1000}
               />
               <TouchableOpacity
                 style={[styles.sendBtn, { backgroundColor: theme.accent }]}
                 onPress={() => handleSendMessage()}
+                disabled={isTyping}
                 activeOpacity={0.8}
               >
                 <Ionicons name="send" size={16} color="#FFFFFF" />
@@ -489,18 +485,35 @@ const getStyles = (theme: any) =>
     },
     quickAssistChip: {
       flex: 1,
-      flexDirection: "row",
+      minWidth: 0,
+      minHeight: 112,
+      flexDirection: "column",
       alignItems: "center",
       justifyContent: "center",
-      gap: 6,
-      paddingVertical: 10,
+      gap: 10,
+      paddingVertical: 16,
       paddingHorizontal: 8,
-      borderRadius: 12,
+      borderRadius: 18,
       borderWidth: 1,
+      shadowColor: theme.accent,
+      shadowOffset: { width: 0, height: 3 },
+      shadowOpacity: 0.05,
+      shadowRadius: 8,
+      elevation: 2,
+    },
+    quickAssistIcon: {
+      width: 40,
+      height: 40,
+      borderRadius: 14,
+      backgroundColor: theme.accentSoft,
+      alignItems: "center",
+      justifyContent: "center",
     },
     quickAssistChipText: {
-      fontSize: 11,
-      fontWeight: "700",
+      fontSize: 12,
+      lineHeight: 17,
+      fontWeight: "600",
+      textAlign: "center",
     },
     faqCard: {
       backgroundColor: theme.surface,
@@ -697,4 +710,5 @@ const getStyles = (theme: any) =>
       justifyContent: "center",
     },
   });
+
 

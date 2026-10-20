@@ -12,15 +12,33 @@ import {
     View,
 } from "react-native";
 import { useAppStore } from "../src/store";
+import { savePreferences, usePreferences } from "../src/settings";
 
 export default function SettingsSecurityScreen() {
   const router = useRouter();
   const { theme } = useAppStore();
   const styles = React.useMemo(() => getStyles(theme), [theme]);
   const [privateMode, setPrivateMode] = useState(false);
-  const [deviceTrust, setDeviceTrust] = useState(true);
-  const [screenLockTips, setScreenLockTips] = useState(true);
-  const [secureScreenshots, setSecureScreenshots] = useState(false);
+  const deviceTrust = false;
+  const screenLockTips = false;
+  const secureScreenshots = false;
+  const preferences = usePreferences();
+  const [saving, setSaving] = useState(false);
+  const savingRef = React.useRef(false);
+  React.useEffect(() => {
+    if (preferences.loaded) setPrivateMode(preferences.values.privateMode);
+  }, [preferences.loaded]);
+  const save = async () => {
+    if (savingRef.current) return;
+    savingRef.current = true;
+    setSaving(true);
+    try {
+      await savePreferences({ privateMode });
+      Alert.alert("Saved", "Privacy settings updated.");
+    } catch {
+      Alert.alert("Could not save", "Your privacy setting could not be saved. Please try again.");
+    } finally { savingRef.current = false; setSaving(false); }
+  };
 
   return (
     <SafeAreaView style={styles.container}>
@@ -63,20 +81,20 @@ export default function SettingsSecurityScreen() {
             title: "Trusted devices",
             subtitle: "Keep your signed-in devices secure and trusted.",
             value: deviceTrust,
-            onChange: setDeviceTrust,
+            onChange: () => Alert.alert("Trusted devices unavailable", "The backend does not yet expose device sessions or device revocation. This setting cannot enable protection yet."),
           },
           {
             title: "Lock reminders",
             subtitle: "Get a gentle nudge when your app should be re-secured.",
             value: screenLockTips,
-            onChange: setScreenLockTips,
+            onChange: () => Alert.alert("App lock required", "Lock reminders need the app-lock setup first. This setting has not been enabled."),
           },
           {
             title: "Secure screenshots",
             subtitle:
               "Prevent sensitive content from being captured in previews.",
             value: secureScreenshots,
-            onChange: setSecureScreenshots,
+            onChange: () => Alert.alert("Screen protection setup required", "Screen protection needs its native module and platform-specific setup. This setting has not been enabled."),
           },
         ].map((item) => (
           <Pressable
@@ -91,6 +109,7 @@ export default function SettingsSecurityScreen() {
               <Text style={styles.cardSubtitle}>{item.subtitle}</Text>
             </View>
             <Switch
+              disabled={!preferences.loaded || saving}
               value={item.value}
               onValueChange={item.onChange}
               thumbColor={theme.surface}
@@ -99,14 +118,16 @@ export default function SettingsSecurityScreen() {
           </Pressable>
         ))}
 
+        {preferences.error && <Text style={styles.heroSubtitle}>{preferences.error}</Text>}
         <Pressable
           style={({ pressed }) => [
             styles.primaryAction,
             pressed && styles.primaryActionPressed,
           ]}
-          onPress={() => Alert.alert("Saved", "Security settings updated.")}
+          disabled={!preferences.loaded || saving}
+          onPress={save}
         >
-          <Text style={styles.primaryActionText}>Save Changes</Text>
+          <Text style={styles.primaryActionText}>{saving ? "Saving…" : "Save Changes"}</Text>
         </Pressable>
       </ScrollView>
     </SafeAreaView>
@@ -133,7 +154,7 @@ const getStyles = (theme: any) =>
       borderRadius: 18,
       padding: 16,
       marginBottom: 16,
-      shadowColor: "#000",
+      shadowColor: theme.shadow,
       shadowOffset: { width: 0, height: 2 },
       shadowOpacity: 0.05,
       shadowRadius: 8,

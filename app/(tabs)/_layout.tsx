@@ -1,3 +1,5 @@
+import { useReducedMotion } from "../../components/AuthBackdrop";
+import { withAlpha } from "../../src/theme";
 import { Ionicons } from "@expo/vector-icons";
 // Fallback: avoid requiring `expo-blur` so builds succeed when it's not installed
 import { Tabs } from "expo-router";
@@ -20,16 +22,20 @@ function CustomTabBar({
   theme,
   tabBarAlpha,
 }: any) {
-  const slideAnim = React.useRef(new Animated.Value(state.index)).current;
+  const [slideAnim] = React.useState(() => new Animated.Value(state.index));
+  const reduced = useReducedMotion();
 
   React.useEffect(() => {
-    Animated.spring(slideAnim, {
+    if (reduced !== false) { slideAnim.setValue(state.index); return; }
+    const movement = Animated.spring(slideAnim, {
       toValue: state.index,
       useNativeDriver: true,
-      friction: 9,
-      tension: 50,
-    }).start();
-  }, [state.index]);
+      friction: theme.identity.motion.damping / 3,
+      tension: theme.identity.motion.stiffness / 3,
+    });
+    movement.start();
+    return () => movement.stop();
+  }, [state.index, reduced, slideAnim, theme.identity.motion.damping, theme.identity.motion.stiffness]);
 
   const { width: screenWidth } = Dimensions.get("window");
   const containerWidth = screenWidth - 36;
@@ -55,9 +61,7 @@ function CustomTabBar({
           styles.tabBarOverlay,
           {
             backgroundColor:
-              themeMode === "dark"
-                ? `rgba(26, 24, 29, ${Math.max(0.2, tabBarAlpha * 0.85)})`
-                : `rgba(255, 255, 255, ${Math.max(0.1, tabBarAlpha * 0.95)})`,
+              withAlpha(theme.surface, Math.max(.2, tabBarAlpha)),
           },
         ]}
       />
@@ -70,13 +74,9 @@ function CustomTabBar({
             width: tabWidth,
             transform: [{ translateX }],
             backgroundColor:
-              themeMode === "dark"
-                ? "rgba(255, 255, 255, 0.08)"
-                : "rgba(0, 0, 0, 0.05)",
+              theme.accentSoft,
             borderColor:
-              themeMode === "dark"
-                ? "rgba(255, 255, 255, 0.12)"
-                : "rgba(0, 0, 0, 0.08)",
+              theme.border,
           },
         ]}
       >
@@ -227,3 +227,5 @@ const styles = StyleSheet.create({
     fontSize: 10.5,
   },
 });
+
+

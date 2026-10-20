@@ -287,7 +287,7 @@ export function PlanningSheet({
       >
         <BlurView
           intensity={22}
-          tint={theme.textPrimary === "#F7F4F8" ? "dark" : "light"}
+          tint={theme.mode}
           style={{ position: "absolute", inset: 0 }}
         />
         <Pressable
@@ -744,3 +744,4 @@ export function PlanHistory({
     </Disclosure>
   );
 }
+

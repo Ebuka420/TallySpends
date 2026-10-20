@@ -1,12 +1,16 @@
 import { completeTransaction } from "../src/transactionCompletion";
 import { TransferSteps, useTransferAction } from "../components/TransferUI";
+import { useSecurity } from "../components/SecurityGate";
 import { AmountInput } from "../components/BudgetUI";
 import { Ionicons } from "@expo/vector-icons";
 import { CameraView, useCameraPermissions } from "expo-camera";
-import { useRouter } from "expo-router";
-import React, { useEffect, useRef, useState } from "react";
+import { useFocusEffect, useLocalSearchParams, useRouter } from "expo-router";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
   Alert,
+  ActivityIndicator,
+  AppState,
+  Linking,
   Animated,
   Easing,
   Keyboard,
@@ -21,12 +25,29 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
-import { MOCK_RECIPIENTS, useAppStore } from "../src/store";
+import { useAppStore } from "../src/store";
+import { qrApi } from "../src/qr/api";
+import { useQrClient } from "../src/qr/hooks";
+import { parseQrLink, validateRequest, validAmount, type PaymentRequest } from "../src/qr/model";
 
 export default function TransferScreen() {
   const action = useTransferAction();
+  const security = useSecurity();
   const router = useRouter();
-  const { addTransaction, availableBalance, theme, themeMode } = useAppStore();
+  const qrClient = useQrClient();
+  const params = useLocalSearchParams<{ paymentId?: string; amount?: string; memo?: string; v?: string; qrError?: string }>();
+  const qrLock = useRef(false);
+  const qrGeneration = useRef(0);
+  const consumedLink = useRef("");
+  const focused = useRef(true);
+  const [qrBusy, setQrBusy] = useState(false);
+  useFocusEffect(useCallback(() => {
+    focused.current = true;
+    qrLock.current = false;
+    setQrBusy(false);
+    return () => { focused.current = false; qrGeneration.current++; qrClient.cancel(); qrLock.current = false; };
+  }, [qrClient.cancel]));
+  const { addTransaction, availableBalance, theme, isAuthenticated, profileTallyTag } = useAppStore();
   const styles = React.useMemo(() => getStyles(theme), [theme]);
   const [amount, setAmount] = useState("");
   const [memo, setMemo] = useState("");
@@ -37,7 +58,9 @@ export default function TransferScreen() {
   const [selectedRecipient, setSelectedRecipient] = useState<any>(null);
   const [showScanner, setShowScanner] = useState(false);
   const [scanned, setScanned] = useState(false);
-  const [permission, requestPermission] = useCameraPermissions();
+  const [permission, requestPermission, getPermission] = useCameraPermissions();
+  const [cameraError, setCameraError] = useState(false);
+  const scanEventLock = useRef(false);
   const [showTransferModal, setShowTransferModal] = useState(false);
   const [transferStep, setTransferStep] = useState<
     "amount" | "review"
@@ -84,30 +107,54 @@ export default function TransferScreen() {
     if (!showScanner) {
       setScanned(false);
     }
+    if (showScanner) { scanEventLock.current = false; setCameraError(false); }
   }, [showScanner]);
+  useEffect(() => {
+    const listener = AppState.addEventListener("change", state => {
+      if (state === "active" && showScanner) void getPermission().catch(() => {});
+    });
+    return () => listener.remove();
+  }, [showScanner, getPermission]);
 
   const currentBalance = availableBalance;
 
-  const recentRecipients = MOCK_RECIPIENTS.filter((r) => r.isRecent);
+  // No production username lookup or saved-recipient route is documented.
+  // Keep this list empty until it can be populated with verified backend records.
+  const verifiedRecipients: { id: string; name: string; username: string; bank: string; initial: string; color: string; textColor: string; isRecent: boolean }[] = [];
+  const recentRecipients = verifiedRecipients.filter((r) => r.isRecent);
 
-  const filteredRecipients = MOCK_RECIPIENTS.filter((r) => {
+  const filteredRecipients = verifiedRecipients.filter((r) => {
     const matchesSearch =
       r.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
       r.username.toLowerCase().includes(searchQuery.toLowerCase());
 
     if (activeFilter === "my-accounts") {
-      return (
-        matchesSearch &&
-        (r.bank.includes("Basic Ch") ||
-          r.bank.includes("Premium Ch") ||
-          r.username === "bayside_b")
-      );
+      // Ownership must come from the backend, not names or bank labels.
+      return false;
     }
 
     return matchesSearch;
   });
 
+  const addRecipient = () => {
+    const username = newRecipientUsername.trim().replace(/^@/, "");
+    if (!isAuthenticated) { Alert.alert("Sign in required", "Sign in before adding a TallySpends recipient."); return; }
+    if (!/^[A-Za-z0-9_.-]{1,64}$/.test(username)) {
+      Alert.alert("Invalid username", "Enter a username using letters, numbers, dots, underscores or hyphens."); return;
+    }
+    if (username.toLowerCase() === profileTallyTag.replace(/^@+/, "").trim().toLowerCase()) {
+      Alert.alert("Cannot add yourself", "Choose another TallySpends user's username."); return;
+    }
+    // Do not guess an endpoint, fabricate a match, or equate unavailable lookup
+    // with a nonexistent user. Keep the entered username for a later retry.
+    Alert.alert("Username lookup unavailable", "We can't verify registered usernames yet. No recipient has been added. Please try again when username lookup is available.");
+  };
+
   const handleSelectRecipient = (recipient: any) => {
+    qrGeneration.current++;
+    qrClient.cancel();
+    qrLock.current = false;
+    setQrBusy(false);
     setSelectedRecipient(recipient);
     setAmount("");
     setMemo("");
@@ -115,58 +162,50 @@ export default function TransferScreen() {
     setShowTransferModal(true);
   };
 
-  const handleSimulateScan = (recipient: any) => {
+  const resolveQr = useCallback(async (request: PaymentRequest) => {
+    if (qrLock.current) return;
+    qrLock.current = true;
+    const generation = ++qrGeneration.current;
+    setQrBusy(true);
     setShowScanner(false);
-    setTimeout(() => {
-      handleSelectRecipient(recipient);
-    }, 400);
-  };
-
-  const handleBarCodeScanned = ({ data }: { data: string }) => {
-    if (scanned) return;
-    setScanned(true);
     try {
-      const url = new URL(data);
-      const recipient = url.searchParams.get("recipient");
-      const amountParam = url.searchParams.get("amount");
-      const memoParam = url.searchParams.get("memo");
-      if (recipient) {
-        const found = MOCK_RECIPIENTS.find(
-          (r) =>
-            r.username === recipient ||
-            r.username === recipient.replace("@", ""),
-        );
-        if (found) {
-          setShowScanner(false);
-          setTimeout(() => {
-            handleSelectRecipient(found);
-            if (amountParam && /^\d{1,10}(\.\d{1,2})?$/.test(amountParam)) setAmount(amountParam);
-            if (memoParam) setMemo(memoParam.slice(0, 40));
-          }, 300);
-          return;
-        }
-      }
-      Alert.alert("Scan Result", `Scanned data: ${data}`);
-      setShowScanner(false);
-    } catch (e) {
-      const uname = data.replace("@", "");
-      const found = MOCK_RECIPIENTS.find(
-        (r) => r.username === uname || r.username === data,
-      );
-      if (found) {
-        setShowScanner(false);
-        setTimeout(() => handleSelectRecipient(found), 300);
-      } else {
-        Alert.alert("Scanned", data);
-        setShowScanner(false);
-      }
-    }
+      const valid = validateRequest(request);
+      const recipient = await qrClient.run(request => qrApi.recipient(valid.paymentId, request));
+      if (!focused.current || generation !== qrGeneration.current) return;
+      setSelectedRecipient({ id: recipient.publicPaymentId, publicPaymentId: recipient.publicPaymentId, source: "qr",
+        name: recipient.fullName, username: recipient.tallyTag, initial: recipient.fullName.trim().slice(0, 2).toUpperCase(), color: "#F0EEFA", textColor: "#20142A" });
+      setAmount(valid.amount || ""); setMemo(valid.memo || ""); setTransferStep("amount"); setShowTransferModal(true);
+    } catch (error) {
+      if (focused.current && generation === qrGeneration.current) Alert.alert("Could not verify QR", error instanceof Error ? error.message : "Please try again.");
+    } finally { if (generation === qrGeneration.current) { qrLock.current = false; setQrBusy(false); } }
+  }, [qrClient.run]);
+  const handleBarCodeScanned = ({ data }: { data: string }) => {
+    if (qrLock.current || scanEventLock.current || scanned) return;
+    scanEventLock.current = true;
+    setScanned(true);
+    try { void resolveQr(parseQrLink(data)); }
+    catch (error) { setShowScanner(false); Alert.alert("Invalid payment QR", error instanceof Error ? error.message : "Scan a TallySpends QR code."); }
   };
+  useEffect(() => {
+    if (!qrClient.ready) return;
+    if (!(params.paymentId || params.qrError)) { consumedLink.current = ""; return; }
+    if (qrBusy || qrLock.current) return;
+    const signature = JSON.stringify(params);
+    if (signature === consumedLink.current) return;
+    consumedLink.current = signature;
+    router.setParams({ paymentId: undefined, v: undefined, amount: undefined, memo: undefined, qrError: undefined });
+    if (params.qrError || params.v !== "1" || Object.values(params).some(Array.isArray)) { Alert.alert("Invalid payment link", "Open a current TallySpends payment request."); return; }
+    void resolveQr({ paymentId: params.paymentId || "", ...(params.amount !== undefined ? { amount: params.amount } : {}), ...(params.memo !== undefined ? { memo: params.memo } : {}) });
+  }, [params, qrClient.ready, resolveQr, qrBusy, router]);
 
   const executeTransfer = async () => {
     const value = Number(amount);
     if (!Number.isFinite(value) || value <= 0 || !selectedRecipient) {
       Alert.alert("Invalid Amount", "Please enter a valid amount to transfer.");
+      return;
+    }
+    if (selectedRecipient.source === "qr") {
+      Alert.alert("Payments not connected yet", "The recipient is verified, but real payment processing is not available yet. No money has moved.");
       return;
     }
 
@@ -193,14 +232,20 @@ export default function TransferScreen() {
       date: new Date().toISOString(),
     };
 
-    await action.run(() => addTransaction(newTx), () => {
+    await action.run(async () => {
+      // Dismiss the existing native review modal before presenting authentication.
+      setShowTransferModal(false);
+      await new Promise(resolve => setTimeout(resolve, 350));
+      if (!await security.authorizeTransfer()) return false;
+      return addTransaction(newTx);
+    }, () => {
       setShowTransferModal(false);
       completeTransaction(router, newTx.id);
     });
   };
 
   const parsedAmount = parseFloat(amount);
-  const isOverBalance = !isNaN(parsedAmount) && parsedAmount > currentBalance;
+  const isOverBalance = selectedRecipient?.source !== "qr" && !isNaN(parsedAmount) && parsedAmount > currentBalance;
 
   const addQuickAmount = (increment: number) => {
     const current = Number(amount.replace(/,/g, "")) || 0;
@@ -208,7 +253,7 @@ export default function TransferScreen() {
   };
 
   const continueToReview = () => {
-    if (isNaN(parsedAmount) || parsedAmount <= 0) {
+    if (isNaN(parsedAmount) || parsedAmount <= 0 || (selectedRecipient?.source === "qr" && !validAmount(amount))) {
       Alert.alert(
         "Enter an amount",
         "Enter a valid transfer amount to continue.",
@@ -273,6 +318,7 @@ export default function TransferScreen() {
           <Ionicons name="qr-code-outline" size={20} color={theme.accent} />
         </TouchableOpacity>
       </View>
+      {qrBusy && <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, padding: 12 }}><ActivityIndicator color={theme.accent} /><Text style={{ color: theme.textPrimary }}>Verifying recipient…</Text></View>}
 
       <ScrollView
         contentContainerStyle={styles.scrollContainer}
@@ -289,7 +335,7 @@ export default function TransferScreen() {
               <Ionicons
                 name="add"
                 size={24}
-                color={themeMode === "dark" ? "#FFFFFF" : "#4B2C40"}
+                color={theme.accent}
               />
             </View>
             <Text style={styles.actionText}>Add</Text>
@@ -298,13 +344,14 @@ export default function TransferScreen() {
           <TouchableOpacity
             style={styles.actionCard}
             onPress={() => setShowScanner(true)}
+            disabled={qrBusy}
             activeOpacity={0.7}
           >
             <View style={styles.actionIconContainer}>
               <Ionicons
                 name="scan-outline"
                 size={22}
-                color={themeMode === "dark" ? "#FFFFFF" : "#4B2C40"}
+                color={theme.accent}
               />
             </View>
             <Text style={styles.actionText}>Scan QR</Text>
@@ -319,7 +366,7 @@ export default function TransferScreen() {
               <Ionicons
                 name="person-circle-outline"
                 size={24}
-                color={themeMode === "dark" ? "#FFFFFF" : "#4B2C40"}
+                color={theme.accent}
               />
             </View>
             <Text style={styles.actionText}>Contact</Text>
@@ -339,8 +386,8 @@ export default function TransferScreen() {
               onPress={() => handleSelectRecipient(rec)}
               activeOpacity={0.7}
             >
-              <View style={[styles.avatarBox, { backgroundColor: rec.color }]}>
-                <Text style={[styles.avatarText, { color: rec.textColor }]}>
+              <View style={[styles.avatarBox, { backgroundColor: theme.accentSoft }]}>
+                <Text style={[styles.avatarText, { color: theme.accent }]}>
                   {rec.initial}
                 </Text>
               </View>
@@ -396,19 +443,19 @@ export default function TransferScreen() {
             <Ionicons
               name="search"
               size={16}
-              color="#A0A0A0"
+              color={theme.textSecondary}
               style={styles.searchIcon}
             />
             <TextInput
               style={styles.searchInput}
               placeholder="Search username or name..."
-              placeholderTextColor="#A0A0A0"
+              placeholderTextColor={theme.textSecondary}
               value={searchQuery}
               onChangeText={setSearchQuery}
             />
             {searchQuery.length > 0 && (
               <TouchableOpacity onPress={() => setSearchQuery("")}>
-                <Ionicons name="close-circle" size={16} color="#A0A0A0" />
+                <Ionicons name="close-circle" size={16} color={theme.textSecondary} />
               </TouchableOpacity>
             )}
           </View>
@@ -424,10 +471,10 @@ export default function TransferScreen() {
             >
               <View style={styles.contactLeft}>
                 <View
-                  style={[styles.contactAvatar, { backgroundColor: rec.color }]}
+                  style={[styles.contactAvatar, { backgroundColor: theme.accentSoft }]}
                 >
                   <Text
-                    style={[styles.contactAvatarText, { color: rec.textColor }]}
+                    style={[styles.contactAvatarText, { color: theme.accent }]}
                   >
                     {rec.initial}
                   </Text>
@@ -444,7 +491,7 @@ export default function TransferScreen() {
           ))}
           {filteredRecipients.length === 0 && (
             <Text style={styles.emptyText}>
-              No recipients found matching search.
+              Username lookup is unavailable. No verified recipients have been loaded.
             </Text>
           )}
         </View>
@@ -470,24 +517,28 @@ export default function TransferScreen() {
             </Text>
 
             <View style={styles.viewfinderFrame}>
-              {permission?.granted ? (
+              {permission?.granted && !cameraError ? (
                 <CameraView
                   style={StyleSheet.absoluteFill}
                   facing="back"
                   barcodeScannerSettings={{ barcodeTypes: ["qr"] }}
                   onBarcodeScanned={scanned ? undefined : handleBarCodeScanned}
+                  onMountError={() => setCameraError(true)}
                 />
               ) : (
                 <View style={styles.cameraPermissionContainer}>
                   <Text style={styles.cameraPermissionText}>
-                    Allow camera access to scan QR codes.
+                    {cameraError ? "Couldn't open the camera. Please try again." : "Allow camera access to scan QR codes."}
                   </Text>
                   <TouchableOpacity
                     style={styles.cameraPermissionButton}
-                    onPress={() => requestPermission()}
+                    onPress={() => {
+                      if (cameraError) { setCameraError(false); return; }
+                      void (permission?.canAskAgain === false ? Linking.openSettings() : requestPermission()).catch(() => Alert.alert("Camera unavailable", "Please enable camera access in your device settings."));
+                    }}
                   >
                     <Text style={styles.cameraPermissionButtonText}>
-                      Allow Camera
+                      {cameraError ? "Try again" : permission?.canAskAgain === false ? "Open Settings" : "Allow Camera"}
                     </Text>
                   </TouchableOpacity>
                 </View>
@@ -511,27 +562,6 @@ export default function TransferScreen() {
             </Text>
           </View>
 
-          <View style={styles.simulatorSection}>
-            <Text style={styles.simulatorTitle}>
-              🎯 Simulate QR Scan (Click to Scan):
-            </Text>
-            <ScrollView
-              horizontal
-              showsHorizontalScrollIndicator={false}
-              contentContainerStyle={styles.simulatorList}
-            >
-              {MOCK_RECIPIENTS.map((rec) => (
-                <TouchableOpacity
-                  key={rec.id}
-                  style={styles.simulatorChip}
-                  onPress={() => handleSimulateScan(rec)}
-                  activeOpacity={0.7}
-                >
-                  <Text style={styles.simulatorChipText}>@{rec.username}</Text>
-                </TouchableOpacity>
-              ))}
-            </ScrollView>
-          </View>
         </SafeAreaView>
       </Modal>
 
@@ -558,19 +588,19 @@ export default function TransferScreen() {
               <View style={styles.modalBody}>
                 <Text style={styles.inputLabel}>Recipient username</Text>
                 <Text style={styles.modalHelperText}>
-                  Type the username you want to find and send money to.
+                  Enter a TallySpends username. It must be verified before a recipient can be added. Username lookup is currently unavailable.
                 </Text>
                 <View style={styles.modalInputWrapper}>
                   <Ionicons
                     name="person-circle-outline"
                     size={18}
-                    color="#8E8E93"
+                    color={theme.textSecondary}
                     style={styles.modalInputIcon}
                   />
                   <TextInput
                     style={styles.modalInputField}
                     placeholder="e.g. username_here"
-                    placeholderTextColor="#A0A0A0"
+                    placeholderTextColor={theme.textSecondary}
                     autoCapitalize="none"
                     autoCorrect={false}
                     autoFocus
@@ -581,22 +611,7 @@ export default function TransferScreen() {
                 </View>
                 <TouchableOpacity
                   style={[styles.modalConfirmButton, { marginTop: 20 }]}
-                  onPress={() => {
-                    const uname = newRecipientUsername.replace("@", "").trim();
-                    const found = MOCK_RECIPIENTS.find(
-                      (r) => r.username === uname,
-                    );
-                    if (found) {
-                      setShowAddRecipientModal(false);
-                      setNewRecipientUsername("");
-                      handleSelectRecipient(found);
-                    } else {
-                      Alert.alert(
-                        "User not found",
-                        "That username does not exist in our system.",
-                      );
-                    }
-                  }}
+                  onPress={addRecipient}
                 >
                   <Text style={styles.modalConfirmButtonText}>
                     Add Recipient
@@ -653,13 +668,13 @@ export default function TransferScreen() {
                           <View
                             style={[
                               styles.transferAvatar,
-                              { backgroundColor: selectedRecipient.color },
+                              { backgroundColor: theme.accentSoft },
                             ]}
                           >
                             <Text
                               style={[
                                 styles.transferAvatarText,
-                                { color: selectedRecipient.textColor },
+                                { color: theme.accent },
                               ]}
                             >
                               {selectedRecipient.initial}
@@ -693,7 +708,7 @@ export default function TransferScreen() {
                               style={styles.transferAmountInput}
                               placeholder="0"
                               placeholderTextColor="#CBC6D1"
-                              theme={theme} available={Math.round(availableBalance * 100)}
+                              theme={theme} available={selectedRecipient.source === "qr" ? undefined : Math.round(availableBalance * 100)}
                               value={amount}
                               onChangeText={setAmount}
                             />
@@ -788,13 +803,13 @@ export default function TransferScreen() {
                           <View
                             style={[
                               styles.transferAvatar,
-                              { backgroundColor: selectedRecipient.color },
+                              { backgroundColor: theme.accentSoft },
                             ]}
                           >
                             <Text
                               style={[
                                 styles.transferAvatarText,
-                                { color: selectedRecipient.textColor },
+                                { color: theme.accent },
                               ]}
                             >
                               {selectedRecipient.initial}
@@ -829,11 +844,11 @@ export default function TransferScreen() {
                           </View>
                           <View style={styles.transferReviewRow}>
                             <Text style={styles.transferLabel}>Fee</Text>
-                            <Text style={styles.transferFree}>Free</Text>
+                            <Text style={styles.transferFree}>{selectedRecipient.source === "qr" ? "Not available yet" : "Free"}</Text>
                           </View>
 
                           <View style={styles.transferTotalRow}>
-                            <Text style={styles.transferTotalLabel}>Total</Text>
+                            <Text style={styles.transferTotalLabel}>{selectedRecipient.source === "qr" ? "Requested amount" : "Total"}</Text>
                             <Text style={styles.transferTotalAmount}>
                               ₦
                               {Number(amount || 0).toLocaleString(undefined, {
@@ -860,10 +875,10 @@ export default function TransferScreen() {
                             </View>
                             <View>
                               <Text style={styles.transferSecurityTitle}>
-                                Demo transfer
+                                {selectedRecipient.source === "qr" ? "Payment service pending" : "Demo transfer"}
                               </Text>
                               <Text style={styles.transferSecurityCopy}>
-                                This updates your demo wallet only.
+                                {selectedRecipient.source === "qr" ? "No real payment will be made yet." : "This updates your demo wallet only."}
                               </Text>
                             </View>
                           </View>
@@ -1036,7 +1051,7 @@ const getStyles = (theme: any) =>
       color: theme.textSecondary,
     },
     filterChipTextActive: {
-      color: "#FFFFFF",
+      color: theme.onAccent,
     },
     searchBarWrapper: {
       flexDirection: "row",
@@ -1162,22 +1177,22 @@ const getStyles = (theme: any) =>
       marginBottom: 14,
     },
     cameraPermissionButton: {
-      backgroundColor: "#5B4E91",
+      backgroundColor: theme.accent,
       borderRadius: 999,
       paddingHorizontal: 16,
       paddingVertical: 10,
     },
     cameraPermissionButtonText: {
-      color: "#FFFFFF",
+      color: theme.onAccent,
       fontSize: 13,
       fontWeight: "700",
     },
     scannerLaserLine: {
       height: 3,
-      backgroundColor: "#5B4E91",
+      backgroundColor: theme.accent,
       width: "100%",
       position: "absolute",
-      shadowColor: "#5B4E91",
+      shadowColor: theme.accent,
       shadowOffset: { width: 0, height: 0 },
       shadowOpacity: 0.8,
       shadowRadius: 8,
@@ -1186,7 +1201,7 @@ const getStyles = (theme: any) =>
       position: "absolute",
       width: 20,
       height: 20,
-      borderColor: "#5B4E91",
+      borderColor: theme.accent,
     },
     cornerTL: {
       top: -2,
@@ -1217,7 +1232,7 @@ const getStyles = (theme: any) =>
       borderBottomRightRadius: 12,
     },
     viewfinderSubtext: {
-      color: "#8E8E93",
+      color: theme.textSecondary,
       fontSize: 11,
       textAlign: "center",
       marginTop: 24,
@@ -1230,7 +1245,7 @@ const getStyles = (theme: any) =>
       borderTopRightRadius: 24,
     },
     simulatorTitle: {
-      color: "#5B4E91",
+      color: theme.accent,
       fontSize: 12,
       fontWeight: "700",
       marginBottom: 10,
@@ -1248,7 +1263,7 @@ const getStyles = (theme: any) =>
       paddingVertical: 6,
     },
     simulatorChipText: {
-      color: "#5B4E91",
+      color: theme.accent,
       fontSize: 11,
       fontWeight: "600",
     },
@@ -1362,7 +1377,7 @@ const getStyles = (theme: any) =>
     },
     modalAmountWrapperError: {
       borderWidth: 1.5,
-      borderColor: "#EF4444",
+      borderColor: theme.danger,
     },
     modalCurrencySymbol: {
       fontSize: 20,
@@ -1377,7 +1392,7 @@ const getStyles = (theme: any) =>
       color: theme.textPrimary,
     },
     modalErrorText: {
-      color: "#EF4444",
+      color: theme.danger,
       fontSize: 11,
       fontWeight: "500",
       marginTop: 6,
@@ -1438,7 +1453,7 @@ const getStyles = (theme: any) =>
       elevation: 0,
     },
     modalConfirmButtonText: {
-      color: "#FFFFFF",
+      color: theme.onAccent,
       fontSize: 14,
       fontWeight: "700",
     },
@@ -1533,7 +1548,7 @@ const getStyles = (theme: any) =>
       backgroundColor: "#FEE2E2",
     },
     deleteCategoryButtonText: {
-      color: "#DC2626",
+      color: theme.danger,
       fontSize: 13,
       fontWeight: "700",
     },
@@ -1568,24 +1583,24 @@ const getStyles = (theme: any) =>
       fontWeight: "600",
     },
     categoryTextActive: {
-      color: "#FFFFFF",
+      color: theme.onAccent,
     },
     addCategoryChip: {
-      backgroundColor: "#F3E8FF",
+      backgroundColor: theme.accentSoft,
       borderWidth: 1,
-      borderColor: "#C084FC",
+      borderColor: theme.accent,
     },
     addCategoryChipActive: {
-      backgroundColor: "#7C3AED",
-      borderColor: "#7C3AED",
+      backgroundColor: theme.accent,
+      borderColor: theme.accent,
     },
     addCategoryChipText: {
-      color: "#6D28D9",
+      color: theme.accent,
       fontSize: 16,
       fontWeight: "800",
     },
     addCategoryChipTextActive: {
-      color: "#FFFFFF",
+      color: theme.onAccent,
     },
     fullScreenModal: {
       flex: 1,
@@ -1684,7 +1699,7 @@ const getStyles = (theme: any) =>
       marginBottom: 12,
     },
     transferAmountError: {
-      borderColor: theme.danger || "#EF4444",
+      borderColor: theme.danger || theme.danger,
     },
     transferCurrency: {
       fontSize: 24,
@@ -1716,7 +1731,7 @@ const getStyles = (theme: any) =>
       color: theme.textPrimary,
     },
     transferErrorText: {
-      color: theme.danger || "#EF4444",
+      color: theme.danger || theme.danger,
       fontSize: 11,
       fontWeight: "600",
       marginTop: -8,
@@ -1761,7 +1776,7 @@ const getStyles = (theme: any) =>
       elevation: 3,
     },
     transferPrimaryText: {
-      color: "#FFFFFF",
+      color: theme.onAccent,
       fontSize: 15,
       fontWeight: "700",
     },
@@ -1932,7 +1947,7 @@ const getStyles = (theme: any) =>
       alignItems: "center",
     },
     transferHomeText: {
-      color: "#FFFFFF",
+      color: theme.onAccent,
       fontSize: 14,
       fontWeight: "700",
     },
@@ -1945,3 +1960,6 @@ const getStyles = (theme: any) =>
       backgroundColor: theme.background,
     },
   });
+
+
+

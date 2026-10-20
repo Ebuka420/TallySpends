@@ -1,3 +1,4 @@
+import { useThemeTokens } from "../src/ThemeExperience";
 import { BudgetDate } from "./PlanningUI";
 import { CoachToolSheet } from "./CoachToolSheet";
 import { CoachActionMenu } from "./CoachActionMenu";
@@ -13,7 +14,6 @@ import * as ImagePicker from "expo-image-picker";
 import React, { useCallback, useState } from "react";
 import { Alert, Image, Keyboard, Pressable, StyleSheet, Text, TextInput, TouchableOpacity, View } from "react-native";
 import { useAppStore } from "../src/store";
-import { getThemePalette } from "../src/theme";
 import { parseReceiptText, type ParsedReceiptLineItem } from "../src/utils/receiptParser";
 type ActionMode = CoachAction;
 const CATEGORY_OPTIONS = ["Food & Dining", "Groceries", "Shopping", "Transport", "Bills & Utilities", "Entertainment", "Others"];
@@ -21,11 +21,10 @@ export default function RadialFloatingBot() {
   const router = useRouter();
   const transactionAction = useTransferAction();
   const {
-    themePreference,
     themeMode,
     addTransaction
   } = useAppStore();
-  const theme = getThemePalette(themePreference, themeMode);
+  const theme = useThemeTokens();
   const isDark = themeMode === "dark";
   const [activeModal, setActiveModal] = useState<ActionMode | null>(null);
 
@@ -353,7 +352,7 @@ export default function RadialFloatingBot() {
               borderColor: theme.border
             }]}>
                       {isBackspace ? <Ionicons name="backspace-outline" size={20} color={theme.textPrimary} /> : <Text style={[styles.calculatorButtonText, {
-                color: isEquals ? isDark ? theme.background : "#FFFFFF" : theme.textPrimary,
+                color: isEquals ? theme.onAccent : theme.textPrimary,
                 fontWeight: isEquals || isOperator ? "800" : "600"
               }]}>
                           {button}
@@ -437,7 +436,7 @@ export default function RadialFloatingBot() {
             borderColor: theme.border
           }]} onPress={handlePickFromGallery} activeOpacity={0.85}>
                     <View style={[styles.captureOptionIconBox, {
-              backgroundColor: isDark ? theme.background : "#EDE7F3"
+              backgroundColor: theme.accentSoft
             }]}>
                       <Ionicons name="images" size={22} color={theme.accent} />
                     </View>
@@ -505,7 +504,7 @@ export default function RadialFloatingBot() {
             backgroundColor: isDark ? "#1B2A1E" : "#EAF7ED",
             borderColor: isDark ? "#2A4B31" : "#CBE7D1"
           }]}>
-                      <Ionicons name="checkmark-circle" size={16} color={isDark ? "#4ADE80" : "#16A34A"} />
+                      <Ionicons name="checkmark-circle" size={16} color={isDark ? "#4ADE80" : theme.success} />
                       <Text style={[styles.ocrConfidenceText, {
               color: isDark ? "#86EFAC" : "#15803D"
             }]}>
@@ -513,7 +512,7 @@ export default function RadialFloatingBot() {
                         Tap any field to edit
                       </Text>
                     </View> : <View style={[styles.ocrConfidenceBanner, {
-            backgroundColor: isDark ? theme.surfaceSoft : "#F4EFF9",
+            backgroundColor: theme.surfaceSoft,
             borderColor: theme.border
           }]}>
                       <Ionicons name="document-text-outline" size={16} color={theme.accent} />
@@ -571,11 +570,11 @@ export default function RadialFloatingBot() {
                     {CATEGORY_OPTIONS.map(cat => {
               const isSelected = scannedCategory === cat;
               return <TouchableOpacity key={cat} onPress={() => setScannedCategory(cat)} style={[styles.categoryPill, {
-                backgroundColor: isSelected ? theme.accent : isDark ? theme.surfaceSoft : "#F3EBF8",
+                backgroundColor: isSelected ? theme.accent : theme.surfaceSoft,
                 borderColor: isSelected ? theme.accent : theme.border
               }]}>
                           <Text style={[styles.categoryPillText, {
-                  color: isSelected ? "#FFFFFF" : theme.textPrimary,
+                  color: isSelected ? theme.onAccent : theme.textPrimary,
                   fontWeight: isSelected ? "700" : "500"
                 }]}>
                             {cat}
@@ -949,3 +948,6 @@ const styles = StyleSheet.create({
     fontWeight: "700"
   }
 });
+
+
+

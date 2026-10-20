@@ -49,6 +49,10 @@ export async function registerSession(
       throw new Error("Account setup did not return a session. Please sign in to continue.");
     }
     return { accessToken, refreshToken: session.refreshToken as string | undefined, userId: session.userId as number | undefined };
+  } catch (error) {
+    if (controller.signal.aborted) throw new Error("Account setup timed out. Check your connection and try again.");
+    if (error instanceof TypeError) throw new Error("Couldn't connect to account setup. Check your connection and try again.");
+    throw error;
   } finally {
     clearTimeout(timeout);
   }

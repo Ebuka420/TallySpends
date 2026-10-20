@@ -48,3 +48,11 @@ test('registration failure and missing login tokens never return a successful se
   await assert.rejects(registerSession(signup, async () => ({ ok: true, json: async () => ({}) })), /did not return a session/);
   await assert.rejects(registerSession(signup, async () => { throw new Error('Network unavailable'); }), /Network unavailable/);
 });
+
+test('offline registration reports an actionable error and never proceeds to login', async () => {
+  const calls = [];
+  await assert.rejects(registerSession(signup, async url => {
+    calls.push(url); throw new TypeError('Network request failed');
+  }), /Check your connection and try again/);
+  assert.deepEqual(calls, [`${API_URL}/api/auth/register`]);
+});

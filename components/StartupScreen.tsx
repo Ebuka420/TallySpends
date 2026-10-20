@@ -1,9 +1,10 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useState } from "react";
 import { Animated, Easing, StyleSheet, Text, View } from "react-native";
 import { StatusBar } from "expo-status-bar";
 import { THEME_PALETTES } from "../src/theme";
 import { useReducedMotion } from "./AuthBackdrop";
-import BrandMark, { BRAND_PURPLE, BRAND_PURPLE_DARK } from "./BrandMark";
+import BrandMark from "./BrandMark";
+import { useThemeTokens } from "../src/ThemeExperience";
 
 export const LAUNCH_BACKGROUND = THEME_PALETTES.aurora.light.surfaceSoft;
 export const LAUNCH_BACKGROUND_DARK = THEME_PALETTES.aurora.dark.background;
@@ -13,9 +14,10 @@ export default function StartupScreen({ dark, onReady, onLayout }: {
   onReady: () => void;
   onLayout: () => void;
 }) {
+  const theme = useThemeTokens();
   const reduced = useReducedMotion();
-  const reveal = useRef(new Animated.Value(0)).current;
-  const loading = useRef(new Animated.Value(0)).current;
+  const [reveal] = useState(() => new Animated.Value(0));
+  const [loading] = useState(() => new Animated.Value(0));
 
   useEffect(() => {
     if (reduced === null) return;
@@ -26,13 +28,13 @@ export default function StartupScreen({ dark, onReady, onLayout }: {
     }
     const intro = Animated.sequence([
       Animated.timing(reveal, {
-        toValue: 1, duration: 600, easing: Easing.out(Easing.cubic), useNativeDriver: true,
+        toValue: 1, duration: theme.identity.motion.duration + 240, easing: Easing.out(Easing.cubic), useNativeDriver: true,
       }),
       Animated.delay(300),
     ]);
     intro.start(({ finished }) => { if (finished) onReady(); });
     return () => intro.stop();
-  }, [reduced, reveal, onReady]);
+  }, [reduced, reveal, onReady, theme.identity.motion.duration]);
 
   useEffect(() => {
     if (reduced !== false) return;
@@ -44,9 +46,9 @@ export default function StartupScreen({ dark, onReady, onLayout }: {
     return () => loop.stop();
   }, [reduced, loading]);
 
-  const purple = dark ? BRAND_PURPLE_DARK : BRAND_PURPLE;
+  const purple = theme.accent;
   return (
-    <View onLayout={onLayout} style={[styles.screen, { backgroundColor: dark ? LAUNCH_BACKGROUND_DARK : LAUNCH_BACKGROUND }]}>
+    <View onLayout={onLayout} style={[styles.screen, { backgroundColor: theme.background }]}>
       <StatusBar style={dark ? "light" : "dark"} />
       <Animated.View style={[styles.brand, {
         opacity: reveal,
@@ -59,7 +61,7 @@ export default function StartupScreen({ dark, onReady, onLayout }: {
         <Text style={[styles.tagline, { color: purple }]}>YOUR MONEY, IN BALANCE</Text>
       </Animated.View>
       <View style={styles.footer}>
-        <View style={[styles.track, { backgroundColor: THEME_PALETTES.aurora[dark ? "dark" : "light"].accentSoft }]} accessibilityRole="progressbar" accessibilityLabel="Loading TallySpends">
+        <View style={[styles.track, { backgroundColor: theme.accentSoft }]} accessibilityRole="progressbar" accessibilityLabel="Loading TallySpends">
           <Animated.View style={[styles.progress, {
             backgroundColor: purple,
             transform: [{ translateX: loading.interpolate({ inputRange: [0, 1], outputRange: [-48, 144] }) }],

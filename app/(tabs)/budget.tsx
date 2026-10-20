@@ -1,3 +1,4 @@
+import { useThemeTokens } from "../../src/ThemeExperience";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import React, { useState } from "react";
@@ -10,7 +11,6 @@ import {
   View,
 } from "react-native";
 import { useAppStore } from "../../src/store";
-import { getThemePalette } from "../../src/theme";
 import { PlanTip, PlanningSheet } from "../../components/PlanningUI";
 import {
   BudgetButton,
@@ -43,13 +43,11 @@ const actions = [
 export default function BudgetScreen() {
   const router = useRouter();
   const {
-    themePreference,
-    themeMode,
     budgetWallet: wallet,
     budgetError,
     reloadBudgetWallet,
   } = useAppStore();
-  const theme = getThemePalette(themePreference, themeMode);
+  const theme = useThemeTokens();
   const [create, setCreate] = useState(false);
   const summary = wallet ? totals(wallet) : null;
   return (
@@ -211,3 +209,5 @@ const s = StyleSheet.create({
   },
   tipCopy: { flex: 1, fontSize: 11.5, lineHeight: 17 },
 });
+
+

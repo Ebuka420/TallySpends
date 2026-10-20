@@ -182,8 +182,8 @@ export function CoachActionMenu({
             backgroundColor: theme.accent,
             shadowColor: theme.accent
           }]}>
-          <Animated.View style={[s.iconLayer, sparkle]}><Ionicons name="sparkles" size={25} color={dark ? theme.background : "#FFFFFF"} /></Animated.View>
-          <Animated.View style={[s.iconLayer, cross]}><Ionicons name="close" size={26} color={dark ? theme.background : "#FFFFFF"} /></Animated.View>
+          <Animated.View style={[s.iconLayer, sparkle]}><Ionicons name="sparkles" size={25} color={theme.onAccent} /></Animated.View>
+          <Animated.View style={[s.iconLayer, cross]}><Ionicons name="close" size={26} color={theme.onAccent} /></Animated.View>
         </Animated.View>
       </GestureDetector>
       {screenReader && !open && <Pressable accessibilityRole="button" accessibilityLabel="Show Smart Coach actions" onPress={show} style={[s.accessibleMore, {
@@ -273,7 +273,7 @@ function ActionButton({
       hovered.value = -1;
     }} style={s.actionTouch}>
       <Animated.View style={[s.iconLayer, normal]}><Ionicons name={action.icon} size={24} color={theme.textPrimary} /></Animated.View>
-      <Animated.View style={[s.iconLayer, selected]}><Ionicons name={action.icon} size={24} color={dark ? theme.background : "#FFFFFF"} /></Animated.View>
+      <Animated.View style={[s.iconLayer, selected]}><Ionicons name={action.icon} size={24} color={theme.onAccent} /></Animated.View>
     </Pressable>
   </Animated.View>;
 }
@@ -360,3 +360,4 @@ const s = StyleSheet.create({
     borderRadius: 14
   }
 });
+

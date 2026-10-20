@@ -16,6 +16,15 @@ blocks of the current month, including its final partial week; yearly selection
 uses the selected calendar year. The screen chart and export share these ranges.
 Amounts are aggregated in integer kobo before formatting.
 
+The Analytics screen's Spending rhythm uses the same selected, validated expense
+transactions as its report. Cell intensity measures transaction count, not value.
+When all expenses have ISO timestamps it shows 24 local-device hours; date-only
+or mixed records show weekdays, including every expense without assigning a
+fabricated time. Each cell is labeled and accessible, tied peaks are stated, and
+empty/income-only periods show no spending. The caption, period label and heatmap
+recompute when the selection or transaction data changes. This reflects recorded
+transactions only, not bank activity that has not been imported into the store.
+
 `SpendingQuestions` keeps the Insights Summary palette and compact card style.
 It offers three short prompts and one input, with the answer breakdown hidden
 until requested. Answers still use the existing local spending-summary function,

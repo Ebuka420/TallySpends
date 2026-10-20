@@ -8,6 +8,8 @@ import { money, type Transaction } from "../src/budget/ledger";
 import { completeTransaction } from "../src/transactionCompletion";
 import { AmountInput, BudgetButton } from "./BudgetUI";
 import { TransferReview, TransferSteps, useTransferAction } from "./TransferUI";
+import BankLogo from "./BankLogo";
+import { useSecurity } from "./SecurityGate";
 
 const methods = [
   { id: "bank", title: "Bank transfer", short: "Bank", detail: "Record a bank deposit", icon: "business-outline" as const },
@@ -31,6 +33,7 @@ export function WalletMovementScreen({ kind }: { kind: "deposit" | "withdrawal" 
   const [review, setReview] = useState(false);
   const [balanceVisible, setBalanceVisible] = useState(true);
   const action = useTransferAction();
+  const security = useSecurity();
   const selected = options.find(item => item.id === selectedId)!;
   const card = savedCards.find(item => item.id === cardId);
   const value = Number(amount);
@@ -46,7 +49,14 @@ export function WalletMovementScreen({ kind }: { kind: "deposit" | "withdrawal" 
       amount: value, category: deposit ? "Income" : "Withdrawal", type: deposit ? "income" : "expense",
       method: selected.title, methodDetail: deposit ? detail : selected.detail, demo: true, date: new Date().toISOString(),
     };
-    await action.run(() => addTransaction(transaction), () => {
+    await action.run(async () => {
+      if (!deposit) {
+        setReview(false);
+        await new Promise(resolve => setTimeout(resolve, 350));
+        if (!await security.authorizeTransfer()) return false;
+      }
+      return addTransaction(transaction);
+    }, () => {
       setReview(false);
       completeTransaction(router, transaction.id);
     });
@@ -71,11 +81,11 @@ export function WalletMovementScreen({ kind }: { kind: "deposit" | "withdrawal" 
         {options.map(item => <Pressable key={item.id} accessibilityRole="radio" accessibilityState={{ checked: selectedId === item.id }}
           onPress={() => item.id === "add" ? Alert.alert("Demo accounts", "Bank linking is not connected yet. Use a demo account to preview a withdrawal.") : setSelectedId(item.id)}
           style={[s.option, { borderColor: selectedId === item.id ? theme.accent : theme.border, backgroundColor: selectedId === item.id ? theme.accentSoft : theme.surface }]}>
-          <Ionicons name={item.icon} size={22} color={theme.accent} /><Text style={{ color: selectedId === item.id ? theme.accent : theme.textSecondary, fontSize: 11, fontWeight: "700" }}>{item.short}</Text>
+          {!deposit && item.id !== "add" ? <BankLogo bank={{ bankName: item.title }} size={22} color={theme.accent} /> : <Ionicons name={item.icon} size={22} color={theme.accent} />}<Text style={{ color: selectedId === item.id ? theme.accent : theme.textSecondary, fontSize: 11, fontWeight: "700" }}>{item.short}</Text>
         </Pressable>)}
       </View>
       <View style={[s.amountCard, { backgroundColor: theme.surface, borderColor: theme.border }]}>
-        <View style={s.method}><View style={[s.smallIcon, { backgroundColor: theme.surfaceSoft }]}><Ionicons name={selected.icon} size={19} color={theme.accent} /></View><View style={{ flex: 1, gap: 4 }}><Text style={{ color: theme.textPrimary, fontSize: 13, fontWeight: "700" }}>{selected.title}</Text><Text style={{ color: theme.textSecondary, fontSize: 11 }}>{selected.detail}</Text></View></View>
+        <View style={s.method}><View style={[s.smallIcon, { backgroundColor: theme.surfaceSoft }]}>{!deposit ? <BankLogo bank={{ bankName: selected.title }} size={19} color={theme.accent} /> : <Ionicons name={selected.icon} size={19} color={theme.accent} />}</View><View style={{ flex: 1, gap: 4 }}><Text style={{ color: theme.textPrimary, fontSize: 13, fontWeight: "700" }}>{selected.title}</Text><Text style={{ color: theme.textSecondary, fontSize: 11 }}>{selected.detail}</Text></View></View>
         <Text style={[s.amountLabel, { color: theme.textSecondary }]}>{deposit ? "Amount to add" : "Amount to withdraw"}</Text>
         <View style={[s.amountRow, { borderColor: over ? theme.danger : theme.border }]}><Text style={{ color: theme.textPrimary, fontSize: 30, fontWeight: "700" }}>₦</Text><AmountInput theme={theme} title={deposit ? "Amount to deposit" : "Amount to withdraw"} available={deposit ? undefined : Math.round(availableBalance * 100)} value={amount} onChangeText={setAmount} placeholder="0.00" style={s.amountInput} /></View>
         <View style={s.quickAmounts}>{[200, 1000, 5000, 10000, 20000].map(preset => <Pressable key={preset} accessibilityRole="button" accessibilityLabel={`Set amount to ${preset} naira`} onPress={() => setAmount(String(preset))} style={[s.quick, { backgroundColor: value === preset ? theme.accentSoft : theme.surfaceSoft, borderColor: value === preset ? theme.accent : "transparent" }]}><Text style={{ color: theme.accent, fontSize: 11, fontWeight: "700" }}>{money(preset * 100).replace(/\.00$/, "")}</Text></Pressable>)}</View>

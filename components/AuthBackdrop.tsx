@@ -1,7 +1,6 @@
 import { useFocusEffect } from "expo-router";
-import { ReactNode, useCallback, useEffect, useRef, useState } from "react";
+import { ReactNode, useCallback, useEffect, useState } from "react";
 import {
-  AccessibilityInfo,
   Animated,
   AppState,
   Easing,
@@ -13,19 +12,10 @@ import {
 } from "react-native";
 import Svg, { Circle, Defs, Ellipse, LinearGradient, Path, Rect, Stop } from "react-native-svg";
 
-export function useReducedMotion() {
-  const [reduced, setReduced] = useState<boolean | null>(null);
-  useEffect(() => {
-    let mounted = true;
-    const subscription = AccessibilityInfo.addEventListener("reduceMotionChanged", setReduced);
-    AccessibilityInfo.isReduceMotionEnabled().then(value => {
-      if (mounted) setReduced(value);
-    }).catch(() => { if (mounted) setReduced(true); });
-    return () => { mounted = false; subscription.remove(); };
-  }, []);
-  return reduced;
-}
 
+import { useReducedMotion } from "../src/accessibility";
+import { useThemeTokens } from "../src/ThemeExperience";
+export { useReducedMotion } from "../src/accessibility";
 type SymbolKind = "coin" | "naira" | "bars" | "trend";
 const symbols: { kind: SymbolKind; x: number; y: number; angle: number }[] = [
   { kind: "coin", x: 0.08, y: 0.30, angle: -30 },
@@ -36,22 +26,23 @@ const symbols: { kind: SymbolKind; x: number; y: number; angle: number }[] = [
 ];
 
 function FinanceSymbol({ kind, color, dark }: { kind: SymbolKind; color: string; dark: boolean }) {
+  const theme = useThemeTokens();
   if (kind === "naira") return <Text style={[styles.naira, { color }]}>₦</Text>;
   return (
     <Svg width={40} height={40} viewBox="0 0 32 32">
       {kind === "coin" ? <>
         <Defs>
           <LinearGradient id="coin" x1="0" y1="0" x2="1" y2="1">
-            <Stop offset="0" stopColor={dark ? "#C7B9DE" : "#B1A2C1"} />
+            <Stop offset="0" stopColor={theme.logoStart} />
             <Stop offset="0.5" stopColor={color} />
-            <Stop offset="1" stopColor={dark ? "#665278" : "#281B37"} />
+            <Stop offset="1" stopColor={theme.logoEnd} />
           </LinearGradient>
         </Defs>
         <Ellipse cx="17" cy="25" rx="10" ry="3" fill={color} opacity={0.08} />
         <Ellipse cx="17" cy="15" rx="9" ry="12" fill={color} />
         <Ellipse cx="15" cy="14" rx="8" ry="11" fill="url(#coin)" />
-        <Ellipse cx="15" cy="14" rx="6" ry="9" fill="none" stroke={dark ? "#E1D5EE" : "#D4C6E0"} strokeWidth={0.6} opacity={0.5} />
-        <Path d="M13 19 V9 L17 19 V9 M11 13 H19 M11 15 H19" fill="none" stroke={dark ? "#33223F" : "#E6DBEE"} strokeWidth={0.8} />
+        <Ellipse cx="15" cy="14" rx="6" ry="9" fill="none" stroke={theme.logoStart} strokeWidth={0.6} opacity={0.5} />
+        <Path d="M13 19 V9 L17 19 V9 M11 13 H19 M11 15 H19" fill="none" stroke={theme.accentSoft} strokeWidth={0.8} />
       </> : kind === "bars" ? <>
         <Rect x="5" y="21" width="4" height="7" rx="1" fill={color} />
         <Rect x="13" y="15" width="4" height="13" rx="1" fill={color} />
@@ -64,23 +55,26 @@ function FinanceSymbol({ kind, color, dark }: { kind: SymbolKind; color: string;
 function FloatingSymbol({ symbol, index, running, color, dark }: {
   symbol: typeof symbols[number]; index: number; running: boolean; color: string; dark: boolean;
 }) {
-  const progress = useRef(new Animated.Value(0)).current;
+  const theme = useThemeTokens();
+  const duration = theme.identity.motion.ambient / 2;
+  const distance = theme.identity.motion.distance;
+  const [progress] = useState(() => new Animated.Value(0));
   useEffect(() => {
     if (!running) { progress.setValue(0); return; }
     const loop = Animated.loop(Animated.sequence([
-      Animated.timing(progress, { toValue: 1, duration: 2300 + (index % 4) * 320, easing: Easing.inOut(Easing.sin), useNativeDriver: true, isInteraction: false }),
-      Animated.timing(progress, { toValue: 0, duration: 2300 + (index % 4) * 320, easing: Easing.inOut(Easing.sin), useNativeDriver: true, isInteraction: false }),
+      Animated.timing(progress, { toValue: 1, duration: duration + (index % 4) * 120, easing: Easing.inOut(Easing.sin), useNativeDriver: true, isInteraction: false }),
+      Animated.timing(progress, { toValue: 0, duration: duration + (index % 4) * 120, easing: Easing.inOut(Easing.sin), useNativeDriver: true, isInteraction: false }),
     ]));
     loop.start();
     return () => loop.stop();
-  }, [running, progress, index]);
+  }, [running, progress, index, duration]);
   return <Animated.View style={[
     styles.symbol,
     { left: `${symbol.x * 100}%`, top: `${symbol.y * 100}%`, opacity: 0.85,
       transform: [
-        { translateY: progress.interpolate({ inputRange: [0, 1], outputRange: [0, index % 2 ? 32 : -36] }) },
-        { translateX: progress.interpolate({ inputRange: [0, 1], outputRange: [0, index % 2 ? -18 : 22] }) },
-        { rotate: progress.interpolate({ inputRange: [0, 1], outputRange: [`${symbol.angle}deg`, `${symbol.angle + 28}deg`] }) },
+        { translateY: progress.interpolate({ inputRange: [0, 1], outputRange: [0, index % 2 ? distance : -distance] }) },
+        { translateX: progress.interpolate({ inputRange: [0, 1], outputRange: [0, index % 2 ? -distance : distance] }) },
+        { rotate: progress.interpolate({ inputRange: [0, 1], outputRange: [`${symbol.angle}deg`, `${symbol.angle + distance}deg`] }) },
         { scaleX: progress.interpolate({ inputRange: [0, 0.5, 1], outputRange: symbol.kind === "coin" ? [1, 0.55, 1] : [1, 1.08, 1] }) },
       ],
     },
@@ -123,14 +117,16 @@ export function AuthEntrance({ children, trigger, style, delay = 0, fromY = 0 }:
   fromY?: number;
 }) {
   const reduced = useReducedMotion();
-  const progress = useRef(new Animated.Value(0)).current;
+  const theme = useThemeTokens();
+const distance = theme.identity.motion.distance;
+  const [progress] = useState(() => new Animated.Value(0));
   useEffect(() => {
     if (reduced === null) return;
     if (reduced) { progress.setValue(1); return; }
     progress.setValue(0);
     const entrance = Animated.timing(progress, {
       toValue: 1,
-      duration: 620,
+      duration: theme.identity.motion.duration + 220,
       delay,
       easing: Easing.out(Easing.cubic),
       useNativeDriver: true,
@@ -138,11 +134,11 @@ export function AuthEntrance({ children, trigger, style, delay = 0, fromY = 0 }:
     });
     entrance.start();
     return () => entrance.stop();
-  }, [trigger, reduced, progress, delay, fromY]);
+  }, [trigger, reduced, progress, delay, fromY, theme.identity.motion.duration]);
   return (
     <Animated.View style={[style, {
       opacity: progress,
-      transform: [{ translateY: progress.interpolate({ inputRange: [0, 1], outputRange: [fromY, 0] }) }],
+      transform: [{ translateY: progress.interpolate({ inputRange: [0, 1], outputRange: [fromY * distance / 5, 0] }) }],
     }]}>
       {children}
     </Animated.View>

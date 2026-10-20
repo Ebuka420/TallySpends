@@ -62,7 +62,7 @@ export function SpendingQuestions({
       <Pressable accessibilityRole="button" accessibilityLabel="Ask question" hitSlop={4} disabled={disabled || !question.trim()} onPress={() => ask(question)} style={[s.send, {
         backgroundColor: theme.accent,
         opacity: disabled || !question.trim() ? .35 : 1
-      }]}><Ionicons name="arrow-up" size={19} color={dark ? theme.background : "#FFFFFF"} /></Pressable>
+      }]}><Ionicons name="arrow-up" size={19} color={theme.onAccent} /></Pressable>
     </View>
     <View style={s.prompts}>{prompts.map(prompt => <Pressable key={prompt.label} accessibilityRole="button" accessibilityState={{
         selected: answer?.query === prompt.question
@@ -218,3 +218,4 @@ const s = StyleSheet.create({
     alignSelf: "flex-start"
   }
 });
+

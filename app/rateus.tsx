@@ -116,7 +116,7 @@ export default function RateUsScreen() {
                   <Ionicons
                     name={star <= rating ? "star" : "star-outline"}
                     size={40}
-                    color={star <= rating ? "#20142A" : theme.border}
+                    color={star <= rating ? theme.accent : theme.border}
                     style={{ marginHorizontal: 6 }}
                   />
                 </TouchableOpacity>
