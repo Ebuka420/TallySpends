@@ -1,15 +1,21 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import { clearPendingSms, configureSmsReader } from "../modules/tally-sms-reader";
+import { SMS_CONSENT_KEY, SMS_ENABLED_KEY, SMS_SENDERS_KEY } from "./transactions/smsSync";
 import { registerSession } from "./register";
 import { migrateOnboardingPin, readPin } from "./security/pin";
 import { profileScope } from "./profile/model";
 import { readPendingSignup, clearPendingSignup } from "./security/signup";
 import { useNavigation } from "expo-router";
-import { useCallback, useEffect, useState, useSyncExternalStore } from "react";
+import { useCallback, useEffect, useMemo, useState, useSyncExternalStore } from "react";
 import { clearProfileSession, getProfileSnapshot, loadAccountProfile, publishProfileTokens, subscribeProfile, updateAccountProfile } from "./profile/repository";
 import type { ProfileUser } from "./profile/model";
-import { Alert, useColorScheme } from "react-native";
+import { Alert, AppState, useColorScheme } from "react-native";
 import { deleteWalletTransaction, getWalletSnapshot, loadWallet, resetWallet, saveWalletTransaction, subscribeWallet } from "./budget/repository";
 import { totals, type Wallet } from "./budget/ledger";
+import { createBankRequest } from "./banking/backend";
+import { clearTransactionFeed, getTransactionFeedSnapshot, refreshTransactionFeed, subscribeTransactionFeed } from "./transactions/feed";
+import { mergeTransactionFeed } from "./transactions/api";
+import { spendingByBudget } from "./transactions/budgeting";
 import type { ThemeMode } from "./theme";
 import { useAppearance, hydrateAppearance, setThemePreference, setDarkModePreference } from "./appearance";
 import { useVisualTheme } from "./ThemeExperience";
@@ -487,7 +493,8 @@ const setGlobalAuth = (status: boolean) => {
 export function useAppStore() {
   const [budgetWallet, setBudgetWallet] = useState<Wallet | null>(getWalletSnapshot);
   const [budgetError, setBudgetError] = useState<string | null>(null);
-  const [transactions, setTransactions] = useState<any[]>([]);
+  const [localTransactions, setLocalTransactions] = useState<any[]>([]);
+  const transactionFeed = useSyncExternalStore(subscribeTransactionFeed, getTransactionFeedSnapshot, getTransactionFeedSnapshot);
   const [notifications, setNotifications] = useState<NotificationItem[]>([]);
   const [budgets, setBudgets] = useState<Record<string, number>>({});
   const [savingsGoals, setSavingsGoals] = useState<any[]>([]);
@@ -509,6 +516,14 @@ export function useAppStore() {
       : darkModePreference;
 
   const theme = useVisualTheme(getThemePalette(themePreference, themeMode));
+  const transactions = useMemo(() => transactionFeed.state === "ready"
+    ? mergeTransactionFeed(transactionFeed.transactions, localTransactions, DEFAULT_TRANSACTIONS)
+    : localTransactions, [transactionFeed, localTransactions]);
+  const trackedBudgetSpending = useMemo(() => {
+    if (!budgetWallet) return {};
+    const feedSpend = spendingByBudget(transactions, budgetWallet.budgets);
+    return Object.fromEntries(budgetWallet.budgets.map(budget => [budget.id, Math.max(feedSpend[budget.id] || 0, budget.spentAmount)]));
+  }, [transactions, budgetWallet]);
 
   const [tabBarOpacity, setTabBarOpacityState] = useState(globalTabBarOpacity);
   useEffect(() => {
@@ -555,7 +570,7 @@ export function useAppStore() {
 
   useEffect(() => subscribeWallet((wallet) => {
     setBudgetWallet(wallet);
-    setTransactions(wallet.transactions);
+    setLocalTransactions(wallet.transactions);
     setBudgetError(null);
   }), []);
 
@@ -563,7 +578,7 @@ export function useAppStore() {
     try {
       const wallet = await loadWallet(DEFAULT_TRANSACTIONS);
       setBudgetWallet(wallet);
-      setTransactions(wallet.transactions);
+      setLocalTransactions(wallet.transactions);
       setBudgetError(null);
     } catch (error) {
       setBudgetError(error instanceof Error ? error.message : 'Could not load your budgets.');
@@ -754,6 +769,8 @@ const loadData = useCallback(async () => {
   );
 
   const logout = useCallback(async () => {
+    try { await configureSmsReader(false, false, []); await clearPendingSms(); } catch { /* Native SMS reader is Android-only and may not exist in Expo Go. */ }
+    await AsyncStorage.multiRemove([SMS_CONSENT_KEY, SMS_ENABLED_KEY, SMS_SENDERS_KEY]);
     clearProfileSession(true);
     setAccessTokenState(null);
     setRefreshTokenState(null);
@@ -766,6 +783,37 @@ const loadData = useCallback(async () => {
 
     setGlobalAuth(false);
   }, []);
+
+  const reloadTransactions = useCallback(async (force = true, externalSignal?: AbortSignal) => {
+    const owner = accountProfile.scope;
+    const currentToken = accountProfile.token || accessToken;
+    const currentRefreshToken = accountProfile.refreshToken || refreshToken;
+    if (!isAuthenticated || !owner || (!currentToken && !currentRefreshToken)) throw new Error("Sign in again to refresh transaction history.");
+    const controller = new AbortController();
+    const abort = () => controller.abort();
+    if (externalSignal?.aborted) controller.abort();
+    else externalSignal?.addEventListener("abort", abort, { once: true });
+    const timeout = setTimeout(() => controller.abort(), 25000);
+    try {
+      const request = createBankRequest({ token: currentToken, refreshToken: currentRefreshToken,
+        saveTokens: async (nextToken, nextRefreshToken) => { await login(nextToken, nextRefreshToken); } }, controller.signal);
+      return await refreshTransactionFeed(owner, request, force);
+    } finally {
+      clearTimeout(timeout);
+      externalSignal?.removeEventListener("abort", abort);
+    }
+  }, [accountProfile.scope, accountProfile.token, accountProfile.refreshToken, accessToken, refreshToken, isAuthenticated, login]);
+
+  useEffect(() => {
+    if (!isAuthenticated || !accountProfile.scope) {
+      clearTransactionFeed();
+      return;
+    }
+    const sync = () => { void reloadTransactions(false).catch(() => {}); };
+    sync();
+    const subscription = AppState.addEventListener("change", state => { if (state === "active") sync(); });
+    return () => subscription.remove();
+  }, [isAuthenticated, accountProfile.scope, reloadTransactions]);
 
   const setTabBarOpacity = useCallback(async (opacity: number) => {
     const nextOpacity = Math.max(0.45, Math.min(0.98, opacity));
@@ -1084,7 +1132,7 @@ const loadData = useCallback(async () => {
       JSON.stringify([]),
     );
 
-    setTransactions(DEFAULT_TRANSACTIONS);
+    setLocalTransactions(DEFAULT_TRANSACTIONS);
 
     setBudgets(DEFAULT_BUDGETS);
 
@@ -1105,6 +1153,10 @@ const loadData = useCallback(async () => {
     budgetError,
     reloadBudgetWallet,
     transactions,
+    transactionFeedState: transactionFeed.state,
+    transactionFeedError: transactionFeed.error,
+    refreshTransactions: reloadTransactions,
+    trackedBudgetSpending,
     budgets,
     savingsGoals,
 
@@ -1119,6 +1171,7 @@ const loadData = useCallback(async () => {
     isAuthenticated,
     token: accountProfile.token || accessToken,
     refreshToken: accountProfile.refreshToken || refreshToken,
+    purchaseUserId: accountProfile.scope?.startsWith("id:") ? accountProfile.scope.slice(3) : null,
 
     themePreference,
     darkModePreference,

@@ -7,7 +7,6 @@
     "icon": "./assets/images/icon.png",
     "scheme": "tallyspends",
     "userInterfaceStyle": "automatic",
-    "newArchEnabled": true,
     "ios": {
       "supportsTablet": true,
       "infoPlist": {
@@ -21,11 +20,11 @@
         "backgroundImage": "./assets/images/android-icon-background.png",
         "monochromeImage": "./assets/images/android-icon-monochrome.png"
       },
-      "edgeToEdgeEnabled": true,
       "predictiveBackGestureEnabled": false,
       "permissions": [
         "android.permission.CAMERA",
-        "android.permission.RECORD_AUDIO"
+        "android.permission.RECORD_AUDIO",
+        "android.permission.RECEIVE_SMS"
       ],
       "package": "com.ballerdict.TallySpends"
     },
@@ -59,7 +58,8 @@
       "expo-secure-store",
       ["expo-local-authentication", { "faceIDPermission": "Allow TallySpends to use Face ID to unlock the app and confirm transfers." }],
       "expo-web-browser",
-      "expo-sharing"
+      "expo-sharing",
+      "./plugins/withTallySmsReader"
     ],
     "experiments": {
       "typedRoutes": true,

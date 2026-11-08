@@ -16,6 +16,7 @@ import {
   KeyboardAvoidingView,
   Alert,
 } from "react-native";
+import type { ViewInstance } from "react-native";
 import Svg, { Rect } from "react-native-svg";
 import { useAppStore } from "../src/store";
 import { captureRef, releaseCapture } from "react-native-view-shot";
@@ -44,7 +45,7 @@ export default function RequestScreen() {
   const [customCategoryInput, setCustomCategoryInput] = useState("");
   const [showCustomCategoryManager, setShowCustomCategoryManager] = useState(false);
   const identity = usePaymentIdentity();
-  const qrView = useRef<View>(null);
+  const qrView = useRef<ViewInstance | null>(null);
   const shareLock = useRef(false);
   const [sharing, setSharing] = useState(false);
 

@@ -44,6 +44,8 @@ export const bankBackend: BankBackend = {
   },
   async listAccounts(request) {
     const result = await request("/api/bank-accounts");
+    // An empty collection is safe to represent without knowing the non-empty DTO.
+    if (Array.isArray(result) && result.length === 0) return [];
     if (!bankAccountContract.decode) throw new Error("Linked-account display is pending the backend's confirmed GET /api/bank-accounts response schema. No account details or balances have been guessed.");
     return bankAccountContract.decode(result);
   },
@@ -120,7 +122,7 @@ export function createBankRequest(session: BankSession, signal: AbortSignal, sen
     // Authorization codes and bearer tokens may only go to our own API.
     const method = (init.method || "GET").toUpperCase();
     const allowed = method === "GET" && ["/api/bank-accounts", "/api/accounts/me", "/api/transactions"].includes(path)
-      || method === "POST" && path === "/api/bank-accounts/link";
+      || method === "POST" && ["/api/bank-accounts/link", "/api/sms/import"].includes(path);
     if (!API_URL.startsWith("https://") || !allowed) {
       throw new Error("Invalid bank backend path.");
     }
@@ -144,9 +146,13 @@ export function createBankRequest(session: BankSession, signal: AbortSignal, sen
     if (!response.ok) {
       throw new BankRequestError(response.status === 401
         ? "Your session has expired. Sign in again to continue."
+        : response.status === 404 && path === "/api/sms/import"
+          ? "SMS import is temporarily unavailable. Eligible alerts remain queued for retry."
         : response.status === 404
           ? "Bank linking is temporarily unavailable. Please try again later."
+        : (response.status === 400 || response.status === 422) && path === "/api/sms/import" ? "The backend rejected the SMS batch. Eligible alerts remain queued for retry."
         : response.status === 400 || response.status === 422 ? "Mono authorization was rejected. The code may have expired; complete bank authorization again."
+        : response.status === 409 && path === "/api/sms/import" ? "The backend could not process this SMS batch. Eligible alerts remain queued for retry."
         : response.status === 409 ? "This bank connection may already exist. Refresh your linked accounts before linking again."
         : response.status === 429 ? "Too many bank requests. Please wait before trying again."
         : "The bank service could not complete the request. Please try again.", method === "POST" && (response.status >= 500 || response.status === 409));

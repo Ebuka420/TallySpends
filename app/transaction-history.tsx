@@ -1,6 +1,6 @@
 import { Ionicons } from "@expo/vector-icons";
-import { useLocalSearchParams, useRouter } from "expo-router";
-import React, { useMemo, useState } from "react";
+import { useFocusEffect, useLocalSearchParams, useRouter } from "expo-router";
+import React, { useCallback, useMemo, useState } from "react";
 import { Keyboard, Pressable, ScrollView, SectionList, StyleSheet, Text, TextInput, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { AmountInput, BudgetButton, BudgetLoading } from "../components/BudgetUI";
@@ -17,7 +17,8 @@ const sorts: { value: HistorySort; label: string }[] = [{ value: "newest", label
 export default function TransactionHistoryScreen() {
   const router = useRouter();
   const params = useLocalSearchParams<{ category?: string; type?: string }>();
-  const { transactions, theme, themeMode, budgetWallet, budgetError, reloadBudgetWallet } = useAppStore();
+  const { transactions, theme, themeMode, budgetWallet, budgetError, reloadBudgetWallet, transactionFeedState, transactionFeedError, refreshTransactions } = useAppStore();
+  useFocusEffect(useCallback(() => { void refreshTransactions(false).catch(() => {}); }, [refreshTransactions]));
   const [search, setSearch] = useState("");
   const [filters, setFilters] = useState<HistoryFilters>(() => ({ ...defaultHistoryFilters(), category: params.category || null, type: types.some(item => item.value === params.type) ? params.type as HistoryType : "all" }));
   const [draft, setDraft] = useState(filters);
@@ -44,6 +45,8 @@ export default function TransactionHistoryScreen() {
     <View style={s.header}><Pressable accessibilityLabel="Go back" onPress={() => router.canGoBack() ? router.back() : router.replace("/(tabs)")} style={[s.iconButton, { backgroundColor: theme.surface }]}><Ionicons name="chevron-back" size={22} color={theme.textPrimary} /></Pressable><View style={{ flex: 1 }}><Text style={[s.title, { color: theme.textPrimary }]}>Transaction history</Text><Text style={{ color: theme.textSecondary, fontSize: 11, marginTop: 3 }}>Every money moment, in one place.</Text></View></View>
     <View style={s.controls}>
       <Pressable accessibilityRole="button" onPress={() => router.push("/automatic-tracking")} style={{ flexDirection: "row", alignItems: "center", gap: 7, paddingBottom: 12 }}><Ionicons name="sync-outline" size={16} color={theme.accent} /><Text style={{ color: theme.accent, fontSize: 12, fontWeight: "600" }}>Automatic tracking</Text></Pressable>
+      {transactionFeedState === "loading" && <Text accessibilityLiveRegion="polite" style={{ color: theme.textSecondary, fontSize: 11, paddingBottom: 8 }}>Refreshing transactions from your account…</Text>}
+      {transactionFeedError && <Pressable accessibilityRole="button" onPress={() => void refreshTransactions(true).catch(() => {})} style={{ paddingBottom: 8 }}><Text accessibilityRole="alert" style={{ color: theme.accent, fontSize: 11 }}>Couldn’t refresh backend transactions. Tap to retry. Your saved manual entries are still here.</Text></Pressable>}
       <View style={s.searchRow}><View style={[s.search, { backgroundColor: theme.surface, borderColor: theme.border }]}><Ionicons name="search-outline" size={18} color={theme.textSecondary} /><TextInput accessibilityLabel="Search transactions" placeholder="Name, note, amount or reference" placeholderTextColor={theme.textSecondary} value={search} onChangeText={setSearch} style={{ flex: 1, color: theme.textPrimary, fontSize: 12, paddingVertical: 12 }} returnKeyType="search" autoCorrect={false} />{!!search && <Pressable accessibilityLabel="Clear search" hitSlop={8} onPress={() => setSearch("")}><Ionicons name="close-circle" size={18} color={theme.textSecondary} /></Pressable>}</View><Pressable accessibilityRole="button" accessibilityLabel={`Filters, ${count} active`} onPress={openFilters} style={[s.filterButton, { backgroundColor: theme.accentSoft }]}><Ionicons name="options-outline" size={21} color={theme.accent} /><Text style={{ color: theme.accent, fontSize: 11, fontWeight: "700" }}>{count ? `Filter (${count})` : "Filter"}</Text></Pressable></View>
       <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8, paddingVertical: 12 }}>{types.map(item => chip(item.label, filters.type === item.value, () => setFilters({ ...filters, type: item.value })))}</ScrollView>
       <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 6 }}>

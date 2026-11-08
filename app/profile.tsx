@@ -6,12 +6,14 @@ import React, { useCallback, useRef } from "react";
 import { ActivityIndicator, Alert, Image, SafeAreaView, ScrollView, StyleSheet, Text, TouchableOpacity, View } from "react-native";
 import { getProfileSnapshot, loadAccountProfile } from "../src/profile/repository";
 import { useAppStore } from "../src/store";
+import { getSubscriptionSnapshot, subscribeSubscription } from "../src/subscriptions/revenuecat";
 
 export default function ProfileScreen() {
   const router = useRouter();
   const { profileImage, setProfileImage, profileFullName, profilePhoneNumber, profileEmail,
     profileGender, profileDob, profileAddress, profileTallyTag, theme, profileLoading, profileSaving } = useAppStore();
   const styles = getStyles(theme);
+  const subscription = React.useSyncExternalStore(subscribeSubscription, getSubscriptionSnapshot, getSubscriptionSnapshot);
   const imageLock = useRef(false);
   const pickImageFromGallery = async () => {
     if (imageLock.current || profileSaving || profileLoading) return;
@@ -99,7 +101,7 @@ export default function ProfileScreen() {
           <View style={styles.badgeFlexContainer}>
             <View style={[styles.planTierBadge, { backgroundColor: theme.accentSoft }]}>
               <Ionicons name="ribbon-outline" size={12} color={theme.accent} style={{ marginRight: 4 }} />
-              <Text style={[styles.planTierBadgeText, { color: theme.accent }]}>Not provided</Text>
+              <Text style={[styles.planTierBadgeText, { color: theme.accent }]}>{subscription.status === "active" ? "MVP · Active" : subscription.status === "inactive" ? "Freemium" : "Not synced"}</Text>
             </View>
             <TouchableOpacity style={styles.upgradeLinkRow} onPress={() => router.push("/membership")} activeOpacity={0.7}>
               <Text style={styles.upgradeLinkLabelText}>Upgrade</Text>

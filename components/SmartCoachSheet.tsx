@@ -2,6 +2,7 @@ import { Ionicons } from "@expo/vector-icons";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import * as Haptics from "expo-haptics";
 import { useRouter } from "expo-router";
+import type { ScrollViewInstance, TextInputInstance } from "react-native";
 import { useEffect, useRef, useState, useSyncExternalStore } from "react";
 import {
   ActivityIndicator,
@@ -99,8 +100,8 @@ function AccountCoachSheet({
   } | null>(null);
   const locked = useRef(false);
   const request = useRef<AbortController | null>(null);
-  const feed = useRef<ScrollView>(null);
-  const composer = useRef<TextInput>(null);
+  const feed = useRef<ScrollViewInstance | null>(null);
+  const composer = useRef<TextInputInstance | null>(null);
   const followLatest = useRef(true);
   const onAccent = theme.onAccent;
   useEffect(

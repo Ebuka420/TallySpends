@@ -1,6 +1,7 @@
 import { Ionicons } from "@expo/vector-icons";
 import React, { useEffect, useRef, useState } from "react";
 import { ScrollView, StyleSheet, Text, TouchableOpacity, View, useWindowDimensions } from "react-native";
+import type { ScrollViewInstance } from "react-native";
 import { useReducedMotion } from "./AuthBackdrop";
 import type { ThemeId, ThemeMode, ThemePalette } from "../src/theme";
 import { getDashboardPalette } from "../src/theme";
@@ -23,7 +24,7 @@ export function HomeCarousel({ title, link, onViewAll, cards, theme, themeMode, 
   const stride = cardWidth + 12;
   const [viewport, setViewport] = useState(0);
   const [index, setIndex] = useState(0);
-  const scroll = useRef<ScrollView>(null);
+  const scroll = useRef<ScrollViewInstance | null>(null);
   const pausedUntil = useRef(0);
   const position = Math.min(index, Math.max(0, cards.length - 1));
   useEffect(() => {

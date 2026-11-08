@@ -1,6 +1,8 @@
 import { Stack, useSegments } from "expo-router";
 import * as SplashScreen from "expo-splash-screen";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { AppState, PermissionsAndroid, Platform } from "react-native";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import { Pressable, Text, View } from "react-native";
 import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
 import { loadAsync } from "expo-font";
@@ -14,6 +16,11 @@ import SecurityGate, { useSecurity } from "../components/SecurityGate";
 import { useIntroStatus } from "../src/onboarding/intro";
 import ThemeExperience from "../src/ThemeExperience";
 import { ONBOARDING_THEME } from "../src/onboarding/brand";
+import { createBankRequest } from "../src/banking/backend";
+import { drainQueuedBankAlerts, SMS_CONSENT_KEY, SMS_ENABLED_KEY, SMS_LAST_RESULT_KEY, SMS_SENDERS_KEY } from "../src/transactions/smsSync";
+import { smsReaderAvailable } from "../modules/tally-sms-reader";
+import { formatSmsImportResult } from "../src/transactions/tracking";
+import { initializeSubscription, refreshSubscription, signOutPurchases } from "../src/subscriptions/revenuecat";
 
 // Hold the native launch screen until the branded React loading screen has laid out.
 void SplashScreen.preventAutoHideAsync().catch(() => {});
@@ -78,7 +85,7 @@ export default function RootLayout() {
 }
 function RootLayoutContent() {
   const segments = useSegments();
-  const { isAuthenticated, loading, themeMode, theme } = useAppStore();
+  const { isAuthenticated, loading, themeMode, theme, purchaseUserId } = useAppStore();
   const productIntro = useIntroStatus();
   const [iconsReady, setIconsReady] = useState(false);
   const [iconError, setIconError] = useState(false);
@@ -100,6 +107,17 @@ function RootLayoutContent() {
     void SplashScreen.hideAsync().catch(() => {});
   }, []);
   const topLevelGroup = String(segments[0] || "");
+
+  useEffect(() => {
+    if (!isAuthenticated) void signOutPurchases();
+    else void initializeSubscription(purchaseUserId);
+  }, [isAuthenticated, purchaseUserId]);
+  useEffect(() => {
+    const listener = AppState.addEventListener("change", state => {
+      if (state === "active" && isAuthenticated) void refreshSubscription();
+    });
+    return () => listener.remove();
+  }, [isAuthenticated]);
 
   // Do not mount any destination until startup data and the brand reveal are ready.
   // New visitors must finish or skip the introduction before auth is available.
@@ -126,7 +144,41 @@ function RootLayoutContent() {
 }
 function AppNavigation({ isAuthenticated, topLevelGroup, introSeen }: { isAuthenticated: boolean; topLevelGroup: string; introSeen: boolean }) {
   const security = useSecurity();
-  const { theme } = useAppStore();
+  const { theme, token, refreshToken, login, refreshTransactions } = useAppStore();
+  const smsSyncing = useRef(false);
+  const smsSyncAbort = useRef<AbortController | null>(null);
+  const smsSession = useRef({ token, refreshToken, login, refreshTransactions });
+  smsSession.current = { token, refreshToken, login, refreshTransactions };
+  useEffect(() => {
+    if (!isAuthenticated || !security.unlocked || Platform.OS !== "android" || !smsReaderAvailable()) return;
+    let active = true;
+    const sync = async () => {
+      if (smsSyncing.current || !active || (!smsSession.current.token && !smsSession.current.refreshToken)) return;
+      smsSyncing.current = true;
+      const controller = new AbortController();
+      smsSyncAbort.current = controller;
+      const timeout = setTimeout(() => controller.abort(), 30000);
+      try {
+        const [consent, enabled, senders, permission] = await Promise.all([
+          AsyncStorage.getItem(SMS_CONSENT_KEY), AsyncStorage.getItem(SMS_ENABLED_KEY), AsyncStorage.getItem(SMS_SENDERS_KEY),
+          PermissionsAndroid.check(PermissionsAndroid.PERMISSIONS.RECEIVE_SMS),
+        ]);
+        if (active && consent === "true" && enabled === "true" && permission) {
+          const session = smsSession.current;
+          const request = createBankRequest({ token: session.token, refreshToken: session.refreshToken, saveTokens: async (next, refresh) => { await smsSession.current.login(next, refresh); } }, controller.signal);
+          const imported = await drainQueuedBankAlerts(request, (senders || "").split(/\r?\n/), () => smsSession.current.refreshTransactions(true, controller.signal), async summary => {
+            await AsyncStorage.setItem(SMS_LAST_RESULT_KEY, formatSmsImportResult(summary));
+          });
+          if (imported.submitted) await AsyncStorage.setItem(SMS_LAST_RESULT_KEY, formatSmsImportResult(imported.summary));
+        }
+      } catch { /* Keep encrypted pending records; retry on a later foreground. */ }
+      finally { clearTimeout(timeout); smsSyncing.current = false; if (smsSyncAbort.current === controller) smsSyncAbort.current = null; }
+    };
+    void sync();
+    const subscription = AppState.addEventListener("change", state => { if (state === "active") void sync(); });
+    const interval = setInterval(() => { if (AppState.currentState === "active") void sync(); }, 60000);
+    return () => { active = false; subscription.remove(); clearInterval(interval); smsSyncAbort.current?.abort(); smsSyncAbort.current = null; };
+  }, [isAuthenticated, security.unlocked]);
   return (
       <View style={{ flex: 1 }}>
         <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: theme.background } }}>

@@ -1,10 +1,10 @@
 import * as Sharing from "expo-sharing";
 import { useRef, useState } from "react";
-import { Alert, View } from "react-native";
+import { Alert, View, type ViewInstance } from "react-native";
 import { captureRef } from "react-native-view-shot";
 
 export function useReceiptShare() {
-  const receiptRef = useRef<View>(null);
+  const receiptRef = useRef<ViewInstance | null>(null);
   const sharingLock = useRef(false);
   const [sharing, setSharing] = useState(false);
   const share = async () => {

@@ -4,6 +4,7 @@ import { StatusBar } from "expo-status-bar";
 import { useFocusEffect, useRouter } from "expo-router";
 import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 import { ActivityIndicator, AppState, BackHandler, Pressable, ScrollView, StyleSheet, Text, View, useWindowDimensions } from "react-native";
+import type { ScrollViewInstance } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import Animated, { cancelAnimation, Easing, Extrapolation, FadeIn, FadeOut, interpolate, useAnimatedReaction, useAnimatedScrollHandler, useAnimatedStyle, useSharedValue, withDelay, withSpring, withTiming, type SharedValue } from "react-native-reanimated";
 import { scheduleOnRN } from "react-native-worklets";
@@ -75,7 +76,7 @@ export default function OnboardingScreen({ preview = false }: { preview?: boolea
   const [error, setError] = useState("");
   const submission = useRef(false);
   const alive = useRef(true);
-  const pager = useRef<ScrollView>(null);
+  const pager = useRef<ScrollViewInstance | null>(null);
   const progress = useSharedValue(0);
   const press = useSharedValue(1);
   const exit = useSharedValue(1);

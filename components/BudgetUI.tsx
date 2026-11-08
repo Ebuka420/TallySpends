@@ -17,6 +17,7 @@ import {
   type ViewStyle,
   View,
 } from "react-native";
+import type { ScrollViewInstance } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { localDate, minor, money } from "../src/budget/ledger";
 import type { ThemePalette } from "../src/theme";
@@ -451,7 +452,7 @@ function DateWheel({
   theme: ThemePalette;
   label: string;
 }) {
-  const scroll = useRef<ScrollView>(null);
+  const scroll = useRef<ScrollViewInstance | null>(null);
   const [width, setWidth] = useState(0);
   const index = values.findIndex((v) => v.value === selected);
   useEffect(() => {

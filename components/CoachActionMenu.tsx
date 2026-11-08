@@ -1,6 +1,6 @@
 import { Ionicons } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
-import React, { useCallback, useEffect, useState } from "react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import { AccessibilityInfo, BackHandler, Pressable, StyleSheet, Text, View, useWindowDimensions } from "react-native";
 import { Gesture, GestureDetector } from "react-native-gesture-handler";
 import Animated, { clamp, interpolateColor, runOnJS, useAnimatedStyle, useSharedValue, withSpring, withTiming, type SharedValue } from "react-native-reanimated";
@@ -30,9 +30,11 @@ export function CoachActionMenu({
   } = useWindowDimensions();
   const insets = useSafeAreaInsets();
   const [open, setOpen] = useState(false);
+  const [positionReady, setPositionReady] = useState(false);
+  const positionInitialized = useRef(false);
   const [screenReader, setScreenReader] = useState(false);
-  const x = useSharedValue(width - COACH_BUTTON - 20);
-  const y = useSharedValue(height - COACH_BUTTON - Math.max(100, insets.bottom + 80));
+  const x = useSharedValue(0);
+  const y = useSharedValue(0);
   const startX = useSharedValue(0),
     startY = useSharedValue(0);
   const progress = useSharedValue(0),
@@ -43,6 +45,17 @@ export function CoachActionMenu({
   const minY = insets.top + 26;
   const maxY = Math.max(minY, height - COACH_BUTTON - insets.bottom - 72);
   useEffect(() => {
+    // Expo can briefly report an unmeasured/small window during startup. Don't
+    // clamp the initial position against that value or the bot gets stuck at
+    // the top after the real dimensions arrive.
+    if (width <= COACH_BUTTON + 40 || height <= minY + COACH_BUTTON + 72) return;
+    if (!positionInitialized.current) {
+      x.value = width - COACH_BUTTON - 20;
+      y.value = height - COACH_BUTTON - Math.max(100, insets.bottom + 80);
+      positionInitialized.current = true;
+      setPositionReady(true);
+      return;
+    }
     x.value = clamp(x.value, 20, width - COACH_BUTTON - 20);
     y.value = clamp(y.value, minY, maxY);
   }, [width, height, minY, maxY, x, y]);
@@ -153,6 +166,7 @@ export function CoachActionMenu({
     top: clamp(y.value < minY + 155 ? y.value + 190 : y.value - 240, minY, Math.max(minY, height - insets.bottom - 100)),
     opacity: clamp(progress.value, 0, 1)
   }));
+  if (!positionReady) return null;
   return <>
     <Animated.View pointerEvents={open ? "auto" : "none"} style={[StyleSheet.absoluteFill, s.backdrop, backdrop]}>
       <Pressable accessibilityRole="button" accessibilityLabel="Close Smart Coach actions" onPress={close} style={StyleSheet.absoluteFill} />

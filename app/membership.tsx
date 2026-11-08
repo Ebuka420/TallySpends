@@ -2,6 +2,9 @@ import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
 import { Stack, useRouter } from "expo-router";
 import React from "react";
 import {
+    ActivityIndicator,
+    Alert,
+    Platform,
     SafeAreaView,
     ScrollView,
     StyleSheet,
@@ -10,6 +13,7 @@ import {
     View,
 } from "react-native";
 import { useAppStore } from "../src/store";
+import { getSubscriptionSnapshot, manageSubscription, purchaseSubscription, restoreSubscriptions, subscribeSubscription } from "../src/subscriptions/revenuecat";
 
 // Mock data representing the list of features for each plan
 const FREEMIUM_FEATURES = [
@@ -73,6 +77,38 @@ export default function MembershipScreen() {
   const router = useRouter();
   const { theme } = useAppStore();
   const styles = React.useMemo(() => getStyles(theme), [theme]);
+  const billing = React.useSyncExternalStore(subscribeSubscription, getSubscriptionSnapshot, getSubscriptionSnapshot);
+  const packages = billing.offering?.availablePackages ?? [];
+  const active = billing.status === "active";
+  const dateLabel = (value: string | null | undefined) => value ? new Date(value).toLocaleDateString(undefined, { year: "numeric", month: "short", day: "numeric" }) : null;
+  const entitlementDetail = active
+    ? billing.entitlement?.willRenew
+      ? `Renews ${dateLabel(billing.entitlement.expirationDate) || "automatically"}`
+      : billing.entitlement?.expirationDate
+        ? `Access until ${dateLabel(billing.entitlement.expirationDate)}`
+        : "Lifetime access"
+    : billing.status === "loading" ? "Checking your store account…" : "No active MVP subscription";
+
+  const buyPackage = async (item: (typeof packages)[number]) => {
+    try {
+      const info = await purchaseSubscription(item);
+      if (info) Alert.alert("MVP activated", "Your store purchase is verified and MVP access is now active on this account.");
+    } catch (error) {
+      Alert.alert("Purchase not completed", error instanceof Error ? error.message : "Please try again.");
+    }
+  };
+  const restore = async () => {
+    try {
+      const restored = await restoreSubscriptions();
+      Alert.alert(restored ? "Purchase restored" : "No active purchase found", restored ? "MVP is active on this account." : "No active MVP subscription was found for this store account.");
+    } catch (error) {
+      Alert.alert("Restore failed", error instanceof Error ? error.message : "Please try again.");
+    }
+  };
+  const manage = async () => {
+    try { await manageSubscription(); }
+    catch (error) { Alert.alert("Could not open subscriptions", error instanceof Error ? error.message : "Please try again."); }
+  };
 
   return (
     <SafeAreaView style={styles.container}>
@@ -100,20 +136,20 @@ export default function MembershipScreen() {
         showsVerticalScrollIndicator={false}
         contentContainerStyle={styles.scrollContent}
       >
-        {/* Top Active Status Card */}
+        {/* The plan reflects the active RevenueCat entitlement on this signed-in account. */}
         <View style={styles.currentPlanCard}>
           <View style={styles.cardHeaderRow}>
             <View>
-              <Text style={styles.planLabel}>Current Plan</Text>
-              <Text style={styles.planTitleText}>Freemium</Text>
+              <Text style={styles.planLabel}>ACCOUNT PLAN</Text>
+              <Text style={styles.planTitleText}>{active ? "MVP" : billing.status === "unavailable" ? "Plan unavailable" : "Freemium"}</Text>
             </View>
-            <View style={styles.activeBadge}>
-              <View style={styles.badgeDot} />
-              <Text style={styles.activeBadgeText}>Active</Text>
+            <View style={[styles.activeBadge, !active && styles.inactiveBadge]}>
+              {billing.status === "loading" && <ActivityIndicator size="small" color={theme.textSecondary} style={{ marginRight: 6 }} />}
+              <Text style={[styles.activeBadgeText, !active && { color: theme.textSecondary }]}>{active ? "Active" : billing.status === "loading" ? "Checking" : billing.status === "unavailable" ? "Unavailable" : "Free"}</Text>
             </View>
           </View>
           <Text style={styles.planSubtitleText}>
-            Upgrade to MVP anytime to unlock more features.
+            {active ? `${billing.entitlement?.store === "APP_STORE" ? "Apple App Store" : billing.entitlement?.store === "PLAY_STORE" ? "Google Play" : "Store"} · ${entitlementDetail}` : billing.status === "unavailable" ? billing.error || "Store billing is unavailable in this build." : entitlementDetail}
           </Text>
           {/* Crown Vector Background Icon Frame using MaterialCommunityIcons */}
           <View style={styles.crownWrapper}>
@@ -136,7 +172,7 @@ export default function MembershipScreen() {
               <View style={styles.tierTitleWrapper}>
                 <Text style={styles.tierTitle}>Freemium</Text>
                 <View style={styles.currentPlanBadge}>
-                  <Text style={styles.currentPlanBadgeText}>Current Plan</Text>
+                  <Text style={styles.currentPlanBadgeText}>Free tier</Text>
                 </View>
               </View>
             </View>
@@ -165,7 +201,7 @@ export default function MembershipScreen() {
             </View>
 
             <TouchableOpacity style={styles.disabledButton} disabled>
-              <Text style={styles.disabledButtonText}>Current Plan</Text>
+              <Text style={styles.disabledButtonText}>Included</Text>
             </TouchableOpacity>
           </View>
 
@@ -195,12 +231,19 @@ export default function MembershipScreen() {
               ))}
             </View>
 
-            <TouchableOpacity
-              style={styles.mvpActionButton}
-              activeOpacity={0.8}
-            >
-              <Text style={styles.mvpActionButtonText}>Upgrade to MVP</Text>
-            </TouchableOpacity>
+            {active ? (
+              <TouchableOpacity style={styles.mvpActionButton} onPress={manage} disabled={billing.busy} accessibilityRole="button">
+                <Text style={styles.mvpActionButtonText}>Manage subscription</Text>
+              </TouchableOpacity>
+            ) : packages.length ? packages.map(item => (
+              <TouchableOpacity key={item.identifier} style={[styles.mvpActionButton, billing.busy && styles.purchaseButtonBusy]} onPress={() => void buyPackage(item)} disabled={billing.busy} accessibilityRole="button">
+                {billing.busy ? <ActivityIndicator color="#FFFFFF" /> : <Text style={styles.mvpActionButtonText}>Subscribe · {item.product.priceString}</Text>}
+              </TouchableOpacity>
+            )) : (
+              <TouchableOpacity style={styles.disabledButton} disabled accessibilityRole="button">
+                <Text style={styles.disabledButtonText}>{billing.status === "loading" ? "Loading store options…" : "Purchase options unavailable"}</Text>
+              </TouchableOpacity>
+            )}
           </View>
         </View>
 
@@ -235,11 +278,10 @@ export default function MembershipScreen() {
           </View>
           <View style={styles.billingTextFrame}>
             <Text style={styles.billingTitle}>Billing</Text>
-            <Text style={styles.billingSubtitle}>No active subscription.</Text>
+            <Text style={styles.billingSubtitle}>{active ? `${billing.entitlement?.productIdentifier || "MVP subscription"} · ${entitlementDetail}` : billing.error || "Your store subscription status appears here."}</Text>
           </View>
-          <TouchableOpacity style={styles.viewHistoryButton}>
-            <Text style={styles.viewHistoryText}>View History</Text>
-            <Ionicons name="chevron-forward" size={14} color={theme.textSecondary} />
+          <TouchableOpacity style={styles.viewHistoryButton} onPress={() => active ? void manage() : void restore()} disabled={!billing.configured || billing.busy} accessibilityRole="button">
+            <Text style={styles.viewHistoryText}>{active ? "Manage" : "Restore"}</Text>
           </TouchableOpacity>
         </View>
       </ScrollView>
@@ -247,24 +289,21 @@ export default function MembershipScreen() {
       {/* Sticky Bottom Actions Container */}
       <View style={styles.bottomStickyContainer}>
         <TouchableOpacity
-          style={styles.primaryUpgradeButton}
-          activeOpacity={0.9}
+          style={[styles.primaryUpgradeButton, (!active && !packages.length || billing.busy) && styles.unavailableUpgradeButton]}
+          onPress={() => active ? void manage() : packages[0] ? void buyPackage(packages[0]) : undefined}
+          disabled={billing.busy || (!active && !packages.length)}
         >
           <MaterialCommunityIcons
             name="crown"
             size={18}
-            color="#FFFFFF"
+            color={active || packages.length ? "#FFFFFF" : theme.textSecondary}
             style={styles.buttonIcon}
           />
-          <Text style={styles.primaryUpgradeButtonText}>Upgrade to MVP</Text>
+          <Text style={[styles.primaryUpgradeButtonText, (!active && !packages.length) && { color: theme.textSecondary }]}>{billing.busy ? "Contacting store…" : active ? "Manage subscription" : packages[0] ? `Subscribe · ${packages[0].product.priceString}` : "Purchases unavailable"}</Text>
         </TouchableOpacity>
         <View style={styles.securityMetaRow}>
-          <Ionicons name="lock-closed-outline" size={12} color={theme.textSecondary} />
-          <Text style={styles.securityMetaText}>Cancel anytime</Text>
-          <View style={styles.metaDot} />
-          <Text style={styles.securityMetaText}>No hidden fees</Text>
-          <View style={styles.metaDot} />
-          <Text style={styles.securityMetaText}>Secure payments</Text>
+          <Ionicons name="information-circle-outline" size={12} color={theme.textSecondary} />
+          <Text style={styles.securityMetaText}>{billing.error || (active ? "Your MVP access is active on this store account" : Platform.OS === "ios" || Platform.OS === "android" ? "Purchases are securely processed by your app store" : "Purchases are available in the iOS and Android apps")}</Text>
         </View>
       </View>
     </SafeAreaView>
@@ -325,6 +364,10 @@ const getStyles = (theme: any) => StyleSheet.create({
     borderRadius: 12,
     borderWidth: 1,
     borderColor: "rgba(39, 174, 96, 0.3)",
+  },
+  inactiveBadge: {
+    backgroundColor: theme.surfaceSoft,
+    borderColor: theme.border,
   },
   badgeDot: {
     width: 6,
@@ -482,6 +525,9 @@ const getStyles = (theme: any) => StyleSheet.create({
     fontSize: 12,
     fontWeight: "700",
   },
+  purchaseButtonBusy: {
+    opacity: 0.7,
+  },
   /* Inclusions Scroll Section Styles */
   sectionHeaderTitle: {
     fontSize: 14,
@@ -585,6 +631,9 @@ const getStyles = (theme: any) => StyleSheet.create({
     paddingVertical: 14,
     borderRadius: 12,
     marginBottom: 12,
+  },
+  unavailableUpgradeButton: {
+    backgroundColor: theme.surfaceSoft,
   },
   buttonIcon: {
     marginRight: 6,

@@ -160,7 +160,7 @@ function SecuritySession({ children, authenticated }: { children: ReactNode; aut
   else if (authenticated && locked) security.lockScreen = <PinScreen key={`${owner}-${exists}`} theme={theme} setup={!exists} biometric={biometrics && !BIOMETRIC_BUILD_ISSUE}
     onSubmit={submit} onRecover={exists ? recover : undefined} onBiometric={() => unlockBiometric()} onSignOut={signOut} />;
   return <Context.Provider value={security}>{children}
-    <Modal visible={unlocked && transfer} animationType="slide" onRequestClose={() => finishTransfer(false)}>
+    <Modal visible={unlocked && transfer} animationType="slide" onRequestClose={() => { finishTransfer(false); }}>
       {transfer && <PinScreen theme={theme} transfer biometric={biometrics && !BIOMETRIC_BUILD_ISSUE} onBiometric={() => unlockBiometric(true)} onSubmit={(pin, reset) => submit(pin, reset, true)} onRecover={recover} onCancel={() => finishTransfer(false)} />}
     </Modal>
   </Context.Provider>;

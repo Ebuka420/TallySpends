@@ -18,6 +18,7 @@ import {
   UIManager,
   View,
 } from "react-native";
+import type { ScrollViewInstance } from "react-native";
 import { useAppStore } from "../src/store";
 import { getThemePalette } from "../src/theme";
 import { careGreeting, careReply, helpTopics, supportEmail, supportMailUrl } from "../src/support/care";
@@ -54,7 +55,7 @@ export default function CustomerServiceScreen() {
   const [showChatModal, setShowChatModal] = useState(false);
   const [chatInput, setChatInput] = useState("");
   const [isTyping, setIsTyping] = useState(false);
-  const chatScrollRef = useRef<ScrollView>(null);
+  const chatScrollRef = useRef<ScrollViewInstance | null>(null);
 
   const [messages, setMessages] = useState<ChatMessage[]>([
     {

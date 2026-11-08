@@ -77,7 +77,7 @@ const categoryMeta: Record<
 };
 
 export default function AnalyticsScreen() {
-  const { transactions: rawTransactions = [], themeMode, budgetWallet, budgetError } = useAppStore();
+  const { transactions: rawTransactions = [], themeMode, budgetWallet, budgetError, transactionFeedError, refreshTransactions } = useAppStore();
 
   const transactions = rawTransactions as any[];
 
@@ -179,28 +179,11 @@ export default function AnalyticsScreen() {
   const filteredTransactions = report.selected;
   const rhythm = useMemo(() => spendingRhythm(report.selected), [report]);
 
-  const totals = useMemo(() => {
-    return filteredTransactions.reduce(
-      (acc, tx) => {
-        const amount = Number(tx.amount || 0);
-
-        if (tx.type === "income") {
-          acc.income += amount;
-        } else if (tx.type === "expense") {
-          acc.spent += amount;
-        } else {
-          acc.saved += amount;
-        }
-
-        return acc;
-      },
-      {
-        income: 0,
-        spent: 0,
-        saved: 0,
-      },
-    );
-  }, [filteredTransactions]);
+  const totals = useMemo(() => ({
+    income: report.income / 100,
+    spent: report.spent / 100,
+    net: report.net / 100,
+  }), [report]);
 
   const formatCurrency = (value: number) => {
     const isClean = value % 1 === 0 || Math.abs(value) >= 1000;
@@ -291,16 +274,10 @@ export default function AnalyticsScreen() {
         showsVerticalScrollIndicator={false}
       >
         <View style={styles.header}>
-          <Text
-            style={[
-              styles.title,
-              {
-                color: colors.text,
-              },
-            ]}
-          >
-            Analytics
-          </Text>
+          <View>
+            <Text style={[styles.title, { color: colors.text }]}>Analytics</Text>
+            <Text style={[styles.headerSubtitle, { color: colors.textMuted }]}>Your money, in focus</Text>
+          </View>
 
           <TouchableOpacity
             style={[
@@ -320,6 +297,10 @@ export default function AnalyticsScreen() {
             />
           </TouchableOpacity>
         </View>
+
+        {transactionFeedError && <TouchableOpacity accessibilityRole="button" onPress={() => void refreshTransactions(true).catch(() => {})} style={{ marginBottom: 14, borderRadius: 12, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.surface, padding: 12 }}>
+          <Text style={{ color: colors.textMuted, fontSize: 11 }}>Couldn’t refresh backend transactions. Tap to retry; saved manual entries remain available.</Text>
+        </TouchableOpacity>}
 
         <View style={styles.controls}>
           <View
@@ -392,7 +373,8 @@ export default function AnalyticsScreen() {
           style={[
             styles.hero,
             {
-              backgroundColor: colors.background,
+            backgroundColor: colors.surface,
+            borderColor: colors.border,
             },
           ]}
         >
@@ -404,7 +386,7 @@ export default function AnalyticsScreen() {
               },
             ]}
           >
-            FINANCIAL HEALTH
+            NET CASH FLOW
           </Text>
 
           <View style={styles.heroRow}>
@@ -416,41 +398,9 @@ export default function AnalyticsScreen() {
                 },
               ]}
             >
-              82
+              {formatCurrency(totals.net)}
             </Text>
 
-            <Text
-              style={[
-                styles.outOf,
-                {
-                  color: colors.textSubtle,
-                },
-              ]}
-            >
-              /100
-            </Text>
-
-            <View
-              style={[
-                styles.scoreBadge,
-                {
-                  backgroundColor: colors.primarySoft,
-                },
-              ]}
-            >
-              <Ionicons name="arrow-up" size={12} color={colors.primary} />
-
-              <Text
-                style={[
-                  styles.scoreBadgeText,
-                  {
-                    color: colors.primary,
-                  },
-                ]}
-              >
-                8%
-              </Text>
-            </View>
           </View>
 
           <Text
@@ -461,7 +411,7 @@ export default function AnalyticsScreen() {
               },
             ]}
           >
-            You’re building healthy habits.
+            {totals.net >= 0 ? "More came in than went out." : "Spending was higher than income."}
           </Text>
 
           <Text
@@ -472,7 +422,7 @@ export default function AnalyticsScreen() {
               },
             ]}
           >
-            Your spending efficiency improved compared with last month.
+            {report.range.label} · {report.count} recorded {report.count === 1 ? "transaction" : "transactions"}
           </Text>
         </View>
 
@@ -506,7 +456,7 @@ export default function AnalyticsScreen() {
                   },
                 ]}
               >
-                Your {chartLabel} flow
+                Spending in {chartLabel}
               </Text>
             </View>
 
@@ -609,22 +559,11 @@ export default function AnalyticsScreen() {
 
           <View style={styles.legend}>
             <Legend
-              label="Spent"
+              label="Expenses"
               color={colors.primary}
               textColor={colors.textMuted}
             />
 
-            <Legend
-              label="Income"
-              color={colors.income}
-              textColor={colors.textMuted}
-            />
-
-            <Legend
-              label="Saved"
-              color={colors.saved}
-              textColor={colors.textMuted}
-            />
           </View>
         </View>
 
@@ -659,21 +598,6 @@ export default function AnalyticsScreen() {
             colors={colors}
           />
 
-          <View
-            style={[
-              styles.metricDivider,
-              {
-                backgroundColor: colors.metricDivider,
-              },
-            ]}
-          />
-
-          <Metric
-            label="SAVED"
-            value={formatCurrency(totals.saved)}
-            icon="leaf-outline"
-            colors={colors}
-          />
         </View>
 
         <Heading
@@ -816,7 +740,7 @@ export default function AnalyticsScreen() {
                 },
               ]}
             >
-              A small shift to notice
+              A pattern in your spending
             </Text>
 
             <Text
@@ -827,8 +751,7 @@ export default function AnalyticsScreen() {
                 },
               ]}
             >
-              Food spending was higher this week than it was last month. A ₦35
-              weekly cap could keep you on track.
+              {report.takeaway}
             </Text>
           </View>
 
@@ -1121,6 +1044,11 @@ const styles = StyleSheet.create({
     letterSpacing: -0.7,
   },
 
+  headerSubtitle: {
+    fontSize: 12,
+    marginTop: 3,
+  },
+
   share: {
     alignItems: "center",
     borderRadius: 18,
@@ -1133,7 +1061,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
     flexDirection: "row",
     justifyContent: "space-between",
-    marginTop: 25,
+    marginTop: 20,
   },
 
   segment: {
@@ -1169,8 +1097,13 @@ const styles = StyleSheet.create({
   },
 
   hero: {
-    paddingBottom: 29,
-    paddingTop: 40,
+    borderRadius: 23,
+    borderWidth: 1,
+    marginBottom: 16,
+    marginTop: 20,
+    paddingBottom: 20,
+    paddingHorizontal: 18,
+    paddingTop: 18,
   },
 
   overline: {
@@ -1180,36 +1113,15 @@ const styles = StyleSheet.create({
   },
 
   heroRow: {
-    alignItems: "baseline",
+    alignItems: "center",
     flexDirection: "row",
-    marginTop: 4,
+    marginTop: 8,
   },
 
   score: {
-    fontSize: 50,
+    fontSize: 32,
     fontWeight: "700",
-    letterSpacing: -2,
-  },
-
-  outOf: {
-    fontSize: 16,
-    fontWeight: "600",
-    marginLeft: 3,
-  },
-
-  scoreBadge: {
-    alignItems: "center",
-    borderRadius: 13,
-    flexDirection: "row",
-    gap: 3,
-    marginLeft: 12,
-    paddingHorizontal: 8,
-    paddingVertical: 5,
-  },
-
-  scoreBadgeText: {
-    fontSize: 11,
-    fontWeight: "700",
+    letterSpacing: -1,
   },
 
   heroTitle: {

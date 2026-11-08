@@ -51,6 +51,7 @@ export default function BudgetDetailsScreen() {
     budgetWallet: wallet,
     budgetError,
     reloadBudgetWallet,
+    trackedBudgetSpending,
   } = useAppStore();
   const budget = wallet?.budgets.find((b) => b.id === id);
   const [action, setAction] = useState<Action | null>(null);
@@ -281,7 +282,7 @@ export default function BudgetDetailsScreen() {
             <BudgetAmount theme={theme} amount={budget.remainingAmount} />
             <BudgetCopy theme={theme}>
               {money(budget.allocatedAmount)} allocated ·{" "}
-              {money(budget.spentAmount)} spent
+              {money(trackedBudgetSpending[budget.id] ?? budget.spentAmount)} tracked in category
             </BudgetCopy>
             <BudgetCopy theme={theme}>
               {budget.startDate}

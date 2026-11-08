@@ -79,6 +79,11 @@ export default function LinkBankScreen() {
       const nextAccounts = await bankBackend.listAccounts(request);
       if (!mounted.current || started !== generation.current) return;
       setAccounts(nextAccounts);
+      if (nextAccounts.length === 0) {
+        setStage("error");
+        setMessage("Mono authorization finished, but the backend returned no linked accounts. Refresh linked accounts before treating this bank as connected.");
+        return;
+      }
       setStage("success");
       setMessage("Your bank account is linked successfully.");
     } catch (error) {

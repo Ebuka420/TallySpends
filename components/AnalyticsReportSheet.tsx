@@ -4,7 +4,7 @@ import BrandMark from "./BrandMark";
 import { Ionicons } from "@expo/vector-icons";
 import * as Sharing from "expo-sharing";
 import React, { forwardRef, useRef, useState } from "react";
-import { ActivityIndicator, Alert, Modal, Pressable, ScrollView, Share, StyleSheet, Text, View } from "react-native";
+import { ActivityIndicator, Alert, Modal, Pressable, ScrollView, Share, StyleSheet, Text, View, type ViewInstance } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import Svg, { Circle } from "react-native-svg";
 import { captureRef } from "react-native-view-shot";
@@ -33,7 +33,7 @@ export function AnalyticsReportSheet({
   const [busy, setBusy] = useState(false);
   const [measured, setMeasured] = useState(false);
   const locked = useRef(false);
-  const card = useRef<View>(null);
+  const card = useRef<ViewInstance | null>(null);
   const close = () => {
     if (!locked.current) onClose();
   };
@@ -143,7 +143,7 @@ export function AnalyticsReportSheet({
     </View>
   </Modal>;
 }
-const ReportCard = forwardRef<View, {
+const ReportCard = forwardRef<ViewInstance, {
   report: AnalyticsReport;
   look: ReportLook;
   onLayout: () => void;

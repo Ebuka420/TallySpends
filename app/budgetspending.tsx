@@ -14,6 +14,7 @@ import {
 import { money, today, totals } from "../src/budget/ledger";
 import { operationId, runBudgetCommand } from "../src/budget/repository";
 import { useAppStore } from "../src/store";
+import { spendingInMonth } from "../src/transactions/budgeting";
 import { AddAction, Disclosure, PlanTabs, PlanTip } from "../components/PlanningUI";
 
 export default function BudgetSpendingScreen() {
@@ -22,6 +23,8 @@ export default function BudgetSpendingScreen() {
     budgetWallet: wallet,
     budgetError,
     reloadBudgetWallet,
+    transactions,
+    trackedBudgetSpending,
     theme,
   } = useAppStore();
   const [showPlan, setShowPlan] = useState(false);
@@ -34,15 +37,7 @@ export default function BudgetSpendingScreen() {
   const planId = useRef(operationId());
   const summary = wallet ? totals(wallet) : null;
   const month = today().slice(0, 7);
-  const monthSpent =
-    wallet?.transactions
-      .filter(
-        (t) =>
-          t.type === "expense" &&
-          t.date.startsWith(month) &&
-          wallet.deductions[t.id],
-      )
-      .reduce((sum, t) => sum + wallet.deductions[t.id].amount, 0) || 0;
+  const monthSpent = spendingInMonth(transactions, month);
   // Deterministic preview, not a call to the conversational Coach API.
   const plan = summary
     ? [
@@ -257,7 +252,7 @@ export default function BudgetSpendingScreen() {
                         height: 5,
                         borderRadius: 5,
                         backgroundColor: theme.accent,
-                        width: `${b.allocatedAmount ? Math.min(100, (b.spentAmount / b.allocatedAmount) * 100) : 0}%`,
+                        width: `${b.allocatedAmount ? Math.min(100, ((trackedBudgetSpending[b.id] ?? b.spentAmount) / b.allocatedAmount) * 100) : 0}%`,
                       }}
                     />
                   </View>
@@ -271,7 +266,7 @@ export default function BudgetSpendingScreen() {
                       {money(b.allocatedAmount)} allocated
                     </BudgetCopy>
                     <BudgetCopy theme={theme}>
-                      {money(b.spentAmount)} spent
+                      {money(trackedBudgetSpending[b.id] ?? b.spentAmount)} tracked
                     </BudgetCopy>
                   </View>
                 </BudgetCard>

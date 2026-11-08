@@ -1,11 +1,11 @@
 import { Ionicons } from "@expo/vector-icons";
 import React, { forwardRef } from "react";
-import { StyleSheet, Text, View } from "react-native";
+import { StyleSheet, Text, View, type ViewInstance } from "react-native";
 import { money, type Transaction } from "../src/budget/ledger";
 import type { ThemePalette } from "../src/theme";
 import { transactionPresentation } from "../src/transactionPresentation";
 
-export const ReceiptCard = forwardRef<View, { transaction: Transaction; theme: ThemePalette }>(function ReceiptCard({ transaction, theme }, ref) {
+export const ReceiptCard = forwardRef<ViewInstance, { transaction: Transaction; theme: ThemePalette }>(function ReceiptCard({ transaction, theme }, ref) {
   const details = transactionPresentation(transaction, false);
   const date = new Date(/^\d{4}-\d{2}-\d{2}$/.test(transaction.date) ? `${transaction.date}T12:00:00` : transaction.date);
   const dateOnly = /^\d{4}-\d{2}-\d{2}$/.test(transaction.date);

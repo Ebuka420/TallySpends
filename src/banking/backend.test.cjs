@@ -27,6 +27,10 @@ const { BankRequestError, bankBackend, createBankRequest, getMonoAuthCode, parse
     assert.equal(path, "/api/bank-accounts");
     return [{ id: "bank-1", bankName: "Test Bank", accountName: "Test User", accountNumber: "1234567890" }];
   }), /confirmed GET \/api\/bank-accounts response schema/);
+  assert.deepEqual(await bankBackend.listAccounts(async path => {
+    assert.equal(path, "/api/bank-accounts");
+    return [];
+  }), []);
   const accounts = parseLinkedAccounts([{ id: "bank-1", bankName: "Test Bank", accountName: "Test User", accountNumber: "1234567890" }]);
   assert.equal(accounts[0].maskedAccountNumber, "•••• 7890");
   const identified = parseLinkedAccounts([{ id: "bank-2", bankName: "Backend bank name", accountName: "Test User", bankCode: "058", bankSlug: "guaranty-trust-bank", providerId: "guaranty-trust-bank" }])[0];
@@ -83,6 +87,16 @@ const { BankRequestError, bankBackend, createBankRequest, getMonoAuthCode, parse
   await assert.rejects(request("/api/bank-accounts/link"), /Invalid bank backend path/);
   await assert.rejects(request("/api/bank-accounts", { method: "POST" }), /Invalid bank backend path/);
   await assert.rejects(request("/api/transactions", { method: "POST" }), /Invalid bank backend path/);
+  let smsImportAuthorization;
+  const smsImport = createBankRequest({ token: "sms-token", refreshToken: null, saveTokens: async () => {} }, signal,
+    async (url, init) => {
+      assert.ok(url.endsWith("/api/sms/import"));
+      smsImportAuthorization = init.headers.get("Authorization");
+      assert.equal(init.method, "POST");
+      return new Response(JSON.stringify("opaque backend fixture"), { status: 200 });
+    });
+  assert.equal(await smsImport("/api/sms/import", { method: "POST", body: JSON.stringify({ messages: [] }) }), "opaque backend fixture");
+  assert.equal(smsImportAuthorization, "Bearer sms-token");
   let transactionAuthorization;
   const transactionRead = createBankRequest({ token: "transaction-token", refreshToken: null, saveTokens: async () => {} }, signal,
     async (url, init) => { assert.ok(url.endsWith("/api/transactions")); transactionAuthorization = init.headers.get("Authorization"); return new Response("[]", { status: 200 }); });

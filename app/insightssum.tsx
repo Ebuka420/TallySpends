@@ -15,6 +15,7 @@ import {
   UIManager,
   View,
 } from "react-native";
+import type { ScrollViewInstance } from "react-native";
 import Svg, { Circle, Path } from "react-native-svg";
 import { useAppStore } from "../src/store";
 
@@ -43,7 +44,7 @@ export default function InsightsSummaryScreen() {
   const [startDate, setStartDate] = useState<Date | null>(new Date(new Date().getFullYear(), new Date().getMonth(), 1));
   const [endDate, setEndDate] = useState<Date | null>(new Date());
 
-  const scroll = useRef<ScrollView>(null);
+  const scroll = useRef<ScrollViewInstance | null>(null);
   const [selectedBucket, setSelectedBucket] = useState<number | null>(null);
 
   const data = useMemo(() => spendingSummary(transactions, activeTab, new Date(), startDate, endDate), [transactions, activeTab, startDate, endDate]);

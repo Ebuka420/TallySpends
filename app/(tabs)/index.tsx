@@ -151,7 +151,6 @@ export default function App() {
   const people = usePlanningPeople(store);
   const {
     transactions,
-    availableBalance,
     unreadNotificationCount,
     themePreference,
     themeMode,
@@ -161,12 +160,18 @@ export default function App() {
     budgetWallet,
     budgetError,
     reloadBudgetWallet,
+    trackedBudgetSpending,
+    refreshTransactions,
+    transactionFeedState,
+    transactionFeedError,
   } = store;
 
   const theme = useThemeTokens();
   const actionIconColor = theme.onAccent;
 
   const firstName = profileFullName?.trim().split(/\s+/)[0] || "";
+
+  useFocusEffect(useCallback(() => { void refreshTransactions(false).catch(() => {}); }, [refreshTransactions]));
 
   const [balanceVisible, setBalanceVisible] = useState(true);
   const linked = useDashboardAccounts(username || store.profileEmail || "", {
@@ -189,8 +194,8 @@ export default function App() {
   }, [receiptId]));
 
   const transactionsRaw = useMemo(
-    () => (selectedAccount ? selectedAccount.currency ? selectedAccount.transactions || [] : [] : transactions || []) as any[],
-    [transactions, selectedAccount],
+    () => (transactions || []) as any[],
+    [transactions],
   );
 
   const recentTransactions = useMemo(() => {
@@ -217,7 +222,7 @@ export default function App() {
         style={styles.container}
         contentContainerStyle={styles.contentContainer}
         showsVerticalScrollIndicator={false}
-        refreshControl={<RefreshControl refreshing={linked.loading} onRefresh={linked.retry} tintColor={theme.accent} />}
+        refreshControl={<RefreshControl refreshing={linked.loading || transactionFeedState === "loading"} onRefresh={() => { linked.retry(); void refreshTransactions(true).catch(() => {}); }} tintColor={theme.accent} />}
       >
         {/* Header Container */}
         <View style={styles.headerContainer}>
@@ -365,7 +370,7 @@ export default function App() {
         {/* Balance Section */}
         <DashboardBankCarousel
           accounts={linked.accounts} selectedId={effectiveSelection} onSelect={setSelectedAccountId}
-          balance={budgetWallet ? availableBalance : null} visible={settings.loaded && balanceVisible && !preferences.privateMode}
+          balance={null} visible={settings.loaded && balanceVisible && !preferences.privateMode}
           onToggleBalance={() => setBalanceVisible(visible => !visible)}
           onLink={() => router.push("/linkbank")} theme={theme} dark={themeMode === "dark"}
           loading={linked.loading} error={linked.error} onRetry={linked.retry}
@@ -470,6 +475,7 @@ export default function App() {
 
         <PlanningCarousels
           wallet={budgetWallet}
+          trackedBudgetSpending={trackedBudgetSpending}
           themeMode={themeMode}
           themePreference={themePreference}
           theme={theme}
@@ -502,7 +508,6 @@ export default function App() {
           </Text>
 
           <TouchableOpacity
-            disabled={!!selectedAccount}
             onPress={() => router.push("/transaction-history")}
             activeOpacity={0.7}
           >
@@ -514,10 +519,13 @@ export default function App() {
                 },
               ]}
             >
-              {selectedAccount ? selectedAccount.bankName : "View all"}
+              View all
             </Text>
           </TouchableOpacity>
         </View>
+
+        {transactionFeedError ? <TouchableOpacity accessibilityRole="button" onPress={() => void refreshTransactions(true).catch(() => {})} style={{ paddingBottom: 8 }}><Text style={{ color: theme.accent, fontSize: 11 }}>Couldn’t refresh account transactions. Tap to retry.</Text></TouchableOpacity>
+          : transactionFeedState === "loading" ? <Text style={{ color: theme.textSecondary, fontSize: 11, paddingBottom: 8 }}>Refreshing account transactions…</Text> : null}
 
         <View
           style={[
@@ -545,7 +553,7 @@ export default function App() {
                     category={tx.category || "Others"}
                     amount={`${isIncome ? "+" : "-"}${formatCurrency(
                       Number(tx.amount || 0),
-                      selectedAccount?.currency || "NGN",
+                      "NGN",
                     )}`}
                     time={getTimeLabel(tx.date)}
                     positive={isIncome}
