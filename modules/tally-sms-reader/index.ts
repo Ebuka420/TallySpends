@@ -1,4 +1,4 @@
-import { requireOptionalNativeModule } from "expo-modules-core";
+import { requireOptionalNativeModule } from "expo";
 
 export type PendingSms = { id: string; sender: string; body: string; receivedAt: string };
 type NativeSmsReader = {

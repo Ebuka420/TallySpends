@@ -1,4 +1,4 @@
-import { requireOptionalNativeModule } from "expo-modules-core";
+import { requireOptionalNativeModule } from "expo";
 type Snapshot = { supported: boolean; screenOff: boolean };
 const native = requireOptionalNativeModule<{ takeSnapshot: () => Snapshot; addListener: (event: string, listener: () => void) => { remove: () => void } }>("TallyDeviceLock");
 export function onDeviceScreenOff(listener: () => void) {
