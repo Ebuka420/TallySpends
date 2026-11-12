@@ -8,6 +8,8 @@ Goals, employment, PIN and completion share the introduction's visual language;
 form content scrolls while Continue/Get Started remains outside entrance effects.
 The onboarding folder has a nested layout under the root's existing signup guard.
 Failed preference writes remain actionable and cannot advance setup.
+If the backend rejects signup during completion, field-level validation errors
+identify the signup fields to check before retrying.
 
 Verify a fresh install sees introduction before auth, skip/complete stays saved,
 then signup proceeds goals > employment > six-digit PIN > completion. Test with

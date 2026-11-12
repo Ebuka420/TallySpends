@@ -56,7 +56,12 @@
       ],
       "expo-font",
       "expo-secure-store",
-      ["expo-local-authentication", { "faceIDPermission": "Allow TallySpends to use Face ID to unlock the app and confirm transfers." }],
+      [
+        "expo-local-authentication",
+        {
+          "faceIDPermission": "Allow TallySpends to use Face ID to unlock the app and confirm transfers."
+        }
+      ],
       "expo-web-browser",
       "expo-sharing",
       "./plugins/withTallySmsReader"

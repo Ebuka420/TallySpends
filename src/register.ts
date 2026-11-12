@@ -1,5 +1,31 @@
 import { API_URL } from "./api";
 
+const signupFieldLabels: Record<string, string> = {
+  fullname: "full name",
+  email: "email",
+  password: "password",
+  tallytag: "TallyTag",
+  phonenumber: "phone number",
+};
+
+function signupValidationMessage(data: unknown): string | undefined {
+  if (!data || typeof data !== "object" || !("errors" in data) || !data.errors || typeof data.errors !== "object") {
+    return undefined;
+  }
+  const issues = Object.entries(data.errors as Record<string, unknown>)
+    .flatMap(([field, messages]) => {
+      const label = signupFieldLabels[field.replace(/[^a-z]/gi, "").toLowerCase()];
+      if (!label) return [];
+      const details = (Array.isArray(messages) ? messages : [messages])
+        .filter((message): message is string => typeof message === "string")
+        .map(message => message.replace(/\s+/g, " ").trim())
+        .filter(Boolean)
+        .slice(0, 2);
+      return details.length ? details.map(detail => `${label}: ${detail}`) : [label];
+    });
+  return issues.length ? `Please correct: ${issues.join("; ")}.` : undefined;
+}
+
 export async function recoverLocalSession(identifier: string, password: string, users: unknown, send: typeof fetch = fetch) {
   const user = Array.isArray(users) ? users.find((entry: any) =>
     entry.password === password &&
@@ -35,7 +61,9 @@ export async function registerSession(
     const data = await response.json().catch(() => ({}));
     // Recover if registration succeeded before an earlier login lost connection.
     if (path === "/api/auth/register" && response.status === 409) return {};
-    if (!response.ok) throw new Error(data?.message || data?.title || "Unable to finish account setup. Please try again.");
+    if (!response.ok) throw new Error(
+      signupValidationMessage(data) || data?.message || data?.title || "Unable to finish account setup. Please try again.",
+    );
     return data;
   };
   try {

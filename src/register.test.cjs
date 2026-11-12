@@ -1,5 +1,13 @@
 const { test } = require('node:test');
 const assert = require('node:assert/strict');
+const fs = require('node:fs');
+const ts = require('typescript');
+require.extensions['.ts'] = (module, filename) => module._compile(
+  ts.transpileModule(fs.readFileSync(filename, 'utf8'), {
+    compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 },
+  }).outputText,
+  filename,
+);
 const { registerSession, recoverLocalSession } = require('./register.ts');
 const { API_URL } = require('./api.ts');
 const signup = { fullName: 'Test User', email: 'test@example.com', password: 'test-password', tallyTag: 'testuser', phoneNumber: '00000000000' };
@@ -47,6 +55,17 @@ test('registration failure and missing login tokens never return a successful se
   await assert.rejects(registerSession(signup, async () => ({ ok: false, status: 400, json: async () => ({ message: 'Invalid signup' }) })), /Invalid signup/);
   await assert.rejects(registerSession(signup, async () => ({ ok: true, json: async () => ({}) })), /did not return a session/);
   await assert.rejects(registerSession(signup, async () => { throw new Error('Network unavailable'); }), /Network unavailable/);
+});
+
+test('registration shows backend signup validation requirements without exposing submitted values', async () => {
+  await assert.rejects(registerSession(signup, async () => ({
+    ok: false,
+    status: 400,
+    json: async () => ({
+      title: 'One or more validation errors occurred.',
+      errors: { Email: ['Invalid email'], PhoneNumber: ['Invalid phone'] },
+    }),
+  })), /Please correct: email: Invalid email; phone number: Invalid phone/);
 });
 
 test('offline registration reports an actionable error and never proceeds to login', async () => {
