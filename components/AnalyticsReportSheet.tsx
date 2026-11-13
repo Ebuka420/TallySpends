@@ -1,16 +1,46 @@
 import { useThemeTokens } from "../src/ThemeExperience";
-import { getThemePalette } from "../src/theme";
 import BrandMark from "./BrandMark";
 import { Ionicons } from "@expo/vector-icons";
 import * as Sharing from "expo-sharing";
-import React, { forwardRef, useRef, useState } from "react";
+import React, { forwardRef, useId, useRef, useState } from "react";
 import { ActivityIndicator, Alert, Modal, Pressable, ScrollView, Share, StyleSheet, Text, View, type ViewInstance } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import Svg, { Circle } from "react-native-svg";
+import Svg, { Circle, Defs, Ellipse, Line, LinearGradient, Path, Rect, Stop } from "react-native-svg";
 import { captureRef } from "react-native-view-shot";
 import { reportMoney, reportText, type AnalyticsReport } from "../src/analytics/report";
 import type { ThemePalette } from "../src/theme";
-type ReportLook = "signature" | "paper";
+import { REPORT_LOOKS, reportPalette, type ReportLook } from "../src/analytics/reportLooks";
+
+function ReportArtwork({ look, theme }: { look: ReportLook; theme: ThemePalette }) {
+  const id = useId().replace(/[^a-zA-Z0-9]/g, "");
+  return <Svg pointerEvents="none" width="100%" height="100%" viewBox="0 0 400 320" preserveAspectRatio="xMidYMid slice" style={StyleSheet.absoluteFill}>
+    <Defs><LinearGradient id={`${id}report`} x1="0%" y1="0%" x2="100%" y2="100%"><Stop offset="0%" stopColor={theme.hero} /><Stop offset="100%" stopColor={theme.heroEnd} /></LinearGradient></Defs>
+    <Rect width={400} height={320} fill={`url(#${id}report)`} />
+    {look === "prism" && <>
+      <Circle cx={370} cy={45} r={100} fill="#CBA4FF" opacity={.19} />
+      <Circle cx={330} cy={95} r={53} fill="none" stroke="#D9BCFF" strokeWidth={1} opacity={.6} />
+      <Rect x={275} y={220} width={38} height={38} rx={10} rotation={25} origin="294,239" fill="#53CDB1" opacity={.7} />
+      <Circle cx={347} cy={181} r={9} fill="#F2BD74" /><Circle cx={265} cy={37} r={4} fill="#F2BD74" />
+    </>}
+    {look === "ocean" && <>
+      {[40, 80, 120, 160, 200, 240, 280, 320, 360].map(x => <Line key={`x${x}`} x1={x} x2={x} y1={0} y2={320} stroke="#9DE0EA" opacity={.09} />)}
+      {[40, 80, 120, 160, 200, 240, 280].map(y => <Line key={`y${y}`} x1={0} x2={400} y1={y} y2={y} stroke="#9DE0EA" opacity={.09} />)}
+      <Circle cx={350} cy={70} r={64} stroke="#82DBE7" fill="none" opacity={.24} /><Circle cx={350} cy={70} r={42} stroke="#82DBE7" fill="none" opacity={.24} />
+    </>}
+    {look === "sage" && <>
+      <Path d="M370 330 Q255 165 355 -30" stroke="#D5E4BA" strokeWidth={1.2} fill="none" opacity={.3} />
+      <Ellipse cx={322} cy={45} rx={25} ry={61} rotation={-30} origin="322,45" fill="#C5D9A4" opacity={.16} />
+      <Ellipse cx={364} cy={123} rx={28} ry={66} rotation={40} origin="364,123" fill="#C5D9A4" opacity={.23} />
+      <Ellipse cx={313} cy={210} rx={27} ry={65} rotation={-40} origin="313,210" fill="#C5D9A4" opacity={.16} />
+    </>}
+    {look === "sunset" && <>
+      <Circle cx={355} cy={42} r={66} fill="#FFD0A0" opacity={.23} />
+      <Path d="M180 330 Q220 155 410 185 L410 330Z" fill="#F4AF79" opacity={.14} />
+      <Path d="M245 330 Q250 220 410 228 L410 330Z" fill="#F4AF79" opacity={.19} />
+      <Path d="M200 330 Q240 190 410 202" fill="none" stroke="#FFE3BD" opacity={.3} />
+    </>}
+  </Svg>;
+}
 
 export function AnalyticsReportSheet({
   visible,
@@ -97,24 +127,31 @@ export function AnalyticsReportSheet({
             }]}>{report.range.label}</Text></View><Pressable accessibilityRole="button" accessibilityLabel="Close report" disabled={busy} onPress={close} style={[s.close, {
             backgroundColor: theme.surfaceSoft
           }]}><Ionicons name="close" size={21} color={theme.textPrimary} /></Pressable></View>
-        <View style={s.looks}><Text style={{
-            color: theme.textSecondary,
-            fontSize: 11,
-            marginRight: 4
-          }}>Make it yours</Text>{(["signature", "paper"] as const).map(value => <Pressable key={value} disabled={busy} accessibilityRole="radio" accessibilityState={{
-            checked: look === value
-          }} onPress={() => setLook(value)} style={[s.look, {
-            borderColor: look === value ? theme.accent : theme.border,
-            backgroundColor: theme.surface
-          }]}><View style={[s.swatch, {
-              backgroundColor: value === "signature" ? theme.hero : theme.surfaceSoft
-            }]} /><Text style={{
-              color: theme.textPrimary,
-              fontSize: 11,
-              fontWeight: "600"
-            }}>{value === "signature" ? "Signature" : "Paper"}</Text>{look === value && <Ionicons name="checkmark" size={12} color={theme.accent} />}</Pressable>)}</View>
+        <View style={s.lookHeading}><Text style={{ color: theme.textPrimary, fontSize: 12, fontWeight: "700" }}>Choose your report style</Text><Text style={{ color: theme.textSecondary, fontSize: 10 }}>Swipe for all 6</Text></View>
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={s.lookGallery} style={{ flexGrow: 0 }}>
+          {REPORT_LOOKS.map(option => {
+            const palette = reportPalette(option.id, theme);
+            const selected = look === option.id;
+            const custom = option.id !== "signature" && option.id !== "paper";
+            return <Pressable key={option.id} disabled={busy} accessibilityRole="radio"
+              accessibilityLabel={`${option.name}: ${option.description}`} accessibilityState={{ checked: selected, disabled: busy }}
+              onPress={() => { if (!selected) { setMeasured(false); setLook(option.id); } }}
+              style={[s.lookTile, { borderColor: selected ? theme.accent : theme.border, backgroundColor: selected ? theme.accentSoft : theme.surface }]}>
+              <View style={[s.lookThumbnail, { backgroundColor: option.id === "paper" ? palette.surfaceSoft : palette.hero }]}>
+                {custom && <ReportArtwork look={option.id} theme={palette} />}
+                {option.id === "signature" && <View style={[s.thumbnailRing, { borderColor: palette.heroMuted }]} />}
+                <View style={{ width: 26, height: 3, borderRadius: 2, backgroundColor: option.id === "paper" ? palette.accent : "#FFFFFFAA" }} />
+                <View style={{ width: 45, height: 6, borderRadius: 2, marginTop: 7, backgroundColor: option.id === "paper" ? palette.accent : "#FFFFFF" }} />
+                <View style={s.thumbnailBars}>{palette.chart.slice(0, 4).map((color, index) => <View key={index} style={{ width: 8, height: [9, 15, 11, 20][index], borderRadius: 2, backgroundColor: color }} />)}</View>
+                {selected && <View style={[s.lookCheck, { backgroundColor: theme.accent }]}><Ionicons name="checkmark" size={12} color={theme.onAccent} /></View>}
+              </View>
+              <Text style={{ color: theme.textPrimary, fontSize: 11, fontWeight: "700", marginTop: 7 }}>{option.name}</Text>
+              <Text style={{ color: theme.textSecondary, fontSize: 9, lineHeight: 13, marginTop: 3 }}>{option.description}</Text>
+            </Pressable>;
+          })}
+        </ScrollView>
         <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={s.preview}>
-          <ReportCard ref={card} report={report} look={look} onLayout={() => setMeasured(true)} />
+          <ReportCard key={look} ref={card} report={report} look={look} onLayout={() => setMeasured(true)} />
         </ScrollView>
         <View style={[s.actions, {
           borderColor: theme.border
@@ -153,19 +190,21 @@ const ReportCard = forwardRef<ViewInstance, {
   onLayout
 }, ref) {
   const selectedTheme = useThemeTokens();
-  const theme = look === "paper" ? getThemePalette(selectedTheme.id, "light") : selectedTheme;
+  const theme = reportPalette(look, selectedTheme);
   const s = getStyles(theme);
   const ink = theme.textPrimary, muted = theme.textSecondary, line = theme.border;
   const categoryColors = theme.chart;
-  const signature = look === "signature";
+  const signature = look !== "paper";
+  const custom = look !== "signature" && look !== "paper";
   const heroInk = signature ? theme.onHero : ink;
   const heroMuted = signature ? theme.heroMuted : muted;
   const max = Math.max(1, ...report.chart.map(point => point.amount));
-  return <View ref={ref} collapsable={false} onLayout={onLayout} style={s.report}>
+  return <View ref={ref} collapsable={false} onLayout={onLayout} style={[s.report, look === "ocean" && { borderRadius: 12 }]}>
+    {look === "prism" && <View style={{ height: 5, flexDirection: "row" }}>{theme.chart.map(color => <View key={color} style={{ flex: 1, backgroundColor: color }} />)}</View>}
     <View style={[s.hero, {
       backgroundColor: signature ? theme.hero : theme.surfaceSoft
     }]}>
-      <Svg pointerEvents="none" width={220} height={220} style={s.orbit}><Circle cx={145} cy={95} r={58} fill="none" stroke={signature ? theme.logoMiddle : theme.border} strokeWidth={1} /><Circle cx={145} cy={95} r={88} fill="none" stroke={signature ? theme.logoMiddle : theme.border} strokeWidth={1} /><Circle cx={145} cy={95} r={118} fill="none" stroke={signature ? theme.logoMiddle : theme.border} strokeWidth={1} /></Svg>
+      {custom ? <ReportArtwork look={look} theme={theme} /> : <Svg pointerEvents="none" width={220} height={220} style={s.orbit}><Circle cx={145} cy={95} r={58} fill="none" stroke={signature ? theme.logoMiddle : theme.border} strokeWidth={1} /><Circle cx={145} cy={95} r={88} fill="none" stroke={signature ? theme.logoMiddle : theme.border} strokeWidth={1} /><Circle cx={145} cy={95} r={118} fill="none" stroke={signature ? theme.logoMiddle : theme.border} strokeWidth={1} /></Svg>}
       <View style={s.brandRow}><View style={s.brand}><BrandMark size={14} palette={{ ...theme, logoStart: heroInk, logoMiddle: heroInk, logoEnd: heroInk }} /><Text style={[s.brandText, {
             color: heroInk
           }]}>TALLYSPENDS</Text></View><Text style={[s.edition, {
@@ -195,7 +234,7 @@ const ReportCard = forwardRef<ViewInstance, {
         }} /></View>
     </View>
     <View style={s.reportBody}>
-      <View style={s.metrics}><View style={s.metric}><Text style={s.metricLabel}>MONEY IN</Text><Text numberOfLines={1} adjustsFontSizeToFit style={s.metricValue}>{reportMoney(report.income)}</Text><Text style={s.metricNote}>Recorded income</Text></View><View style={s.metricDivider} /><View style={s.metric}><Text style={s.metricLabel}>NET FLOW</Text><Text numberOfLines={1} adjustsFontSizeToFit style={s.metricValue}>{reportMoney(report.net)}</Text><Text style={s.metricNote}>Income minus spending</Text></View></View>
+      <View style={[s.metrics, custom && { backgroundColor: theme.accentSoft, borderRadius: look === "ocean" ? 8 : 16, padding: 13, borderBottomWidth: 0 }]}><View style={s.metric}><Text style={s.metricLabel}>MONEY IN</Text><Text numberOfLines={1} adjustsFontSizeToFit style={s.metricValue}>{reportMoney(report.income)}</Text><Text style={s.metricNote}>Recorded income</Text></View><View style={s.metricDivider} /><View style={s.metric}><Text style={s.metricLabel}>NET FLOW</Text><Text numberOfLines={1} adjustsFontSizeToFit style={s.metricValue}>{reportMoney(report.net)}</Text><Text style={s.metricNote}>Income minus spending</Text></View></View>
       <View style={s.sectionHeading}><Text style={s.sectionTitle}>The spending rhythm</Text><Text style={s.sectionMeta}>{report.range.timeframe === "weekly" ? "BY DAY" : report.range.timeframe === "yearly" ? "BY MONTH" : "BY WEEK"}</Text></View>
       <View style={s.chart}>{report.chart.map((point, index) => <View key={index} style={s.chartColumn}><View style={s.barTrack}><View style={{
               height: point.amount ? `${Math.max(3, point.amount / max * 100)}%` : 2,
@@ -203,7 +242,7 @@ const ReportCard = forwardRef<ViewInstance, {
               maxWidth: 37,
               borderTopLeftRadius: 5,
               borderTopRightRadius: 5,
-              backgroundColor: point.amount === max ? theme.accent : point.amount ? theme.accentSecondary : line
+              backgroundColor: look === "prism" && point.amount ? categoryColors[index % categoryColors.length] : point.amount === max ? theme.accent : point.amount ? theme.accentSecondary : line
             }} /></View><Text style={s.barLabel}>{report.chart.length > 10 ? point.label.charAt(0) : point.label}</Text></View>)}</View>
       <View style={s.sectionHeading}><Text style={s.sectionTitle}>Where it went</Text><Text style={s.sectionMeta}>SHARE OF SPENDING</Text></View>
       {report.breakdown.length ? <><View style={s.categoryBand}>{report.breakdown.map((category, index) => <View key={index} style={{
@@ -212,7 +251,7 @@ const ReportCard = forwardRef<ViewInstance, {
           }} />)}</View>{report.breakdown.map((category, index) => <View key={index} style={s.categoryRow}><View style={[s.categoryDot, {
             backgroundColor: categoryColors[index % categoryColors.length]
           }]} /><Text numberOfLines={1} style={s.categoryName}>{category.name}</Text><Text style={s.categoryAmount}>{reportMoney(category.amount)}</Text><Text style={s.categoryPercent}>{Math.round(category.share * 100)}%</Text></View>)}</> : <Text style={s.noSpending}>No spending recorded for this period.</Text>}
-      <View style={s.takeaway}><Ionicons name="sparkles-outline" size={18} color={theme.accent} /><View style={{
+      <View style={[s.takeaway, custom && { backgroundColor: theme.accentSoft, borderLeftWidth: 3, borderLeftColor: theme.accent }]}><Ionicons name="sparkles-outline" size={18} color={theme.accent} /><View style={{
           flex: 1
         }}><Text style={s.takeawayLabel}>THE TAKEAWAY</Text><Text style={s.takeawayText}>{report.takeaway}</Text></View></View>
       <View style={s.reportFooter}><Text style={s.footerTag}>Your money. Your story.</Text><Text style={s.footerCount}>{report.count} {report.count === 1 ? "transaction" : "transactions"}</Text></View>
@@ -265,27 +304,57 @@ const getStyles = (theme: ThemePalette) => {
     alignItems: "center",
     justifyContent: "center"
   },
-  looks: {
+  lookHeading: {
     flexDirection: "row",
     alignItems: "center",
-    flexWrap: "wrap",
-    gap: 7,
+    justifyContent: "space-between",
+    gap: 8,
     paddingHorizontal: 22,
-    paddingVertical: 17
+    paddingTop: 16,
+    paddingBottom: 10
   },
-  look: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 6,
+  lookGallery: {
+    paddingHorizontal: 20,
+    paddingBottom: 16,
+    gap: 10
+  },
+  lookTile: {
+    width: 116,
+    padding: 8,
+    borderWidth: 1.5,
+    borderRadius: 15
+  },
+  lookThumbnail: {
+    height: 63,
+    borderRadius: 9,
+    padding: 9,
+    overflow: "hidden"
+  },
+  thumbnailRing: {
+    position: "absolute",
+    right: -16,
+    top: -12,
+    width: 68,
+    height: 68,
+    borderRadius: 34,
     borderWidth: 1,
-    borderRadius: 20,
-    paddingVertical: 9,
-    paddingHorizontal: 11
+    opacity: .4
   },
-  swatch: {
-    width: 12,
-    height: 12,
-    borderRadius: 6
+  thumbnailBars: {
+    flexDirection: "row",
+    alignItems: "flex-end",
+    gap: 4,
+    marginTop: 7
+  },
+  lookCheck: {
+    position: "absolute",
+    right: 4,
+    top: 4,
+    width: 19,
+    height: 19,
+    borderRadius: 10,
+    alignItems: "center",
+    justifyContent: "center"
   },
   preview: {
     paddingHorizontal: 20,

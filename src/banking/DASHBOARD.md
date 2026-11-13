@@ -31,6 +31,21 @@ pagination are disabled. A subtle plus opens the existing Mono route.
 
 ## Data integrity and refresh
 
+The dashboard card body and its arrow now open `/linkedcards`, passing the
+selected bank's stable `accountId`. The balance still toggles privacy, the plus
+still opens Mono linking, and rightward swipes retain their existing behavior.
+The Home "Linked Cards" insight tile also opens this page.
+
+The linked-account page replaces its old sample payment-card UI with a branching
+account network. It uses the same authenticated account adapter and offers
+per-account money in/out, recorded net flow, top spending categories, largest
+outgoing and paginated activity for this month or the last 30 calendar days.
+Missing activity is distinct from an explicitly empty feed. There are no sample
+PANs, CVVs, invented subscription reminders or card-freeze controls on this page.
+The current backend schema gate still applies; no decoder was guessed or enabled.
+`node --test src/banking/insights.test.cjs` covers the account-only calculations,
+dates, precision, missing data, invalid records and selection fallback.
+
 `useDashboardAccounts` reuses `bankBackend.listAccounts`, `src/api.ts`, bearer
 authentication and token refresh. It loads on dashboard focus, including return
 from Mono, and supports pull-to-refresh. Identity changes isolate account state.

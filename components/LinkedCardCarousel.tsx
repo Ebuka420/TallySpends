@@ -1,7 +1,16 @@
 import { Ionicons } from "@expo/vector-icons";
 import { useEffect, useRef, useState } from "react";
 import { Animated, FlatList, Pressable, StyleSheet, Text, View, useWindowDimensions } from "react-native";
-import type { LinkedCard } from "../app/linkedcards";
+// Legacy card component retained independently of the linked-account route.
+export interface LinkedCard {
+  id: string; bank: string; type: string; network: "mastercard" | "visa" | "verve";
+  fullCardNumber: string; last4: string; expiry: string; cvv: string; cardHolder: string;
+  spentThisMonth: number; monthlyBudget: number; txnCount: number;
+  status: "Active" | "Frozen"; isPrimary?: boolean; brandColor: string;
+  cardBgGradient: [string, string]; tiltAngle: string;
+  smartInsight: { headline: string; subtext: string; category: string; icon: keyof typeof Ionicons.glyphMap };
+  recentTxns: { name: string; amt: string; date: string }[];
+}
 import type { ThemePalette } from "../src/theme";
 import { useReducedMotion } from "./AuthBackdrop";
 

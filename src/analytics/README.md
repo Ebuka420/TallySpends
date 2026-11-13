@@ -1,7 +1,12 @@
 # Shareable analytics report
 
 `AnalyticsReportSheet` previews and captures the same report card at 1200 pixels
-wide. Signature and Paper change its presentation; the totals, chart, category
+wide. The style gallery offers the original Signature and Paper looks, plus
+Prism (violet/confetti), Ocean (blue/grid), Sage (green/leaves) and Sunset
+(terracotta/waves). Each thumbnail updates the full preview; sharing is disabled
+until the selected card has laid out, and its selected design is captured.
+Styles live in `reportLooks.ts` and affect report presentation only.
+The totals, chart, category
 breakdown and takeaway use the same selected transactions. Share controls remain
 outside the captured view. Image sharing uses the native share sheet; an explicit
 text option uses the same report model. No share is sent automatically.

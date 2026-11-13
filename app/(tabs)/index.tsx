@@ -63,7 +63,7 @@ const insights = [
   {
     icon: "card-outline" as const,
     title: "Linked Cards",
-    text: "Your Netflix subscription is due tomorrow on your linked Access Bank card.",
+    text: "Explore each linked account, its cash flow and spending patterns.",
     tint: "#EAF2FF",
     color: "#315A92",
   },
@@ -372,7 +372,9 @@ export default function App() {
           accounts={linked.accounts} selectedId={effectiveSelection} onSelect={setSelectedAccountId}
           balance={null} visible={settings.loaded && balanceVisible && !preferences.privateMode}
           onToggleBalance={() => setBalanceVisible(visible => !visible)}
-          onLink={() => router.push("/linkbank")} theme={theme} dark={themeMode === "dark"}
+          onLink={() => router.push("/linkbank")}
+          onOpenAccounts={accountId => router.push({ pathname: "/linkedcards", params: accountId ? { accountId } : {} })}
+          theme={theme} dark={themeMode === "dark"}
           loading={linked.loading} error={linked.error} onRetry={linked.retry}
         />
         {/* Quick Actions */}
@@ -471,7 +473,7 @@ export default function App() {
 
         {preferences.showInsights && <HomeCarousel title="Smart insights" link="See all" onViewAll={() => router.push("/insightssum")}
           theme={theme} themeMode={themeMode} themePreference={themePreference}
-          cards={insights.map(insight => ({ ...insight, id: insight.title, onPress: () => router.push("/insightssum") }))} />}
+          cards={insights.map(insight => ({ ...insight, id: insight.title, onPress: () => router.push(insight.title === "Linked Cards" ? "/linkedcards" : "/insightssum") }))} />}
 
         <PlanningCarousels
           wallet={budgetWallet}

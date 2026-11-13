@@ -18,7 +18,7 @@ type Card = { id: string; account?: LinkedBankAccount };
 type Props = {
   accounts: LinkedBankAccount[]; selectedId: string; onSelect: (id: string) => void;
   balance: number | null; visible: boolean; onToggleBalance: () => void;
-  onLink: () => void; theme: ThemePalette; dark: boolean;
+  onLink: () => void; onOpenAccounts: (accountId?: string) => void; theme: ThemePalette; dark: boolean;
   loading: boolean; error: string | null; onRetry: () => void;
 };
 
@@ -40,7 +40,9 @@ function CardFace({ card, width, height, ...props }: Props & { card: Card; width
     }
   }
   return (
-    <View style={[styles.card, { width, height, backgroundColor: color, borderColor: account ? "#FFFFFF25" : appearance.border }]}>
+    <Pressable accessibilityRole="button" accessibilityLabel={account ? `Open ${account.bankName} account insights` : "Open linked accounts"}
+      onPress={() => props.onOpenAccounts(account?.id)}
+      style={[styles.card, { width, height, backgroundColor: color, borderColor: account ? "#FFFFFF25" : appearance.border }]}>
       <Svg pointerEvents="none" width={width} height={height} style={styles.pattern} viewBox="0 0 360 220">
         <Path d="M286 -20 C140 22 176 133 350 166 M225 239 C82 21 342 57 390 149 M365 -20 C305 72 291 120 381 216" stroke={ink} opacity={account ? 0.18 : 0.11} strokeWidth="0.7" fill="none" />
         <Path d="M285 154 v-18 m7 18 v-27 m7 27 v-36" stroke={ink} opacity="0.08" strokeWidth="5" />
@@ -51,7 +53,7 @@ function CardFace({ card, width, height, ...props }: Props & { card: Card; width
             : <BrandMark size={28} palette={props.theme} />}
           <Text numberOfLines={1} style={[styles.brandName, { color: ink }]}>{account?.bankName || "TallySpends"}</Text>
         </View>
-        <Pressable accessibilityRole="button" accessibilityLabel="Link bank account" hitSlop={12} onPress={props.onLink} style={styles.link}>
+        <Pressable accessibilityRole="button" accessibilityLabel="Link bank account" hitSlop={8} onPress={event => { event.stopPropagation(); props.onLink(); }} style={styles.link}>
           <Text style={[styles.overview, { color: ink }]}>{account ? "Linked account" : "Local demo overview"}</Text>
           <Ionicons name="add-circle-outline" size={16} color={ink} />
         </Pressable>
@@ -65,17 +67,19 @@ function CardFace({ card, width, height, ...props }: Props & { card: Card; width
         {account?.maskedAccountNumber && <Text style={[styles.identifier, { color: ink }]}>{account.maskedAccountNumber}</Text>}
       </View>
       <View style={styles.amountRow}>
-        <Pressable accessibilityRole="button" accessibilityLabel={props.visible ? "Hide balance" : "Show balance"} onPress={props.onToggleBalance} style={styles.amountWrap}>
+        <Pressable accessibilityRole="button" accessibilityLabel={props.visible ? "Hide balance" : "Show balance"} onPress={event => { event.stopPropagation(); props.onToggleBalance(); }} style={styles.amountWrap}>
           <Text style={[styles.balanceLabel, { color: ink }]}>AVAILABLE BALANCE</Text>
           <Text numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.55} style={[styles.amount, { color: ink, fontSize: amount == null || (account && !account.currency) ? 18 : Math.min(38, width * 0.106) }]}>
             {props.visible ? formatted : "********"}
           </Text>
         </Pressable>
-        <View style={[styles.currencyBadge, { backgroundColor: account ? "#FFFFFF18" : appearance.accentSoft }]}>
-          <Text style={{ color: ink, opacity: 0.65, fontWeight: "700" }}>{account?.currency === "NGN" || !account ? "₦" : account.currency || "—"}</Text>
-        </View>
+        <Pressable accessibilityRole="button" accessibilityLabel="View linked account insights"
+          onPress={event => { event.stopPropagation(); props.onOpenAccounts(account?.id); }}
+          style={[styles.currencyBadge, { backgroundColor: account ? "#FFFFFF18" : appearance.accentSoft }]}>
+          <Ionicons name="arrow-forward" size={20} color={ink} />
+        </Pressable>
       </View>
-    </View>
+    </Pressable>
   );
 }
 
@@ -205,7 +209,7 @@ const styles = StyleSheet.create({
   amountWrap: { flex: 1, minHeight: 44, justifyContent: "flex-end" },
   balanceLabel: { fontSize: 8, letterSpacing: 1.8, opacity: 0.6, marginBottom: 5 },
   amount: { fontWeight: "700", letterSpacing: -1.3 },
-  currencyBadge: { minWidth: 32, height: 32, paddingHorizontal: 6, borderRadius: 16, alignItems: "center", justifyContent: "center", marginBottom: 2 },
+  currencyBadge: { minWidth: 44, height: 44, paddingHorizontal: 6, borderRadius: 22, alignItems: "center", justifyContent: "center", marginBottom: 2 },
   dots: { flexDirection: "row", justifyContent: "center", gap: 5, paddingTop: 1, paddingBottom: 8 },
   status: { minHeight: 26, flexDirection: "row", gap: 7, alignItems: "center", justifyContent: "center", paddingHorizontal: 20 },
 });
