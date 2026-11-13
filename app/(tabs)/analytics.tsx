@@ -1,10 +1,13 @@
+import { useThemeTokens } from "../../src/ThemeExperience";
+import { AnalyticsReportSheet } from "../../components/AnalyticsReportSheet";
+import { analyticsRange, analyticsReport } from "../../src/analytics/report";
+import { spendingRhythm } from "../../src/analytics/rhythm";
 import { Ionicons } from "@expo/vector-icons";
-import React, { useMemo, useState, useRef } from "react";
+import React, { useMemo, useState } from "react";
 import {
   Modal,
   SafeAreaView,
   ScrollView,
-  Share,
   StyleSheet,
   Text,
   TouchableOpacity,
@@ -12,15 +15,13 @@ import {
   View,
   type DimensionValue,
 } from "react-native";
-// view-shot and expo-sharing are imported dynamically at runtime
-import Svg, { Path } from "react-native-svg";
+import Svg, { Defs, LinearGradient, Path, Stop } from "react-native-svg";
 import { useAppStore } from "../../src/store";
-import { getThemePalette } from "../../src/theme";
 
 type Timeframe = "weekly" | "monthly" | "yearly";
 
 const options: Record<Timeframe, string[]> = {
-  weekly: ["W1", "W2", "W3", "W4"],
+  weekly: Array.from({ length: Math.ceil(new Date(new Date().getFullYear(), new Date().getMonth() + 1, 0).getDate() / 7) }, (_, index) => `W${index + 1}`),
   monthly: [
     "Jan",
     "Feb",
@@ -76,11 +77,11 @@ const categoryMeta: Record<
 };
 
 export default function AnalyticsScreen() {
-  const { transactions: rawTransactions = [], themePreference, themeMode } = useAppStore();
+  const { transactions: rawTransactions = [], themeMode, budgetWallet, budgetError, transactionFeedError, refreshTransactions } = useAppStore();
 
   const transactions = rawTransactions as any[];
 
-  const theme = getThemePalette(themePreference, themeMode);
+  const theme = useThemeTokens();
 
   /*
    * Keep all screen colors tied to the active theme.
@@ -97,39 +98,43 @@ export default function AnalyticsScreen() {
       surface: theme.surface,
       border: theme.border,
 
-      primary: isDark ? "#D8BFE0" : "#624B6A",
-      primaryStrong: isDark ? "#E6D4EA" : "#20142A",
-      primarySoft: isDark ? "#34263A" : "#F3EBF1",
-      primaryMuted: isDark ? "#A98FB1" : "#8E7B95",
+      primary: theme.accent,
+      primaryStrong: isDark ? theme.textPrimary : theme.accent,
+      primarySoft: theme.accentSoft,
+      primaryMuted: theme.accentSecondary,
 
-      text: isDark ? "#F5F1F6" : "#251A2B",
-      textStrong: isDark ? "#FFFFFF" : "#20142A",
-      textBody: isDark ? "#D2C8D5" : "#362B3D",
-      textMuted: isDark ? "#A99EAD" : "#817687",
-      textSubtle: isDark ? "#8F8494" : "#9A8FA0",
+      text: theme.textPrimary,
+      textStrong: theme.textPrimary,
+      textBody: theme.textPrimary,
+      textMuted: theme.textSecondary,
+      textSubtle: theme.textSecondary,
 
-      controlBackground: isDark ? "#29202D" : "#F3F0F4",
-      track: isDark ? "#403442" : "#F0EBF1",
-      guide: isDark ? "#3A303D" : "#F0EBF1",
+      controlBackground: isDark ? theme.surfaceSoft : theme.mutedBackground,
+      track: isDark ? theme.border : theme.border,
+      guide: isDark ? theme.border : theme.border,
 
-      metricBackground: isDark ? "#29212E" : "#F5F1F6",
-      metricIconBackground: isDark ? "#433449" : "#E9DDEB",
-      metricDivider: isDark ? "#4A3C4D" : "#DDD4E0",
+      metricBackground: isDark ? theme.surfaceSoft : theme.mutedBackground,
+      metricIconBackground: theme.accentSoft,
+      metricDivider: theme.border,
 
-      insightBackground: isDark ? "#302431" : "#F3EBF1",
-      insightIconBackground: isDark ? "#423347" : "#FFFFFF",
+      insightBackground: theme.accentSoft,
+      insightIconBackground: theme.surface,
 
-      modalOverlay: isDark ? "rgba(0, 0, 0, 0.58)" : "rgba(31, 20, 38, 0.18)",
+      modalOverlay: isDark ? "rgba(0, 0, 0, 0.65)" : "rgba(31, 20, 38, 0.25)",
 
-      expense: isDark ? "#FF8B80" : "#E74C3C",
-      income: isDark ? "#BFA0D8" : "#8E44AD",
-      saved: isDark ? "#72D6A0" : "#2ECC71",
+      expense: theme.danger,
+      income: theme.accent,
+      saved: theme.success,
 
-      heatmap: isDark
-        ? ["#2B222F", "#493A4D", "#69556D", "#92779B", "#BFA6C5"]
-        : ["#F5F0F6", "#E7DDE9", "#CDBBD3", "#8F729A", "#624B6A"],
+      heatmap: [
+        isDark ? theme.surfaceSoft : theme.mutedBackground,
+        theme.accentSoft,
+        theme.accentSecondary,
+        theme.accentHighlight,
+        theme.accent,
+      ],
     }),
-    [isDark, theme.background, theme.border, theme.surface],
+    [isDark, theme],
   );
 
   const [timeframe, setTimeframe] = useState<Timeframe>("monthly");
@@ -141,7 +146,6 @@ export default function AnalyticsScreen() {
 
   const [showPeriods, setShowPeriods] = useState(false);
   const [showSharePreview, setShowSharePreview] = useState(false);
-  const shareRef = useRef<any>(null);
 
   const chooseTimeframe = (next: Timeframe) => {
     setTimeframe(next);
@@ -171,88 +175,23 @@ export default function AnalyticsScreen() {
     return period;
   }, [period, timeframe]);
 
-  const filteredTransactions = useMemo(() => {
-    if (timeframe === "yearly") {
-      return transactions.filter((tx) => {
-        const txDate = new Date(tx.date);
+  const report = useMemo(() => analyticsReport(transactions, analyticsRange(timeframe, period)), [transactions, timeframe, period]);
+  const filteredTransactions = report.selected;
+  const rhythm = useMemo(() => spendingRhythm(report.selected), [report]);
 
-        return (
-          !Number.isNaN(txDate.getTime()) &&
-          txDate.getFullYear() === selectedPeriod
-        );
-      });
-    }
+  const totals = useMemo(() => ({
+    income: report.income / 100,
+    spent: report.spent / 100,
+    net: report.net / 100,
+  }), [report]);
 
-    if (timeframe === "monthly") {
-      const monthIndex = options.monthly.indexOf(period);
-
-      return transactions.filter((tx) => {
-        const txDate = new Date(tx.date);
-
-        return (
-          !Number.isNaN(txDate.getTime()) && txDate.getMonth() === monthIndex
-        );
-      });
-    }
-
-    const weekIndex = options.weekly.indexOf(period);
-
-    if (weekIndex < 0) {
-      return [];
-    }
-
-    const baseDate = new Date();
-    const month = baseDate.getMonth();
-    const year = baseDate.getFullYear();
-
-    const weekStart = weekIndex * 7 + 1;
-
-    const weekEnd = Math.min(
-      weekStart + 6,
-      new Date(year, month + 1, 0).getDate(),
-    );
-
-    return transactions.filter((tx) => {
-      const txDate = new Date(tx.date);
-
-      return (
-        !Number.isNaN(txDate.getTime()) &&
-        txDate.getFullYear() === year &&
-        txDate.getMonth() === month &&
-        txDate.getDate() >= weekStart &&
-        txDate.getDate() <= weekEnd
-      );
-    });
-  }, [period, timeframe, selectedPeriod, transactions]);
-
-  const totals = useMemo(() => {
-    return filteredTransactions.reduce(
-      (acc, tx) => {
-        const amount = Number(tx.amount || 0);
-
-        if (tx.type === "income") {
-          acc.income += amount;
-        } else if (tx.type === "expense") {
-          acc.spent += amount;
-        } else {
-          acc.saved += amount;
-        }
-
-        return acc;
-      },
-      {
-        income: 0,
-        spent: 0,
-        saved: 0,
-      },
-    );
-  }, [filteredTransactions]);
-
-  const formatCurrency = (value: number) =>
-    `₦${value.toLocaleString(undefined, {
-      minimumFractionDigits: 2,
-      maximumFractionDigits: 2,
+  const formatCurrency = (value: number) => {
+    const isClean = value % 1 === 0 || Math.abs(value) >= 1000;
+    return `₦${value.toLocaleString(undefined, {
+      minimumFractionDigits: isClean ? 0 : 2,
+      maximumFractionDigits: isClean ? 0 : 2,
     })}`;
+  };
 
   const categoryTotals = useMemo(() => {
     const categoryMap: Record<string, number> = {};
@@ -273,90 +212,19 @@ export default function AnalyticsScreen() {
     return Object.entries(categoryMap)
       .sort((a, b) => b[1] - a[1])
       .slice(0, 4)
-      .map(([name, amount]) => ({
+      .map(([name, amount], index) => ({
         name,
         amount,
         share: expenseTotal
           ? `${Math.round((amount / expenseTotal) * 100)}%`
           : "0%",
         icon: categoryMeta[name]?.icon ?? "ellipsis-horizontal",
-        tint: categoryMeta[name]?.tint ?? "#EFEFEB",
+        tint: theme.accentSoft,
+        chartColor: theme.chart[index % theme.chart.length],
       }));
-  }, [filteredTransactions]);
+  }, [filteredTransactions, theme]);
 
-  const chartPoints = useMemo(() => {
-    if (timeframe === "yearly") {
-      return Array.from({ length: 12 }, (_, idx) => {
-        const label = options.monthly[idx];
-
-        const value = filteredTransactions.reduce((sum, tx) => {
-          const txDate = new Date(tx.date);
-
-          if (Number.isNaN(txDate.getTime()) || tx.type !== "expense") {
-            return sum;
-          }
-
-          return txDate.getMonth() === idx ? sum + Number(tx.amount || 0) : sum;
-        }, 0);
-
-        return {
-          label,
-          value,
-        };
-      });
-    }
-
-    if (timeframe === "monthly") {
-      const monthIndex = options.monthly.indexOf(period);
-
-      return Array.from({ length: 4 }, (_, idx) => {
-        const start = idx * 7 + 1;
-
-        const end =
-          idx === 3
-            ? new Date(new Date().getFullYear(), monthIndex + 1, 0).getDate()
-            : start + 6;
-
-        const value = filteredTransactions.reduce((sum, tx) => {
-          const txDate = new Date(tx.date);
-
-          if (Number.isNaN(txDate.getTime()) || tx.type !== "expense") {
-            return sum;
-          }
-
-          const day = txDate.getDate();
-
-          return day >= start && day <= end
-            ? sum + Number(tx.amount || 0)
-            : sum;
-        }, 0);
-
-        return {
-          label: `W${idx + 1}`,
-          value,
-        };
-      });
-    }
-
-    const weekIndex = options.weekly.indexOf(period);
-
-    return options.weekly.map((label, idx) => ({
-      label,
-      value: filteredTransactions
-        .filter((tx) => {
-          const txDate = new Date(tx.date);
-
-          if (Number.isNaN(txDate.getTime()) || tx.type !== "expense") {
-            return false;
-          }
-
-          const day = txDate.getDate();
-
-          return day >= idx * 7 + 1 && day <= idx * 7 + 7 && idx === weekIndex;
-        })
-        .reduce((sum, tx) => sum + Number(tx.amount || 0), 0),
-    }));
-  }, [filteredTransactions, period, timeframe]);
+  const chartPoints = useMemo(() => report.chart.map(point => ({ label: point.label, value: point.amount / 100 })), [report]);
 
   const maxPoint = Math.max(...chartPoints.map((point) => point.value), 1);
 
@@ -392,88 +260,6 @@ export default function AnalyticsScreen() {
 
   const chartLabel = timeframe === "yearly" ? `${selectedPeriod}` : `${period}`;
 
-  const reportTitle = `TallySpends ${chartLabel} analytics report`;
-  const financialScore = 82;
-
-  const reportSummary = `${formatCurrency(totals.spent)} spent, ${formatCurrency(totals.income)} earned, and ${formatCurrency(totals.saved)} saved during ${chartLabel}.`;
-
-  const insightText =
-    "Food spending was higher this week than last month. A ₦35 weekly cap could keep your budget on track.";
-
-  const shareBody = `${reportTitle}
-
-Financial score: ${financialScore}/100
-${reportSummary}
-
-Top categories:
-${categoryTotals
-  .slice(0, 3)
-  .map(
-    (item) => `• ${item.name}: ${item.share} (${formatCurrency(item.amount)})`,
-  )
-  .join("\n")}
-
-Insight:
-${insightText}`;
-
-  const handleShareReport = async () => {
-    try {
-      if (shareRef.current) {
-        // Try to dynamically load capture + sharing modules (optional deps)
-        let capture: any = null;
-        let SharingModule: any = null;
-        try {
-          // eslint-disable-next-line @typescript-eslint/ban-ts-comment
-          // @ts-ignore - optional dependency, require at runtime if installed
-          const vs: any = require("react-native-view-shot");
-          capture = vs?.captureRef || vs?.captureScreen || null;
-        } catch (e) {
-          // view-shot not available
-        }
-
-        try {
-          // eslint-disable-next-line @typescript-eslint/ban-ts-comment
-          // @ts-ignore - optional dependency, require at runtime if installed
-          SharingModule = require("expo-sharing");
-        } catch (e) {
-          // expo-sharing not available
-        }
-
-        if (capture) {
-          const uri = await capture(shareRef.current, {
-            format: "png",
-            quality: 0.9,
-          });
-
-          if (SharingModule && SharingModule.isAvailableAsync) {
-            try {
-              const available = await SharingModule.isAvailableAsync();
-              if (available && SharingModule.shareAsync) {
-                await SharingModule.shareAsync(uri, { dialogTitle: reportTitle });
-                return;
-              }
-            } catch (e) {
-              // fall back
-            }
-          }
-
-          // Fallback to native Share API with file URL
-          try {
-            await Share.share({ url: uri, title: reportTitle } as any);
-            return;
-          } catch (e) {
-            // fall through to text share
-          }
-        }
-      }
-
-      // Final fallback: share as text
-      await Share.share({ title: reportTitle, message: shareBody });
-    } catch (error) {
-      console.error("Error sharing analytics report:", error);
-    }
-  };
-
   return (
     <SafeAreaView
       style={[
@@ -488,16 +274,10 @@ ${insightText}`;
         showsVerticalScrollIndicator={false}
       >
         <View style={styles.header}>
-          <Text
-            style={[
-              styles.title,
-              {
-                color: colors.text,
-              },
-            ]}
-          >
-            Analytics
-          </Text>
+          <View>
+            <Text style={[styles.title, { color: colors.text }]}>Analytics</Text>
+            <Text style={[styles.headerSubtitle, { color: colors.textMuted }]}>Your money, in focus</Text>
+          </View>
 
           <TouchableOpacity
             style={[
@@ -506,6 +286,9 @@ ${insightText}`;
                 backgroundColor: colors.primarySoft,
               },
             ]}
+            onPress={() => setShowSharePreview(true)}
+            accessibilityRole="button"
+            accessibilityLabel="Share analytics report"
           >
             <Ionicons
               name="share-outline"
@@ -515,38 +298,49 @@ ${insightText}`;
           </TouchableOpacity>
         </View>
 
+        {transactionFeedError && <TouchableOpacity accessibilityRole="button" onPress={() => void refreshTransactions(true).catch(() => {})} style={{ marginBottom: 14, borderRadius: 12, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.surface, padding: 12 }}>
+          <Text style={{ color: colors.textMuted, fontSize: 11 }}>Couldn’t refresh backend transactions. Tap to retry; saved manual entries remain available.</Text>
+        </TouchableOpacity>}
+
         <View style={styles.controls}>
           <View
             style={[
               styles.segment,
               {
                 backgroundColor: colors.controlBackground,
+                borderColor: colors.border,
+                borderWidth: 1,
               },
             ]}
           >
-            {(["weekly", "monthly", "yearly"] as Timeframe[]).map((item) => (
-              <TouchableOpacity
-                key={item}
-                onPress={() => chooseTimeframe(item)}
-                style={[
-                  styles.segmentOption,
-                  timeframe === item && {
-                    backgroundColor: colors.primaryStrong,
-                  },
-                ]}
-              >
-                <Text
+            {(["weekly", "monthly", "yearly"] as Timeframe[]).map((item) => {
+              const isActive = timeframe === item;
+              return (
+                <TouchableOpacity
+                  key={item}
+                  onPress={() => chooseTimeframe(item)}
                   style={[
-                    styles.segmentText,
-                    {
-                      color: timeframe === item ? "#FFFFFF" : colors.textMuted,
+                    styles.segmentOption,
+                    isActive && {
+                      backgroundColor: colors.primary,
                     },
                   ]}
+                  activeOpacity={0.8}
                 >
-                  {item[0].toUpperCase() + item.slice(1)}
-                </Text>
-              </TouchableOpacity>
-            ))}
+                  <Text
+                    style={[
+                      styles.segmentText,
+                      {
+                        color: isActive ? theme.onAccent : colors.textMuted,
+                        fontWeight: isActive ? "700" : "500",
+                      },
+                    ]}
+                  >
+                    {item[0].toUpperCase() + item.slice(1)}
+                  </Text>
+                </TouchableOpacity>
+              );
+            })}
           </View>
 
           <TouchableOpacity
@@ -558,12 +352,13 @@ ${insightText}`;
               },
             ]}
             onPress={() => setShowPeriods(true)}
+            activeOpacity={0.8}
           >
             <Text
               style={[
                 styles.periodText,
                 {
-                  color: colors.primary,
+                  color: colors.textStrong,
                 },
               ]}
             >
@@ -578,7 +373,8 @@ ${insightText}`;
           style={[
             styles.hero,
             {
-              backgroundColor: colors.background,
+            backgroundColor: colors.surface,
+            borderColor: colors.border,
             },
           ]}
         >
@@ -590,7 +386,7 @@ ${insightText}`;
               },
             ]}
           >
-            FINANCIAL HEALTH
+            NET CASH FLOW
           </Text>
 
           <View style={styles.heroRow}>
@@ -602,41 +398,9 @@ ${insightText}`;
                 },
               ]}
             >
-              82
+              {formatCurrency(totals.net)}
             </Text>
 
-            <Text
-              style={[
-                styles.outOf,
-                {
-                  color: colors.textSubtle,
-                },
-              ]}
-            >
-              /100
-            </Text>
-
-            <View
-              style={[
-                styles.scoreBadge,
-                {
-                  backgroundColor: colors.primarySoft,
-                },
-              ]}
-            >
-              <Ionicons name="arrow-up" size={12} color={colors.primary} />
-
-              <Text
-                style={[
-                  styles.scoreBadgeText,
-                  {
-                    color: colors.primary,
-                  },
-                ]}
-              >
-                8%
-              </Text>
-            </View>
           </View>
 
           <Text
@@ -647,7 +411,7 @@ ${insightText}`;
               },
             ]}
           >
-            You’re building healthy habits.
+            {totals.net >= 0 ? "More came in than went out." : "Spending was higher than income."}
           </Text>
 
           <Text
@@ -658,7 +422,7 @@ ${insightText}`;
               },
             ]}
           >
-            Your spending efficiency improved compared with last month.
+            {report.range.label} · {report.count} recorded {report.count === 1 ? "transaction" : "transactions"}
           </Text>
         </View>
 
@@ -692,7 +456,7 @@ ${insightText}`;
                   },
                 ]}
               >
-                Your {chartLabel} flow
+                Spending in {chartLabel}
               </Text>
             </View>
 
@@ -744,16 +508,22 @@ ${insightText}`;
             >
               {linePath ? (
                 <>
+                  <Defs>
+                    <LinearGradient id="analyticsGradient" x1="0" y1="0" x2="0" y2="1">
+                      <Stop offset="0%" stopColor={colors.primary} stopOpacity={0.35} />
+                      <Stop offset="100%" stopColor={colors.primary} stopOpacity={0.0} />
+                    </LinearGradient>
+                  </Defs>
+
                   <Path
                     d={`${linePath} L300 92 L20 92 Z`}
-                    fill={colors.primarySoft}
-                    opacity={0.72}
+                    fill="url(#analyticsGradient)"
                   />
 
                   <Path
                     d={linePath}
                     fill="none"
-                    stroke={colors.expense}
+                    stroke={colors.primary}
                     strokeLinecap="round"
                     strokeLinejoin="round"
                     strokeWidth="3"
@@ -789,22 +559,11 @@ ${insightText}`;
 
           <View style={styles.legend}>
             <Legend
-              label="Spent"
-              color={colors.expense}
+              label="Expenses"
+              color={colors.primary}
               textColor={colors.textMuted}
             />
 
-            <Legend
-              label="Income"
-              color={colors.income}
-              textColor={colors.textMuted}
-            />
-
-            <Legend
-              label="Saved"
-              color={colors.saved}
-              textColor={colors.textMuted}
-            />
           </View>
         </View>
 
@@ -839,21 +598,6 @@ ${insightText}`;
             colors={colors}
           />
 
-          <View
-            style={[
-              styles.metricDivider,
-              {
-                backgroundColor: colors.metricDivider,
-              },
-            ]}
-          />
-
-          <Metric
-            label="SAVED"
-            value={formatCurrency(totals.saved)}
-            icon="leaf-outline"
-            colors={colors}
-          />
         </View>
 
         <Heading
@@ -872,17 +616,17 @@ ${insightText}`;
           ]}
         >
           {categoryTotals.length > 0 ? (
-            categoryTotals.map(({ name, amount, share, icon, tint }) => (
+            categoryTotals.map(({ name, amount, share, icon, chartColor }) => (
               <TouchableOpacity key={name} style={styles.categoryRow}>
                 <View
                   style={[
                     styles.categoryIcon,
                     {
-                      backgroundColor: isDark ? "#3A2C3D" : tint,
+                      backgroundColor: colors.primarySoft,
                     },
                   ]}
                 >
-                  <Ionicons name={icon} size={18} color={colors.primary} />
+                  <Ionicons name={icon} size={18} color={chartColor} />
                 </View>
 
                 <View style={styles.categoryCopy}>
@@ -996,7 +740,7 @@ ${insightText}`;
                 },
               ]}
             >
-              A small shift to notice
+              A pattern in your spending
             </Text>
 
             <Text
@@ -1007,8 +751,7 @@ ${insightText}`;
                 },
               ]}
             >
-              Food spending was higher this week than it was last month. A ₦35
-              weekly cap could keep you on track.
+              {report.takeaway}
             </Text>
           </View>
 
@@ -1019,7 +762,7 @@ ${insightText}`;
           />
         </View>
 
-        <Heading title="Spending rhythm." action="This month" colors={colors} />
+        <Heading title="Spending rhythm." action={report.range.label} colors={colors} />
 
         <View
           style={[
@@ -1038,60 +781,29 @@ ${insightText}`;
               },
             ]}
           >
-            Your busiest spending time is between 12 PM and 6 PM.
+            {rhythm.caption}
           </Text>
 
           <View style={styles.heatmap}>
-            {[
-              1, 2, 3, 4, 3, 2, 1, 0, 1, 2, 3, 4, 3, 2, 1, 0, 1, 2, 3, 4, 3, 2,
-              1, 0,
-            ].map((intensity, index) => (
+            {rhythm.cells.map(({ label, count, intensity }) => (
               <View
-                key={index}
+                key={label}
+                accessible
+                accessibilityLabel={`${label}: ${count} expense ${count === 1 ? "transaction" : "transactions"}`}
                 style={[
                   styles.heatCell,
                   {
                     backgroundColor: colors.heatmap[intensity],
                   },
                 ]}
-              />
+              ><Text style={{ fontSize: 9, textAlign: "center", lineHeight: 23, color: intensity >= 3 ? theme.background : colors.text }}>{label}</Text></View>
             ))}
           </View>
 
           <View style={styles.heatLabels}>
-            <Text
-              style={[
-                styles.heatLabelsText,
-                {
-                  color: colors.textSubtle,
-                },
-              ]}
-            >
-              6 AM
-            </Text>
-
-            <Text
-              style={[
-                styles.heatLabelsText,
-                {
-                  color: colors.textSubtle,
-                },
-              ]}
-            >
-              12 PM
-            </Text>
-
-            <Text
-              style={[
-                styles.heatLabelsText,
-                {
-                  color: colors.textSubtle,
-                },
-              ]}
-            >
-              6 PM
-            </Text>
+            <Text style={[styles.heatLabelsText, { color: colors.textSubtle }]}>Lighter: fewer transactions · Darker: more</Text>
           </View>
+          {rhythm.note && <Text style={[styles.heatLabelsText, { color: colors.textMuted, paddingHorizontal: 15, paddingBottom: 15 }]}>{rhythm.note}</Text>}
         </View>
       </ScrollView>
 
@@ -1169,103 +881,7 @@ ${insightText}`;
         </TouchableWithoutFeedback>
       </Modal>
 
-      <Modal
-        transparent
-        visible={showSharePreview}
-        animationType="slide"
-        onRequestClose={() => setShowSharePreview(false)}
-      >
-        <TouchableWithoutFeedback onPress={() => setShowSharePreview(false)}>
-          <View style={styles.overlay}>
-            <TouchableWithoutFeedback>
-              <View style={[styles.menu, styles.shareModal]}>
-                <View style={styles.shareHeader}>
-                  <Text style={styles.menuTitle}>Monthly Insights</Text>
-                  <TouchableOpacity onPress={() => setShowSharePreview(false)}>
-                    <Ionicons name="close" size={22} color="#20142A" />
-                  </TouchableOpacity>
-                </View>
-                <Text style={styles.shareSubtitle}>
-                  {chartLabel} financial summary
-                </Text>
-
-                <View ref={shareRef} collapsable={false} style={styles.sharePreviewCard}>
-                  <View style={styles.sharePreviewTop}>
-                    <View style={styles.sharePreviewLogo}>
-                      <Text style={styles.sharePreviewScore}>
-                        {financialScore}
-                      </Text>
-                      <Text style={styles.sharePreviewScoreSuffix}>/100</Text>
-                    </View>
-                    <View style={styles.sharePreviewMeta}>
-                      <Text style={styles.sharePreviewMetaLabel}>
-                        Financial health
-                      </Text>
-                      <Text style={styles.sharePreviewMetaValue}>
-                        {chartLabel}
-                      </Text>
-                    </View>
-                  </View>
-
-                  <View style={styles.sharePreviewBody}>
-                    <Text style={styles.sharePreviewTitle}>{reportTitle}</Text>
-                    <Text style={styles.sharePreviewSubtitle}>
-                      {reportSummary}
-                    </Text>
-                  </View>
-
-                  <View style={styles.shareStats}>
-                    <View style={styles.shareStatCard}>
-                      <Text style={styles.shareStatLabel}>Spent</Text>
-                      <Text style={styles.shareStatValue}>
-                        {formatCurrency(totals.spent)}
-                      </Text>
-                    </View>
-                    <View style={styles.shareStatCard}>
-                      <Text style={styles.shareStatLabel}>Income</Text>
-                      <Text style={styles.shareStatValue}>
-                        {formatCurrency(totals.income)}
-                      </Text>
-                    </View>
-                    <View style={styles.shareStatCard}>
-                      <Text style={styles.shareStatLabel}>Saved</Text>
-                      <Text style={styles.shareStatValue}>
-                        {formatCurrency(totals.saved)}
-                      </Text>
-                    </View>
-                  </View>
-
-                  <View style={styles.shareDivider} />
-
-                  <Text style={styles.sectionLabel}>Top categories</Text>
-                  {categoryTotals.slice(0, 3).map((item) => (
-                    <View key={item.name} style={styles.shareCategoryRow}>
-                      <Text style={styles.shareCategoryName}>{item.name}</Text>
-                      <Text style={styles.shareCategoryValue}>
-                        {item.share}
-                      </Text>
-                    </View>
-                  ))}
-
-                  <View style={styles.shareInsightCard}>
-                    <Text style={styles.shareInsightLabel}>Insight</Text>
-                    <Text style={styles.shareInsightText}>{insightText}</Text>
-                  </View>
-                </View>
-
-                <View style={styles.shareFooter}>
-                  <TouchableOpacity
-                    style={styles.shareActionButton}
-                    onPress={handleShareReport}
-                  >
-                    <Text style={styles.shareActionText}>Share report</Text>
-                  </TouchableOpacity>
-                </View>
-              </View>
-            </TouchableWithoutFeedback>
-          </View>
-        </TouchableWithoutFeedback>
-      </Modal>
+      <AnalyticsReportSheet visible={showSharePreview} onClose={() => setShowSharePreview(false)} report={report} theme={theme} dark={isDark} ready={!!budgetWallet && !budgetError} />
     </SafeAreaView>
   );
 }
@@ -1395,6 +1011,9 @@ function Metric({
             color: colors.textStrong,
           },
         ]}
+        numberOfLines={1}
+        adjustsFontSizeToFit
+        minimumFontScale={0.55}
       >
         {value}
       </Text>
@@ -1425,6 +1044,11 @@ const styles = StyleSheet.create({
     letterSpacing: -0.7,
   },
 
+  headerSubtitle: {
+    fontSize: 12,
+    marginTop: 3,
+  },
+
   share: {
     alignItems: "center",
     borderRadius: 18,
@@ -1437,7 +1061,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
     flexDirection: "row",
     justifyContent: "space-between",
-    marginTop: 25,
+    marginTop: 20,
   },
 
   segment: {
@@ -1473,8 +1097,13 @@ const styles = StyleSheet.create({
   },
 
   hero: {
-    paddingBottom: 29,
-    paddingTop: 40,
+    borderRadius: 23,
+    borderWidth: 1,
+    marginBottom: 16,
+    marginTop: 20,
+    paddingBottom: 20,
+    paddingHorizontal: 18,
+    paddingTop: 18,
   },
 
   overline: {
@@ -1484,36 +1113,15 @@ const styles = StyleSheet.create({
   },
 
   heroRow: {
-    alignItems: "baseline",
+    alignItems: "center",
     flexDirection: "row",
-    marginTop: 4,
+    marginTop: 8,
   },
 
   score: {
-    fontSize: 50,
+    fontSize: 32,
     fontWeight: "700",
-    letterSpacing: -2,
-  },
-
-  outOf: {
-    fontSize: 16,
-    fontWeight: "600",
-    marginLeft: 3,
-  },
-
-  scoreBadge: {
-    alignItems: "center",
-    borderRadius: 13,
-    flexDirection: "row",
-    gap: 3,
-    marginLeft: 12,
-    paddingHorizontal: 8,
-    paddingVertical: 5,
-  },
-
-  scoreBadgeText: {
-    fontSize: 11,
-    fontWeight: "700",
+    letterSpacing: -1,
   },
 
   heroTitle: {
@@ -1606,13 +1214,16 @@ const styles = StyleSheet.create({
     borderRadius: 20,
     flexDirection: "row",
     marginTop: 14,
-    paddingHorizontal: 13,
-    paddingVertical: 17,
+    paddingHorizontal: 8,
+    paddingVertical: 16,
+    alignItems: "center",
   },
 
   metric: {
     alignItems: "center",
     flex: 1,
+    paddingHorizontal: 2,
+    minWidth: 0,
   },
 
   metricIcon: {
@@ -1626,20 +1237,23 @@ const styles = StyleSheet.create({
   metricDivider: {
     marginVertical: 3,
     width: 1,
+    height: 32,
   },
 
   metricLabel: {
-    fontSize: 8,
+    fontSize: 8.5,
     fontWeight: "700",
     letterSpacing: 0.65,
     marginTop: 7,
   },
 
   metricValue: {
-    fontSize: 16,
+    fontSize: 14,
     fontWeight: "700",
-    letterSpacing: -0.35,
+    letterSpacing: -0.3,
     marginTop: 4,
+    textAlign: "center",
+    width: "100%",
   },
 
   heading: {
@@ -1680,11 +1294,14 @@ const styles = StyleSheet.create({
     height: 40,
     justifyContent: "center",
     width: 40,
+    flexShrink: 0,
   },
 
   categoryCopy: {
     flex: 1,
     marginLeft: 12,
+    marginRight: 8,
+    minWidth: 0,
   },
 
   categoryName: {
@@ -1697,7 +1314,7 @@ const styles = StyleSheet.create({
     height: 4,
     marginTop: 8,
     overflow: "hidden",
-    width: "88%",
+    width: "92%",
   },
 
   categoryFill: {
@@ -1707,16 +1324,20 @@ const styles = StyleSheet.create({
 
   categoryEnd: {
     alignItems: "flex-end",
+    flexShrink: 0,
+    minWidth: 70,
   },
 
   categoryAmount: {
     fontSize: 13,
     fontWeight: "700",
+    textAlign: "right",
   },
 
   categoryShare: {
     fontSize: 10,
     marginTop: 3,
+    textAlign: "right",
   },
 
   insight: {
@@ -1819,4 +1440,10 @@ const styles = StyleSheet.create({
   menuText: {
     fontSize: 14,
   },
+
 });
+
+
+
+
+

@@ -113,7 +113,7 @@ const getStyles = (theme: any) =>
       padding: 16,
       marginHorizontal: 20,
       marginBottom: 16,
-      shadowColor: "#000",
+      shadowColor: theme.shadow,
       shadowOffset: { width: 0, height: 2 },
       shadowOpacity: 0.06,
       shadowRadius: 10,

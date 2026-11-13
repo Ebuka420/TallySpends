@@ -1,8 +1,17 @@
+import { useThemeTokens } from "../../src/ThemeExperience";
+import { HomeCarousel } from "../../components/HomeCarousel";
+import { usePreferences } from "../../src/settings";
+import DashboardBankCarousel from "../../components/DashboardBankCarousel";
+import { useDashboardAccounts } from "../../src/banking/useDashboardAccounts";
+import { OVERVIEW_ID, retainedSelection } from "../../src/banking/carousel";
+import TransactionReceiptModal from "../../components/TransactionReceiptModal";
+import { getCompletedTransaction, subscribeCompletedTransaction, clearCompletedTransaction } from "../../src/transactionCompletion";
 import { Ionicons } from "@expo/vector-icons";
-import { useRouter } from "expo-router";
-import React, { useEffect, useMemo, useRef, useState } from "react";
+import { useFocusEffect, useRouter } from "expo-router";
+import React, { useCallback, useEffect, useMemo, useState, useSyncExternalStore } from "react";
 import {
   Image,
+  RefreshControl,
   ScrollView,
   StyleSheet,
   Text,
@@ -12,6 +21,8 @@ import {
 
 import { MOCK_RECIPIENTS, useAppStore } from "../../src/store";
 import { getThemePalette } from "../../src/theme";
+import { usePlanningPeople } from "../../components/BudgetPeople";
+import { PlanningCarousels } from "../../components/PlanningCarousels";
 
 const normalizeTransferTitle = (title: string) => {
   const transferRegex = /(Transfer to\s+)@([a-zA-Z0-9_]+)/i;
@@ -52,60 +63,9 @@ const insights = [
   {
     icon: "card-outline" as const,
     title: "Linked Cards",
-    text: "Your Netflix subscription is due tomorrow on your linked Access Bank card.",
+    text: "Explore each linked account, its cash flow and spending patterns.",
     tint: "#EAF2FF",
     color: "#315A92",
-  },
-];
-
-const ajoGroupCards = [
-  {
-    id: "ajo-1",
-    groupName: "Mama Ajo Circle",
-    memberName: "Ada",
-    contribution: "₦25,000",
-    image: "https://i.pravatar.cc/100?img=12",
-  },
-  {
-    id: "ajo-2",
-    groupName: "Family Lift",
-    memberName: "Tosin",
-    contribution: "₦18,000",
-    image: "https://i.pravatar.cc/100?img=32",
-  },
-  {
-    id: "ajo-3",
-    groupName: "Weekend Savers",
-    memberName: "Mina",
-    contribution: "₦10,000",
-    image: "https://i.pravatar.cc/100?img=47",
-  },
-];
-
-const jointSavingsCards = [
-  {
-    id: "joint-1",
-    personName: "Titi",
-    goal: "New laptop",
-    contribution: "₦15,000",
-    timeline: "4 months",
-    image: "https://i.pravatar.cc/100?img=15",
-  },
-  {
-    id: "joint-2",
-    personName: "Bolu",
-    goal: "Holiday trip",
-    contribution: "₦22,000",
-    timeline: "6 months",
-    image: "https://i.pravatar.cc/100?img=27",
-  },
-  {
-    id: "joint-3",
-    personName: "Chika",
-    goal: "Home setup",
-    contribution: "₦12,500",
-    timeline: "3 months",
-    image: "https://i.pravatar.cc/100?img=41",
   },
 ];
 
@@ -149,11 +109,12 @@ const categoryMeta: Record<
   },
 };
 
-const formatCurrency = (amount: number) =>
-  `₦${amount.toLocaleString(undefined, {
+const formatCurrency = (amount: number, currency = "NGN") => currency === "NGN"
+  ? `₦${amount.toLocaleString(undefined, {
     minimumFractionDigits: 2,
     maximumFractionDigits: 2,
-  })}`;
+  })}`
+  : new Intl.NumberFormat(undefined, { style: "currency", currency }).format(amount);
 
 const getTimeLabel = (value?: string) => {
   if (!value) return "Recently added";
@@ -183,31 +144,59 @@ const getTimeLabel = (value?: string) => {
 
 export default function App() {
   const router = useRouter();
+  const settings = usePreferences();
+  const preferences = settings.values;
 
-  const { transactions, themePreference, themeMode } = useAppStore();
+  const store = useAppStore();
+  const people = usePlanningPeople(store);
+  const {
+    transactions,
+    unreadNotificationCount,
+    themePreference,
+    themeMode,
+    username,
+    profileFullName,
+    profileImage,
+    budgetWallet,
+    budgetError,
+    reloadBudgetWallet,
+    trackedBudgetSpending,
+    refreshTransactions,
+    transactionFeedState,
+    transactionFeedError,
+  } = store;
 
-  const theme = getThemePalette(themePreference, themeMode);
+  const theme = useThemeTokens();
+  const actionIconColor = theme.onAccent;
+
+  const firstName = profileFullName?.trim().split(/\s+/)[0] || "";
+
+  useFocusEffect(useCallback(() => { void refreshTransactions(false).catch(() => {}); }, [refreshTransactions]));
 
   const [balanceVisible, setBalanceVisible] = useState(true);
-  const [activeInsight, setActiveInsight] = useState(0);
-  const [ajoIndex, setAjoIndex] = useState(0);
-  const [jointIndex, setJointIndex] = useState(0);
+  const linked = useDashboardAccounts(username || store.profileEmail || "", {
+    token: store.token, refreshToken: store.refreshToken,
+    saveTokens: async (token, refresh) => { await store.login(token, refresh); },
+  });
+  const [selectedAccountId, setSelectedAccountId] = useState(OVERVIEW_ID);
+  const effectiveSelection = retainedSelection(selectedAccountId, linked.accounts);
+  useEffect(() => { if (effectiveSelection !== selectedAccountId) setSelectedAccountId(effectiveSelection); }, [effectiveSelection, selectedAccountId]);
+  const selectedAccount = linked.accounts.find(account => account.id === effectiveSelection);
+  const receiptId = useSyncExternalStore(subscribeCompletedTransaction, getCompletedTransaction, getCompletedTransaction);
+  const receipt = transactions.find(tx => tx.id === receiptId) || null;
+  const [receiptReady, setReceiptReady] = useState(false);
+  useFocusEffect(useCallback(() => {
+    setReceiptReady(false);
+    if (!receiptId) return;
+    // Let the previous native sheet dismiss and the dashboard transition finish.
+    const timer = setTimeout(() => setReceiptReady(true), 450);
+    return () => { clearTimeout(timer); setReceiptReady(false); };
+  }, [receiptId]));
 
-  const insightScrollRef = useRef<ScrollView | null>(null);
-  const ajoScrollRef = useRef<ScrollView | null>(null);
-  const jointScrollRef = useRef<ScrollView | null>(null);
-
-  const transactionsRaw = (transactions || []) as any[];
-
-  const totalIncome = transactionsRaw
-    .filter((t: any) => t.type === "income")
-    .reduce((sum: number, t: any) => sum + Number(t.amount || 0), 0);
-
-  const totalExpenses = transactionsRaw
-    .filter((t: any) => t.type === "expense")
-    .reduce((sum: number, t: any) => sum + Number(t.amount || 0), 0);
-
-  const currentBalance = 2926.78 + totalIncome - totalExpenses;
+  const transactionsRaw = useMemo(
+    () => (transactions || []) as any[],
+    [transactions],
+  );
 
   const recentTransactions = useMemo(() => {
     return [...transactionsRaw]
@@ -219,62 +208,6 @@ export default function App() {
       })
       .slice(0, 3);
   }, [transactionsRaw]);
-
-  useEffect(() => {
-    const insightTimer = setInterval(() => {
-      setActiveInsight((prev) => (prev + 1) % insights.length);
-    }, 5000);
-
-    const ajoTimer = setInterval(() => {
-      setAjoIndex((prev) => (prev + 1) % ajoGroupCards.length);
-    }, 6000);
-
-    const jointTimer = setInterval(() => {
-      setJointIndex((prev) => (prev + 1) % jointSavingsCards.length);
-    }, 7000);
-
-    return () => {
-      clearInterval(insightTimer);
-      clearInterval(ajoTimer);
-      clearInterval(jointTimer);
-    };
-  }, []);
-
-  useEffect(() => {
-    if (!insightScrollRef.current) return;
-
-    const cardWidth = 306 + 12;
-
-    insightScrollRef.current.scrollTo({
-      x: activeInsight * cardWidth,
-      y: 0,
-      animated: true,
-    });
-  }, [activeInsight]);
-
-  useEffect(() => {
-    if (!ajoScrollRef.current) return;
-
-    const cardWidth = 260 + 12;
-
-    ajoScrollRef.current.scrollTo({
-      x: ajoIndex * cardWidth,
-      y: 0,
-      animated: true,
-    });
-  }, [ajoIndex]);
-
-  useEffect(() => {
-    if (!jointScrollRef.current) return;
-
-    const cardWidth = 260 + 12;
-
-    jointScrollRef.current.scrollTo({
-      x: jointIndex * cardWidth,
-      y: 0,
-      animated: true,
-    });
-  }, [jointIndex]);
 
   return (
     <View
@@ -289,6 +222,7 @@ export default function App() {
         style={styles.container}
         contentContainerStyle={styles.contentContainer}
         showsVerticalScrollIndicator={false}
+        refreshControl={<RefreshControl refreshing={linked.loading || transactionFeedState === "loading"} onRefresh={() => { linked.retry(); void refreshTransactions(true).catch(() => {}); }} tintColor={theme.accent} />}
       >
         {/* Header Container */}
         <View style={styles.headerContainer}>
@@ -302,13 +236,21 @@ export default function App() {
                 styles.avatarWrapper,
                 {
                   backgroundColor: theme.accentSoft,
+                  overflow: "hidden",
                 },
               ]}
             >
-              <Ionicons name="person" size={20} color={theme.textPrimary} />
+              {profileImage ? (
+                <Image
+                  source={{ uri: profileImage }}
+                  style={{ width: 40, height: 40, borderRadius: 20 }}
+                />
+              ) : (
+                <Ionicons name="person" size={20} color={theme.textPrimary} />
+              )}
             </View>
 
-            <View>
+            <View style={styles.greetingTextWrap}>
               <Text
                 style={[
                   styles.greetingText,
@@ -316,8 +258,10 @@ export default function App() {
                     color: theme.textPrimary,
                   },
                 ]}
+                numberOfLines={1}
+                ellipsizeMode="tail"
               >
-                Good morning, Ebuka
+                {firstName ? `Welcome, ${firstName}` : "Welcome"}
               </Text>
 
               <Text
@@ -327,6 +271,8 @@ export default function App() {
                     color: theme.textSecondary,
                   },
                 ]}
+                numberOfLines={1}
+                ellipsizeMode="tail"
               >
                 Where did your money go today?
               </Text>
@@ -358,6 +304,7 @@ export default function App() {
                 {
                   backgroundColor: theme.surface,
                   borderColor: theme.border,
+                  position: "relative",
                 },
               ]}
               onPress={() => router.push("/notifications")}
@@ -368,6 +315,36 @@ export default function App() {
                 size={20}
                 color={theme.textPrimary}
               />
+              {unreadNotificationCount > 0 && (
+                <View
+                  style={{
+                    position: "absolute",
+                    top: -3,
+                    right: -3,
+                    minWidth: 16,
+                    height: 16,
+                    borderRadius: 8,
+                    backgroundColor: theme.accent,
+                    alignItems: "center",
+                    justifyContent: "center",
+                    paddingHorizontal: 3,
+                    borderWidth: 1.5,
+                    borderColor: theme.surface,
+                  }}
+                >
+                  <Text
+                    style={{
+                      color: theme.onAccent,
+                      fontSize: 9,
+                      fontWeight: "800",
+                    }}
+                  >
+                    {unreadNotificationCount > 9
+                      ? "9+"
+                      : unreadNotificationCount}
+                  </Text>
+                </View>
+              )}
             </TouchableOpacity>
 
             <TouchableOpacity
@@ -391,61 +368,15 @@ export default function App() {
         </View>
 
         {/* Balance Section */}
-        <View style={styles.balance}>
-          <Text
-            style={[
-              styles.balanceLabel,
-              {
-                color: theme.textSecondary,
-              },
-            ]}
-          >
-            AVAILABLE BALANCE
-          </Text>
-
-          <TouchableOpacity
-            accessibilityRole="button"
-            accessibilityLabel={
-              balanceVisible ? "Hide balance" : "Show balance"
-            }
-            onPress={() => setBalanceVisible((visible) => !visible)}
-            activeOpacity={0.68}
-            style={styles.balanceAmountButton}
-          >
-            <Text
-              style={[
-                styles.balanceAmount,
-                {
-                  color: theme.textPrimary,
-                },
-                !balanceVisible && styles.hiddenBalanceAmount,
-              ]}
-            >
-              {balanceVisible
-                ? `₦${currentBalance.toLocaleString(undefined, {
-                    minimumFractionDigits: 2,
-                    maximumFractionDigits: 2,
-                  })}`
-                : "********"}
-            </Text>
-          </TouchableOpacity>
-
-          <View style={styles.trend}>
-            <Ionicons name="arrow-up" size={12} color={theme.accentSecondary} />
-
-            <Text
-              style={[
-                styles.trendText,
-                {
-                  color: theme.textSecondary,
-                },
-              ]}
-            >
-              8.5% from last month
-            </Text>
-          </View>
-        </View>
-
+        <DashboardBankCarousel
+          accounts={linked.accounts} selectedId={effectiveSelection} onSelect={setSelectedAccountId}
+          balance={null} visible={settings.loaded && balanceVisible && !preferences.privateMode}
+          onToggleBalance={() => setBalanceVisible(visible => !visible)}
+          onLink={() => router.push("/linkbank")}
+          onOpenAccounts={accountId => router.push({ pathname: "/linkedcards", params: accountId ? { accountId } : {} })}
+          theme={theme} dark={themeMode === "dark"}
+          loading={linked.loading} error={linked.error} onRetry={linked.retry}
+        />
         {/* Quick Actions */}
         <View style={styles.quickActions}>
           <TouchableOpacity
@@ -462,7 +393,7 @@ export default function App() {
                 },
               ]}
             >
-              <Ionicons name="download-outline" size={22} color="#FFFFFF" />
+              <Ionicons name="download-outline" size={22} color={actionIconColor} />
             </View>
 
             <Text
@@ -491,7 +422,7 @@ export default function App() {
                 },
               ]}
             >
-              <Ionicons name="arrow-up-outline" size={20} color="#FFFFFF" />
+              <Ionicons name="arrow-up-outline" size={20} color={actionIconColor} />
             </View>
 
             <Text
@@ -523,7 +454,7 @@ export default function App() {
               <Ionicons
                 name="swap-horizontal-outline"
                 size={21}
-                color="#FFFFFF"
+                color={actionIconColor}
               />
             </View>
 
@@ -540,419 +471,23 @@ export default function App() {
           </TouchableOpacity>
         </View>
 
-        {/* Smart Insights Carousel */}
-        <View style={styles.sectionHeader}>
-          <Text
-            style={[
-              styles.sectionTitle,
-              {
-                color: theme.textPrimary,
-              },
-            ]}
-          >
-            Smart insights
-          </Text>
+        {preferences.showInsights && <HomeCarousel title="Smart insights" link="See all" onViewAll={() => router.push("/insightssum")}
+          theme={theme} themeMode={themeMode} themePreference={themePreference}
+          cards={insights.map(insight => ({ ...insight, id: insight.title, onPress: () => router.push(insight.title === "Linked Cards" ? "/linkedcards" : "/insightssum") }))} />}
 
-          <TouchableOpacity onPress={() => router.push("/insights")}>
-            <Text
-              style={[
-                styles.viewAllText,
-                {
-                  color: theme.accentSecondary,
-                },
-              ]}
-            >
-              See all
-            </Text>
-          </TouchableOpacity>
-        </View>
-
-        <ScrollView
-          ref={insightScrollRef}
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          contentContainerStyle={styles.insightCarousel}
-          onMomentumScrollEnd={({ nativeEvent }) => {
-            const cardWidth = 306 + 12;
-
-            const nextInsight = Math.round(
-              nativeEvent.contentOffset.x / cardWidth,
-            );
-
-            setActiveInsight(
-              Math.max(0, Math.min(nextInsight, insights.length - 1)),
-            );
-          }}
-          scrollEventThrottle={16}
-        >
-          {insights.map((insight) => (
-            <TouchableOpacity
-              key={insight.title}
-              activeOpacity={0.85}
-              style={[
-                styles.insightCard,
-                {
-                  backgroundColor:
-                    themeMode === "dark"
-                      ? theme.surface
-                      : themePreference === "aurora"
-                      ? insight.tint
-                      : theme.surfaceSoft,
-                  borderWidth: themeMode === "dark" ? 1 : 0,
-                  borderColor: theme.border,
-                },
-              ]}
-              onPress={() => router.push("/insights")}
-            >
-              <View
-                style={[
-                  styles.insightIcon,
-                  {
-                    backgroundColor: themeMode === "dark" ? theme.surfaceSoft : theme.surface,
-                  },
-                ]}
-              >
-                <Ionicons
-                  name={insight.icon}
-                  size={18}
-                  color={
-                    themeMode === "dark"
-                      ? theme.accent
-                      : themePreference === "aurora"
-                      ? insight.color
-                      : theme.accentSecondary
-                  }
-                />
-              </View>
-
-              <View style={styles.insightCopy}>
-                <Text
-                  style={[
-                    styles.insightTitle,
-                    {
-                      color: theme.textPrimary,
-                    },
-                  ]}
-                >
-                  {insight.title}
-                </Text>
-
-                <Text
-                  style={[
-                    styles.insightText,
-                    {
-                      color: theme.textSecondary,
-                    },
-                  ]}
-                >
-                  {insight.text}
-                </Text>
-              </View>
-
-              <Ionicons
-                name="chevron-forward"
-                size={16}
-                color={theme.accentSecondary}
-                style={styles.insightChevron}
-              />
-            </TouchableOpacity>
-          ))}
-        </ScrollView>
-
-        <View
-          accessibilityRole="progressbar"
-          accessibilityValue={{
-            now: activeInsight + 1,
-            min: 1,
-            max: insights.length,
-          }}
-          style={styles.dots}
-        >
-          {insights.map((insight, index) => (
-            <View
-              key={insight.title}
-              style={[
-                styles.dot,
-                {
-                  backgroundColor:
-                    index === activeInsight ? theme.accent : theme.border,
-                },
-                index === activeInsight && styles.activeDot,
-              ]}
-            />
-          ))}
-        </View>
-
-        {/* Ajo Group Activity */}
-        <View style={styles.groupSection}>
-          <View style={styles.sectionHeader}>
-            <Text
-              style={[
-                styles.sectionTitle,
-                {
-                  color: theme.textPrimary,
-                },
-              ]}
-            >
-              Ajo group activity
-            </Text>
-
-            <TouchableOpacity
-              onPress={() => router.push("/budget")}
-              activeOpacity={0.7}
-            >
-              <Text
-                style={[
-                  styles.viewAllText,
-                  {
-                    color: theme.accentSecondary,
-                  },
-                ]}
-              >
-                Open Ajo
-              </Text>
-            </TouchableOpacity>
-          </View>
-
-          <ScrollView
-            ref={ajoScrollRef}
-            horizontal
-            showsHorizontalScrollIndicator={false}
-            contentContainerStyle={styles.groupCarousel}
-            onMomentumScrollEnd={({ nativeEvent }) => {
-              const cardWidth = 260 + 12;
-
-              const nextIndex = Math.round(
-                nativeEvent.contentOffset.x / cardWidth,
-              );
-
-              setAjoIndex(
-                Math.max(0, Math.min(nextIndex, ajoGroupCards.length - 1)),
-              );
-            }}
-            onScrollEndDrag={({ nativeEvent }) => {
-              const cardWidth = 260 + 12;
-
-              const nextIndex = Math.round(
-                nativeEvent.contentOffset.x / cardWidth,
-              );
-
-              setAjoIndex(
-                Math.max(0, Math.min(nextIndex, ajoGroupCards.length - 1)),
-              );
-            }}
-            scrollEventThrottle={16}
-          >
-            {ajoGroupCards.map((card) => (
-              <TouchableOpacity
-                key={card.id}
-                style={[
-                  styles.groupCard,
-                  {
-                    backgroundColor: theme.surfaceSoft,
-                    borderColor: theme.border,
-                  },
-                ]}
-                onPress={() => router.push("/budget")}
-                activeOpacity={0.84}
-              >
-                <Image
-                  source={{ uri: card.image }}
-                  style={styles.groupAvatar}
-                />
-
-                <View style={styles.groupCardCopy}>
-                  <Text
-                    style={[
-                      styles.groupCardTitle,
-                      {
-                        color: theme.textPrimary,
-                      },
-                    ]}
-                  >
-                    {card.groupName}
-                  </Text>
-
-                  <Text
-                    style={[
-                      styles.groupCardSubtitle,
-                      {
-                        color: theme.accentSecondary,
-                      },
-                    ]}
-                  >
-                    {card.memberName} added {card.contribution}
-                  </Text>
-                </View>
-              </TouchableOpacity>
-            ))}
-          </ScrollView>
-
-          <View
-            accessibilityRole="progressbar"
-            accessibilityValue={{
-              now: ajoIndex + 1,
-              min: 1,
-              max: ajoGroupCards.length,
-            }}
-            style={styles.dots}
-          >
-            {ajoGroupCards.map((card, index) => (
-              <View
-                key={card.id}
-                style={[
-                  styles.dot,
-                  {
-                    backgroundColor:
-                      index === ajoIndex ? theme.accent : theme.border,
-                  },
-                  index === ajoIndex && styles.activeDot,
-                ]}
-              />
-            ))}
-          </View>
-        </View>
-
-        {/* Joint Savings */}
-        <View style={styles.groupSection}>
-          <View style={styles.sectionHeader}>
-            <Text
-              style={[
-                styles.sectionTitle,
-                {
-                  color: theme.textPrimary,
-                },
-              ]}
-            >
-              Joint savings
-            </Text>
-
-            <TouchableOpacity
-              onPress={() => router.push("/budget")}
-              activeOpacity={0.7}
-            >
-              <Text
-                style={[
-                  styles.viewAllText,
-                  {
-                    color: theme.accentSecondary,
-                  },
-                ]}
-              >
-                View goal
-              </Text>
-            </TouchableOpacity>
-          </View>
-
-          <ScrollView
-            ref={jointScrollRef}
-            horizontal
-            showsHorizontalScrollIndicator={false}
-            contentContainerStyle={styles.groupCarousel}
-            onMomentumScrollEnd={({ nativeEvent }) => {
-              const cardWidth = 260 + 12;
-
-              const nextIndex = Math.round(
-                nativeEvent.contentOffset.x / cardWidth,
-              );
-
-              setJointIndex(
-                Math.max(0, Math.min(nextIndex, jointSavingsCards.length - 1)),
-              );
-            }}
-            onScrollEndDrag={({ nativeEvent }) => {
-              const cardWidth = 260 + 12;
-
-              const nextIndex = Math.round(
-                nativeEvent.contentOffset.x / cardWidth,
-              );
-
-              setJointIndex(
-                Math.max(0, Math.min(nextIndex, jointSavingsCards.length - 1)),
-              );
-            }}
-            scrollEventThrottle={16}
-          >
-            {jointSavingsCards.map((card) => (
-              <TouchableOpacity
-                key={card.id}
-                style={[
-                  styles.groupCard,
-                  {
-                    backgroundColor: theme.surfaceSoft,
-                    borderColor: theme.border,
-                  },
-                ]}
-                onPress={() => router.push("/budget")}
-                activeOpacity={0.84}
-              >
-                <Image
-                  source={{ uri: card.image }}
-                  style={styles.groupAvatar}
-                />
-
-                <View style={styles.groupCardCopy}>
-                  <Text
-                    style={[
-                      styles.groupCardTitle,
-                      {
-                        color: theme.textPrimary,
-                      },
-                    ]}
-                  >
-                    {card.personName}
-                  </Text>
-
-                  <Text
-                    style={[
-                      styles.groupCardSubtitle,
-                      {
-                        color: theme.accentSecondary,
-                      },
-                    ]}
-                  >
-                    {card.contribution} saved for {card.goal}
-                  </Text>
-
-                  <Text
-                    style={[
-                      styles.groupCardMeta,
-                      {
-                        color: theme.textSecondary,
-                      },
-                    ]}
-                  >
-                    Goal in {card.timeline}
-                  </Text>
-                </View>
-              </TouchableOpacity>
-            ))}
-          </ScrollView>
-
-          <View
-            accessibilityRole="progressbar"
-            accessibilityValue={{
-              now: jointIndex + 1,
-              min: 1,
-              max: jointSavingsCards.length,
-            }}
-            style={styles.dots}
-          >
-            {jointSavingsCards.map((card, index) => (
-              <View
-                key={card.id}
-                style={[
-                  styles.dot,
-                  {
-                    backgroundColor:
-                      index === jointIndex ? theme.accent : theme.border,
-                  },
-                  index === jointIndex && styles.activeDot,
-                ]}
-              />
-            ))}
-          </View>
-        </View>
+        <PlanningCarousels
+          wallet={budgetWallet}
+          trackedBudgetSpending={trackedBudgetSpending}
+          themeMode={themeMode}
+          themePreference={themePreference}
+          theme={theme}
+          people={people}
+          error={budgetError}
+          retry={reloadBudgetWallet}
+          showSavings={preferences.showSavings}
+          showBudgets={preferences.showBudgets}
+          autoAdjustLayout={preferences.autoAdjustLayout}
+        />
 
         {/* Recent Transactions */}
         <View
@@ -991,6 +526,9 @@ export default function App() {
           </TouchableOpacity>
         </View>
 
+        {transactionFeedError ? <TouchableOpacity accessibilityRole="button" onPress={() => void refreshTransactions(true).catch(() => {})} style={{ paddingBottom: 8 }}><Text style={{ color: theme.accent, fontSize: 11 }}>Couldn’t refresh account transactions. Tap to retry.</Text></TouchableOpacity>
+          : transactionFeedState === "loading" ? <Text style={{ color: theme.textSecondary, fontSize: 11, paddingBottom: 8 }}>Refreshing account transactions…</Text> : null}
+
         <View
           style={[
             styles.transactionsContainer,
@@ -1012,11 +550,12 @@ export default function App() {
                   <Transaction
                     icon={isIncome ? "arrow-down-outline" : meta.icon}
                     tint={isIncome ? theme.accentSoft : meta.soft}
-                    color={isIncome ? theme.success : meta.color}
+                    color={isIncome ? theme.success : theme.accent}
                     name={normalizeTransferTitle(tx.title || "Transaction")}
                     category={tx.category || "Others"}
                     amount={`${isIncome ? "+" : "-"}${formatCurrency(
                       Number(tx.amount || 0),
+                      "NGN",
                     )}`}
                     time={getTimeLabel(tx.date)}
                     positive={isIncome}
@@ -1054,12 +593,15 @@ export default function App() {
                   },
                 ]}
               >
-                No transactions yet.
+                {selectedAccount && !selectedAccount.currency ? "Transactions unavailable for this currency."
+                  : selectedAccount && !selectedAccount.transactions ? "Transactions unavailable for this account." : "No transactions yet."}
               </Text>
             </View>
           )}
         </View>
       </ScrollView>
+      <TransactionReceiptModal visible={receiptReady && !!receipt} transaction={receipt} onClose={clearCompletedTransaction}
+        onViewReceipt={() => { if (!receipt) return; clearCompletedTransaction(); router.push({ pathname: "/transaction-details", params: { id: receipt.id } }); }} />
     </View>
   );
 }
@@ -1179,6 +721,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
     flexDirection: "row",
     justifyContent: "space-between",
+    gap: 8,
   },
 
   profileContainer: {
@@ -1186,6 +729,13 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     flex: 1,
     minWidth: 0,
+    marginRight: 6,
+  },
+
+  greetingTextWrap: {
+    flex: 1,
+    minWidth: 0,
+    justifyContent: "center",
   },
 
   avatarWrapper: {
@@ -1195,6 +745,7 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     marginRight: 10,
     width: 40,
+    flexShrink: 0,
   },
 
   greetingText: {
@@ -1210,6 +761,8 @@ const styles = StyleSheet.create({
   headerIcons: {
     flexDirection: "row",
     gap: 8,
+    flexShrink: 0,
+    alignItems: "center",
   },
 
   iconButton: {
@@ -1227,63 +780,25 @@ const styles = StyleSheet.create({
     elevation: 3,
   },
 
-  balance: {
-    alignItems: "center",
-    paddingBottom: 27,
-    paddingTop: 48,
-  },
-
-  balanceLabel: {
-    fontSize: 10,
-    fontWeight: "700",
-    letterSpacing: 1.2,
-  },
-
-  balanceAmountButton: {
-    alignItems: "center",
-    justifyContent: "center",
-    marginTop: 7,
-    minWidth: 210,
-  },
-
-  balanceAmount: {
-    fontSize: 45,
-    fontWeight: "700",
-    letterSpacing: -2.1,
-  },
-
-  hiddenBalanceAmount: {
-    letterSpacing: 3,
-    transform: [{ translateY: -1 }],
-  },
-
-  trend: {
-    alignItems: "center",
-    flexDirection: "row",
-    gap: 5,
-    marginTop: 9,
-  },
-
-  trendText: {
-    fontSize: 13,
-  },
-
   quickActions: {
     flexDirection: "row",
-    justifyContent: "center",
+    justifyContent: "space-between",
+    paddingHorizontal: 18,
+    marginTop: 15,
     marginBottom: 26,
   },
 
   action: {
     alignItems: "center",
-    marginHorizontal: 16,
+    minWidth: 64,
+    minHeight: 64,
   },
 
   actionIcon: {
     alignItems: "center",
-    borderRadius: 31,
+    borderRadius: 24,
     elevation: 4,
-    height: 58,
+    height: 46,
     justifyContent: "center",
     shadowOffset: {
       width: 0,
@@ -1291,7 +806,7 @@ const styles = StyleSheet.create({
     },
     shadowOpacity: 0.2,
     shadowRadius: 8,
-    width: 58,
+    width: 46,
   },
 
   actionText: {
@@ -1517,3 +1032,6 @@ const styles = StyleSheet.create({
     textAlign: "center",
   },
 });
+
+
+

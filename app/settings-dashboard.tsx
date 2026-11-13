@@ -1,6 +1,6 @@
 import { Ionicons } from "@expo/vector-icons";
 import Slider from "@react-native-community/slider";
-import { BlurView } from "expo-blur";
+// Fallback: avoid requiring `expo-blur` so builds succeed when it's not installed
 import { useRouter } from "expo-router";
 import React, { useState } from "react";
 import {
@@ -14,6 +14,7 @@ import {
     View,
 } from "react-native";
 import { useAppStore } from "../src/store";
+import { savePreferences, usePreferences } from "../src/settings";
 
 export default function SettingsDashboardScreen() {
   const router = useRouter();
@@ -24,6 +25,27 @@ export default function SettingsDashboardScreen() {
   const [showSavings, setShowSavings] = useState(true);
   const [autoAdjustLayout, setAutoAdjustLayout] = useState(true);
   const [isTransparencyExpanded, setIsTransparencyExpanded] = useState(false);
+  const preferences = usePreferences();
+  const [saving, setSaving] = useState(false);
+  const savingRef = React.useRef(false);
+  React.useEffect(() => {
+    if (!preferences.loaded) return;
+    setShowInsights(preferences.values.showInsights);
+    setShowBudgets(preferences.values.showBudgets);
+    setShowSavings(preferences.values.showSavings);
+    setAutoAdjustLayout(preferences.values.autoAdjustLayout);
+  }, [preferences.loaded]);
+  const save = async () => {
+    if (savingRef.current) return;
+    savingRef.current = true;
+    setSaving(true);
+    try {
+      await savePreferences({ showInsights, showBudgets, showSavings, autoAdjustLayout });
+      Alert.alert("Saved", "Dashboard preferences updated.");
+    } catch {
+      Alert.alert("Could not save", "Your dashboard settings could not be saved. Please try again.");
+    } finally { savingRef.current = false; setSaving(false); }
+  };
 
   return (
     <SafeAreaView style={styles.container}>
@@ -77,7 +99,7 @@ export default function SettingsDashboardScreen() {
           {
             title: "Auto-adjust layout",
             subtitle:
-              "Let the dashboard reorganize cards around what you use most",
+              "Show sections with the most active plans first",
             value: autoAdjustLayout,
             onChange: setAutoAdjustLayout,
           },
@@ -88,6 +110,7 @@ export default function SettingsDashboardScreen() {
               <Text style={styles.cardSubtitle}>{item.subtitle}</Text>
             </View>
             <Switch
+              disabled={!preferences.loaded || saving}
               value={item.value}
               onValueChange={item.onChange}
               thumbColor={theme.surface}
@@ -128,11 +151,7 @@ export default function SettingsDashboardScreen() {
                 <View style={styles.previewScreen}>
                   <View style={styles.previewContent} />
                   <View style={styles.previewTabBar}>
-                    <BlurView
-                      tint="light"
-                      intensity={90}
-                      style={StyleSheet.absoluteFill}
-                    />
+                    <View style={StyleSheet.absoluteFill} />
                     <View
                       style={[
                         styles.previewTabBarOverlay,
@@ -159,7 +178,7 @@ export default function SettingsDashboardScreen() {
                 maximumValue={1}
                 step={0.01}
                 value={tabBarOpacity}
-                onValueChange={(value) => setTabBarOpacity(value)}
+                onSlidingComplete={(value) => { void setTabBarOpacity(value).catch(() => Alert.alert("Could not save transparency", "Please try again.")); }}
                 minimumTrackTintColor={theme.accent}
                 maximumTrackTintColor={theme.accentSoft}
                 thumbTintColor={theme.surface}
@@ -168,11 +187,13 @@ export default function SettingsDashboardScreen() {
           )}
         </View>
 
+        {preferences.error && <Text style={styles.heroSubtitle}>{preferences.error}</Text>}
         <TouchableOpacity
           style={styles.primaryAction}
-          onPress={() => Alert.alert("Saved", "Dashboard preferences updated.")}
+          disabled={!preferences.loaded || saving}
+          onPress={save}
         >
-          <Text style={styles.primaryActionText}>Save Changes</Text>
+          <Text style={styles.primaryActionText}>{saving ? "Saving…" : "Save Changes"}</Text>
         </TouchableOpacity>
       </ScrollView>
     </SafeAreaView>
@@ -202,7 +223,7 @@ const getStyles = (theme: any) =>
       padding: 16,
       marginHorizontal: 20,
       marginBottom: 16,
-      shadowColor: "#000",
+      shadowColor: theme.shadow,
       shadowOffset: { width: 0, height: 2 },
       shadowOpacity: 0.06,
       shadowRadius: 10,
@@ -222,7 +243,7 @@ const getStyles = (theme: any) =>
     previewScreen: { borderRadius: 14, overflow: "hidden", backgroundColor: theme.surfaceSoft, borderWidth: 1, borderColor: theme.border },
     previewContent: { height: 96, backgroundColor: theme.surfaceSoft },
     previewTabBar: { height: 50, flexDirection: "row", alignItems: "center", justifyContent: "space-around", paddingHorizontal: 10, backgroundColor: "transparent", borderTopWidth: 1, borderTopColor: `rgba(0,0,0,0.06)` },
-    previewTabBarOverlay: { ...StyleSheet.absoluteFillObject, borderRadius: 0 },
+    previewTabBarOverlay: { ...StyleSheet.absoluteFill, borderRadius: 0 },
     previewTab: { width: 32, height: 32, borderRadius: 11, alignItems: "center", justifyContent: "center", backgroundColor: "rgba(255,255,255,0.24)" },
     previewTabActive: { backgroundColor: theme.accent, shadowColor: theme.accent, shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.2, shadowRadius: 8, elevation: 3 },
     cardTextWrap: { flex: 1 },

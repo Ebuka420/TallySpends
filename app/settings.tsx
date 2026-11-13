@@ -1,4 +1,6 @@
+import { useThemeTokens } from "../src/ThemeExperience";
 import { Ionicons } from "@expo/vector-icons";
+import Constants from "expo-constants";
 import { useRouter } from "expo-router";
 import React from "react";
 import {
@@ -9,10 +11,8 @@ import {
     Text,
     TouchableOpacity,
     View,
-    useColorScheme,
-} from "react-native";
+  } from "react-native";
 import { useAppStore } from "../src/store";
-import { getThemePalette } from "../src/theme";
 
 const SETTINGS_ITEMS = [
   {
@@ -51,13 +51,6 @@ const SETTINGS_ITEMS = [
     route: "/settings-security",
   },
   {
-    id: "feedback",
-    title: "Feedback & Suggestions",
-    subtitle: "Share ideas, issues, and feature requests",
-    icon: "chatbubble-outline",
-    route: "/settings-feedback",
-  },
-  {
     id: "about",
     title: "About",
     subtitle: "App version, credits, and support details",
@@ -69,10 +62,11 @@ const SETTINGS_ITEMS = [
 
 export default function SettingsScreen() {
   const router = useRouter();
-  const { logout, themePreference, themeMode } = useAppStore();
-  const theme = getThemePalette(themePreference, themeMode);
-  const accent = theme.accent;
-  const soft = theme.accentSoft;
+  const { logout } = useAppStore();
+  const theme = useThemeTokens();
+  const styles = getStyles(theme);
+
+
 
   const handleLogout = () => {
     Alert.alert("Log out", "You’ll be returned to the sign-in flow.", [
@@ -80,9 +74,13 @@ export default function SettingsScreen() {
       {
         text: "Log out",
         style: "destructive",
-        onPress: () => {
-          logout();
-          router.replace("/auth" as any);
+        onPress: async () => {
+          try {
+            await logout();
+            router.replace("/auth" as any);
+          } catch {
+            Alert.alert("Could not log out", "Please try again. Your device could not clear the saved session.");
+          }
         },
       },
     ]);
@@ -148,7 +146,7 @@ export default function SettingsScreen() {
 
             <View style={styles.rightActionWrapper}>
               {item.hasVersion && (
-                <Text style={[styles.versionText, { color: theme.textSecondary }]}>Version 1.0.0</Text>
+                <Text style={[styles.versionText, { color: theme.textSecondary }]}>Version {Constants.expoConfig?.version || "Unknown"}</Text>
               )}
               <Ionicons name="chevron-forward" size={18} color={theme.textSecondary} />
             </View>
@@ -168,10 +166,10 @@ export default function SettingsScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+const getStyles = (theme: import("../src/theme").ThemePalette) => StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#FAF9FB",
+    backgroundColor: theme.surfaceSoft,
   },
   headerContainer: {
     flexDirection: "row",
@@ -180,7 +178,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingTop: 12,
     paddingBottom: 16,
-    backgroundColor: "#FAF9FB",
+    backgroundColor: theme.surfaceSoft,
   },
   backButton: {
     padding: 4,
@@ -199,11 +197,11 @@ const styles = StyleSheet.create({
   },
   heroCard: {
     flexDirection: "row",
-    backgroundColor: "#FFFFFF",
+    backgroundColor: theme.surface,
     borderRadius: 20,
     padding: 16,
     marginBottom: 20,
-    shadowColor: "#000",
+    shadowColor: theme.shadow,
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.05,
     shadowRadius: 8,
@@ -241,17 +239,17 @@ const styles = StyleSheet.create({
   },
   heroSubtitle: {
     fontSize: 12.5,
-    color: "#8E8E93",
+    color: theme.textSecondary,
     lineHeight: 18,
   },
   menuCardRow: {
     flexDirection: "row",
     alignItems: "center",
-    backgroundColor: "#FFFFFF",
+    backgroundColor: theme.surface,
     borderRadius: 16,
     padding: 16,
     marginBottom: 12,
-    shadowColor: "#000",
+    shadowColor: theme.shadow,
     shadowOffset: { width: 0, height: 1 },
     shadowOpacity: 0.03,
     shadowRadius: 8,
@@ -276,7 +274,7 @@ const styles = StyleSheet.create({
   },
   itemSubtitleText: {
     fontSize: 12,
-    color: "#8E8E93",
+    color: theme.textSecondary,
     lineHeight: 16,
   },
   rightActionWrapper: {
@@ -285,18 +283,18 @@ const styles = StyleSheet.create({
   },
   versionText: {
     fontSize: 13,
-    color: "#8E8E93",
+    color: theme.textSecondary,
     marginRight: 8,
   },
   actionCard: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
-    backgroundColor: "#FFFFFF",
+    backgroundColor: theme.surface,
     borderRadius: 16,
     paddingVertical: 15,
     marginTop: 8,
-    shadowColor: "#000",
+    shadowColor: theme.shadow,
     shadowOffset: { width: 0, height: 1 },
     shadowOpacity: 0.03,
     shadowRadius: 8,
@@ -313,7 +311,7 @@ const styles = StyleSheet.create({
     marginLeft: 8,
     fontSize: 15,
     fontWeight: "600",
-    color: "#5B4E91",
+    color: theme.accent,
   },
   actionCardTextDanger: {
     marginLeft: 8,
@@ -322,3 +320,6 @@ const styles = StyleSheet.create({
     color: "#C0392B",
   },
 });
+
+
+

@@ -1,18 +1,18 @@
+import { useThemeTokens } from "../../src/ThemeExperience";
 import { Ionicons } from "@expo/vector-icons";
 import { Stack, useRouter } from "expo-router";
 import React from "react";
 import {
+  Image,
   SafeAreaView,
   ScrollView,
   StyleSheet,
   Text,
   TouchableOpacity,
   View,
-  useColorScheme,
 } from "react-native";
 
 import { useAppStore } from "../../src/store";
-import { getThemePalette } from "../../src/theme";
 
 const MENU_ITEMS = [
   {
@@ -75,9 +75,16 @@ const MENU_ITEMS = [
 export default function MoreScreen() {
   const router = useRouter();
 
-  const { username = "User", themePreference = "aurora", themeMode } = useAppStore();
+  const {
+    profileFullName,
 
-  const theme = getThemePalette(themePreference, themeMode);
+    profileImage,
+  } = useAppStore();
+
+  const theme = useThemeTokens();
+  const styles = getStyles(theme);
+
+  const firstName = profileFullName?.trim().split(/\s+/)[0] || "";
 
   return (
     <SafeAreaView
@@ -101,10 +108,18 @@ export default function MoreScreen() {
               styles.avatarPlaceholder,
               {
                 backgroundColor: theme.surfaceSoft,
+                overflow: "hidden",
               },
             ]}
           >
-            <Ionicons name="person" size={28} color={theme.textSecondary} />
+            {profileImage ? (
+              <Image
+                source={{ uri: profileImage }}
+                style={{ width: 56, height: 56, borderRadius: 28 }}
+              />
+            ) : (
+              <Ionicons name="person" size={28} color={theme.textSecondary} />
+            )}
           </View>
 
           <Text
@@ -115,7 +130,7 @@ export default function MoreScreen() {
               },
             ]}
           >
-            {`HI ${(username || "User").toUpperCase()}`}
+            {firstName ? `Hi ${firstName}` : "Hi"}
           </Text>
         </TouchableOpacity>
 
@@ -153,7 +168,7 @@ export default function MoreScreen() {
               style={[
                 styles.iconCircleWrapper,
                 {
-                  backgroundColor: item.bgColor,
+                  backgroundColor: theme.accentSoft,
                 },
               ]}
             >
@@ -164,7 +179,7 @@ export default function MoreScreen() {
                     : item.icon) as any
                 }
                 size={22}
-                color={item.iconColor}
+                color={theme.accent}
               />
             </View>
 
@@ -204,7 +219,7 @@ export default function MoreScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+const getStyles = (theme: import("../../src/theme").ThemePalette) => StyleSheet.create({
   container: {
     flex: 1,
   },
@@ -253,7 +268,7 @@ const styles = StyleSheet.create({
     padding: 16,
     marginBottom: 16,
     borderWidth: 1,
-    shadowColor: "#000000",
+    shadowColor: theme.shadow,
     shadowOffset: {
       width: 0,
       height: 1,
@@ -287,3 +302,7 @@ const styles = StyleSheet.create({
     lineHeight: 16,
   },
 });
+
+
+
+

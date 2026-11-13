@@ -1,21 +1,45 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import { clearPendingSms, configureSmsReader } from "../modules/tally-sms-reader";
+import { SMS_CONSENT_KEY, SMS_ENABLED_KEY, SMS_SENDERS_KEY } from "./transactions/smsSync";
+import { registerSession } from "./register";
+import { migrateOnboardingPin, readPin } from "./security/pin";
+import { profileScope } from "./profile/model";
+import { readPendingSignup, clearPendingSignup } from "./security/signup";
 import { useNavigation } from "expo-router";
-import { useCallback, useEffect, useState } from "react";
-import { useColorScheme } from "react-native";
-import type { ThemeId, ThemeMode, ThemePalette } from "./theme";
+import { useCallback, useEffect, useMemo, useState, useSyncExternalStore } from "react";
+import { clearProfileSession, getProfileSnapshot, loadAccountProfile, publishProfileTokens, subscribeProfile, updateAccountProfile } from "./profile/repository";
+import type { ProfileUser } from "./profile/model";
+import { Alert, AppState, useColorScheme } from "react-native";
+import { deleteWalletTransaction, getWalletSnapshot, loadWallet, resetWallet, saveWalletTransaction, subscribeWallet } from "./budget/repository";
+import { totals, type Wallet } from "./budget/ledger";
+import { createBankRequest } from "./banking/backend";
+import { clearTransactionFeed, getTransactionFeedSnapshot, refreshTransactionFeed, subscribeTransactionFeed } from "./transactions/feed";
+import { mergeTransactionFeed } from "./transactions/api";
+import { spendingByBudget } from "./transactions/budgeting";
+import type { ThemeMode } from "./theme";
+import { useAppearance, hydrateAppearance, setThemePreference, setDarkModePreference } from "./appearance";
+import { useVisualTheme } from "./ThemeExperience";
 import { getThemePalette } from "./theme";
 
-const THEME_STORAGE_KEY = "ts_theme";
-const DARK_MODE_PREFERENCE_STORAGE_KEY = "ts_dark_mode_preference";
+
+
 const TAB_BAR_OPACITY_STORAGE_KEY = "ts_tab_bar_opacity";
+let globalTabBarOpacity = 0.72;
+const tabBarListeners = new Set<(opacity: number) => void>();
+function publishTabBarOpacity(opacity: number) {
+  globalTabBarOpacity = opacity;
+  tabBarListeners.forEach(listener => listener(opacity));
+}
 const DEFAULT_CUSTOM_CATEGORIES_STORAGE_KEY = "ts_custom_categories";
+
+const ACCESS_TOKEN_STORAGE_KEY = "ts_access_token";
+const REFRESH_TOKEN_STORAGE_KEY = "ts_refresh_token";
+const USER_STORAGE_KEY = "ts_user";
 
 const getCustomCategoriesStorageKey = (
   usernameValue: string | null | undefined,
 ) =>
-  `${DEFAULT_CUSTOM_CATEGORIES_STORAGE_KEY}_${(
-    usernameValue || "default"
-  ).replace(/[^a-zA-Z0-9_-]/g, "_")}`;
+  `${DEFAULT_CUSTOM_CATEGORIES_STORAGE_KEY}_${encodeURIComponent(usernameValue || "default")}`;
 
 export const MOCK_RECIPIENTS = [
   {
@@ -401,6 +425,59 @@ export const DEFAULT_SAVINGS_GOALS = [
   },
 ];
 
+export interface NotificationItem {
+  id: string;
+  type: "transaction" | "alert" | "insight" | "bill" | "system";
+  title: string;
+  description: string;
+  timestamp: string;
+  isUnread: boolean;
+  referenceId?: string;
+  route?: string;
+  amount?: number;
+}
+
+export const DEFAULT_NOTIFICATIONS: NotificationItem[] = [
+  {
+    id: "notif-1",
+    type: "alert",
+    title: "Budget Warning!",
+    description:
+      "You have used 85% of your 'Food & Dining' budget for this month. Only ₦90.00 remaining.",
+    timestamp: new Date(Date.now() - 10 * 60 * 1000).toISOString(),
+    isUnread: true,
+    route: "/budgetspending",
+  },
+  {
+    id: "notif-2",
+    type: "insight",
+    title: "Weekly Smart Insight",
+    description:
+      "Nice job! You spent 12% less on shopping this week compared to your baseline.",
+    timestamp: new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString(),
+    isUnread: true,
+    route: "/insightssum",
+  },
+  {
+    id: "notif-3",
+    type: "bill",
+    title: "Upcoming Subscription",
+    description:
+      "Your Adobe Creative Cloud subscription (₦54.99) is scheduled for automatic renewal.",
+    timestamp: new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString(),
+    isUnread: false,
+  },
+  {
+    id: "notif-4",
+    type: "system",
+    title: "Security Update",
+    description:
+      "Your budgeting account credentials were confirmed and secured.",
+    timestamp: new Date(Date.now() - 4 * 24 * 60 * 60 * 1000).toISOString(),
+    isUnread: false,
+  },
+];
+
 let globalIsAuthenticated = false;
 
 type AuthListener = (status: boolean) => void;
@@ -414,32 +491,58 @@ const setGlobalAuth = (status: boolean) => {
 };
 
 export function useAppStore() {
-  const [transactions, setTransactions] = useState<any[]>([]);
+  const [budgetWallet, setBudgetWallet] = useState<Wallet | null>(getWalletSnapshot);
+  const [budgetError, setBudgetError] = useState<string | null>(null);
+  const [localTransactions, setLocalTransactions] = useState<any[]>([]);
+  const transactionFeed = useSyncExternalStore(subscribeTransactionFeed, getTransactionFeedSnapshot, getTransactionFeedSnapshot);
+  const [notifications, setNotifications] = useState<NotificationItem[]>([]);
   const [budgets, setBudgets] = useState<Record<string, number>>({});
   const [savingsGoals, setSavingsGoals] = useState<any[]>([]);
-  const [profileImage, setProfileImage] = useState<string | null>(null);
+  const accountProfile = useSyncExternalStore(subscribeProfile, getProfileSnapshot, getProfileSnapshot);
+  const { fullName: profileFullName, phoneNumber: profilePhoneNumber, email: profileEmail,
+    gender: profileGender, dob: profileDob, address: profileAddress,
+    avatarUrl: profileImage } = accountProfile.profile;
+  const profileTallyTag = accountProfile.profile.tallyTag ? `@${accountProfile.profile.tallyTag}` : "";
   const [loading, setLoading] = useState(true);
+  const [accessToken, setAccessTokenState] = useState<string | null>(null);
+  const [refreshToken, setRefreshTokenState] = useState<string | null>(null);
 
-  const [themePreference, setThemePreferenceState] =
-    useState<ThemeId>("aurora");
-
-  const [darkModePreference, setDarkModePreferenceState] =
-    useState<"light" | "dark" | "system">("system");
-
+  const { themePreference, darkModePreference } = useAppearance();
   const systemColorScheme = useColorScheme();
 
   const themeMode: ThemeMode =
     darkModePreference === "system"
-      ? (systemColorScheme ?? "light")
+      ? (systemColorScheme === "dark" ? "dark" : "light")
       : darkModePreference;
 
-  const theme: ThemePalette = getThemePalette(themePreference, themeMode);
+  const theme = useVisualTheme(getThemePalette(themePreference, themeMode));
+  const transactions = useMemo(() => transactionFeed.state === "ready"
+    ? mergeTransactionFeed(transactionFeed.transactions, localTransactions, DEFAULT_TRANSACTIONS)
+    : localTransactions, [transactionFeed, localTransactions]);
+  const trackedBudgetSpending = useMemo(() => {
+    if (!budgetWallet) return {};
+    const feedSpend = spendingByBudget(transactions, budgetWallet.budgets);
+    return Object.fromEntries(budgetWallet.budgets.map(budget => [budget.id, Math.max(feedSpend[budget.id] || 0, budget.spentAmount)]));
+  }, [transactions, budgetWallet]);
 
-  const [tabBarOpacity, setTabBarOpacityState] = useState(0.72);
+  const [tabBarOpacity, setTabBarOpacityState] = useState(globalTabBarOpacity);
+  useEffect(() => {
+    tabBarListeners.add(setTabBarOpacityState);
+    return () => { tabBarListeners.delete(setTabBarOpacityState); };
+  }, []);
 
-  const [username, setUsernameState] = useState("ebuka");
+  const username = accountProfile.profile.tallyTag || accountProfile.profile.fullName;
 
   const [customCategories, setCustomCategoriesState] = useState<string[]>([]);
+  useEffect(() => {
+    let active = true;
+    setCustomCategoriesState([]);
+    if (accountProfile.scope) void AsyncStorage.getItem(getCustomCategoriesStorageKey(accountProfile.scope)).then(raw => {
+      if (!active) return;
+      try { const parsed = raw ? JSON.parse(raw) : []; if (Array.isArray(parsed)) setCustomCategoriesState(parsed.filter(value => typeof value === "string")); } catch { /* Ignore corrupt preferences. */ }
+    });
+    return () => { active = false; };
+  }, [accountProfile.scope]);
 
   const [savedCards, setSavedCards] = useState<any[]>([
     {
@@ -456,9 +559,31 @@ export function useAppStore() {
     },
   ]);
 
+  const [onboardingGoals, setOnboardingGoalsState] = useState<string[]>([]);
+  const [employmentStatus, setEmploymentStatusState] = useState<string | null>(
+    null,
+  );
+
   const [isAuthenticated, setIsAuthenticated] = useState(globalIsAuthenticated);
 
   const navigation = useNavigation();
+
+  useEffect(() => subscribeWallet((wallet) => {
+    setBudgetWallet(wallet);
+    setLocalTransactions(wallet.transactions);
+    setBudgetError(null);
+  }), []);
+
+  const reloadBudgetWallet = useCallback(async () => {
+    try {
+      const wallet = await loadWallet(DEFAULT_TRANSACTIONS);
+      setBudgetWallet(wallet);
+      setLocalTransactions(wallet.transactions);
+      setBudgetError(null);
+    } catch (error) {
+      setBudgetError(error instanceof Error ? error.message : 'Could not load your budgets.');
+    }
+  }, []);
 
   useEffect(() => {
     authListeners.push(setIsAuthenticated);
@@ -470,65 +595,59 @@ export function useAppStore() {
     };
   }, []);
 
-  const loadData = useCallback(async () => {
+const loadData = useCallback(async () => {
     try {
-      const storedTxs = await AsyncStorage.getItem("ts_txs");
+      await reloadBudgetWallet();
 
       const storedBudgets = await AsyncStorage.getItem("ts_bgts");
 
       const storedGoals = await AsyncStorage.getItem("ts_goals");
 
-      const storedTheme = await AsyncStorage.getItem(THEME_STORAGE_KEY);
-
-      const storedDarkMode = await AsyncStorage.getItem(DARK_MODE_PREFERENCE_STORAGE_KEY);
+      await hydrateAppearance();
 
       const storedTabBarOpacity = await AsyncStorage.getItem(
         TAB_BAR_OPACITY_STORAGE_KEY,
       );
 
-      const storedUsername = await AsyncStorage.getItem("ts_username");
-
-      const storedCustomCategories = await AsyncStorage.getItem(
-        getCustomCategoriesStorageKey(storedUsername || "ebuka"),
+      const storedAccessToken = await AsyncStorage.getItem(
+        ACCESS_TOKEN_STORAGE_KEY,
       );
+      const storedRefreshToken = await AsyncStorage.getItem(
+        REFRESH_TOKEN_STORAGE_KEY,
+      );
+      const legacyUsers = await AsyncStorage.getItem("ts_registered_users");
+      if (legacyUsers) {
+        try {
+          const users = JSON.parse(legacyUsers);
+          if (Array.isArray(users) && users.some(user => user && typeof user === "object" && "password" in user))
+            await AsyncStorage.setItem("ts_registered_users", JSON.stringify(users.map(entry => {
+              if (!entry || typeof entry !== "object") return entry;
+              const { password: _password, ...user } = entry; return user;
+            })));
+        } catch { /* A malformed legacy profile cache must not prevent session recovery. */ }
+      }
 
+      await loadAccountProfile();
+      const profile = getProfileSnapshot();
+      const storedCustomCategories = profile.scope
+        ? await AsyncStorage.getItem(getCustomCategoriesStorageKey(profile.scope)) : null;
       const storedCards = await AsyncStorage.getItem("ts_cards");
-
-      if (storedUsername) {
-        setUsernameState(storedUsername);
-      } else {
-        await AsyncStorage.setItem("ts_username", "ebuka");
-
-        setUsernameState("ebuka");
-      }
-
-      if (
-        storedTheme === "aurora" ||
-        storedTheme === "sage" ||
-        storedTheme === "sunset"
-      ) {
-        setThemePreferenceState(storedTheme as ThemeId);
-      }
-
-      if (
-        storedDarkMode === "light" ||
-        storedDarkMode === "dark" ||
-        storedDarkMode === "system"
-      ) {
-        setDarkModePreferenceState(storedDarkMode);
-      }
-
       if (storedTabBarOpacity !== null) {
         const parsedOpacity = Number(storedTabBarOpacity);
 
         if (!Number.isNaN(parsedOpacity)) {
           const clampedOpacity = Math.max(0, Math.min(1, parsedOpacity));
 
-          setTabBarOpacityState(clampedOpacity);
+          publishTabBarOpacity(clampedOpacity);
         }
       }
 
-      if (storedCustomCategories) {
+      setAccessTokenState(profile.token ?? storedAccessToken ?? null);
+      setRefreshTokenState(profile.refreshToken ?? storedRefreshToken ?? null);
+      // A saved server session returns to the app lock, not the sign-up screen.
+      if (storedAccessToken && profile.scope && getProfileSnapshot().scope === profile.scope && getProfileSnapshot().token) setGlobalAuth(true);
+
+      if (storedCustomCategories && profile.scope === getProfileSnapshot().scope) {
         try {
           const parsedCategories = JSON.parse(storedCustomCategories);
 
@@ -571,17 +690,6 @@ export function useAppStore() {
         setSavedCards(defaultCards);
       }
 
-      if (storedTxs !== null) {
-        setTransactions(JSON.parse(storedTxs));
-      } else {
-        await AsyncStorage.setItem(
-          "ts_txs",
-          JSON.stringify(DEFAULT_TRANSACTIONS),
-        );
-
-        setTransactions(DEFAULT_TRANSACTIONS);
-      }
-
       if (storedBudgets !== null) {
         setBudgets(JSON.parse(storedBudgets));
       } else {
@@ -600,72 +708,142 @@ export function useAppStore() {
 
         setSavingsGoals(DEFAULT_SAVINGS_GOALS);
       }
+
+      const storedNotifs = await AsyncStorage.getItem("ts_notifications");
+      if (storedNotifs !== null) {
+        setNotifications(JSON.parse(storedNotifs));
+      } else {
+        await AsyncStorage.setItem(
+          "ts_notifications",
+          JSON.stringify(DEFAULT_NOTIFICATIONS),
+        );
+        setNotifications(DEFAULT_NOTIFICATIONS);
+      }
     } catch (error) {
       console.error("Failed to load store data", error);
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [reloadBudgetWallet]);
 
   useEffect(() => {
     const unsubscribe = navigation.addListener("focus", () => {
       loadData();
     });
 
-    loadData();
+    void Promise.resolve().then(loadData);
 
     return unsubscribe;
   }, [navigation, loadData]);
 
-  const login = useCallback(() => {
-    setGlobalAuth(true);
-  }, []);
+  const login = useCallback(
+    async (
+      accessToken?: string,
+      refreshToken?: string,
+      user?: ProfileUser,
+      options: { activate?: boolean } = {},
+    ) => {
+      if (user) clearProfileSession();
+      if (accessToken) {
+        setAccessTokenState(accessToken);
+        await AsyncStorage.setItem(ACCESS_TOKEN_STORAGE_KEY, accessToken);
+      }
 
-  const logout = useCallback(() => {
+      if (refreshToken) {
+        setRefreshTokenState(refreshToken);
+        await AsyncStorage.setItem(REFRESH_TOKEN_STORAGE_KEY, refreshToken);
+      } else if (user) {
+        setRefreshTokenState(null);
+        await AsyncStorage.removeItem(REFRESH_TOKEN_STORAGE_KEY);
+      }
+      if (accessToken) publishProfileTokens(accessToken, refreshToken);
+
+      if (user) {
+        await AsyncStorage.setItem(USER_STORAGE_KEY, JSON.stringify(user));
+        void loadAccountProfile(true);
+      }
+
+      if (options.activate !== false) setGlobalAuth(true);
+    },
+    [],
+  );
+
+  const logout = useCallback(async () => {
+    try { await configureSmsReader(false, false, []); await clearPendingSms(); } catch { /* Native SMS reader is Android-only and may not exist in Expo Go. */ }
+    await AsyncStorage.multiRemove([SMS_CONSENT_KEY, SMS_ENABLED_KEY, SMS_SENDERS_KEY]);
+    clearProfileSession(true);
+    setAccessTokenState(null);
+    setRefreshTokenState(null);
+
+    await AsyncStorage.multiRemove([
+      ACCESS_TOKEN_STORAGE_KEY,
+      REFRESH_TOKEN_STORAGE_KEY,
+      USER_STORAGE_KEY,
+    ]);
+
     setGlobalAuth(false);
   }, []);
 
-  const setThemePreference = useCallback(async (themeId: ThemeId) => {
-    const validTheme: ThemeId =
-      themeId === "sage" || themeId === "sunset" ? themeId : "aurora";
+  const reloadTransactions = useCallback(async (force = true, externalSignal?: AbortSignal) => {
+    const owner = accountProfile.scope;
+    const currentToken = accountProfile.token || accessToken;
+    const currentRefreshToken = accountProfile.refreshToken || refreshToken;
+    if (!isAuthenticated || !owner || (!currentToken && !currentRefreshToken)) throw new Error("Sign in again to refresh transaction history.");
+    const controller = new AbortController();
+    const abort = () => controller.abort();
+    if (externalSignal?.aborted) controller.abort();
+    else externalSignal?.addEventListener("abort", abort, { once: true });
+    const timeout = setTimeout(() => controller.abort(), 25000);
+    try {
+      const request = createBankRequest({ token: currentToken, refreshToken: currentRefreshToken,
+        saveTokens: async (nextToken, nextRefreshToken) => { await login(nextToken, nextRefreshToken); } }, controller.signal);
+      return await refreshTransactionFeed(owner, request, force);
+    } finally {
+      clearTimeout(timeout);
+      externalSignal?.removeEventListener("abort", abort);
+    }
+  }, [accountProfile.scope, accountProfile.token, accountProfile.refreshToken, accessToken, refreshToken, isAuthenticated, login]);
 
-    setThemePreferenceState(validTheme);
-
-    await AsyncStorage.setItem(THEME_STORAGE_KEY, validTheme);
-  }, []);
-
-  const setDarkModePreference = useCallback(async (mode: "light" | "dark" | "system") => {
-    const validMode = mode === "light" || mode === "dark" || mode === "system" ? mode : "system";
-
-    setDarkModePreferenceState(validMode);
-
-    await AsyncStorage.setItem(DARK_MODE_PREFERENCE_STORAGE_KEY, validMode);
-  }, []);
+  useEffect(() => {
+    if (!isAuthenticated || !accountProfile.scope) {
+      clearTransactionFeed();
+      return;
+    }
+    const sync = () => { void reloadTransactions(false).catch(() => {}); };
+    sync();
+    const subscription = AppState.addEventListener("change", state => { if (state === "active") sync(); });
+    return () => subscription.remove();
+  }, [isAuthenticated, accountProfile.scope, reloadTransactions]);
 
   const setTabBarOpacity = useCallback(async (opacity: number) => {
     const nextOpacity = Math.max(0.45, Math.min(0.98, opacity));
-
-    setTabBarOpacityState(nextOpacity);
 
     await AsyncStorage.setItem(
       TAB_BAR_OPACITY_STORAGE_KEY,
       String(nextOpacity),
     );
+    publishTabBarOpacity(nextOpacity);
   }, []);
 
-  const setUsername = useCallback(async (newUsername: string) => {
-    setUsernameState(newUsername);
-
-    await AsyncStorage.setItem("ts_username", newUsername);
-  }, []);
-
+  const setUsername = useCallback(async (value: string) => { await updateAccountProfile({ tallyTag: value.replace(/^@+/, "").trim() }, undefined, accountProfile.scope); }, [accountProfile.scope]);
+  const setProfileFullName = useCallback(async (value: string) => { await updateAccountProfile({ fullName: value }, undefined, accountProfile.scope); }, [accountProfile.scope]);
+  const setProfilePhoneNumber = useCallback(async (value: string) => { await updateAccountProfile({ phoneNumber: value }, undefined, accountProfile.scope); }, [accountProfile.scope]);
+  const setProfileEmail = useCallback(async (value: string) => { await updateAccountProfile({ email: value }, undefined, accountProfile.scope); }, [accountProfile.scope]);
+  const setProfileGender = useCallback(async (value: string) => { await updateAccountProfile({ gender: value }, undefined, accountProfile.scope); }, [accountProfile.scope]);
+  const setProfileDob = useCallback(async (value: string) => { await updateAccountProfile({ dob: value }, undefined, accountProfile.scope); }, [accountProfile.scope]);
+  const setProfileAddress = useCallback(async (value: string) => { await updateAccountProfile({ address: value }, undefined, accountProfile.scope); }, [accountProfile.scope]);
+  const setProfileTallyTag = useCallback(async (value: string) => { await updateAccountProfile({ tallyTag: value.replace(/^@+/, "").trim() }, undefined, accountProfile.scope); }, [accountProfile.scope]);
+  const setProfileImage = useCallback(async (value: string | null, name = "profile.jpg", type = "image/jpeg") => {
+    if (value) await updateAccountProfile({}, { uri: value, name, type }, accountProfile.scope);
+    else await updateAccountProfile({ avatarUrl: null }, undefined, accountProfile.scope);
+  }, [accountProfile.scope]);
   const addCustomCategory = useCallback(
     async (categoryName: string) => {
       const trimmed = categoryName?.trim();
 
-      if (!trimmed) return;
+      if (!trimmed || !accountProfile.scope) return;
 
-      const storageKey = getCustomCategoriesStorageKey(username || "ebuka");
+      const storageKey = getCustomCategoriesStorageKey(accountProfile.scope || "signed-out");
 
       setCustomCategoriesState((prev) => {
         const next = prev.includes(trimmed) ? prev : [...prev, trimmed];
@@ -675,16 +853,16 @@ export function useAppStore() {
         return next;
       });
     },
-    [username],
+    [accountProfile.scope],
   );
 
   const deleteCustomCategory = useCallback(
     async (categoryName: string) => {
       const trimmed = categoryName?.trim();
 
-      if (!trimmed) return;
+      if (!trimmed || !accountProfile.scope) return;
 
-      const storageKey = getCustomCategoriesStorageKey(username || "ebuka");
+      const storageKey = getCustomCategoriesStorageKey(accountProfile.scope || "signed-out");
 
       setCustomCategoriesState((prev) => {
         const next = prev.filter((item) => item !== trimmed);
@@ -694,44 +872,144 @@ export function useAppStore() {
         return next;
       });
     },
-    [username],
+    [accountProfile.scope],
   );
 
-  const addTransaction = useCallback(async (newTx: any) => {
-    const tx = {
-      ...newTx,
-      id: newTx.id ?? `tx-${Date.now()}`,
-    };
+  // ---------------------------------------------------------
+  // NOTIFICATIONS
+  // ---------------------------------------------------------
 
-    setTransactions((prev) => {
-      const next = [tx, ...prev];
+  const addNotification = useCallback(
+    async (
+      newNotif: Omit<NotificationItem, "id" | "timestamp" | "isUnread"> & {
+        id?: string;
+        timestamp?: string;
+        isUnread?: boolean;
+      },
+    ) => {
+      const notif: NotificationItem = {
+        id: newNotif.id ?? `notif-${Date.now()}`,
+        type: newNotif.type,
+        title: newNotif.title,
+        description: newNotif.description,
+        timestamp: newNotif.timestamp ?? new Date().toISOString(),
+        isUnread: newNotif.isUnread ?? true,
+        referenceId: newNotif.referenceId,
+        route: newNotif.route,
+        amount: newNotif.amount,
+      };
 
-      AsyncStorage.setItem("ts_txs", JSON.stringify(next));
+      setNotifications((prev) => {
+        const next = [notif, ...prev];
+        AsyncStorage.setItem("ts_notifications", JSON.stringify(next));
+        return next;
+      });
+    },
+    [],
+  );
 
+  const markNotificationAsRead = useCallback(async (id: string) => {
+    setNotifications((prev) => {
+      const next = prev.map((n) =>
+        n.id === id ? { ...n, isUnread: false } : n,
+      );
+      AsyncStorage.setItem("ts_notifications", JSON.stringify(next));
       return next;
     });
   }, []);
 
-  const deleteTransaction = useCallback(async (id: string) => {
-    setTransactions((prev) => {
-      const next = prev.filter((transaction) => transaction.id !== id);
-
-      AsyncStorage.setItem("ts_txs", JSON.stringify(next));
-
+  const markAllNotificationsAsRead = useCallback(async () => {
+    setNotifications((prev) => {
+      const next = prev.map((n) => ({ ...n, isUnread: false }));
+      AsyncStorage.setItem("ts_notifications", JSON.stringify(next));
       return next;
     });
+  }, []);
+
+  const deleteNotification = useCallback(async (id: string) => {
+    setNotifications((prev) => {
+      const next = prev.filter((n) => n.id !== id);
+      AsyncStorage.setItem("ts_notifications", JSON.stringify(next));
+      return next;
+    });
+  }, []);
+
+  const clearAllNotifications = useCallback(async () => {
+    setNotifications([]);
+    AsyncStorage.setItem("ts_notifications", JSON.stringify([]));
+  }, []);
+
+  // ---------------------------------------------------------
+  // TRANSACTIONS
+  // ---------------------------------------------------------
+
+  const addTransaction = useCallback(
+    async (newTx: any) => {
+      const tx = {
+        ...newTx,
+        id: newTx.id ?? `tx-${Date.now()}`,
+      };
+
+      try {
+        await loadWallet(DEFAULT_TRANSACTIONS);
+        const before = getWalletSnapshot();
+        const after = await saveWalletTransaction(tx);
+        if (before === after) return true;
+      } catch (error) {
+        Alert.alert('Transaction not saved', error instanceof Error ? error.message : 'Please try again.');
+        return false;
+      }
+
+      // Dispatch contextual notification automatically
+      const titleLower = (tx.title || "").toLowerCase();
+      const formattedAmount = `₦${Number(tx.amount || 0).toLocaleString(
+        undefined,
+        {
+          minimumFractionDigits: 2,
+          maximumFractionDigits: 2,
+        },
+      )}`;
+
+      let notifTitle = "Transaction Recorded";
+      let notifDesc = `${formattedAmount} was recorded under ${tx.category || "Expenses"}.`;
+      let notifType: NotificationItem["type"] = "transaction";
+      let notifRoute = `/transaction-details?id=${tx.id}`;
+
+      if (tx.type === "income") {
+        notifTitle = "Wallet Deposit Received";
+        notifDesc = `${formattedAmount} was credited to your Tally wallet successfully.`;
+      } else if (titleLower.includes("transfer to")) {
+        notifTitle = "Transfer Successful";
+        notifDesc = `Your transfer of ${formattedAmount} was processed and sent.`;
+      } else if (titleLower.includes("withdraw")) {
+        notifTitle = "Withdrawal Initiated";
+        notifDesc = `Your withdrawal of ${formattedAmount} to your bank account is underway.`;
+      }
+
+      if (tx.demo) {
+        notifTitle = "Demo transaction recorded";
+        notifDesc = `${formattedAmount} was saved to your demo wallet. No bank transfer was made.`;
+      }
+
+      addNotification({
+        type: notifType,
+        title: notifTitle,
+        description: notifDesc,
+        referenceId: tx.id,
+        route: notifRoute,
+        amount: Number(tx.amount || 0),
+      });
+      return true;
+    },
+    [addNotification],
+  );
+
+  const deleteTransaction = useCallback(async (id: string) => {
+    await deleteWalletTransaction(id);
   }, []);
 
   const updateTransaction = useCallback(async (updatedTx: any) => {
-    setTransactions((prev) => {
-      const next = prev.map((transaction) =>
-        transaction.id === updatedTx.id ? updatedTx : transaction,
-      );
-
-      AsyncStorage.setItem("ts_txs", JSON.stringify(next));
-
-      return next;
-    });
+    await saveWalletTransaction(updatedTx);
   }, []);
 
   const updateBudget = useCallback(async (category: string, limit: number) => {
@@ -831,7 +1109,7 @@ export function useAppStore() {
       },
     ];
 
-    await AsyncStorage.setItem("ts_txs", JSON.stringify(DEFAULT_TRANSACTIONS));
+    await resetWallet(DEFAULT_TRANSACTIONS);
 
     await AsyncStorage.setItem("ts_bgts", JSON.stringify(DEFAULT_BUDGETS));
 
@@ -842,7 +1120,10 @@ export function useAppStore() {
 
     await AsyncStorage.setItem("ts_username", "ebuka");
 
-    await AsyncStorage.setItem(DARK_MODE_PREFERENCE_STORAGE_KEY, "system");
+    await setDarkModePreference("system");
+    await setThemePreference("aurora");
+
+    await AsyncStorage.removeItem("ts_theme_is_customized");
 
     await AsyncStorage.setItem("ts_cards", JSON.stringify(defaultCards));
 
@@ -851,15 +1132,15 @@ export function useAppStore() {
       JSON.stringify([]),
     );
 
-    setTransactions(DEFAULT_TRANSACTIONS);
+    setLocalTransactions(DEFAULT_TRANSACTIONS);
 
     setBudgets(DEFAULT_BUDGETS);
 
     setSavingsGoals(DEFAULT_SAVINGS_GOALS);
 
-    setUsernameState("ebuka");
 
-    setDarkModePreferenceState("system");
+
+
 
     setSavedCards(defaultCards);
 
@@ -867,15 +1148,30 @@ export function useAppStore() {
   }, []);
 
   return {
+    availableBalance: budgetWallet ? totals(budgetWallet).available / 100 : 0,
+    budgetWallet,
+    budgetError,
+    reloadBudgetWallet,
     transactions,
+    transactionFeedState: transactionFeed.state,
+    transactionFeedError: transactionFeed.error,
+    refreshTransactions: reloadTransactions,
+    trackedBudgetSpending,
     budgets,
     savingsGoals,
 
     profileImage,
+    profileLoading: accountProfile.loading,
+    profileSaving: accountProfile.saving,
+    profileError: accountProfile.error,
+    refreshProfile: () => loadAccountProfile(true),
     setProfileImage,
 
     loading,
     isAuthenticated,
+    token: accountProfile.token || accessToken,
+    refreshToken: accountProfile.refreshToken || refreshToken,
+    purchaseUserId: accountProfile.scope?.startsWith("id:") ? accountProfile.scope.slice(3) : null,
 
     themePreference,
     darkModePreference,
@@ -905,12 +1201,123 @@ export function useAppStore() {
     username,
     setUsername,
 
+    profileFullName,
+    setProfileFullName,
+    profilePhoneNumber,
+    setProfilePhoneNumber,
+    profileEmail,
+    setProfileEmail,
+    // Inert compatibility for the inactive appp snapshot. No nickname state or
+    // persistence remains, and the active Profile screen has no nickname field.
+    profileNickname: "",
+    setProfileNickname: async (_value: string) => { throw new Error("Nickname has been removed. No change has been saved."); },
+    profileGender,
+    setProfileGender,
+    profileDob,
+    setProfileDob,
+    profileAddress,
+    setProfileAddress,
+    profileTallyTag,
+    setProfileTallyTag,
+
     customCategories,
     addCustomCategory,
     deleteCustomCategory,
 
     savedCards,
     setSavedCards,
+
+    // Onboarding
+    onboardingGoals,
+    setOnboardingGoals: async (goals: string[]) => {
+      await AsyncStorage.setItem("ts_onboarding_goals", JSON.stringify(goals));
+      setOnboardingGoalsState(goals);
+    },
+    employmentStatus,
+    setEmploymentStatus: async (status: string) => {
+      await AsyncStorage.setItem("ts_employment_status", status);
+      setEmploymentStatusState(status);
+    },
+    completeOnboarding: async () => {
+      try {
+        const pendingSignup = await readPendingSignup();
+        if (!pendingSignup && !getProfileSnapshot().token) throw new Error("Restart account setup or sign in to continue.");
+
+        if (pendingSignup) {
+
+          const email = pendingSignup.email.trim().toLowerCase();
+          const tallyTag = pendingSignup.tallyTag
+            .trim()
+            .replace(/^@+/, "")
+            .toLowerCase();
+          const canonicalTallyTag = `@${tallyTag}`;
+
+          const fullName = pendingSignup.fullName.trim();
+          const phoneNumber = pendingSignup.phoneNumber.trim();
+          const stagedPin = await readPin("email:" + email);
+          const current = getProfileSnapshot();
+          const resumedPin = !stagedPin && current.scope && current.profile.email.trim().toLowerCase() === email
+            ? await readPin(current.scope) : null;
+          if (!stagedPin && !resumedPin) throw new Error("Set your six-digit PIN before finishing setup.");
+
+          const session = await registerSession({
+            fullName, email, tallyTag, phoneNumber, password: pendingSignup.password,
+          });
+          const pinOwner = profileScope({ userId: session.userId, email });
+          if (!pinOwner) throw new Error("Couldn't identify the new account.");
+          await migrateOnboardingPin(email, pinOwner);
+          await login(session.accessToken, session.refreshToken, {
+            userId: session.userId, fullName, email, tallyTag, phoneNumber,
+          }, { activate: false });
+
+          const storedUsersRaw = await AsyncStorage.getItem(
+            "ts_registered_users",
+          );
+          const storedUsers = storedUsersRaw ? JSON.parse(storedUsersRaw) : [];
+
+          if (Array.isArray(storedUsers)) {
+            const alreadyExists = storedUsers.some(
+              (user: any) =>
+                (user.email && user.email.toLowerCase() === email) ||
+                (user.tallyTag && user.tallyTag.toLowerCase() === tallyTag),
+            );
+
+            if (!alreadyExists) {
+              storedUsers.push({
+                fullName,
+                tallyTag,
+                email,
+                phoneNumber,
+              });
+
+              await AsyncStorage.setItem(
+                "ts_registered_users",
+                JSON.stringify(storedUsers),
+              );
+            }
+          }
+
+          await clearPendingSignup();
+
+
+        }
+
+        await AsyncStorage.setItem("ts_onboarding_completed", "true");
+        setGlobalAuth(true);
+      } catch (error) {
+        console.error("Failed to complete onboarding", error);
+        throw error;
+      }
+    },
+
+    // Notifications
+    notifications,
+    unreadNotificationCount: notifications.filter((n) => n.isUnread).length,
+    addNotification,
+    markNotificationAsRead,
+    markAllNotificationsAsRead,
+    deleteNotification,
+    clearAllNotifications,
 
     resetData,
   };

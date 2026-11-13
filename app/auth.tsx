@@ -1,31 +1,70 @@
 import { Ionicons } from "@expo/vector-icons";
-import { useRouter } from "expo-router";
-import React, { useState } from "react";
+import AsyncStorage from "@react-native-async-storage/async-storage";
+import { useLocalSearchParams, useRouter } from "expo-router";
+import { useMemo, useState } from "react";
 import {
-    ActivityIndicator,
-    KeyboardAvoidingView,
-    Platform,
-    SafeAreaView,
-    ScrollView,
-    StyleSheet,
-    Text,
-    TextInput,
-    TouchableOpacity,
-    View,
+  ActivityIndicator,
+  Alert,
+  KeyboardAvoidingView,
+  Platform,
+  SafeAreaView,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View,
+  useWindowDimensions,
 } from "react-native";
+import BrandMark from "../components/BrandMark";
+import AuthBackdrop, { AuthEntrance } from "../components/AuthBackdrop";
+import { API_URL } from "../src/api";
+import { recoverLocalSession } from "../src/register";
+import { savePendingSignup } from "../src/security/signup";
 import { useAppStore } from "../src/store";
 
-const API_URL = process.env.EXPO_PUBLIC_API_URL;
+const LOCAL_USERS_KEY = "ts_registered_users";
 
 export default function AuthScreen() {
   const router = useRouter();
-  const { login } = useAppStore(); // Pull the login function from the global store
+  const { mode } = useLocalSearchParams<{ mode?: string }>();
+  const { height: screenHeight } = useWindowDimensions();
+  const [contentHeight, setContentHeight] = useState(0);
+  const [viewportHeight, setViewportHeight] = useState(0);
 
-  // Tab handling state: 'login' or 'signup'
-  const [authMode, setAuthMode] = useState<"login" | "signup">("login");
+  const {
+    login,
+    theme,
+    themeMode,
+  } = useAppStore();
 
-  // Form input fields
+  const isDark = themeMode === "dark";
+
+
+  const authColors = useMemo(
+    () => ({
+      background: theme.background,
+      surface: theme.surface,
+      surfaceSoft: theme.surfaceSoft,
+      inputBg: theme.surfaceSoft,
+      border: theme.border,
+      textPrimary: theme.textPrimary,
+      textSecondary: theme.textSecondary,
+      placeholder: theme.textSecondary,
+      accent: theme.accent,
+      accentSoft: theme.accentSoft,
+      tabTrack: isDark ? theme.surfaceSoft : theme.mutedBackground,
+      tabActive: theme.surface,
+      buttonBg: theme.accent,
+      buttonText: theme.onAccent,
+    }),
+    [isDark, theme],
+  );
+
+  const [authMode, setAuthMode] = useState<"login" | "signup">(mode === "signup" ? "signup" : "login");
+
   const [fullName, setFullName] = useState("");
+  const [signupUsername, setSignupUsername] = useState("");
   const [phoneNumber, setPhoneNumber] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -34,137 +73,441 @@ export default function AuthScreen() {
   const [isLoading, setIsLoading] = useState(false);
 
   const handleAuthAction = async () => {
+    if (isLoading) return;
+
     setIsLoading(true);
 
-    // ==========================================
-    // TEMPORARY DEVELOPMENT BYPASS
-    // ==========================================
-    setTimeout(() => {
-      setIsLoading(false);
-      if (authMode === "signup") {
-        login(); // Mark user as authenticated globally
-        router.replace("/setup-profile" as any);
-      } else {
-        login(); // Mark user as authenticated globally
-        router.replace("/(tabs)" as any);
-      }
-    }, 500);
+    const identifierTrimmed = email.trim().toLowerCase().replace(/^@+/, "");
+
+    const fullNameTrimmed = fullName.trim();
+    const phoneTrimmed = phoneNumber.trim();
+
+    const usernameTrimmed = signupUsername
+      .trim()
+      .replace(/^@+/, "")
+      .toLowerCase();
 
     /*
-    // REAL AUTHENTICATION LOGIC (DISABLED FOR DEV)
-    if (!email || !password) {
-      alert("Please fill out all required fields.");
+     * ============================================================
+     * BASIC VALIDATION
+     * ============================================================
+     */
+
+    if (!identifierTrimmed || !password) {
+      Alert.alert(
+        "Input Error",
+        authMode === "login"
+          ? "Please enter your email or TallyTag and password."
+          : "Please enter your email and password.",
+      );
+
       setIsLoading(false);
       return;
     }
 
+    /*
+     * ============================================================
+     * SIGNUP VALIDATION
+     * ============================================================
+     */
+
     if (authMode === "signup") {
-      if (!fullName || !phoneNumber) {
-        alert("Please fill out your full name and phone number.");
-        setIsLoading(false);
-        return;
-      }
-      if (password !== confirmPassword) {
-        alert("Passwords do not match.");
-        setIsLoading(false);
-        return;
-      }
-    }
-
-    try {
-      const endpoint =
-        authMode === "login" ? "/api/auth/login" : "/api/auth/register";
-
-      const payload =
-        authMode === "login"
-          ? {
-              email: email.trim().toLowerCase(),
-              password: password,
-            }
-          : {
-              fullName: fullName.trim(),
-              email: email.trim().toLowerCase(),
-              password: password,
-              phoneNumber: phoneNumber.trim(),
-            };
-
-      const response = await fetch(`${API_URL}${endpoint}`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify(payload),
-      });
-
-      setIsLoading(false);
-
-      const responseText = await response.text();
-      let data: any = {};
-
-      if (responseText) {
-        try {
-          data = JSON.parse(responseText);
-        } catch (e) {
-          throw new Error("Server returned an invalid response format.");
-        }
-      }
-
-      if (!response.ok) {
-        throw new Error(
-          data.message || `Authentication failed (Status ${response.status})`,
+      if (!fullNameTrimmed || !phoneTrimmed || !usernameTrimmed) {
+        Alert.alert(
+          "Input Error",
+          "Please fill in your Full Name, TallyTag, and Phone Number.",
         );
+
+        setIsLoading(false);
+        return;
       }
 
-      // Flow Routing Logic
-      login(); // Mark user as authenticated globally on real success too
-      if (authMode === "signup") {
-        router.replace("/setup-profile" as any);
-      } else {
-        router.replace("/(tabs)" as any);
+      if (usernameTrimmed.length < 6) {
+        Alert.alert(
+          "Invalid TallyTag",
+          "Your TallyTag must be at least 6 characters long.",
+        );
+
+        setIsLoading(false);
+        return;
       }
-    } catch (error: any) {
-      setIsLoading(false);
-      alert(
-        error.message || "Something went wrong. Please check your network.",
-      );
+
+      if (!/^[a-zA-Z0-9_.]+$/.test(usernameTrimmed)) {
+        Alert.alert(
+          "Invalid TallyTag",
+          "TallyTag can only contain letters, numbers, underscores, and periods.",
+        );
+
+        setIsLoading(false);
+        return;
+      }
+
+      if (password.length < 6) {
+        Alert.alert(
+          "Password Too Short",
+          "Password must be at least 6 characters long.",
+        );
+
+        setIsLoading(false);
+        return;
+      }
+
+      if (password !== confirmPassword) {
+        Alert.alert(
+          "Password Mismatch",
+          "Passwords do not match. Please verify your passwords.",
+        );
+
+        setIsLoading(false);
+        return;
+      }
+
+      if (!identifierTrimmed.includes("@")) {
+        Alert.alert("Invalid Email", "Please enter a valid email address.");
+
+        setIsLoading(false);
+        return;
+      }
     }
-    */
+
+    /*
+     * ============================================================
+     * SIGNUP
+     *
+     * IMPORTANT:
+     * Do NOT call /api/auth/register here.
+     *
+     * The account should only be registered after onboarding is
+     * completed.
+     *
+     * We temporarily save the signup information locally so that
+     * the onboarding pages can use it later.
+     * ============================================================
+     */
+
+    if (authMode === "signup") {
+      try {
+        const pendingSignup = {
+          fullName: fullNameTrimmed,
+          tallyTag: usernameTrimmed,
+          email: identifierTrimmed,
+          password,
+          phoneNumber: phoneTrimmed,
+        };
+
+        await savePendingSignup(pendingSignup);
+
+        /*
+         * Clear the auth form because the data is now safely stored
+         * as pending signup information.
+         */
+        setFullName("");
+        setSignupUsername("");
+        setPhoneNumber("");
+        setEmail("");
+        setPassword("");
+        setConfirmPassword("");
+
+        setIsLoading(false);
+
+        /*
+         * Start the onboarding flow.
+         */
+        router.replace("/onboarding/goals");
+        return;
+      } catch (error: any) {
+        console.error("PENDING SIGNUP ERROR:", error);
+
+        Alert.alert(
+          "Signup Error",
+          "Unable to start your account setup. Please try again.",
+        );
+
+        setIsLoading(false);
+        return;
+      }
+    }
+
+    /*
+     * ============================================================
+     * LOGIN
+     * ============================================================
+     */
+
+    let loggedInUser: {
+      userId?: number;
+      fullName: string;
+      tallyTag?: string;
+      email: string;
+      phoneNumber: string;
+    } | null = null;
+
+    /*
+     * ============================================================
+     * REMOTE BACKEND LOGIN
+     * ============================================================
+     */
+
+    if (API_URL) {
+      try {
+        const endpoint = "/api/auth/login";
+
+        /*
+         * IMPORTANT:
+         *
+         * Your Swagger backend expects:
+         *
+         * {
+         *   "emailOrTallyTag": "ebuka_99",
+         *   "password": "Vanbasten09!"
+         * }
+         *
+         * The previous code incorrectly sent:
+         *
+         * {
+         *   "email": "ebuka_99",
+         *   "password": "..."
+         * }
+         *
+         * That is why the backend returned:
+         *
+         * "Email or TallyTag is required."
+         */
+
+        const payload = {
+          emailOrTallyTag: identifierTrimmed,
+          password,
+        };
+
+        const controller = new AbortController();
+
+        const timeoutId = setTimeout(() => {
+          controller.abort();
+        }, 7000);
+
+        console.log("=================================");
+        console.log("AUTH REQUEST URL:", `${API_URL}${endpoint}`);
+        console.log("=================================");
+
+        const response = await fetch(`${API_URL}${endpoint}`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Accept: "application/json",
+          },
+          body: JSON.stringify(payload),
+          signal: controller.signal,
+        });
+
+        clearTimeout(timeoutId);
+
+        const responseText = await response.text();
+
+        let data: any = {};
+
+        if (responseText) {
+          try {
+            data = JSON.parse(responseText);
+          } catch {
+            // Never log raw authentication responses.
+          }
+        }
+
+        let recoveredLocalAccount = false;
+        if (!response.ok && response.status === 401) {
+          const localUsers = JSON.parse(await AsyncStorage.getItem(LOCAL_USERS_KEY) || "[]");
+          // Older onboarding created local accounts without a backend session.
+          const session = await recoverLocalSession(identifierTrimmed, password, localUsers);
+          if (session) {
+            data = session;
+            recoveredLocalAccount = true;
+          }
+        }
+
+        if (!response.ok && !recoveredLocalAccount) {
+          console.log("=================================");
+          console.log("AUTH API ERROR");
+          console.log("Status:", response.status);
+          console.log("=================================");
+
+          const backendValidationError =
+            data?.errors?.EmailOrTallyTag?.[0] ||
+            data?.errors?.emailOrTallyTag?.[0];
+
+          throw new Error(
+            backendValidationError ||
+              data?.message ||
+              data?.title ||
+              `Authentication failed (Status ${response.status})`,
+          );
+        }
+
+        /*
+         * Swagger response is directly shaped like:
+         *
+         * {
+         *   userId,
+         *   fullName,
+         *   email,
+         *   tallyTag,
+         *   accessToken,
+         *   refreshToken
+         * }
+         *
+         * It is NOT nested under data.user.
+         */
+
+        const userId =
+          typeof data.userId === "number" ? data.userId : undefined;
+
+        const returnedFullName =
+          data.fullName || identifierTrimmed.split("@")[0] || "User";
+
+        const returnedTallyTag =
+          data.tallyTag ||
+          (identifierTrimmed.includes("@") ? "" : identifierTrimmed);
+
+        const returnedEmail =
+          data.email ||
+          (identifierTrimmed.includes("@") ? identifierTrimmed : "");
+
+        const returnedPhoneNumber = data.phoneNumber || "";
+
+        loggedInUser = {
+          userId,
+          fullName: returnedFullName,
+          tallyTag: returnedTallyTag,
+          email: returnedEmail,
+          phoneNumber: returnedPhoneNumber,
+        };
+
+        /*
+         * Save authentication tokens.
+         */
+        console.log("LOGIN RESPONSE KEYS:", Object.keys(data));
+        console.log("HAS ACCESS TOKEN:", !!data.accessToken);
+        console.log("HAS TOKEN:", !!data.token);
+
+        const accessToken = data.accessToken || data.token;
+        if (typeof accessToken !== "string" || !accessToken.trim()) {
+          throw new Error("The server did not return an access token. Please try signing in again.");
+        }
+        await login(accessToken, data.refreshToken, {
+          userId,
+          fullName: returnedFullName,
+          email: returnedEmail,
+          tallyTag: returnedTallyTag,
+          phoneNumber: returnedPhoneNumber,
+        });
+
+        /*
+         * Login succeeded.
+         */
+
+        console.log("AUTH LOGIN SUCCESS");
+        console.log("USER:", loggedInUser);
+
+        setIsLoading(false);
+
+        router.replace("/(tabs)" as any);
+
+        return;
+      } catch (backendError: any) {
+        const errorMessage = backendError?.message || "";
+
+        /*
+         * If the server actually responded with 400/401/etc.,
+         * DO NOT silently fall back to fake/local login.
+         */
+
+        if (
+          errorMessage &&
+          !errorMessage.includes("Network") &&
+          !errorMessage.includes("abort") &&
+          !errorMessage.includes("Failed to fetch") &&
+          !errorMessage.includes("Network request failed")
+        ) {
+          Alert.alert("Authentication Error", errorMessage);
+
+          setIsLoading(false);
+          return;
+        }
+
+        /*
+         * Offline sign-in must never validate a cached account password.
+         */
+
+        Alert.alert("Connection unavailable", "Sign-in needs a connection to TallySpends. Your saved session can still be unlocked with your PIN.");
+        setIsLoading(false);
+        return;
+      }
+    }
+
   };
 
   return (
-    <SafeAreaView style={styles.container}>
+    <SafeAreaView
+      style={[
+        styles.container,
+        {
+          backgroundColor: authColors.background,
+        },
+      ]}
+    >
+      <AuthBackdrop color={theme.accent} dark={isDark} />
       <KeyboardAvoidingView
         behavior={Platform.OS === "ios" ? "padding" : "height"}
         style={{ flex: 1 }}
       >
-        <ScrollView
-          contentContainerStyle={styles.scrollContent}
-          keyboardShouldPersistTaps="handled"
-        >
-          {/* App Logo & Branding Header */}
+        <View style={[styles.authContent, { paddingTop: Math.min(96, Math.max(32, screenHeight * 0.10)) }]}>
+          {/* Logo & Branding */}
           <View style={styles.brandContainer}>
-            <View style={styles.logoPlaceholder}>
-              <Ionicons name="wallet" size={36} color="#20142A" />
-            </View>
-            <Text style={styles.brandName}>TallySpends</Text>
-            <Text style={styles.brandSubtitle}>
-              Automate your budgets, track operations.
-            </Text>
+            <AuthEntrance delay={60}>
+              <BrandMark size={64} dark={isDark} />
+            </AuthEntrance>
+            <AuthEntrance delay={150} style={{ alignItems: "center", marginTop: 10 }}>
+              <Text style={[styles.brandName, { color: theme.accent }]}>
+                TallySpends
+              </Text>
+              <Text style={[styles.brandSubtitle, { color: authColors.textSecondary }]}>
+                Automate your budgets, track operations.
+              </Text>
+            </AuthEntrance>
           </View>
-
-          {/* Auth Mode Switcher Tabs */}
-          <View style={styles.tabContainer}>
+          {/* Auth Mode Switcher */}
+          <AuthEntrance delay={240}
+            style={[
+              styles.tabContainer,
+              {
+                backgroundColor: authColors.tabTrack,
+                borderColor: authColors.border,
+              },
+            ]}
+          >
             <TouchableOpacity
               style={[
                 styles.tabButton,
-                authMode === "login" && styles.activeTabButton,
+                authMode === "login" && [
+                  styles.activeTabButton,
+                  {
+                    backgroundColor: authColors.tabActive,
+                    borderColor: isDark ? authColors.border : "transparent",
+                  },
+                ],
               ]}
               onPress={() => setAuthMode("login")}
+              activeOpacity={0.8}
             >
               <Text
                 style={[
                   styles.tabText,
-                  authMode === "login" && styles.activeTabText,
+                  {
+                    color:
+                      authMode === "login"
+                        ? authColors.textPrimary
+                        : authColors.textSecondary,
+                    fontWeight: authMode === "login" ? "700" : "500",
+                  },
                 ]}
               >
                 Log In
@@ -174,38 +517,93 @@ export default function AuthScreen() {
             <TouchableOpacity
               style={[
                 styles.tabButton,
-                authMode === "signup" && styles.activeTabButton,
+                authMode === "signup" && [
+                  styles.activeTabButton,
+                  {
+                    backgroundColor: authColors.tabActive,
+                    borderColor: isDark ? authColors.border : "transparent",
+                  },
+                ],
               ]}
               onPress={() => setAuthMode("signup")}
+              activeOpacity={0.8}
             >
               <Text
                 style={[
                   styles.tabText,
-                  authMode === "signup" && styles.activeTabText,
+                  {
+                    color:
+                      authMode === "signup"
+                        ? authColors.textPrimary
+                        : authColors.textSecondary,
+                    fontWeight: authMode === "signup" ? "700" : "500",
+                  },
                 ]}
               >
                 Sign Up
               </Text>
             </TouchableOpacity>
-          </View>
+          </AuthEntrance>
 
-          {/* Form Fields Container */}
-          <View style={styles.formContainer}>
-            {/* Full Name & Phone Number (Sign Up Only) */}
+          {/* The card and tabs stay anchored; only overflowing form fields scroll. */}
+          <ScrollView
+            style={[
+              styles.formContainer,
+              {
+                backgroundColor: authColors.surface,
+                borderColor: authColors.border,
+              },
+            ]}
+            contentContainerStyle={styles.formContent}
+            keyboardShouldPersistTaps="handled"
+            showsVerticalScrollIndicator={false}
+            bounces={false}
+            overScrollMode="never"
+            scrollEnabled={contentHeight > viewportHeight + 1}
+            onLayout={event => setViewportHeight(event.nativeEvent.layout.height)}
+            onContentSizeChange={(_, height) => setContentHeight(height)}
+          >
+            <AuthEntrance trigger={authMode} delay={320} fromY={8}>
+            {/* SIGNUP FIELDS */}
             {authMode === "signup" && (
               <>
-                <Text style={styles.inputLabel}>Full Name</Text>
-                <View style={styles.inputWrapper}>
+                {/* Full Name */}
+                <Text
+                  style={[
+                    styles.inputLabel,
+                    {
+                      color: authColors.textSecondary,
+                    },
+                  ]}
+                >
+                  Full Name
+                </Text>
+
+                <View
+                  style={[
+                    styles.inputWrapper,
+                    {
+                      backgroundColor: authColors.inputBg,
+                      borderColor: authColors.border,
+                    },
+                  ]}
+                >
                   <Ionicons
                     name="person-outline"
-                    size={20}
-                    color="#9CA3AF"
+                    size={18}
+                    color={authColors.placeholder}
                     style={styles.inputIcon}
                   />
+
                   <TextInput
-                    style={styles.textInput}
+                    style={[
+                      styles.textInput,
+                      {
+                        color: authColors.textPrimary,
+                      },
+                    ]}
                     placeholder="John Doe"
-                    placeholderTextColor="#9CA3AF"
+                    placeholderTextColor={authColors.placeholder}
                     autoCapitalize="words"
                     autoCorrect={false}
                     value={fullName}
@@ -213,18 +611,118 @@ export default function AuthScreen() {
                   />
                 </View>
 
-                <Text style={styles.inputLabel}>Phone Number</Text>
-                <View style={styles.inputWrapper}>
+                {/* TallyTag */}
+                <Text
+                  style={[
+                    styles.inputLabel,
+                    {
+                      color: authColors.textSecondary,
+                    },
+                  ]}
+                >
+                  TallyTag
+                </Text>
+
+                <View
+                  style={[
+                    styles.inputWrapper,
+                    {
+                      backgroundColor: authColors.inputBg,
+                      borderColor: authColors.border,
+                    },
+                  ]}
+                >
+                  <Text
+                    style={[
+                      styles.atSymbol,
+                      {
+                        color: authColors.accent,
+                      },
+                    ]}
+                  >
+                    @
+                  </Text>
+
+                  <TextInput
+                    style={[
+                      styles.textInput,
+                      {
+                        color: authColors.textPrimary,
+                      },
+                    ]}
+                    placeholder="ebuka_99"
+                    placeholderTextColor={authColors.placeholder}
+                    autoCapitalize="none"
+                    autoCorrect={false}
+                    maxLength={30}
+                    value={signupUsername}
+                    onChangeText={(text) =>
+                      setSignupUsername(
+                        text
+                          .replace(/^@+/, "")
+                          .replace(/[^a-zA-Z0-9_.]/g, "")
+                          .toLowerCase(),
+                      )
+                    }
+                  />
+                </View>
+
+                <View style={styles.helperRow}>
+                  <Ionicons
+                    name="information-circle-outline"
+                    size={13}
+                    color={authColors.textSecondary}
+                  />
+
+                  <Text
+                    style={[
+                      styles.helperText,
+                      {
+                        color: authColors.textSecondary,
+                      },
+                    ]}
+                  >
+                    Your TallyTag must be at least 6 characters.
+                  </Text>
+                </View>
+
+                {/* Phone Number */}
+                <Text
+                  style={[
+                    styles.inputLabel,
+                    {
+                      color: authColors.textSecondary,
+                    },
+                  ]}
+                >
+                  Phone Number
+                </Text>
+
+                <View
+                  style={[
+                    styles.inputWrapper,
+                    {
+                      backgroundColor: authColors.inputBg,
+                      borderColor: authColors.border,
+                    },
+                  ]}
+                >
                   <Ionicons
                     name="call-outline"
-                    size={20}
-                    color="#9CA3AF"
+                    size={18}
+                    color={authColors.placeholder}
                     style={styles.inputIcon}
                   />
+
                   <TextInput
-                    style={styles.textInput}
+                    style={[
+                      styles.textInput,
+                      {
+                        color: authColors.textPrimary,
+                      },
+                    ]}
                     placeholder="+234 800 000 0000"
-                    placeholderTextColor="#9CA3AF"
+                    placeholderTextColor={authColors.placeholder}
                     keyboardType="phone-pad"
                     autoCorrect={false}
                     value={phoneNumber}
@@ -234,20 +732,54 @@ export default function AuthScreen() {
               </>
             )}
 
-            {/* Email Field Input */}
-            <Text style={styles.inputLabel}>Email Address</Text>
-            <View style={styles.inputWrapper}>
+            {/* EMAIL / TALLYTAG */}
+            <Text
+              style={[
+                styles.inputLabel,
+                {
+                  color: authColors.textSecondary,
+                },
+              ]}
+            >
+              {authMode === "login" ? "Email or TallyTag" : "Email Address"}
+            </Text>
+
+            <View
+              style={[
+                styles.inputWrapper,
+                {
+                  backgroundColor: authColors.inputBg,
+                  borderColor: authColors.border,
+                },
+              ]}
+            >
               <Ionicons
-                name="mail-outline"
-                size={20}
-                color="#9CA3AF"
+                name={
+                  authMode === "login"
+                    ? "person-circle-outline"
+                    : "mail-outline"
+                }
+                size={18}
+                color={authColors.placeholder}
                 style={styles.inputIcon}
               />
+
               <TextInput
-                style={styles.textInput}
-                placeholder="you@example.com"
-                placeholderTextColor="#9CA3AF"
-                keyboardType="email-address"
+                style={[
+                  styles.textInput,
+                  {
+                    color: authColors.textPrimary,
+                  },
+                ]}
+                placeholder={
+                  authMode === "login"
+                    ? "you@example.com or @tallytag"
+                    : "you@example.com"
+                }
+                placeholderTextColor={authColors.placeholder}
+                keyboardType={
+                  authMode === "login" ? "default" : "email-address"
+                }
                 autoCapitalize="none"
                 autoCorrect={false}
                 value={email}
@@ -255,52 +787,101 @@ export default function AuthScreen() {
               />
             </View>
 
-            {/* Password Field Input */}
-            <Text style={styles.inputLabel}>Password</Text>
-            <View style={styles.inputWrapper}>
+            {/* Password */}
+            <Text
+              style={[
+                styles.inputLabel,
+                {
+                  color: authColors.textSecondary,
+                },
+              ]}
+            >
+              Password
+            </Text>
+
+            <View
+              style={[
+                styles.inputWrapper,
+                {
+                  backgroundColor: authColors.inputBg,
+                  borderColor: authColors.border,
+                },
+              ]}
+            >
               <Ionicons
                 name="lock-closed-outline"
-                size={20}
-                color="#9CA3AF"
+                size={18}
+                color={authColors.placeholder}
                 style={styles.inputIcon}
               />
+
               <TextInput
-                style={styles.textInput}
+                style={[
+                  styles.textInput,
+                  {
+                    color: authColors.textPrimary,
+                  },
+                ]}
                 placeholder="••••••••"
-                placeholderTextColor="#9CA3AF"
+                placeholderTextColor={authColors.placeholder}
                 secureTextEntry={!isPasswordVisible}
                 autoCapitalize="none"
                 autoCorrect={false}
                 value={password}
                 onChangeText={setPassword}
               />
+
               <TouchableOpacity
                 onPress={() => setIsPasswordVisible(!isPasswordVisible)}
                 style={styles.eyeIcon}
               >
                 <Ionicons
                   name={isPasswordVisible ? "eye-off-outline" : "eye-outline"}
-                  size={20}
-                  color="#9CA3AF"
+                  size={19}
+                  color={authColors.placeholder}
                 />
               </TouchableOpacity>
             </View>
 
-            {/* Confirm Password (Sign Up Only) */}
+            {/* Confirm Password */}
             {authMode === "signup" && (
               <>
-                <Text style={styles.inputLabel}>Confirm Password</Text>
-                <View style={styles.inputWrapper}>
+                <Text
+                  style={[
+                    styles.inputLabel,
+                    {
+                      color: authColors.textSecondary,
+                    },
+                  ]}
+                >
+                  Confirm Password
+                </Text>
+
+                <View
+                  style={[
+                    styles.inputWrapper,
+                    {
+                      backgroundColor: authColors.inputBg,
+                      borderColor: authColors.border,
+                    },
+                  ]}
+                >
                   <Ionicons
                     name="lock-closed-outline"
-                    size={20}
-                    color="#9CA3AF"
+                    size={18}
+                    color={authColors.placeholder}
                     style={styles.inputIcon}
                   />
+
                   <TextInput
-                    style={styles.textInput}
+                    style={[
+                      styles.textInput,
+                      {
+                        color: authColors.textPrimary,
+                      },
+                    ]}
                     placeholder="••••••••"
-                    placeholderTextColor="#9CA3AF"
+                    placeholderTextColor={authColors.placeholder}
                     secureTextEntry={!isPasswordVisible}
                     autoCapitalize="none"
                     autoCorrect={false}
@@ -315,21 +896,33 @@ export default function AuthScreen() {
             <TouchableOpacity
               style={[
                 styles.actionButton,
+                {
+                  backgroundColor: authColors.buttonBg,
+                },
                 isLoading && styles.actionButtonDisabled,
               ]}
               onPress={handleAuthAction}
               disabled={isLoading}
+              activeOpacity={0.85}
             >
               {isLoading ? (
-                <ActivityIndicator color="#FFFFFF" />
+                <ActivityIndicator color={authColors.buttonText} />
               ) : (
-                <Text style={styles.actionButtonText}>
-                  {authMode === "login" ? "Welcome Back" : "Create Account"}
+                <Text
+                  style={[
+                    styles.actionButtonText,
+                    {
+                      color: authColors.buttonText,
+                    },
+                  ]}
+                >
+                  {authMode === "login" ? "Log In" : "Create Account"}
                 </Text>
               )}
             </TouchableOpacity>
-          </View>
-        </ScrollView>
+            </AuthEntrance>
+          </ScrollView>
+        </View>
       </KeyboardAvoidingView>
     </SafeAreaView>
   );
@@ -338,129 +931,157 @@ export default function AuthScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#F9FAFB",
   },
-  scrollContent: {
-    paddingHorizontal: 24,
-    paddingTop: 40,
-    paddingBottom: 24,
-    justifyContent: "center",
+
+  authContent: {
+    flex: 1,
+    paddingHorizontal: 20,
+    paddingTop: 32,
+    paddingBottom: 32,
+    alignSelf: "center",
+    width: "100%",
+    maxWidth: 460,
   },
+
   brandContainer: {
     alignItems: "center",
-    marginBottom: 40,
+    marginBottom: 26,
   },
-  logoPlaceholder: {
-    width: 70,
-    height: 70,
-    borderRadius: 18,
-    backgroundColor: "#F3F0F7",
-    justifyContent: "center",
-    alignItems: "center",
-    marginBottom: 16,
-    shadowColor: "#20142A",
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.08,
-    shadowRadius: 8,
-  },
+
   brandName: {
-    fontSize: 26,
+    fontSize: 28,
     fontWeight: "800",
-    color: "#1F2937",
+    letterSpacing: -0.5,
     marginBottom: 4,
   },
+
   brandSubtitle: {
-    fontSize: 14,
-    color: "#6B7280",
+    fontSize: 13,
     textAlign: "center",
   },
+
   tabContainer: {
     flexDirection: "row",
-    backgroundColor: "#E5E7EB",
-    borderRadius: 12,
-    padding: 4,
-    marginBottom: 32,
+    borderRadius: 14,
+    borderWidth: 1,
+    padding: 3,
+    marginBottom: 20,
   },
+
   tabButton: {
     flex: 1,
-    paddingVertical: 12,
+    paddingVertical: 10,
     alignItems: "center",
-    borderRadius: 10,
-  },
-  activeTabButton: {
-    backgroundColor: "#FFFFFF",
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.05,
-    shadowRadius: 4,
-  },
-  tabText: {
-    fontSize: 15,
-    fontWeight: "600",
-    color: "#6B7280",
-  },
-  activeTabText: {
-    color: "#20142A",
-  },
-  formContainer: {
-    backgroundColor: "#FFFFFF",
-    borderRadius: 20,
-    padding: 20,
+    borderRadius: 11,
     borderWidth: 1,
-    borderColor: "#E5E7EB",
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.02,
-    shadowRadius: 10,
+    borderColor: "transparent",
   },
-  inputLabel: {
+
+  activeTabButton: {
+    borderWidth: 1,
+    shadowColor: "#000000",
+    shadowOffset: {
+      width: 0,
+      height: 2,
+    },
+    shadowOpacity: 0.06,
+    shadowRadius: 4,
+    elevation: 2,
+  },
+
+  tabText: {
     fontSize: 13,
-    fontWeight: "600",
-    color: "#4B5563",
-    marginBottom: 6,
-    textTransform: "uppercase",
-    letterSpacing: 0.5,
   },
+
+  formContainer: {
+    borderRadius: 20,
+    borderWidth: 1,
+    flexGrow: 0,
+    flexShrink: 1,
+  },
+
+  formContent: {
+    padding: 20,
+  },
+
+  inputLabel: {
+    fontSize: 11.5,
+    fontWeight: "700",
+    marginBottom: 6,
+    marginTop: 10,
+    letterSpacing: 0.2,
+  },
+
   inputWrapper: {
     flexDirection: "row",
     alignItems: "center",
-    backgroundColor: "#F9FAFB",
     borderWidth: 1,
-    borderColor: "#E5E7EB",
     borderRadius: 12,
     paddingHorizontal: 12,
     height: 48,
-    marginBottom: 20,
+    marginBottom: 6,
   },
+
   inputIcon: {
     marginRight: 10,
   },
+
+  atSymbol: {
+    fontSize: 16,
+    fontWeight: "700",
+    marginRight: 6,
+  },
+
   textInput: {
     flex: 1,
-    fontSize: 15,
-    color: "#1F2937",
+    fontSize: 14,
+    fontWeight: "500",
+    height: "100%",
   },
+
   eyeIcon: {
-    padding: 4,
+    padding: 6,
   },
+
+  helperRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginTop: 2,
+    marginBottom: 4,
+    paddingLeft: 2,
+  },
+
+  helperText: {
+    fontSize: 10.5,
+    marginLeft: 5,
+    lineHeight: 15,
+  },
+
   actionButton: {
-    backgroundColor: "#20142A",
-    height: 52,
-    borderRadius: 12,
+    height: 50,
+    borderRadius: 13,
     justifyContent: "center",
     alignItems: "center",
-    marginTop: 8,
-    shadowColor: "#20142A",
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.2,
-    shadowRadius: 8,
+    marginTop: 20,
+    marginBottom: 6,
+    shadowColor: "#000000",
+    shadowOffset: {
+      width: 0,
+      height: 4,
+    },
+    shadowOpacity: 0.15,
+    shadowRadius: 6,
+    elevation: 3,
   },
+
   actionButtonDisabled: {
-    backgroundColor: "#9CA3AF",
+    opacity: 0.6,
   },
+
   actionButtonText: {
-    color: "#FFFFFF",
-    fontSize: 16,
-    fontWeight: "600",
+    fontSize: 15,
+    fontWeight: "700",
+    letterSpacing: -0.2,
   },
 });
+

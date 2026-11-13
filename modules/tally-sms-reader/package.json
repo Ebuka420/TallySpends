@@ -1,0 +1,8 @@
+{
+  "name": "tally-sms-reader",
+  "version": "1.0.0",
+  "description": "Consent-gated Android incoming bank alert receiver for TallySpends",
+  "license": "UNLICENSED",
+  "author": "TallySpends",
+  "main": "index.ts"
+}

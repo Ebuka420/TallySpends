@@ -1,0 +1,359 @@
+import { Ionicons } from "@expo/vector-icons";
+import { useRouter } from "expo-router";
+import React, { useRef, useState } from "react";
+import { Pressable, Text, View } from "react-native";
+import {
+  BudgetAmount,
+  BudgetButton,
+  BudgetCard,
+  BudgetCopy,
+  BudgetFrame,
+  BudgetLoading,
+  ui,
+} from "../components/BudgetUI";
+import { money, today, totals } from "../src/budget/ledger";
+import { operationId, runBudgetCommand } from "../src/budget/repository";
+import { useAppStore } from "../src/store";
+import { spendingInMonth } from "../src/transactions/budgeting";
+import { AddAction, Disclosure, PlanTabs, PlanTip } from "../components/PlanningUI";
+
+export default function BudgetSpendingScreen() {
+  const router = useRouter();
+  const {
+    budgetWallet: wallet,
+    budgetError,
+    reloadBudgetWallet,
+    transactions,
+    trackedBudgetSpending,
+    theme,
+  } = useAppStore();
+  const [showPlan, setShowPlan] = useState(false);
+  const [filter, setFilter] = useState("active");
+  const visibleBudgets =
+    wallet?.budgets.filter((b) => b.status === filter) || [];
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+  const lock = useRef(false);
+  const planId = useRef(operationId());
+  const summary = wallet ? totals(wallet) : null;
+  const month = today().slice(0, 7);
+  const monthSpent = spendingInMonth(transactions, month);
+  // Deterministic preview, not a call to the conversational Coach API.
+  const plan = summary
+    ? [
+        {
+          name: "Food",
+          category: "Food & Dining",
+          amount: Math.floor((summary.available * 30) / 100),
+        },
+        {
+          name: "Transport",
+          category: "Transport",
+          amount: Math.floor((summary.available * 20) / 100),
+        },
+        {
+          name: "Bills",
+          category: "Bills & Utilities",
+          amount: Math.floor((summary.available * 30) / 100),
+        },
+      ]
+    : [];
+  const planTotal = plan.reduce((sum, p) => sum + p.amount, 0);
+  const fundPlan = async () => {
+    if (lock.current) return;
+    lock.current = true;
+    setBusy(true);
+    setError("");
+    try {
+      await runBudgetCommand(
+        {
+          type: "allocate",
+          allocations: plan.map((p) => ({ ...p, startDate: today() })),
+        },
+        planId.current,
+      );
+      setShowPlan(false);
+      setFilter("active");
+      planId.current = operationId();
+    } catch (e) {
+      setError(
+        e instanceof Error ? e.message : "Could not fund the plan. Try again.",
+      );
+    } finally {
+      lock.current = false;
+      setBusy(false);
+    }
+  };
+  return (
+    <BudgetFrame
+      title="My Budget"
+      backTo="/(tabs)/budget"
+      backLabel="Budget"
+      theme={theme}
+      action={
+        <AddAction theme={theme} onPress={() => router.push("/add-budget")} />
+      }
+    >
+      {!wallet || budgetError ? (
+        <BudgetLoading
+          theme={theme}
+          error={budgetError}
+          retry={reloadBudgetWallet}
+        />
+      ) : (
+        summary && (
+          <>
+            <BudgetCard theme={theme}>
+              <Text style={[ui.label, { color: theme.textSecondary }]}>
+                REMAINING IN YOUR BUDGETS
+              </Text>
+              <BudgetAmount amount={summary.remaining} theme={theme} />
+              <View
+                style={[
+                  ui.row,
+                  {
+                    borderTopWidth: 1,
+                    borderColor: theme.border,
+                    paddingTop: 16,
+                  },
+                ]}
+              >
+                <View style={{ flex: 1 }}>
+                  <BudgetCopy theme={theme}>Allocated</BudgetCopy>
+                  <Text style={{ color: theme.textPrimary, fontWeight: "700" }}>
+                    {money(summary.allocated)}
+                  </Text>
+                </View>
+                <View style={{ flex: 1 }}>
+                  <BudgetCopy theme={theme}>Spent this month</BudgetCopy>
+                  <Text style={{ color: theme.textPrimary, fontWeight: "700" }}>
+                    {money(monthSpent)}
+                  </Text>
+                </View>
+              </View>
+            </BudgetCard>
+            <BudgetCopy theme={theme}>
+              {money(summary.available)} available to allocate · Saved on this
+              device
+            </BudgetCopy>
+            <View style={[ui.row, { marginTop: 10 }]}>
+              <Text style={[ui.heading, { color: theme.textPrimary, flex: 1 }]}>
+                Your budgets
+              </Text>
+              <BudgetCopy theme={theme}>
+                {visibleBudgets.length} buckets
+              </BudgetCopy>
+            </View>
+            <PlanTip theme={theme} title="Give every naira a little direction" text="Start with essentials like food and transport. Check what is left before each purchase, and move money between budgets when plans change." />
+          <PlanTabs
+              theme={theme}
+              values={["active", "archived"]}
+              selected={filter}
+              onChange={setFilter}
+            />
+            {!visibleBudgets.length && (
+              <BudgetCard theme={theme}>
+                <Ionicons
+                  name="albums-outline"
+                  size={32}
+                  color={theme.accent}
+                />
+                <Text style={[ui.heading, { color: theme.textPrimary }]}>
+                  {filter === "archived"
+                    ? "No archived budgets"
+                    : "Make room for what matters"}
+                </Text>
+                <BudgetCopy theme={theme}>
+                  {filter === "archived"
+                    ? "Deleted budgets stay here with their history. You can restore them anytime."
+                    : "Start with food, transport, or something of your own. Your first allocation comes from your available balance."}
+                </BudgetCopy>
+                {filter === "active" && (
+                  <BudgetButton
+                    theme={theme}
+                    title="Create budget"
+                    onPress={() => router.push("/add-budget")}
+                  />
+                )}
+              </BudgetCard>
+            )}
+            {visibleBudgets.map((b) => (
+              <Pressable
+                key={b.id}
+                accessibilityRole="button"
+                accessibilityLabel={`Open ${b.name}, ${money(b.remainingAmount)} remaining`}
+                onPress={() =>
+                  router.push({
+                    pathname: "/budget-details",
+                    params: { id: b.id },
+                  })
+                }
+              >
+                <BudgetCard theme={theme}>
+                  <View style={ui.row}>
+                    <View
+                      style={[ui.back, { backgroundColor: theme.accentSoft }]}
+                    >
+                      <Ionicons
+                        name="wallet-outline"
+                        size={20}
+                        color={theme.accent}
+                      />
+                    </View>
+                    <View style={{ flex: 1 }}>
+                      <Text
+                        style={[
+                          ui.heading,
+                          { color: theme.textPrimary, fontSize: 17 },
+                        ]}
+                      >
+                        {b.name}
+                      </Text>
+                      <BudgetCopy theme={theme}>
+                        {b.status === "archived"
+                          ? "Archived · history kept"
+                          : b.remainingAmount === 0
+                            ? "Spent up · add money or archive"
+                            : b.endDate && b.endDate < today()
+                              ? "Period ended · money still yours"
+                              : b.startDate > today()
+                                ? `Starts ${b.startDate}`
+                                : b.category}
+                      </BudgetCopy>
+                    </View>
+                    <Ionicons
+                      name="chevron-forward"
+                      size={18}
+                      color={theme.textSecondary}
+                    />
+                  </View>
+                  <Text
+                    style={{
+                      color: theme.textPrimary,
+                      fontSize: 26,
+                      fontWeight: "800",
+                    }}
+                  >
+                    {money(b.remainingAmount)}{" "}
+                    <Text style={{ fontSize: 12, fontWeight: "400" }}>
+                      remaining
+                    </Text>
+                  </Text>
+                  <View
+                    style={{
+                      height: 5,
+                      backgroundColor: theme.surfaceSoft,
+                      borderRadius: 5,
+                      overflow: "hidden",
+                    }}
+                  >
+                    <View
+                      style={{
+                        height: 5,
+                        borderRadius: 5,
+                        backgroundColor: theme.accent,
+                        width: `${b.allocatedAmount ? Math.min(100, ((trackedBudgetSpending[b.id] ?? b.spentAmount) / b.allocatedAmount) * 100) : 0}%`,
+                      }}
+                    />
+                  </View>
+                  <View
+                    style={[
+                      ui.row,
+                      { justifyContent: "space-between", flexWrap: "wrap" },
+                    ]}
+                  >
+                    <BudgetCopy theme={theme}>
+                      {money(b.allocatedAmount)} allocated
+                    </BudgetCopy>
+                    <BudgetCopy theme={theme}>
+                      {money(trackedBudgetSpending[b.id] ?? b.spentAmount)} tracked
+                    </BudgetCopy>
+                  </View>
+                </BudgetCard>
+              </Pressable>
+            ))}
+            {Object.values(wallet.review).map((message, index) => (
+              <BudgetCopy key={index} theme={theme} error>
+                {message}
+              </BudgetCopy>
+            ))}
+            <Disclosure
+              title="Need a starting point?"
+              detail="Preview a sample plan"
+              theme={theme}
+            >
+              <View style={ui.row}>
+                <Ionicons
+                  name="sparkles-outline"
+                  size={20}
+                  color={theme.accent}
+                />
+                <Text
+                  style={[
+                    ui.heading,
+                    { color: theme.textPrimary, fontSize: 16 },
+                  ]}
+                >
+                  A little help getting started
+                </Text>
+              </View>
+              <BudgetCopy theme={theme}>
+                Sample plan · Not an AI recommendation. Preview a simple split
+                of your available money.
+              </BudgetCopy>
+              {showPlan ? (
+                <>
+                  {plan.map((p) => (
+                    <View
+                      key={p.name}
+                      style={[ui.row, { justifyContent: "space-between" }]}
+                    >
+                      <BudgetCopy theme={theme}>{p.name}</BudgetCopy>
+                      <Text
+                        style={{ color: theme.textPrimary, fontWeight: "700" }}
+                      >
+                        {money(p.amount)}
+                      </Text>
+                    </View>
+                  ))}
+                  <BudgetCopy theme={theme}>
+                    {money(summary.available - planTotal)} stays free to spend.
+                    All three allocations are funded together.
+                  </BudgetCopy>
+                  {error ? (
+                    <BudgetCopy theme={theme} error>
+                      {error}
+                    </BudgetCopy>
+                  ) : null}
+                  <BudgetButton
+                    theme={theme}
+                    title={
+                      busy ? "Funding…" : `Fund this plan · ${money(planTotal)}`
+                    }
+                    disabled={busy || plan.some((p) => p.amount <= 0)}
+                    onPress={fundPlan}
+                  />
+                  <BudgetButton
+                    theme={theme}
+                    secondary
+                    title="Close preview"
+                    disabled={busy}
+                    onPress={() => setShowPlan(false)}
+                  />
+                </>
+              ) : (
+                <BudgetButton
+                  theme={theme}
+                  secondary
+                  title="Preview sample plan"
+                  disabled={summary.available < 5}
+                  onPress={() => setShowPlan(true)}
+                />
+              )}
+            </Disclosure>
+          </>
+        )
+      )}
+    </BudgetFrame>
+  );
+}

@@ -1,4 +1,5 @@
 import { Ionicons } from "@expo/vector-icons";
+import Constants from "expo-constants";
 import { useRouter } from "expo-router";
 import React from "react";
 import { useAppStore } from "../src/store";
@@ -9,6 +10,8 @@ import {
     TouchableOpacity,
     View,
 } from "react-native";
+
+import DynamicLogo from "../components/DynamicLogo";
 
 export default function SettingsAboutScreen() {
   const router = useRouter();
@@ -29,13 +32,7 @@ export default function SettingsAboutScreen() {
       </View>
 
       <View style={styles.heroCard}>
-        <View style={styles.heroIconCircle}>
-          <Ionicons
-            name="information-circle-outline"
-            size={22}
-            color={theme.accent}
-          />
-        </View>
+        <DynamicLogo size={46} style={{ marginRight: 12 }} />
         <View style={styles.heroTextWrap}>
           <Text style={styles.heroTitle}>TallySpends</Text>
           <Text style={styles.heroSubtitle}>
@@ -47,7 +44,7 @@ export default function SettingsAboutScreen() {
 
       <View style={styles.card}>
         <Text style={styles.cardTitle}>App version</Text>
-        <Text style={styles.cardValue}>1.0.0</Text>
+        <Text style={styles.cardValue}>{Constants.expoConfig?.version || "Unknown"}</Text>
       </View>
 
       <View style={styles.card}>
@@ -56,6 +53,18 @@ export default function SettingsAboutScreen() {
           Smarter budgeting and mindful savings
         </Text>
       </View>
+      <TouchableOpacity
+        accessibilityRole="button"
+        accessibilityLabel="Replay introduction"
+        onPress={() => router.push("/intro-preview")}
+        style={[styles.card, { flexDirection: "row", alignItems: "center", gap: 12 }]}
+      >
+        <View style={{ flex: 1 }}>
+          <Text style={styles.cardTitle}>Replay introduction</Text>
+          <Text style={styles.cardValue}>Explore the TallySpends welcome experience</Text>
+        </View>
+        <Ionicons name="chevron-forward" size={20} color={theme.textSecondary} />
+      </TouchableOpacity>
     </SafeAreaView>
   );
 }
@@ -81,7 +90,7 @@ const getStyles = (theme: any) =>
       padding: 16,
       marginHorizontal: 20,
       marginBottom: 16,
-      shadowColor: "#000",
+      shadowColor: theme.shadow,
       shadowOffset: { width: 0, height: 2 },
       shadowOpacity: 0.06,
       shadowRadius: 10,

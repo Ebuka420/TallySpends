@@ -1,28 +1,42 @@
+import { useReducedMotion } from "../../components/AuthBackdrop";
+import { withAlpha } from "../../src/theme";
 import { Ionicons } from "@expo/vector-icons";
-import { BlurView } from "expo-blur";
+// Fallback: avoid requiring `expo-blur` so builds succeed when it's not installed
 import { Tabs } from "expo-router";
 import React from "react";
 import {
+  Animated,
+  Dimensions,
   Pressable,
   StyleSheet,
-  View,
-  Dimensions,
-  Animated,
   Text,
+  View,
 } from "react-native";
 import { useAppStore } from "../../src/store";
 
-function CustomTabBar({ state, descriptors, navigation, themeMode, theme, tabBarAlpha }: any) {
-  const slideAnim = React.useRef(new Animated.Value(state.index)).current;
+function CustomTabBar({
+  state,
+  descriptors,
+  emitter,
+  navigateToTab,
+  themeMode,
+  theme,
+  tabBarAlpha,
+}: any) {
+  const [slideAnim] = React.useState(() => new Animated.Value(state.index));
+  const reduced = useReducedMotion();
 
   React.useEffect(() => {
-    Animated.spring(slideAnim, {
+    if (reduced !== false) { slideAnim.setValue(state.index); return; }
+    const movement = Animated.spring(slideAnim, {
       toValue: state.index,
       useNativeDriver: true,
-      friction: 9,
-      tension: 50,
-    }).start();
-  }, [state.index]);
+      friction: theme.identity.motion.damping / 3,
+      tension: theme.identity.motion.stiffness / 3,
+    });
+    movement.start();
+    return () => movement.stop();
+  }, [state.index, reduced, slideAnim, theme.identity.motion.damping, theme.identity.motion.stiffness]);
 
   const { width: screenWidth } = Dimensions.get("window");
   const containerWidth = screenWidth - 36;
@@ -35,16 +49,20 @@ function CustomTabBar({ state, descriptors, navigation, themeMode, theme, tabBar
   });
 
   return (
-    <View style={[styles.tabBarContainer, { width: containerWidth, borderColor: theme.border }]}>
-      {/* Background glass blur */}
-      <BlurView intensity={80} tint={themeMode === "dark" ? "dark" : "light"} style={StyleSheet.absoluteFill} />
+    <View
+      style={[
+        styles.tabBarContainer,
+        { width: containerWidth, borderColor: theme.border },
+      ]}
+    >
+      {/* Background glass blur (fallback view when expo-blur isn't installed) */}
+      <View style={StyleSheet.absoluteFill} />
       <View
         style={[
           styles.tabBarOverlay,
           {
-            backgroundColor: themeMode === "dark"
-              ? `rgba(26, 24, 29, ${Math.max(0.2, tabBarAlpha * 0.85)})`
-              : `rgba(255, 255, 255, ${Math.max(0.1, tabBarAlpha * 0.95)})`,
+            backgroundColor:
+              withAlpha(theme.surface, Math.max(.2, tabBarAlpha)),
           },
         ]}
       />
@@ -56,20 +74,15 @@ function CustomTabBar({ state, descriptors, navigation, themeMode, theme, tabBar
           {
             width: tabWidth,
             transform: [{ translateX }],
-            backgroundColor: themeMode === "dark"
-              ? "rgba(255, 255, 255, 0.08)"
-              : "rgba(0, 0, 0, 0.05)",
-            borderColor: themeMode === "dark"
-              ? "rgba(255, 255, 255, 0.12)"
-              : "rgba(0, 0, 0, 0.08)",
+            backgroundColor:
+              theme.accentSoft,
+            borderColor:
+              theme.border,
           },
         ]}
       >
-        <BlurView
-          tint={themeMode === "dark" ? "light" : "dark"}
-          intensity={themeMode === "dark" ? 15 : 10}
-          style={StyleSheet.absoluteFill}
-        />
+        {/* inner blur fallback */}
+        <View style={StyleSheet.absoluteFill} />
       </Animated.View>
 
       {/* Tabs */}
@@ -78,19 +91,19 @@ function CustomTabBar({ state, descriptors, navigation, themeMode, theme, tabBar
         const isFocused = state.index === index;
 
         const onPress = () => {
-          const event = navigation.emit({
+          const event = emitter.emit({
             type: "tabPress",
             target: route.key,
             canPreventDefault: true,
           });
 
           if (!isFocused && !event.defaultPrevented) {
-            navigation.navigate(route.name);
+            navigateToTab(route.key);
           }
         };
 
         const onLongPress = () => {
-          navigation.emit({
+          emitter.emit({
             type: "tabLongPress",
             target: route.key,
           });
@@ -98,11 +111,18 @@ function CustomTabBar({ state, descriptors, navigation, themeMode, theme, tabBar
 
         // Determine icon name
         let iconName = "home-outline";
-        if (route.name === "index") iconName = isFocused ? "home" : "home-outline";
-        else if (route.name === "expenses") iconName = isFocused ? "document-text" : "document-text-outline";
-        else if (route.name === "budget") iconName = isFocused ? "wallet" : "wallet-outline";
-        else if (route.name === "analytics") iconName = isFocused ? "bar-chart" : "bar-chart-outline";
-        else if (route.name === "more") iconName = isFocused ? "ellipsis-horizontal" : "ellipsis-horizontal-outline";
+        if (route.name === "index")
+          iconName = isFocused ? "home" : "home-outline";
+        else if (route.name === "expenses")
+          iconName = isFocused ? "document-text" : "document-text-outline";
+        else if (route.name === "budget")
+          iconName = isFocused ? "wallet" : "wallet-outline";
+        else if (route.name === "analytics")
+          iconName = isFocused ? "bar-chart" : "bar-chart-outline";
+        else if (route.name === "more")
+          iconName = isFocused
+            ? "ellipsis-horizontal"
+            : "ellipsis-horizontal-outline";
 
         const label = options.title !== undefined ? options.title : route.name;
 
@@ -187,7 +207,7 @@ const styles = StyleSheet.create({
     elevation: 8,
   },
   tabBarOverlay: {
-    ...StyleSheet.absoluteFillObject,
+    ...StyleSheet.absoluteFill,
   },
   slidingIndicator: {
     position: "absolute",
@@ -208,3 +228,5 @@ const styles = StyleSheet.create({
     fontSize: 10.5,
   },
 });
+
+
