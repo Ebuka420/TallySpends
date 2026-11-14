@@ -309,7 +309,7 @@ export default function TransferScreen() {
         >
           <Ionicons name="chevron-back" size={24} color={theme.textPrimary} />
         </TouchableOpacity>
-        <Text style={styles.headerTitle}>Recipients</Text>
+        <Text style={styles.headerTitle}>Transfer</Text>
         <TouchableOpacity
           style={styles.headerQRButton}
           onPress={() => router.push("/request")}
@@ -324,7 +324,13 @@ export default function TransferScreen() {
         contentContainerStyle={styles.scrollContainer}
         keyboardShouldPersistTaps="handled"
       >
-        <Text style={styles.sectionTitle}>Send Money</Text>
+        <View style={styles.transferHero}>
+          <View style={styles.transferHeroTop}><View style={styles.transferHeroIcon}><Ionicons name="paper-plane-outline" size={22} color={theme.accent} /></View><View style={styles.demoPill}><View style={styles.demoDot} /><Text style={styles.demoText}>DEMO</Text></View></View>
+          <Text style={styles.transferHeroTitle}>Send money simply.</Text>
+          <Text style={styles.transferHeroCopy}>Choose a recipient, scan a TallySpends QR, or try the demo flow.</Text>
+          <View style={styles.transferHeroFooter}><Ionicons name="shield-checkmark-outline" size={15} color={theme.accent} /><Text style={styles.transferHeroFootnote}>No real payment will be made.</Text></View>
+        </View>
+        <Text style={styles.sectionTitle}>CHOOSE HOW TO START</Text>
         <View style={styles.actionRow}>
           <TouchableOpacity
             style={styles.actionCard}
@@ -359,7 +365,7 @@ export default function TransferScreen() {
 
           <TouchableOpacity
             style={styles.actionCard}
-            onPress={() => Alert.alert("Contacts", "Opening contact list...")}
+            onPress={() => Alert.alert("Contacts unavailable", "Contact selection isn't connected in this demo. Use a verified TallySpends QR instead.")}
             activeOpacity={0.7}
           >
             <View style={styles.actionIconContainer}>
@@ -373,8 +379,8 @@ export default function TransferScreen() {
           </TouchableOpacity>
         </View>
 
-        <Text style={styles.sectionTitle}>Recents</Text>
-        <ScrollView
+        {recentRecipients.length > 0 && <Text style={styles.sectionTitle}>RECENT RECIPIENTS</Text>}
+        {recentRecipients.length > 0 && <ScrollView
           horizontal
           showsHorizontalScrollIndicator={false}
           contentContainerStyle={styles.recentsRow}
@@ -399,7 +405,7 @@ export default function TransferScreen() {
               </Text>
             </TouchableOpacity>
           ))}
-        </ScrollView>
+        </ScrollView>}
 
         <View style={styles.filterSection}>
           <View style={styles.chipsContainer}>
@@ -920,8 +926,8 @@ const getStyles = (theme: any) =>
       justifyContent: "space-between",
       paddingHorizontal: 16,
       borderBottomWidth: 1,
-      borderColor: "rgba(91, 78, 145, 0.08)",
-      backgroundColor: theme.surface,
+      borderColor: theme.border,
+      backgroundColor: theme.background,
     },
     backButton: {
       padding: 4,
@@ -940,14 +946,26 @@ const getStyles = (theme: any) =>
     scrollContainer: {
       padding: 20,
       paddingBottom: 40,
+      gap: 2,
     },
+    transferHero: { backgroundColor: theme.surface, borderRadius: 23, borderWidth: 1, borderColor: theme.border, padding: 18, marginBottom: 4 },
+    transferHeroTop: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
+    transferHeroIcon: { width: 44, height: 44, borderRadius: 15, backgroundColor: theme.accentSoft, alignItems: "center", justifyContent: "center" },
+    demoPill: { flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: 10, paddingVertical: 6, borderRadius: 20, backgroundColor: theme.surfaceSoft },
+    demoDot: { width: 6, height: 6, borderRadius: 3, backgroundColor: theme.accent },
+    demoText: { fontSize: 9, fontWeight: "800", letterSpacing: .8, color: theme.accent },
+    transferHeroTitle: { color: theme.textPrimary, fontSize: 22, fontWeight: "800", letterSpacing: -.4, marginTop: 16 },
+    transferHeroCopy: { color: theme.textSecondary, fontSize: 12, lineHeight: 18, marginTop: 5 },
+    transferHeroFooter: { flexDirection: "row", alignItems: "center", gap: 7, borderTopWidth: 1, borderColor: theme.border, marginTop: 15, paddingTop: 12 },
+    transferHeroFootnote: { color: theme.textSecondary, fontSize: 10, fontWeight: "600" },
     sectionTitle: {
-      fontSize: 14,
+      fontSize: 10,
       fontWeight: "700",
       color: theme.textSecondary,
       textTransform: "uppercase",
-      letterSpacing: 0.8,
-      marginBottom: 12,
+      letterSpacing: 1.2,
+      marginTop: 20,
+      marginBottom: 11,
     },
     actionRow: {
       flexDirection: "row",
@@ -959,15 +977,15 @@ const getStyles = (theme: any) =>
       flex: 1,
       alignItems: "center",
       backgroundColor: theme.surface,
-      borderRadius: 20,
-      paddingVertical: 14,
+      borderRadius: 19,
+      paddingVertical: 16,
       borderWidth: 1,
       borderColor: theme.border,
-      shadowColor: "#3A2E53",
-      shadowOffset: { width: 0, height: 4 },
-      shadowOpacity: 0.05,
-      shadowRadius: 10,
-      elevation: 2,
+      shadowColor: theme.shadow,
+      shadowOffset: { width: 0, height: 2 },
+      shadowOpacity: 0.04,
+      shadowRadius: 8,
+      elevation: 1,
     },
     actionIconContainer: {
       width: 48,
@@ -1651,7 +1669,7 @@ const getStyles = (theme: any) =>
       marginTop: 16,
       padding: 14,
       backgroundColor: theme.surface,
-      borderRadius: 16,
+      borderRadius: 20,
       borderWidth: 1,
       borderColor: theme.border,
     },
@@ -1678,7 +1696,7 @@ const getStyles = (theme: any) =>
       marginTop: 2,
     },
     transferBody: {
-      padding: 20,
+      padding: 22,
       flex: 1,
     },
     transferLabel: {
@@ -1691,11 +1709,11 @@ const getStyles = (theme: any) =>
       flexDirection: "row",
       alignItems: "center",
       backgroundColor: theme.surface,
-      borderRadius: 16,
+      borderRadius: 20,
       borderWidth: 1,
       borderColor: theme.border,
       paddingHorizontal: 16,
-      height: 64,
+      height: 72,
       marginBottom: 12,
     },
     transferAmountError: {
@@ -1723,7 +1741,7 @@ const getStyles = (theme: any) =>
       paddingHorizontal: 14,
       paddingVertical: 8,
       backgroundColor: theme.surfaceSoft,
-      borderRadius: 12,
+      borderRadius: 18,
     },
     transferQuickText: {
       fontSize: 12,
@@ -1744,7 +1762,7 @@ const getStyles = (theme: any) =>
     },
     transferNoteInput: {
       backgroundColor: theme.surface,
-      borderRadius: 16,
+      borderRadius: 20,
       borderWidth: 1,
       borderColor: theme.border,
       paddingHorizontal: 16,
@@ -1764,8 +1782,8 @@ const getStyles = (theme: any) =>
     },
     transferPrimaryButton: {
       backgroundColor: theme.accent,
-      borderRadius: 16,
-      height: 52,
+      borderRadius: 18,
+      height: 56,
       justifyContent: "center",
       alignItems: "center",
       marginTop: 10,
@@ -1825,6 +1843,9 @@ const getStyles = (theme: any) =>
       alignItems: "center",
       paddingVertical: 20,
       marginBottom: 16,
+      paddingHorizontal: 15,
+      borderRadius: 17,
+      backgroundColor: theme.surfaceSoft,
     },
     transferTotalLabel: {
       fontSize: 15,
@@ -1842,7 +1863,7 @@ const getStyles = (theme: any) =>
       gap: 12,
       backgroundColor: theme.accentSoft,
       padding: 14,
-      borderRadius: 16,
+      borderRadius: 19,
       marginBottom: 24,
     },
     transferSecurityIcon: {

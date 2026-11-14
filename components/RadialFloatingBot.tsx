@@ -2,6 +2,7 @@ import { useThemeTokens } from "../src/ThemeExperience";
 import { BudgetDate } from "./PlanningUI";
 import { CoachToolSheet } from "./CoachToolSheet";
 import { CoachActionMenu } from "./CoachActionMenu";
+import { setCoachTutorialAnchor } from "./SmartCoachTutorialLayer";
 import { SmartCoachSheet } from "./SmartCoachSheet";
 import type { CoachAction } from "../src/coach/menu";
 import { useRouter } from "expo-router";
@@ -256,7 +257,7 @@ export default function RadialFloatingBot() {
   };
   const CALCULATOR_BUTTONS = [["C", "÷", "×", "⌫"], ["7", "8", "9", "−"], ["4", "5", "6", "+"], ["1", "2", "3", "="], ["0", ".", "", ""]];
   return <>
-      <CoachActionMenu theme={theme} dark={isDark} onAction={handleTriggerAction} />
+      <CoachActionMenu theme={theme} dark={isDark} onAction={handleTriggerAction} onTutorialPosition={(x, y) => setCoachTutorialAnchor(x, y)} />
       <SmartCoachSheet visible={activeModal === "coach"} theme={theme} dark={isDark} onClose={() => setActiveModal(null)} />
       <CoachToolSheet visible={activeModal === "add" || activeModal === "calc" || activeModal === "scan"} theme={theme} icon={activeModal === "add" ? "add-outline" : activeModal === "calc" ? "calculator-outline" : "scan-outline"} title={activeModal === "add" ? "Add an expense" : activeModal === "calc" ? "Calculator" : scannedImageUri ? "Review your receipt" : "Scan a receipt"} subtitle={activeModal === "add" ? "Keep the little things accounted for." : activeModal === "calc" ? "Work it out, then add it to your spending." : scannedImageUri ? "A quick check before you save." : "Turn a paper receipt into a spending record."} onClose={() => {
       if (!transactionAction.busy) setActiveModal(null);

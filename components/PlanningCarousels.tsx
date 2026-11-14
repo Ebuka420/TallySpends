@@ -7,12 +7,14 @@ import type { ThemeId, ThemeMode, ThemePalette } from "../src/theme";
 import type { PeopleDirectory } from "./BudgetPeople";
 import { BudgetLoading } from "./BudgetUI";
 import { HomeCarousel, type HomeCard } from "./HomeCarousel";
+import { TutorialTarget } from "./SmartCoachTutorialLayer";
 
-export function PlanningCarousels({ wallet, trackedBudgetSpending = {}, theme, themeMode, themePreference, people, error, retry, showSavings = true, showBudgets = false, autoAdjustLayout = false }: {
+export function PlanningCarousels({ wallet, trackedBudgetSpending = {}, theme, themeMode, themePreference, people, error, retry, showSavings = true, showBudgets = false, autoAdjustLayout = false, tutorialScrollRef, tutorialScrollOffsetRef }: {
   wallet: Wallet | null; theme: ThemePalette; themeMode: ThemeMode; themePreference: ThemeId;
   trackedBudgetSpending?: Record<string, number>;
   people: PeopleDirectory; error: string | null; retry: () => void;
   showSavings?: boolean; showBudgets?: boolean; autoAdjustLayout?: boolean;
+  tutorialScrollRef?: React.RefObject<any>; tutorialScrollOffsetRef?: React.RefObject<number>;
 }) {
   const router = useRouter();
   if (!wallet || error) return <View style={{ marginTop: 20 }}><BudgetLoading theme={theme} error={error} retry={retry} /></View>;
@@ -40,5 +42,10 @@ export function PlanningCarousels({ wallet, trackedBudgetSpending = {}, theme, t
     { id: "budgets", title: "Budgets", link: "View budgets", route: "/(tabs)/budget" as const, cards: budgets, visible: showBudgets, count: wallet.budgets.filter(b => b.status === "active").length },
   ].filter(s => s.visible);
   if (autoAdjustLayout) sections.sort((a, b) => b.count - a.count);
-  return <>{sections.map(section => <HomeCarousel key={section.id} title={section.title} link={section.link} onViewAll={() => router.push(section.route)} cards={section.cards} theme={theme} themeMode={themeMode} themePreference={themePreference} interval={6000} />)}</>;
+  return <>{sections.map(section => {
+    const carousel = <HomeCarousel title={section.title} link={section.link} onViewAll={() => router.push(section.route)} cards={section.cards} theme={theme} themeMode={themeMode} themePreference={themePreference} interval={6000} />;
+    return section.id === "budgets"
+      ? <TutorialTarget key={section.id} id="home-budgets" scrollRef={tutorialScrollRef} scrollOffsetRef={tutorialScrollOffsetRef}>{carousel}</TutorialTarget>
+      : <React.Fragment key={section.id}>{carousel}</React.Fragment>;
+  })}</>;
 }

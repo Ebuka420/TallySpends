@@ -8,6 +8,7 @@ import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
 import { loadAsync } from "expo-font";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import RadialFloatingBot from "../components/RadialFloatingBot";
+import SmartCoachTutorialLayer from "../components/SmartCoachTutorialLayer";
 import StartupScreen from "../components/StartupScreen";
 import QrIntentResume from "../components/QrIntentResume";
 import { usePushNotifications } from "../src/hooks/usePushNotifications";
@@ -198,6 +199,7 @@ function AppNavigation({ isAuthenticated, topLevelGroup, introSeen }: { isAuthen
         </Stack>
         <PushNotifications />
         <QrIntentResume authenticated={isAuthenticated && security.unlocked} />
+        {isAuthenticated && security.unlocked && topLevelGroup !== "onboarding" && topLevelGroup !== "intro-preview" && <SmartCoachTutorialLayer theme={theme} />}
         {isAuthenticated && security.unlocked && topLevelGroup !== "onboarding" && topLevelGroup !== "intro-preview" && <RadialFloatingBot />}
       </View>
   );

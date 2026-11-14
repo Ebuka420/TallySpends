@@ -7,11 +7,11 @@ import { RELATIONSHIPS, dateOnly, isDateOnly, type FieldErrors, type YounginsDra
 import type { ThemeMode, ThemePalette } from "../src/theme";
 
 export const younginsBrand = (theme: ThemePalette): ThemePalette => theme;
-export default function YounginsForm({ draft, errors, onChange, onBlur, disabled, theme, themeMode, includeNin = true }: {
+export default function YounginsForm({ draft, errors, onChange, onBlur, disabled, theme, themeMode, step = "all", includeNin = true }: {
   draft: YounginsDraft; errors: FieldErrors;
   onChange: (field: keyof YounginsDraft, value: string) => void;
   onBlur: (field: keyof YounginsDraft) => void;
-  disabled: boolean; theme: ThemePalette; themeMode: ThemeMode; includeNin?: boolean;
+  disabled: boolean; theme: ThemePalette; themeMode: ThemeMode; step?: "all" | "child" | "guardian"; includeNin?: boolean;
 }) {
   const [dateOpen, setDateOpen] = useState(false);
   const [relationshipOpen, setRelationshipOpen] = useState(false);
@@ -20,7 +20,8 @@ export default function YounginsForm({ draft, errors, onChange, onBlur, disabled
   const error = (field: keyof YounginsDraft) => errors[field] ? <BudgetCopy theme={theme} error>{errors[field]}</BudgetCopy> : null;
   const inputStyle = (field: keyof YounginsDraft) => [ui.input, { color: theme.textPrimary, backgroundColor: theme.surface, borderColor: errors[field] ? theme.danger : theme.border }];
   return <View style={{ gap: 20 }}>
-    {(["firstName", "lastName"] as const).map((field, index) => <View key={field}>
+    {step !== "guardian" && <>
+      {(["firstName", "lastName"] as const).map((field, index) => <View key={field}>
       {label(index === 0 ? "First Name" : "Last Name")}
       <TextInput accessibilityLabel={index === 0 ? "First Name, required" : "Last Name, required"}
         value={draft[field]} onChangeText={value => onChange(field, value)} onBlur={() => onBlur(field)}
@@ -47,7 +48,9 @@ export default function YounginsForm({ draft, errors, onChange, onBlur, disabled
         }} style={{ padding: 12, alignSelf: "flex-end" }}><Text style={{ color: theme.textPrimary, fontWeight: "700" }}>Done</Text></Pressable>}
       </View>}
       {error("dateOfBirth")}
-    </View>
+      </View>
+    </>}
+    {step !== "child" && <>
     <View>
       {label("Guardian Relationship")}
       <Pressable accessibilityRole="button" accessibilityLabel="Select guardian relationship" accessibilityState={{ expanded: relationshipOpen }}
@@ -72,6 +75,7 @@ export default function YounginsForm({ draft, errors, onChange, onBlur, disabled
         autoCorrect={false} spellCheck={false} editable={!disabled} style={inputStyle("nin")} />
       {error("nin")}
     </View>}
+    </>}
   </View>;
 }
 

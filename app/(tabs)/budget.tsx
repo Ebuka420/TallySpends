@@ -1,7 +1,7 @@
 import { useThemeTokens } from "../../src/ThemeExperience";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
-import React, { useState } from "react";
+import React, { useRef, useState } from "react";
 import {
   SafeAreaView,
   ScrollView,
@@ -18,6 +18,7 @@ import {
   BudgetLoading,
 } from "../../components/BudgetUI";
 import { money, reservedSavings, totals } from "../../src/budget/ledger";
+import { TutorialTarget } from "../../components/SmartCoachTutorialLayer";
 
 const actions = [
   {
@@ -48,11 +49,16 @@ export default function BudgetScreen() {
     reloadBudgetWallet,
   } = useAppStore();
   const theme = useThemeTokens();
+  const tutorialScrollRef = useRef<any>(null);
+  const tutorialScrollOffset = useRef(0);
   const [create, setCreate] = useState(false);
   const summary = wallet ? totals(wallet) : null;
   return (
     <SafeAreaView style={[s.safe, { backgroundColor: theme.background }]}>
       <ScrollView
+        ref={tutorialScrollRef}
+        onScroll={event => { tutorialScrollOffset.current = event.nativeEvent.contentOffset.y; }}
+        scrollEventThrottle={16}
         contentContainerStyle={s.content}
         showsVerticalScrollIndicator={false}
       >
@@ -81,7 +87,7 @@ export default function BudgetScreen() {
           />
         ) : (
           summary && (
-            <View
+            <TutorialTarget id="budget-available" scrollRef={tutorialScrollRef} scrollOffsetRef={tutorialScrollOffset}><View
               style={[
                 s.overview,
                 {
@@ -103,11 +109,12 @@ export default function BudgetScreen() {
                 {money(summary.remaining)} in budgets ·{" "}
                 {money(reservedSavings(wallet))} in savings
               </BudgetCopy>
-            </View>
+            </View></TutorialTarget>
           )
         )}
         <View style={s.list}>
           {actions.map((item) => (
+            <TutorialTarget key={item.title} scrollRef={tutorialScrollRef} scrollOffsetRef={tutorialScrollOffset} id={item.title === "My budget" ? "budget-items" : item.title === "My savings" ? "budget-savings" : "budget-ajo"}>
             <TouchableOpacity
               key={item.title}
               activeOpacity={0.78}
@@ -133,7 +140,7 @@ export default function BudgetScreen() {
                 </Text>
               </View>
               <Ionicons name="chevron-forward" size={18} color={theme.accent} />
-            </TouchableOpacity>
+            </TouchableOpacity></TutorialTarget>
           ))}
         </View>
         <PlanTip theme={theme} title="A little planning goes a long way" text="Start with your everyday essentials, save towards one goal, then build from there. Small amounts count too." />

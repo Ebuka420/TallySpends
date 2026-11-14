@@ -3,7 +3,7 @@ import { AnalyticsReportSheet } from "../../components/AnalyticsReportSheet";
 import { analyticsRange, analyticsReport } from "../../src/analytics/report";
 import { spendingRhythm } from "../../src/analytics/rhythm";
 import { Ionicons } from "@expo/vector-icons";
-import React, { useMemo, useState } from "react";
+import React, { useMemo, useRef, useState } from "react";
 import {
   Modal,
   SafeAreaView,
@@ -17,6 +17,7 @@ import {
 } from "react-native";
 import Svg, { Defs, LinearGradient, Path, Stop } from "react-native-svg";
 import { useAppStore } from "../../src/store";
+import { TutorialTarget } from "../../components/SmartCoachTutorialLayer";
 
 type Timeframe = "weekly" | "monthly" | "yearly";
 
@@ -82,6 +83,8 @@ export default function AnalyticsScreen() {
   const transactions = rawTransactions as any[];
 
   const theme = useThemeTokens();
+  const tutorialScrollRef = useRef<any>(null);
+  const tutorialScrollOffset = useRef(0);
 
   /*
    * Keep all screen colors tied to the active theme.
@@ -270,6 +273,9 @@ export default function AnalyticsScreen() {
       ]}
     >
       <ScrollView
+        ref={tutorialScrollRef}
+        onScroll={event => { tutorialScrollOffset.current = event.nativeEvent.contentOffset.y; }}
+        scrollEventThrottle={16}
         contentContainerStyle={styles.content}
         showsVerticalScrollIndicator={false}
       >
@@ -302,7 +308,7 @@ export default function AnalyticsScreen() {
           <Text style={{ color: colors.textMuted, fontSize: 11 }}>Couldn’t refresh backend transactions. Tap to retry; saved manual entries remain available.</Text>
         </TouchableOpacity>}
 
-        <View style={styles.controls}>
+        <TutorialTarget id="analytics-period" scrollRef={tutorialScrollRef} scrollOffsetRef={tutorialScrollOffset}><View style={styles.controls}>
           <View
             style={[
               styles.segment,
@@ -367,9 +373,9 @@ export default function AnalyticsScreen() {
 
             <Ionicons name="chevron-down" size={14} color={colors.primary} />
           </TouchableOpacity>
-        </View>
+        </View></TutorialTarget>
 
-        <View
+        <TutorialTarget id="analytics-cashflow" scrollRef={tutorialScrollRef} scrollOffsetRef={tutorialScrollOffset}><View
           style={[
             styles.hero,
             {
@@ -424,9 +430,9 @@ export default function AnalyticsScreen() {
           >
             {report.range.label} · {report.count} recorded {report.count === 1 ? "transaction" : "transactions"}
           </Text>
-        </View>
+        </View></TutorialTarget>
 
-        <View
+        <TutorialTarget id="analytics-spending" scrollRef={tutorialScrollRef} scrollOffsetRef={tutorialScrollOffset}><View
           style={[
             styles.trendCard,
             {
@@ -565,7 +571,7 @@ export default function AnalyticsScreen() {
             />
 
           </View>
-        </View>
+        </View></TutorialTarget>
 
         <View
           style={[

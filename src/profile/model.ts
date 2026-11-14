@@ -11,9 +11,10 @@ export function profileScope(user: ProfileUser | null): string | null {
 export function parseProfile(value: unknown): Partial<Profile> {
   if (!value || typeof value !== "object" || Array.isArray(value)) throw new Error("Couldn't read your profile. Please try again.");
   const input = value as Record<string, unknown>;
-  if (!["fullName", "email", "tallyTag", "phoneNumber", "avatarUrl"].some(key => key in input)) throw new Error("The backend profile response needs to be confirmed. Please try again later.");
+  if (!["fullName", "email", "tallyTag", "phoneNumber", "avatarUrl", "address"].some(key => key in input)) throw new Error("The backend profile response needs to be confirmed. Please try again later.");
   const result: Partial<Profile> = {};
   for (const key of ["fullName", "email", "phoneNumber"] as const) if (typeof input[key] === "string") result[key] = input[key];
+  if (typeof input.address === "string") result.address = input.address.trim();
   if (typeof input.tallyTag === "string") result.tallyTag = input.tallyTag.replace(/^@+/, "").trim();
   if (input.avatarUrl === null || input.avatarUrl === "") result.avatarUrl = null;
   else if (typeof input.avatarUrl === "string") {

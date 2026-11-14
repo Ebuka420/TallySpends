@@ -13,6 +13,7 @@ import type { ThemePalette } from "../src/theme";
 import { getDashboardPalette } from "../src/theme";
 import BrandMark from "./BrandMark";
 import { useReducedMotion } from "./AuthBackdrop";
+import { TutorialTarget } from "./SmartCoachTutorialLayer";
 
 type Card = { id: string; account?: LinkedBankAccount };
 type Props = {
@@ -73,11 +74,11 @@ function CardFace({ card, width, height, ...props }: Props & { card: Card; width
             {props.visible ? formatted : "********"}
           </Text>
         </Pressable>
-        <Pressable accessibilityRole="button" accessibilityLabel="View linked account insights"
+        <TutorialTarget id="home-wallet-arrow"><Pressable accessibilityRole="button" accessibilityLabel="View linked account insights"
           onPress={event => { event.stopPropagation(); props.onOpenAccounts(account?.id); }}
           style={[styles.currencyBadge, { backgroundColor: account ? "#FFFFFF18" : appearance.accentSoft }]}>
           <Ionicons name="arrow-forward" size={20} color={ink} />
-        </Pressable>
+        </Pressable></TutorialTarget>
       </View>
     </Pressable>
   );

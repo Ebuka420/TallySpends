@@ -4,6 +4,7 @@ import { SMS_CONSENT_KEY, SMS_ENABLED_KEY, SMS_SENDERS_KEY } from "./transaction
 import { registerSession } from "./register";
 import { migrateOnboardingPin, readPin } from "./security/pin";
 import { profileScope } from "./profile/model";
+import { enrollFirstTimeUser } from "./coach/tutorials";
 import { readPendingSignup, clearPendingSignup } from "./security/signup";
 import { useNavigation } from "expo-router";
 import { useCallback, useEffect, useMemo, useState, useSyncExternalStore } from "react";
@@ -428,6 +429,7 @@ export const DEFAULT_SAVINGS_GOALS = [
 export interface NotificationItem {
   id: string;
   type: "transaction" | "alert" | "insight" | "bill" | "system";
+  transactionDirection?: "incoming" | "outgoing";
   title: string;
   description: string;
   timestamp: string;
@@ -496,6 +498,8 @@ export function useAppStore() {
   const [localTransactions, setLocalTransactions] = useState<any[]>([]);
   const transactionFeed = useSyncExternalStore(subscribeTransactionFeed, getTransactionFeedSnapshot, getTransactionFeedSnapshot);
   const [notifications, setNotifications] = useState<NotificationItem[]>([]);
+  const [notificationsLoading, setNotificationsLoading] = useState(true);
+  const [notificationsError, setNotificationsError] = useState<string | null>(null);
   const [budgets, setBudgets] = useState<Record<string, number>>({});
   const [savingsGoals, setSavingsGoals] = useState<any[]>([]);
   const accountProfile = useSyncExternalStore(subscribeProfile, getProfileSnapshot, getProfileSnapshot);
@@ -593,6 +597,32 @@ export function useAppStore() {
         (listener) => listener !== setIsAuthenticated,
       );
     };
+  }, []);
+
+const loadStoredNotifications = useCallback(async () => {
+    setNotificationsLoading(true);
+    setNotificationsError(null);
+    try {
+      const stored = await AsyncStorage.getItem("ts_notifications");
+      if (stored === null) {
+        await AsyncStorage.setItem("ts_notifications", JSON.stringify(DEFAULT_NOTIFICATIONS));
+        setNotifications(DEFAULT_NOTIFICATIONS);
+        return;
+      }
+      const parsed: unknown = JSON.parse(stored);
+      if (!Array.isArray(parsed) || parsed.some(item => !item || typeof item.id !== "string"
+        || !["transaction", "alert", "insight", "bill", "system"].includes(item.type)
+        || typeof item.title !== "string" || typeof item.description !== "string"
+        || typeof item.timestamp !== "string" || typeof item.isUnread !== "boolean")) {
+        throw new Error("Invalid saved notification data");
+      }
+      setNotifications(parsed as NotificationItem[]);
+    } catch {
+      setNotifications([]);
+      setNotificationsError("Could not load your saved notifications.");
+    } finally {
+      setNotificationsLoading(false);
+    }
   }, []);
 
 const loadData = useCallback(async () => {
@@ -709,22 +739,13 @@ const loadData = useCallback(async () => {
         setSavingsGoals(DEFAULT_SAVINGS_GOALS);
       }
 
-      const storedNotifs = await AsyncStorage.getItem("ts_notifications");
-      if (storedNotifs !== null) {
-        setNotifications(JSON.parse(storedNotifs));
-      } else {
-        await AsyncStorage.setItem(
-          "ts_notifications",
-          JSON.stringify(DEFAULT_NOTIFICATIONS),
-        );
-        setNotifications(DEFAULT_NOTIFICATIONS);
-      }
+      await loadStoredNotifications();
     } catch (error) {
       console.error("Failed to load store data", error);
     } finally {
       setLoading(false);
     }
-  }, [reloadBudgetWallet]);
+  }, [reloadBudgetWallet, loadStoredNotifications]);
 
   useEffect(() => {
     const unsubscribe = navigation.addListener("focus", () => {
@@ -890,6 +911,7 @@ const loadData = useCallback(async () => {
       const notif: NotificationItem = {
         id: newNotif.id ?? `notif-${Date.now()}`,
         type: newNotif.type,
+        transactionDirection: newNotif.transactionDirection,
         title: newNotif.title,
         description: newNotif.description,
         timestamp: newNotif.timestamp ?? new Date().toISOString(),
@@ -937,6 +959,14 @@ const loadData = useCallback(async () => {
   const clearAllNotifications = useCallback(async () => {
     setNotifications([]);
     AsyncStorage.setItem("ts_notifications", JSON.stringify([]));
+  }, []);
+
+  const clearReadNotifications = useCallback(async () => {
+    setNotifications((prev) => {
+      const next = prev.filter((notification) => notification.isUnread);
+      AsyncStorage.setItem("ts_notifications", JSON.stringify(next));
+      return next;
+    });
   }, []);
 
   // ---------------------------------------------------------
@@ -993,6 +1023,7 @@ const loadData = useCallback(async () => {
 
       addNotification({
         type: notifType,
+        transactionDirection: tx.type === "income" ? "incoming" : "outgoing",
         title: notifTitle,
         description: notifDesc,
         referenceId: tx.id,
@@ -1265,6 +1296,9 @@ const loadData = useCallback(async () => {
           });
           const pinOwner = profileScope({ userId: session.userId, email });
           if (!pinOwner) throw new Error("Couldn't identify the new account.");
+          // Only accounts completing signup now are eligible for the new-user
+          // coach tutorials. Returning accounts are deliberately not enrolled.
+          await enrollFirstTimeUser(pinOwner).catch(() => {});
           await migrateOnboardingPin(email, pinOwner);
           await login(session.accessToken, session.refreshToken, {
             userId: session.userId, fullName, email, tallyTag, phoneNumber,
@@ -1312,12 +1346,16 @@ const loadData = useCallback(async () => {
 
     // Notifications
     notifications,
+    notificationsLoading,
+    notificationsError,
+    retryNotifications: loadStoredNotifications,
     unreadNotificationCount: notifications.filter((n) => n.isUnread).length,
     addNotification,
     markNotificationAsRead,
     markAllNotificationsAsRead,
     deleteNotification,
     clearAllNotifications,
+    clearReadNotifications,
 
     resetData,
   };
