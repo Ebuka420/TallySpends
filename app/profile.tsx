@@ -2,19 +2,30 @@ import { Ionicons } from "@expo/vector-icons";
 import * as Clipboard from "expo-clipboard";
 import * as ImagePicker from "expo-image-picker";
 import { useFocusEffect, useRouter } from "expo-router";
-import React, { useCallback, useRef } from "react";
-import { ActivityIndicator, Alert, Image, SafeAreaView, ScrollView, StyleSheet, Text, TouchableOpacity, View } from "react-native";
+import React, { useCallback, useEffect, useRef, useState } from "react";
+import { ActivityIndicator, Alert, Image, SafeAreaView, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from "react-native";
 import { getProfileSnapshot, loadAccountProfile } from "../src/profile/repository";
 import { useAppStore } from "../src/store";
 import { getSubscriptionSnapshot, subscribeSubscription } from "../src/subscriptions/revenuecat";
+import { TutorialTarget } from "../components/SmartCoachTutorialLayer";
 
 export default function ProfileScreen() {
   const router = useRouter();
   const { profileImage, setProfileImage, profileFullName, profilePhoneNumber, profileEmail,
-    profileGender, profileDob, profileAddress, profileTallyTag, theme, profileLoading, profileSaving } = useAppStore();
+    profileGender, profileDob, profileAddress, setProfileAddress, profileTallyTag, theme, profileLoading, profileSaving, logout } = useAppStore();
   const styles = getStyles(theme);
   const subscription = React.useSyncExternalStore(subscribeSubscription, getSubscriptionSnapshot, getSubscriptionSnapshot);
   const imageLock = useRef(false);
+  const tutorialScrollRef = useRef<any>(null);
+  const tutorialScrollOffset = useRef(0);
+  const [addressParts, setAddressParts] = useState(["", "", "", ""]);
+  const [addressError, setAddressError] = useState("");
+  useEffect(() => {
+    if (profileAddress?.trim()) {
+      const values = profileAddress.split(",").map(part => part.trim());
+      setAddressParts([values[0] || "", values[1] || "", values[2] || "", values[3] || ""]);
+    }
+  }, [profileAddress]);
   const pickImageFromGallery = async () => {
     if (imageLock.current || profileSaving || profileLoading) return;
     imageLock.current = true;
@@ -36,18 +47,28 @@ export default function ProfileScreen() {
     } finally { imageLock.current = false; }
   };
   const displayName = profileFullName?.trim() || profileTallyTag || "My Profile";
+  // The current profile response has no NIN field, so identity completion is
+  // unknown and must remain flagged until the backend provides a secure status.
+  const profileNeedsAttention = true;
   useFocusEffect(useCallback(() => {
     let active = true;
     const refresh = async () => {
       await loadAccountProfile(true);
       const error = getProfileSnapshot().error;
-      if (active && error) Alert.alert("Could not load profile", error, [
+      if (!active || !error) return;
+      const expired = /session has expired|sign in again/i.test(error);
+      if (expired) {
+        Alert.alert("Sign-in required", "Your PIN unlocked this device, but the backend session has expired and could not be refreshed. Sign in again to load your profile.", [
+          { text: "Later", style: "cancel" },
+          { text: "Sign in", onPress: () => { void (async () => { try { await logout(); router.replace("/auth" as any); } catch { Alert.alert("Couldn't open sign-in", "Your session couldn't be cleared. Please restart the app and sign in again."); } })(); } },
+        ]);
+      } else Alert.alert("Could not load profile", error, [
         { text: "Close", style: "cancel" }, { text: "Try again", onPress: () => { void refresh(); } },
       ]);
     };
     void refresh();
     return () => { active = false; };
-  }, []));
+  }, [logout, router]));
   const profileDetails = [
     { label: "Full Name", value: profileFullName },
     { label: "Username", value: profileTallyTag },
@@ -62,6 +83,16 @@ export default function ProfileScreen() {
     try { await Clipboard.setStringAsync(profileTallyTag); Alert.alert("Copied", "TallyTag copied to clipboard!"); }
     catch { Alert.alert("Could not copy", "Please try again."); }
   };
+  const saveAddress = async () => {
+    if (addressParts.some(part => !part.trim())) { setAddressError("Enter your street address, city, state, and country."); return; }
+    setAddressError("");
+    try {
+      await setProfileAddress(addressParts.map(part => part.trim()).join(", "));
+      Alert.alert("Address saved", "Your address was confirmed by the profile service.");
+    } catch (error) {
+      setAddressError(error instanceof Error ? error.message : "The profile service couldn't save this address.");
+    }
+  };
   return <SafeAreaView style={[styles.container, { backgroundColor: theme.background }]}>
     <View style={[styles.header, { backgroundColor: theme.surface, borderColor: theme.border }]}>
       <TouchableOpacity style={styles.backButton} onPress={() => router.back()} activeOpacity={0.7} accessibilityRole="button" accessibilityLabel="Go back">
@@ -70,7 +101,7 @@ export default function ProfileScreen() {
       <Text style={[styles.headerTitle, { color: theme.textPrimary }]}>My Profile</Text>
       <View style={styles.placeholderBox} />
     </View>
-    <ScrollView contentContainerStyle={styles.scrollContainer} showsVerticalScrollIndicator={false}>
+    <ScrollView ref={tutorialScrollRef} onScroll={event => { tutorialScrollOffset.current = event.nativeEvent.contentOffset.y; }} scrollEventThrottle={16} contentContainerStyle={styles.scrollContainer} showsVerticalScrollIndicator={false}>
       <View style={styles.avatarSection}>
         <TouchableOpacity style={styles.avatarContainer} onPress={pickImageFromGallery}
           disabled={profileSaving || profileLoading} activeOpacity={0.8}
@@ -82,6 +113,7 @@ export default function ProfileScreen() {
           <View style={[styles.cameraBadge, { backgroundColor: theme.accent, borderColor: theme.surface }]}>
             {profileSaving ? <ActivityIndicator size="small" color={theme.onAccent} /> : <Ionicons name="camera" size={16} color={theme.onAccent} />}
           </View>
+          {profileNeedsAttention && <View accessibilityLabel="Profile incomplete" style={{ position: "absolute", top: 0, right: 0, width: 19, height: 19, borderRadius: 10, backgroundColor: theme.accent, borderWidth: 2, borderColor: theme.surface, alignItems: "center", justifyContent: "center" }}><Text style={{ color: theme.onAccent, fontSize: 11, lineHeight: 13, fontWeight: "900" }}>!</Text></View>}
         </TouchableOpacity>
         <Text style={[styles.profileUsernameText, { color: theme.textPrimary }]}>{displayName}</Text>
         {profileLoading && <ActivityIndicator color={theme.accent} accessibilityLabel="Refreshing profile" />}
@@ -93,6 +125,9 @@ export default function ProfileScreen() {
             <Text style={[styles.accountNumberText, { color: theme.textPrimary }]}>{profileTallyTag || "Not provided"}</Text>
             {profileTallyTag ? <TouchableOpacity style={{ marginLeft: 6 }} onPress={copyTallyTag} accessibilityRole="button" accessibilityLabel="Copy TallyTag">
               <Ionicons name="copy-outline" size={14} color={theme.textSecondary} />
+            </TouchableOpacity> : null}
+            {profileTallyTag ? <TouchableOpacity style={{ marginLeft: 12 }} onPress={() => router.push("/request")} accessibilityRole="button" accessibilityLabel="Open QR code for your TallyTag">
+              <Ionicons name="qr-code-outline" size={19} color={theme.accent} />
             </TouchableOpacity> : null}
           </View>
         </View>
@@ -121,6 +156,27 @@ export default function ProfileScreen() {
           </View>
         </View>)}
       </View>
+      {profileNeedsAttention && <TutorialTarget id="profile-completion" scrollRef={tutorialScrollRef} scrollOffsetRef={tutorialScrollOffset}><View style={{ marginTop: 18, gap: 10 }}>
+        <Text style={{ color: theme.textPrimary, fontSize: 17, fontWeight: "800" }}>Complete Your Profile</Text>
+        <View style={[styles.card, { backgroundColor: theme.surface, borderColor: theme.border, gap: 14 }]}>
+          <View style={{ flexDirection: "row", alignItems: "flex-start", gap: 11 }}>
+            <Ionicons name="alert-circle-outline" size={20} color={theme.accent} />
+            <View style={{ flex: 1, gap: 4 }}><Text style={{ color: theme.textPrimary, fontSize: 13, fontWeight: "700" }}>National Identification Number</Text><Text style={{ color: theme.textSecondary, fontSize: 12, lineHeight: 17 }}>Verification coming soon. NIN entry is not available here yet.</Text><Text style={{ color: theme.accent, fontSize: 11, fontWeight: "700" }}>Not provided · Verification unavailable</Text></View>
+          </View>
+          <View style={{ height: 1, backgroundColor: theme.border }} />
+          <View style={{ flexDirection: "row", alignItems: "flex-start", gap: 11 }}>
+            <Ionicons name="home-outline" size={19} color={theme.accent} />
+            <View style={{ flex: 1, gap: 9 }}>
+              <Text style={{ color: theme.textPrimary, fontSize: 13, fontWeight: "700" }}>Residential Address</Text>
+              {["Street / house address", "City", "State", "Country"].map((label, index) => <TextInput key={label} accessibilityLabel={label} value={addressParts[index]} onChangeText={value => setAddressParts(parts => parts.map((part, at) => at === index ? value : part))} placeholder={label} placeholderTextColor={theme.textSecondary} editable={!profileSaving && !profileLoading} autoCapitalize="words" style={{ backgroundColor: theme.background, color: theme.textPrimary, borderColor: theme.border, borderWidth: 1, borderRadius: 12, paddingHorizontal: 12, paddingVertical: 10, fontSize: 13 }} />)}
+              {!!addressError && <Text accessibilityLiveRegion="polite" style={{ color: theme.danger, fontSize: 12, lineHeight: 17 }}>{addressError}</Text>}
+              <TouchableOpacity accessibilityRole="button" disabled={profileSaving || profileLoading} onPress={() => void saveAddress()} style={{ alignSelf: "flex-start", backgroundColor: theme.accent, borderRadius: 12, paddingHorizontal: 16, paddingVertical: 10, opacity: profileSaving || profileLoading ? .6 : 1 }}>
+                {profileSaving ? <ActivityIndicator color={theme.onAccent} /> : <Text style={{ color: theme.onAccent, fontSize: 12, fontWeight: "700" }}>Save address</Text>}
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </View></TutorialTarget>}
       <Text style={{ color: theme.textSecondary, fontSize: 12, textAlign: "center" }}>Contact support if your profile details need correcting.</Text>
     </ScrollView>
   </SafeAreaView>;

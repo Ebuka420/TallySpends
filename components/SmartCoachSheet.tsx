@@ -19,7 +19,8 @@ import {
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { CoachRequestError, requestCoachReply } from "../src/coach/chat";
 import type { ThemePalette } from "../src/theme";
-import { getProfileSnapshot, publishProfileTokens, subscribeProfile } from "../src/profile/repository";
+import { useAppStore } from "../src/store";
+import { getProfileSnapshot, subscribeProfile } from "../src/profile/repository";
 import { coachQuestionWithContext, loadCoachMemory, newConversation, saveCoachConversation, type CoachConversation, type MemoryFact } from "../src/coach/history";
 import CoachLibraryPanel from "./CoachLibraryPanel";
 type Message = {
@@ -68,10 +69,12 @@ function AccountCoachSheet({
 }) {
   const insets = useSafeAreaInsets();
   const router = useRouter();
+  const appStore = useAppStore();
   const [chat, setChat] = useState<CoachConversation>(newConversation);
   const messages = chat.messages;
   const setMessages = (change: (previous: Message[]) => Message[]) => setChat(previous => ({ ...previous, updatedAt: new Date().toISOString(), messages: change(previous.messages) }));
   const [mode, setMode] = useState<"chat" | "history" | "memory">("chat");
+  const [conversationStarted, setConversationStarted] = useState(false);
   const [facts, setFacts] = useState<MemoryFact[]>([]);
   const [memoryReady, setMemoryReady] = useState(false);
   const [storageError, setStorageError] = useState<string | null>(null);
@@ -104,6 +107,29 @@ function AccountCoachSheet({
   const composer = useRef<TextInputInstance | null>(null);
   const followLatest = useRef(true);
   const onAccent = theme.onAccent;
+  const startNewConversation = () => {
+    if (busy) return;
+    setChat(newConversation());
+    setConversationStarted(true);
+    setInput("");
+    setFailure(null);
+    setMode("chat");
+    requestAnimationFrame(() => composer.current?.focus());
+  };
+  const returnToCoachHome = () => {
+    setChat(newConversation());
+    setConversationStarted(false);
+    setInput("");
+    setFailure(null);
+    setMode("chat");
+  };
+  const handleBack = () => {
+    if (mode === "history") { returnToCoachHome(); return; }
+    if (mode === "memory") { setMode("chat"); return; }
+    if (messages.length) { setMode("history"); return; }
+    if (conversationStarted) { returnToCoachHome(); return; }
+    onClose();
+  };
   useEffect(
     () => () => {
       request.current?.abort();
@@ -118,6 +144,7 @@ function AccountCoachSheet({
     setFailure(null);
     followLatest.current = true;
     if (!retry) {
+      setConversationStarted(true);
       setMessages((previous) => [
         ...previous,
         {
@@ -134,7 +161,12 @@ function AccountCoachSheet({
     try {
       const session = getProfileSnapshot();
       if (session.scope !== owner) return;
-      const { token, refreshToken } = session;
+      // Prefer the persisted/current app credentials. The profile snapshot can
+      // briefly lag after another authenticated request rotates the tokens.
+      const storedTokens = await AsyncStorage.multiGet(["ts_access_token", "ts_refresh_token"]);
+      if (getProfileSnapshot().scope !== owner) return;
+      const token = storedTokens[0]?.[1] || appStore.token || session.token;
+      const refreshToken = storedTokens[1]?.[1] || appStore.refreshToken || session.refreshToken;
       const answer = await requestCoachReply(
         coachQuestionWithContext(question, facts, retry ? messages.slice(0, -1) : messages),
         token,
@@ -144,11 +176,10 @@ function AccountCoachSheet({
           refreshToken,
           saveTokens: async (accessToken, nextRefreshToken) => {
             if (getProfileSnapshot().scope !== owner) throw new Error("Account changed");
-            await AsyncStorage.multiSet([
-              ["ts_access_token", accessToken],
-              ["ts_refresh_token", nextRefreshToken],
-            ]);
-            if (getProfileSnapshot().scope === owner) publishProfileTokens(accessToken, nextRefreshToken);
+            // Update the shared authenticated store as well as persistence so
+            // every feature sees the rotated access and refresh tokens.
+            await appStore.login(accessToken, nextRefreshToken, undefined, { activate: false });
+            if (getProfileSnapshot().scope !== owner) throw new Error("Account changed");
           },
         },
       );
@@ -181,6 +212,7 @@ function AccountCoachSheet({
     }
   };
   const starter = (text: string) => {
+    setConversationStarted(true);
     setInput(text);
     composer.current?.focus();
   };
@@ -189,7 +221,7 @@ function AccountCoachSheet({
       visible={visible}
       transparent
       animationType="slide"
-      onRequestClose={onClose}
+      onRequestClose={handleBack}
     >
       <View style={s.overlay}>
         <Pressable
@@ -233,6 +265,16 @@ function AccountCoachSheet({
                 },
               ]}
             >
+              {mode === "chat" && (messages.length > 0 || conversationStarted) && (
+                <Pressable
+                  accessibilityRole="button"
+                  accessibilityLabel={messages.length ? "Back to chat history" : "Back to coach home"}
+                  onPress={handleBack}
+                  style={[s.close, { backgroundColor: theme.surfaceSoft, marginRight: 8 }]}
+                >
+                  <Ionicons name="chevron-back" size={21} color={theme.textPrimary} />
+                </Pressable>
+              )}
               <View
                 style={[
                   s.avatar,
@@ -269,6 +311,17 @@ function AccountCoachSheet({
                   A little clarity for your money
                 </Text>
               </View>
+              {mode === "chat" && (messages.length > 0 || conversationStarted) && (
+                <Pressable
+                  accessibilityRole="button"
+                  accessibilityLabel="Start a new conversation"
+                  disabled={busy}
+                  onPress={startNewConversation}
+                  style={[s.close, { backgroundColor: theme.surfaceSoft, marginRight: 8, opacity: busy ? 0.5 : 1 }]}
+                >
+                  <Ionicons name="add" size={22} color={theme.accent} />
+                </Pressable>
+              )}
               <Pressable
                 accessibilityRole="button"
                 accessibilityLabel="Close Smart Coach"
@@ -306,14 +359,15 @@ function AccountCoachSheet({
               }}
             >
               {mode !== "chat" ? <CoachLibraryPanel key={`${owner}-${mode}`} owner={owner} mode={mode} theme={theme} busy={busy}
-                activeId={chat.id} onBack={() => setMode("chat")}
-                onOpen={saved => { setChat(saved); setInput(""); setFailure(null); setMode("chat"); }}
-                onNew={() => { setChat(newConversation()); setInput(""); setFailure(null); setMode("chat"); }}
+                activeId={chat.id} backLabel={mode === "history" ? "Back to coach home" : "Back to conversation"}
+                onBack={mode === "history" ? returnToCoachHome : () => setMode("chat")}
+                onOpen={saved => { setChat(saved); setConversationStarted(true); setInput(""); setFailure(null); setMode("chat"); }}
+                onNew={startNewConversation}
                 onMemoryChange={saved => { if (getProfileSnapshot().scope === owner) { setFacts(saved); setMemoryReady(true); setMemoryError(null); } }} /> : <>
               {(storageError || memoryError) && <View><Text accessibilityLiveRegion="polite" style={{ color: theme.textSecondary }}>{[storageError, memoryError].filter(Boolean).join("\n")}</Text>
                 <Pressable accessibilityRole="button" onPress={() => setStorageRevision(value => value + 1)}><Text style={{ color: theme.accent }}>Retry saving/loading</Text></Pressable></View>}
               {!owner && <Text style={{ color: theme.textSecondary }}>Sign in to use Smart Coach and your saved conversations.</Text>}
-              {!messages.length ? (
+              {!messages.length && !conversationStarted ? (
                 <>
                   <View style={s.welcome}>
                     <View
@@ -428,7 +482,12 @@ function AccountCoachSheet({
                 </>
               ) : (
                 <>
-                  <Text
+                  {!messages.length ? <View style={[s.welcome, { paddingTop: 24 }]}>
+                    <View style={[s.welcomeIcon, { backgroundColor: theme.accentSoft }]}><Ionicons name="chatbubble-ellipses-outline" size={30} color={theme.accent} /></View>
+                    <Text style={[s.eyebrow, { color: theme.accent }]}>NEW CONVERSATION</Text>
+                    <Text style={[s.hero, { color: theme.textPrimary }]}>What would you like to work through?</Text>
+                    <Text style={[s.intro, { color: theme.textSecondary }]}>Type below to start. Your conversation will appear in chat history.</Text>
+                  </View> : <Text
                     style={[
                       s.conversationLabel,
                       {
@@ -437,7 +496,7 @@ function AccountCoachSheet({
                     ]}
                   >
                     YOUR CONVERSATION
-                  </Text>
+                  </Text>}
                   {messages.map((message) =>
                     message.sender === "user" ? (
                       <View

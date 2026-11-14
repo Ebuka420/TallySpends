@@ -13,6 +13,16 @@ import {
     View,
   } from "react-native";
 import { useAppStore } from "../src/store";
+import { getProfileSnapshot } from "../src/profile/repository";
+import { queueTutorialReplay, type TutorialPage } from "../src/coach/tutorials";
+
+const APP_TUTORIALS: { page: TutorialPage; title: string; route: string }[] = [
+  { page: "home", title: "Home Tutorial", route: "/(tabs)" },
+  { page: "expenses", title: "Expenses Tutorial", route: "/(tabs)/expenses" },
+  { page: "budget", title: "Budget Tutorial", route: "/(tabs)/budget" },
+  { page: "analytics", title: "Analytics Tutorial", route: "/(tabs)/analytics" },
+  { page: "profile", title: "Profile Tutorial", route: "/profile" },
+];
 
 const SETTINGS_ITEMS = [
   {
@@ -153,6 +163,22 @@ export default function SettingsScreen() {
           </TouchableOpacity>
         ))}
 
+        <Text style={{ color: theme.textSecondary, fontSize: 11, fontWeight: "800", letterSpacing: 1, marginTop: 16, marginBottom: 10 }}>APP TUTORIALS</Text>
+        <Text style={{ color: theme.textSecondary, fontSize: 12, lineHeight: 18, marginBottom: 12 }}>Replay a guide any time. New-user tours are otherwise shown only to accounts created after this feature is enabled.</Text>
+        {APP_TUTORIALS.map((tutorial) => (
+          <TouchableOpacity key={tutorial.page} style={[styles.menuCardRow, { backgroundColor: theme.surface }]} activeOpacity={0.9}
+            accessibilityRole="button" accessibilityLabel={`Replay ${tutorial.title}`}
+            onPress={() => {
+              const owner = getProfileSnapshot().scope;
+              if (!owner) { Alert.alert("Profile unavailable", "Your account is still loading. Please try again."); return; }
+              queueTutorialReplay(owner, tutorial.page);
+              router.push(tutorial.route as any);
+            }}>
+            <View style={[styles.iconCircleWrapper, { backgroundColor: theme.accentSoft }]}><Ionicons name="play-circle-outline" size={22} color={theme.accent} /></View>
+            <View style={styles.textDetailsColumn}><Text style={[styles.itemTitleText, { color: theme.textPrimary }]}>{tutorial.title}</Text><Text style={[styles.itemSubtitleText, { color: theme.textSecondary }]}>Walk through this section with Smart Coach</Text></View>
+            <Ionicons name="chevron-forward" size={18} color={theme.textSecondary} />
+          </TouchableOpacity>
+        ))}
         <TouchableOpacity
           style={[styles.actionCard, styles.secondaryActionCard, { backgroundColor: theme.surface }]}
           activeOpacity={0.85}

@@ -8,7 +8,7 @@ import TransactionReceiptModal from "../../components/TransactionReceiptModal";
 import { getCompletedTransaction, subscribeCompletedTransaction, clearCompletedTransaction } from "../../src/transactionCompletion";
 import { Ionicons } from "@expo/vector-icons";
 import { useFocusEffect, useRouter } from "expo-router";
-import React, { useCallback, useEffect, useMemo, useState, useSyncExternalStore } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import {
   Image,
   RefreshControl,
@@ -23,6 +23,7 @@ import { MOCK_RECIPIENTS, useAppStore } from "../../src/store";
 import { getThemePalette } from "../../src/theme";
 import { usePlanningPeople } from "../../components/BudgetPeople";
 import { PlanningCarousels } from "../../components/PlanningCarousels";
+import { TutorialTarget } from "../../components/SmartCoachTutorialLayer";
 
 const normalizeTransferTitle = (title: string) => {
   const transferRegex = /(Transfer to\s+)@([a-zA-Z0-9_]+)/i;
@@ -167,6 +168,8 @@ export default function App() {
   } = store;
 
   const theme = useThemeTokens();
+  const tutorialScrollRef = useRef<any>(null);
+  const tutorialScrollOffset = useRef(0);
   const actionIconColor = theme.onAccent;
 
   const firstName = profileFullName?.trim().split(/\s+/)[0] || "";
@@ -219,6 +222,9 @@ export default function App() {
       ]}
     >
       <ScrollView
+        ref={tutorialScrollRef}
+        onScroll={event => { tutorialScrollOffset.current = event.nativeEvent.contentOffset.y; }}
+        scrollEventThrottle={16}
         style={styles.container}
         contentContainerStyle={styles.contentContainer}
         showsVerticalScrollIndicator={false}
@@ -248,6 +254,9 @@ export default function App() {
               ) : (
                 <Ionicons name="person" size={20} color={theme.textPrimary} />
               )}
+            </View>
+            <View accessibilityLabel="Profile incomplete: information required" style={{ position: "absolute", top: 0, left: 29, width: 17, height: 17, borderRadius: 9, backgroundColor: theme.accent, borderWidth: 1.5, borderColor: theme.background, alignItems: "center", justifyContent: "center" }}>
+              <Text style={{ color: theme.onAccent, fontSize: 10, lineHeight: 12, fontWeight: "900" }}>!</Text>
             </View>
 
             <View style={styles.greetingTextWrap}>
@@ -280,7 +289,7 @@ export default function App() {
           </TouchableOpacity>
 
           <View style={styles.headerIcons}>
-            <TouchableOpacity
+            <TutorialTarget id="home-qr" scrollRef={tutorialScrollRef} scrollOffsetRef={tutorialScrollOffset}><TouchableOpacity
               style={[
                 styles.iconButton,
                 {
@@ -296,7 +305,7 @@ export default function App() {
                 size={18}
                 color={theme.textPrimary}
               />
-            </TouchableOpacity>
+            </TouchableOpacity></TutorialTarget>
 
             <TouchableOpacity
               style={[
@@ -471,9 +480,9 @@ export default function App() {
           </TouchableOpacity>
         </View>
 
-        {preferences.showInsights && <HomeCarousel title="Smart insights" link="See all" onViewAll={() => router.push("/insightssum")}
+        {preferences.showInsights && <TutorialTarget id="home-insights" scrollRef={tutorialScrollRef} scrollOffsetRef={tutorialScrollOffset}><HomeCarousel title="Smart insights" link="See all" onViewAll={() => router.push("/insightssum")}
           theme={theme} themeMode={themeMode} themePreference={themePreference}
-          cards={insights.map(insight => ({ ...insight, id: insight.title, onPress: () => router.push(insight.title === "Linked Cards" ? "/linkedcards" : "/insightssum") }))} />}
+          cards={insights.map(insight => ({ ...insight, id: insight.title, onPress: () => router.push(insight.title === "Linked Cards" ? "/linkedcards" : "/insightssum") }))} /></TutorialTarget>}
 
         <PlanningCarousels
           wallet={budgetWallet}
@@ -487,6 +496,8 @@ export default function App() {
           showSavings={preferences.showSavings}
           showBudgets={preferences.showBudgets}
           autoAdjustLayout={preferences.autoAdjustLayout}
+          tutorialScrollRef={tutorialScrollRef}
+          tutorialScrollOffsetRef={tutorialScrollOffset}
         />
 
         {/* Recent Transactions */}

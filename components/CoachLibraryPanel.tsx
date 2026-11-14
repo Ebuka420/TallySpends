@@ -4,10 +4,10 @@ import { ActivityIndicator, Alert, Pressable, Text, TextInput, View } from "reac
 import { coachId, conversationTitle, deleteCoachConversation, loadCoachHistory, loadCoachMemory, MEMORY_CATEGORIES, saveCoachMemory, type CoachConversation, type MemoryFact } from "../src/coach/history";
 import type { ThemePalette } from "../src/theme";
 
-export default function CoachLibraryPanel({ owner, mode, theme, busy, onBack, onOpen, onNew, onMemoryChange, activeId }: {
+export default function CoachLibraryPanel({ owner, mode, theme, busy, onBack, onOpen, onNew, onMemoryChange, activeId, backLabel }: {
   owner: string | null; mode: "history" | "memory"; theme: ThemePalette; busy: boolean;
   onBack: () => void; onOpen: (chat: CoachConversation) => void; onNew: () => void;
-  onMemoryChange: (facts: MemoryFact[]) => void; activeId: string;
+  onMemoryChange: (facts: MemoryFact[]) => void; activeId: string; backLabel: string;
 }) {
   const [rows, setRows] = useState<CoachConversation[]>([]);
   const [facts, setFacts] = useState<MemoryFact[]>([]);
@@ -40,7 +40,7 @@ export default function CoachLibraryPanel({ owner, mode, theme, busy, onBack, on
   const card = { backgroundColor: theme.surface, borderColor: theme.border, borderWidth: 1, borderRadius: 20, padding: 15, gap: 12 };
   return <>
     <Pressable accessibilityRole="button" onPress={onBack} style={{ flexDirection: "row", alignItems: "center", gap: 8, paddingVertical: 6 }}>
-      <Ionicons name="arrow-back" size={18} color={theme.accent} /><Text style={{ color: theme.accent }}>Back to conversation</Text>
+      <Ionicons name="arrow-back" size={18} color={theme.accent} /><Text style={{ color: theme.accent }}>{backLabel}</Text>
     </Pressable>
     <Text style={label}>{mode === "history" ? "CHAT HISTORY" : "COACH MEMORY"}</Text>
     <Text style={{ color: theme.textSecondary, fontSize: 12, lineHeight: 19 }}>{mode === "history"

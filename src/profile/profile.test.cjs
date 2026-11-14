@@ -72,6 +72,10 @@ async function main() {
   await repo.updateAccountProfile({ fullName: "Renamed A" });
   assert.equal(repo.getProfileSnapshot().profile.fullName, "Renamed A");
   assert.equal(JSON.parse(calls.find(call => call.init.method === "PATCH").init.body).fullName, "Renamed A");
+  await repo.updateAccountProfile({ address: "12 Palm Street, Lagos, Lagos, Nigeria" });
+  assert.equal(repo.getProfileSnapshot().profile.address, "12 Palm Street, Lagos, Lagos, Nigeria");
+  assert.equal(JSON.parse(calls.filter(call => call.init.method === "PATCH").at(-1).init.body).address, "12 Palm Street, Lagos, Lagos, Nigeria");
+  assert.equal(JSON.parse(values.get("ts_account_profile_v1_id%3A1")).address, "", "Residential address is fetched from the backend instead of persisted in the profile cache");
   await repo.updateAccountProfile({}, { uri: "file:///picked.jpg", name: "picked.jpg", type: "image/jpeg" });
   assert.equal(repo.getProfileSnapshot().profile.avatarUrl, "https://example.com/uploaded.jpg");
   const uploadCalls = calls.length;
@@ -93,7 +97,7 @@ async function main() {
   global.fetch = workingFetch;
   const beforeLocalWrite = calls.length;
   await assert.rejects(repo.updateAccountProfile({ gender: "Other", dob: "2010/01/01" }), /not supported/);
-  await assert.rejects(repo.updateAccountProfile({ fullName: "Mixed write", address: "Device-only address" }), /not supported/);
+  await assert.rejects(repo.updateAccountProfile({ fullName: "Mixed write", gender: "Other" }), /not supported/);
   assert.equal(calls.length, beforeLocalWrite);
   assert.equal(repo.getProfileSnapshot().profile.fullName, "Renamed A");
   const count = calls.length;

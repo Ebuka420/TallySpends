@@ -110,6 +110,9 @@ export default function YounginsScreen() {
               />
               <Text style={styles.heroButtonText}>Open Youngins Account</Text>
             </TouchableOpacity>
+            {__DEV__ && <TouchableOpacity accessibilityRole="button" onPress={() => router.push({ pathname: "/youngins-create", params: { preview: "true" } })} style={{ paddingVertical: 10 }}>
+              <Text style={{ color: theme.accent, fontSize: 11, fontWeight: "700" }}>Developer preview · registration screens</Text>
+            </TouchableOpacity>}
           </View>
 
           {/* Illustration Container styled to float perfectly on the right */}

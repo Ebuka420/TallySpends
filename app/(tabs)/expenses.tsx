@@ -4,7 +4,7 @@ import DateTimePicker, {
     DateTimePickerEvent,
 } from "@react-native-community/datetimepicker";
 import { useRouter } from "expo-router";
-import React, { useMemo, useState } from "react";
+import React, { useMemo, useRef, useState } from "react";
 import {
     Modal,
     PanResponder,
@@ -20,6 +20,7 @@ import {
 import Svg, { Path } from "react-native-svg";
 import { MOCK_RECIPIENTS, useAppStore } from "../../src/store";
 import { getThemePalette } from "../../src/theme";
+import { TutorialTarget } from "../../components/SmartCoachTutorialLayer";
 
 const normalizeTransferTitle = (title: string) => {
   const transferRegex = /(Transfer to\s+)@([a-zA-Z0-9_]+)/i;
@@ -86,6 +87,8 @@ export default function ExpensesScreen() {
   } = useAppStore();
 
   const theme = useThemeTokens();
+  const tutorialScrollRef = useRef<any>(null);
+  const tutorialScrollOffset = useRef(0);
 
   const [date, setDate] = useState(new Date());
   const [showCalendar, setShowCalendar] = useState(false);
@@ -318,6 +321,9 @@ export default function ExpensesScreen() {
       ]}
     >
       <ScrollView
+        ref={tutorialScrollRef}
+        onScroll={event => { tutorialScrollOffset.current = event.nativeEvent.contentOffset.y; }}
+        scrollEventThrottle={16}
         contentContainerStyle={styles.content}
         showsVerticalScrollIndicator={false}
       >
@@ -333,7 +339,7 @@ export default function ExpensesScreen() {
             Expenses
           </Text>
 
-          <View style={styles.controls}>
+          <TutorialTarget id="expenses-filters" scrollRef={tutorialScrollRef} scrollOffsetRef={tutorialScrollOffset}><View style={styles.controls}>
             <TouchableOpacity
               onPress={() => setShowCalendar(true)}
               style={[
@@ -373,7 +379,7 @@ export default function ExpensesScreen() {
             >
               <Ionicons name="chevron-down" size={16} color={theme.accent} />
             </TouchableOpacity>
-          </View>
+          </View></TutorialTarget>
         </View>
 
         <View style={styles.hero}>
@@ -754,7 +760,7 @@ export default function ExpensesScreen() {
           theme={theme}
         />
 
-        <View style={styles.transactions}>
+        <TutorialTarget id="expenses-history" scrollRef={tutorialScrollRef} scrollOffsetRef={tutorialScrollOffset}><View style={styles.transactions}>
           {Object.entries(grouped).map(([day, items]) => (
             <View
               key={day}
@@ -851,7 +857,7 @@ export default function ExpensesScreen() {
               })}
             </View>
           ))}
-        </View>
+        </View></TutorialTarget>
 
         {!periodTransactions.length && (
           <Text

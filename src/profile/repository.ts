@@ -35,7 +35,8 @@ async function withRequest<T>(operation: (request: ReturnType<typeof createProfi
 }
 async function commit(profile: Profile, expected: number, scope: string) {
   if (epoch !== expected) throw new Error("Your account changed. Please try again.");
-  await AsyncStorage.setItem(cacheKey(scope), JSON.stringify(profile));
+  // Keep residential address server-backed; don't persist it in the device cache.
+  await AsyncStorage.setItem(cacheKey(scope), JSON.stringify({ ...profile, address: "" }));
   if (epoch === expected) publish({ profile });
 }
 export async function loadAccountProfile(force = false) {
@@ -86,14 +87,14 @@ export async function updateAccountProfile(patch: Partial<Profile>, photo?: { ur
   publish({ saving: true, error: null });
   try {
     if ("email" in patch || "tallyTag" in patch) throw new Error("Changing email or TallyTag isn't supported by the backend yet. Your account details have not changed.");
-    if (Object.keys(patch).some(key => !["fullName", "phoneNumber", "avatarUrl"].includes(key))) throw new Error("These profile fields are not supported by the backend sync contract yet. No device-only change has been saved.");
-    if (photo || "fullName" in patch || "phoneNumber" in patch || "avatarUrl" in patch) {
+    if (Object.keys(patch).some(key => !["fullName", "phoneNumber", "avatarUrl", "address"].includes(key))) throw new Error("These profile fields are not supported. No device-only change has been saved.");
+    if (photo || "fullName" in patch || "phoneNumber" in patch || "avatarUrl" in patch || "address" in patch) {
       await withRequest(async request => {
         if (photo) {
           const body = await preparePhotoUpload(photo);
           await request("/api/users/me/avatar", { method: "POST", body });
         } else {
-          const body = { ...(patch.fullName !== undefined ? { fullName: patch.fullName } : {}), ...(patch.phoneNumber !== undefined ? { phoneNumber: patch.phoneNumber } : {}), ...(patch.avatarUrl !== undefined ? { avatarUrl: patch.avatarUrl } : {}) };
+          const body = { ...(patch.fullName !== undefined ? { fullName: patch.fullName } : {}), ...(patch.phoneNumber !== undefined ? { phoneNumber: patch.phoneNumber } : {}), ...(patch.avatarUrl !== undefined ? { avatarUrl: patch.avatarUrl } : {}), ...(patch.address !== undefined ? { address: patch.address } : {}) };
           await request("/api/users/me", { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
         }
         let refreshed: unknown;
@@ -104,7 +105,7 @@ export async function updateAccountProfile(patch: Partial<Profile>, photo?: { ur
         }
         const fields = parseProfile(refreshed);
         if (photo && !fields.avatarUrl) throw new Error("The upload was accepted, but the backend hasn't returned your saved photo URL. Refresh your profile before uploading again.");
-        if (patch.fullName !== undefined && fields.fullName !== patch.fullName || patch.phoneNumber !== undefined && fields.phoneNumber !== patch.phoneNumber) throw new Error("The server hasn't confirmed your profile change yet. Refresh your profile and try again.");
+        if (patch.fullName !== undefined && fields.fullName !== patch.fullName || patch.phoneNumber !== undefined && fields.phoneNumber !== patch.phoneNumber || patch.address !== undefined && fields.address !== patch.address) throw new Error("The server hasn't confirmed your profile change yet. Refresh your profile and try again.");
         await commit({ ...snapshot.profile, ...fields }, expected, scope);
       }, expected);
     } else throw new Error("These profile fields are not supported by the backend sync contract yet. No device-only change has been saved.");

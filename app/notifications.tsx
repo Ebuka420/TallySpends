@@ -3,987 +3,280 @@ import { Ionicons } from "@expo/vector-icons";
 import * as Clipboard from "expo-clipboard";
 import * as Haptics from "expo-haptics";
 import { useRouter } from "expo-router";
-import { useMemo, useState } from "react";
-import {
-  Alert,
-  FlatList,
-  Modal,
-  SafeAreaView,
-  StyleSheet,
-  Text,
-  TouchableOpacity,
-  View,
-} from "react-native";
+import React, { useMemo, useState } from "react";
+import { ActivityIndicator, Alert, FlatList, Modal, Pressable, SafeAreaView, StyleSheet, Text, TouchableOpacity, View } from "react-native";
 import { usePushNotifications } from "../src/hooks/usePushNotifications";
 import { scheduleInstantLocalNotification } from "../src/services/pushNotificationService";
-import { NotificationItem, useAppStore } from "../src/store";
-import { getThemePalette } from "../src/theme";
+import { type NotificationItem, useAppStore } from "../src/store";
 
-type FilterTab = "all" | "unread" | "transaction" | "alert" | "insight";
+type FilterTab = "all" | "transactions" | "alerts" | "updates";
+type Direction = "incoming" | "outgoing" | null;
+type FeedEntry = { kind: "heading"; id: string; label: string } | { kind: "notification"; id: string; notification: NotificationItem };
+
+function dayGroup(timestamp: string) {
+  const date = new Date(timestamp);
+  if (!Number.isFinite(date.getTime())) return "Earlier";
+  const now = new Date();
+  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
+  const dateDay = new Date(date.getFullYear(), date.getMonth(), date.getDate()).getTime();
+  const daysAgo = Math.round((today - dateDay) / 86400000);
+  return daysAgo <= 0 ? "Today" : daysAgo === 1 ? "Yesterday" : "Earlier";
+}
+
+function timestampLabel(value: string) {
+  const date = new Date(value);
+  if (!Number.isFinite(date.getTime())) return "Recently";
+  return `${date.toLocaleDateString("en-NG", { month: "short", day: "numeric" })} · ${date.toLocaleTimeString("en-NG", { hour: "numeric", minute: "2-digit" })}`;
+}
 
 export default function NotificationsScreen() {
   const router = useRouter();
-  const {
-    notifications,
-    unreadNotificationCount,
-    addNotification,
-    markNotificationAsRead,
-    markAllNotificationsAsRead,
-    deleteNotification,
-    clearAllNotifications,
-    themePreference,
-    themeMode,
-  } = useAppStore();
-
+  const store = useAppStore();
+  const { notifications, unreadNotificationCount, addNotification, markNotificationAsRead,
+    markAllNotificationsAsRead, deleteNotification, clearAllNotifications, clearReadNotifications } = store;
   const theme = useThemeTokens();
-  const isDark = themeMode === "dark";
-
+  const dark = store.themeMode === "dark";
   const { expoPushToken } = usePushNotifications();
-
   const [activeFilter, setActiveFilter] = useState<FilterTab>("all");
+  const [showMenu, setShowMenu] = useState(false);
   const [showSimulatorModal, setShowSimulatorModal] = useState(false);
 
-  // Filter notifications based on active tab
-  const filteredNotifications = useMemo(() => {
-    return notifications.filter((item) => {
-      if (activeFilter === "unread") return item.isUnread;
-      if (activeFilter === "transaction") return item.type === "transaction";
-      if (activeFilter === "alert") return item.type === "alert";
-      if (activeFilter === "insight") return item.type === "insight";
-      return true;
-    });
+  const directionOf = (item: NotificationItem): Direction => {
+    if (item.transactionDirection) return item.transactionDirection;
+    const linked = item.referenceId && store.transactions.find((tx: any) => String(tx.id) === item.referenceId);
+    if (linked?.type === "income") return "incoming";
+    if (linked?.type === "expense") return "outgoing";
+    const copy = `${item.title} ${item.description}`.toLowerCase();
+    if (/\b(sent|withdraw|debit|outgoing|money sent|transfer successful)\b/.test(copy)) return "outgoing";
+    if (/\b(received|credited|deposit|income|money received|inbound)\b/.test(copy)) return "incoming";
+    return null;
+  };
+
+  const counts = useMemo(() => ({
+    all: notifications.length,
+    transactions: notifications.filter(item => item.type === "transaction").length,
+    alerts: notifications.filter(item => item.type === "alert").length,
+    updates: notifications.filter(item => ["insight", "bill", "system"].includes(item.type)).length,
+  }), [notifications]);
+
+  const feed = useMemo<FeedEntry[]>(() => {
+    const filtered = notifications.filter(item => activeFilter === "all"
+      || activeFilter === "transactions" && item.type === "transaction"
+      || activeFilter === "alerts" && item.type === "alert"
+      || activeFilter === "updates" && ["insight", "bill", "system"].includes(item.type));
+    filtered.sort((a, b) => Date.parse(b.timestamp) - Date.parse(a.timestamp));
+    const entries: FeedEntry[] = [];
+    let previous = "";
+    for (const notification of filtered) {
+      const heading = dayGroup(notification.timestamp);
+      if (heading !== previous) {
+        entries.push({ kind: "heading", id: `heading-${heading}`, label: heading });
+        previous = heading;
+      }
+      entries.push({ kind: "notification", id: notification.id, notification });
+    }
+    return entries;
   }, [notifications, activeFilter]);
 
-  // Format relative timestamp
-  const formatTimeAgo = (timestampStr: string) => {
-    try {
-      const date = new Date(timestampStr);
-      const now = new Date();
-      const diffMs = now.getTime() - date.getTime();
-      const diffMins = Math.floor(diffMs / 60000);
-      const diffHours = Math.floor(diffMs / 3600000);
-      const diffDays = Math.floor(diffMs / 86400000);
-
-      if (diffMins < 1) return "Just now";
-      if (diffMins < 60) return `${diffMins}m ago`;
-      if (diffHours < 24) return `${diffHours}h ago`;
-      if (diffDays === 1) return "Yesterday";
-      if (diffDays < 7) return `${diffDays}d ago`;
-      return date.toLocaleDateString("en-US", {
-        month: "short",
-        day: "numeric",
-      });
-    } catch {
-      return "Recently";
-    }
-  };
-
   const handleNotificationPress = (item: NotificationItem) => {
-    Haptics.selectionAsync();
-    if (item.isUnread) {
-      markNotificationAsRead(item.id);
-    }
-    if (item.route) {
-      router.push(item.route as any);
-    }
+    void Haptics.selectionAsync().catch(() => {});
+    if (item.isUnread) void markNotificationAsRead(item.id);
+    const route = item.route || (item.type === "transaction" && item.referenceId
+      ? `/transaction-details?id=${encodeURIComponent(item.referenceId)}` : undefined);
+    if (route) router.push(route as any);
   };
 
-  const handleDelete = (id: string) => {
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    deleteNotification(id);
+  const handleDelete = (item: NotificationItem) => Alert.alert("Delete notification?", "This removes the notification from this device.", [
+    { text: "Cancel", style: "cancel" },
+    { text: "Delete", style: "destructive", onPress: () => { void deleteNotification(item.id); void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {}); } },
+  ]);
+
+  const confirmClearRead = () => {
+    const readCount = notifications.filter(item => !item.isUnread).length;
+    setShowMenu(false);
+    if (!readCount) { Alert.alert("Nothing to clear", "You have no read notifications."); return; }
+    Alert.alert("Clear read notifications?", `${readCount} read ${readCount === 1 ? "notification" : "notifications"} will be removed.`, [
+      { text: "Cancel", style: "cancel" }, { text: "Clear read", style: "destructive", onPress: () => { void clearReadNotifications(); } },
+    ]);
   };
 
-  const handleClearAll = () => {
-    if (notifications.length === 0) return;
-    Alert.alert(
-      "Clear All Notifications",
-      "Are you sure you want to remove all notifications?",
-      [
-        { text: "Cancel", style: "cancel" },
-        {
-          text: "Clear All",
-          style: "destructive",
-          onPress: () => {
-            clearAllNotifications();
-            Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-          },
-        },
-      ],
-    );
+  const confirmClearAll = () => {
+    setShowMenu(false);
+    if (!notifications.length) return;
+    Alert.alert("Clear all notifications?", "This removes all notifications from this device.", [
+      { text: "Cancel", style: "cancel" }, { text: "Clear all", style: "destructive", onPress: () => { void clearAllNotifications(); } },
+    ]);
   };
 
   const handleSendTestPush = async (type: NotificationItem["type"]) => {
-    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
     setShowSimulatorModal(false);
-
-    let title = "";
-    let description = "";
-    let route = "";
-
+    let title: string;
+    let description: string;
+    let route: string | undefined;
+    let direction: Direction;
     if (type === "transaction") {
-      title = "Inbound Payment Received";
-      description =
-        "₦15,000.00 was credited to your TallySpends account from @chioma_k.";
+      title = "Money Received";
+      description = "₦15,000.00 was credited to your TallySpends account from @chioma_k.";
       route = "/(tabs)/expenses";
-      addNotification({
-        type: "transaction",
-        title,
-        description,
-        amount: 15000,
-        route,
-      });
+      direction = "incoming";
     } else if (type === "alert") {
-      title = "Budget Threshold Warning";
-      description =
-        "You have exceeded 90% of your Shopping budget for this month. ₦1,200 remaining.";
-      route = "/budgetspending";
-      addNotification({
-        type: "alert",
-        title,
-        description,
-        route,
-      });
+      title = "Security Alert";
+      description = "A new device signed into your TallySpends account.";
+      route = "/settings-security";
+      direction = null;
     } else if (type === "insight") {
-      title = "AI Smart Insight";
-      description =
-        "Great news! You saved 18% on transport this week by tracking your ride-shares.";
+      title = "App Update";
+      description = "A new TallySpends feature is now available.";
       route = "/insightssum";
-      addNotification({
-        type: "insight",
-        title,
-        description,
-        route,
-      });
+      direction = null;
     } else {
-      title = "Scheduled Utility Bill";
-      description =
-        "Your monthly Internet Subscription of ₦12,500 is due in 2 days.";
-      addNotification({
-        type: "bill",
-        title,
-        description,
-      });
+      title = "Upcoming Subscription";
+      description = "Your monthly internet subscription is due in 2 days.";
+      route = undefined;
+      direction = null;
     }
-
-    // Trigger local notification banner alert on physical device within 2 seconds
-    await scheduleInstantLocalNotification({
-      title: `🔔 ${title}`,
-      body: description,
-      data: { route },
-      delaySeconds: 2,
-    });
+    await addNotification({ type, title, description, ...(route ? { route } : {}), ...(direction ? { transactionDirection: direction } : {}), ...(type === "transaction" ? { amount: 15000 } : {}) });
+    await scheduleInstantLocalNotification({ title: `🔔 ${title}`, body: description, data: { route }, delaySeconds: 2 });
   };
 
-  const getNotificationIconDetails = (type: NotificationItem["type"]) => {
-    switch (type) {
-      case "transaction":
-        return {
-          icon: "swap-horizontal-outline" as const,
-          color: isDark ? "#4ADE80" : "#15803D",
-          bg: isDark ? "#133E23" : "#EAF6EC",
-        };
-      case "alert":
-        return {
-          icon: "warning-outline" as const,
-          color: isDark ? "#F87171" : theme.danger,
-          bg: isDark ? "#3D1719" : "#FEE2E2",
-        };
-      case "insight":
-        return {
-          icon: "sparkles-outline" as const,
-          color: isDark ? theme.accent : theme.accent,
-          bg: isDark ? "#281D33" : theme.accentSoft,
-        };
-      case "bill":
-        return {
-          icon: "calendar-outline" as const,
-          color: isDark ? "#60A5FA" : "#2563EB",
-          bg: isDark ? "#1E293B" : "#EFF6FF",
-        };
-      default:
-        return {
-          icon: "shield-checkmark-outline" as const,
-          color: theme.textSecondary,
-          bg: theme.surfaceSoft,
-        };
+  const iconFor = (item: NotificationItem) => {
+    if (item.type === "transaction") {
+      const direction = directionOf(item);
+      if (direction === "incoming") return { name: "arrow-down-outline" as const, rotation: "45deg" as const, color: dark ? "#7CD992" : "#16803D", bg: dark ? "#173924" : "#E8F5EB" };
+      if (direction === "outgoing") return { name: "arrow-up-outline" as const, rotation: "45deg" as const, color: dark ? "#FF9393" : "#C83E4D", bg: dark ? "#442329" : "#FCEAEC" };
+      return { name: "swap-horizontal-outline" as const, rotation: "0deg" as const, color: theme.accent, bg: theme.accentSoft };
     }
+    if (item.type === "alert") return { name: "notifications-outline" as const, rotation: "0deg" as const, color: dark ? "#F4CC62" : "#A67300", bg: dark ? "#44391B" : "#FFF4D6" };
+    return { name: "alert-circle-outline" as const, rotation: "0deg" as const, color: dark ? "#B9B6C2" : "#777580", bg: dark ? "#303038" : "#F0EFF2" };
   };
 
-  return (
-    <SafeAreaView
-      style={[styles.container, { backgroundColor: theme.background }]}
-    >
-      {/* Header Bar */}
-      <View
-        style={[
-          styles.headerBar,
-          { backgroundColor: theme.surface, borderBottomColor: theme.border },
-        ]}
-      >
-        <TouchableOpacity
-          style={styles.headerBtn}
-          onPress={() => router.back()}
-          activeOpacity={0.7}
-        >
-          <Ionicons name="chevron-back" size={24} color={theme.textPrimary} />
-        </TouchableOpacity>
+  const displayTitle = (item: NotificationItem) => {
+    if (item.type !== "transaction") return item.title;
+    const direction = directionOf(item);
+    return direction === "incoming" ? "Money Received" : direction === "outgoing" ? "Money Sent" : item.title;
+  };
 
-        <View style={styles.headerTitleContainer}>
-          <Text style={[styles.headerTitle, { color: theme.textPrimary }]}>
-            Notifications
-          </Text>
-          {unreadNotificationCount > 0 && (
-            <View
-              style={[
-                styles.unreadBadgePill,
-                { backgroundColor: theme.accent },
-              ]}
-            >
-              <Text style={styles.unreadBadgePillText}>
-                {unreadNotificationCount}
-              </Text>
-            </View>
-          )}
-        </View>
+  const filters: { key: FilterTab; label: string; count: number }[] = [
+    { key: "all", label: "All", count: counts.all },
+    { key: "transactions", label: "Transactions", count: counts.transactions },
+    { key: "alerts", label: "Alerts", count: counts.alerts },
+    { key: "updates", label: "Updates", count: counts.updates },
+  ];
 
-        <View style={styles.headerActionsRow}>
-          {unreadNotificationCount > 0 && (
-            <TouchableOpacity
-              style={styles.headerActionIcon}
-              onPress={() => {
-                markAllNotificationsAsRead();
-                Haptics.selectionAsync();
-              }}
-              activeOpacity={0.7}
-            >
-              <Ionicons name="checkmark-done" size={21} color={theme.accent} />
-            </TouchableOpacity>
-          )}
+  return <SafeAreaView style={[s.safe, { backgroundColor: theme.background }]}>
+    <View style={[s.header, { borderBottomColor: theme.border }]}>
+      <TouchableOpacity accessibilityRole="button" accessibilityLabel="Go back" style={[s.headerButton, { backgroundColor: theme.surface }]} onPress={() => router.back()}><Ionicons name="chevron-back" size={21} color={theme.textPrimary} /></TouchableOpacity>
+      <View style={s.headerCenter}><Text style={[s.headerTitle, { color: theme.textPrimary }]}>Notifications</Text>{unreadNotificationCount > 0 && <View style={[s.unreadCount, { backgroundColor: theme.accent }]}><Text style={s.unreadCountText}>{unreadNotificationCount > 99 ? "99+" : unreadNotificationCount}</Text></View>}</View>
+      <TouchableOpacity accessibilityRole="button" accessibilityLabel="Notification actions" style={[s.headerButton, { backgroundColor: theme.surface }]} onPress={() => setShowMenu(true)}><Ionicons name="ellipsis-horizontal" size={21} color={theme.textPrimary} /></TouchableOpacity>
+    </View>
 
-          <TouchableOpacity
-            style={styles.headerActionIcon}
-            onPress={() => setShowSimulatorModal(true)}
-            activeOpacity={0.7}
-          >
-            <Ionicons
-              name="add-circle-outline"
-              size={22}
-              color={theme.accent}
-            />
-          </TouchableOpacity>
+    {__DEV__ && <View style={[s.testStrip, { backgroundColor: theme.surface, borderColor: theme.border }]}>
+      <View style={[s.testIcon, { backgroundColor: theme.accentSoft }]}><Ionicons name="notifications-outline" size={15} color={theme.accent} /></View>
+      <View style={{ flex: 1 }}><Text style={{ color: theme.textPrimary, fontSize: 11, fontWeight: "700" }}>Test notifications</Text><Text style={{ color: theme.textSecondary, fontSize: 9, marginTop: 2 }}>{expoPushToken ? "Push token ready" : "Local test alert"}</Text></View>
+      <TouchableOpacity accessibilityRole="button" onPress={() => void handleSendTestPush("transaction")} style={[s.testButton, { backgroundColor: theme.accent }]}><Ionicons name="paper-plane-outline" size={12} color={theme.onAccent} /><Text style={{ color: theme.onAccent, fontSize: 10, fontWeight: "700" }}>Test (2s)</Text></TouchableOpacity>
+      {expoPushToken && <TouchableOpacity accessibilityRole="button" accessibilityLabel="Copy push token" onPress={async () => { await Clipboard.setStringAsync(expoPushToken); Alert.alert("Copied", "Expo push token copied."); }} style={s.copyButton}><Ionicons name="copy-outline" size={15} color={theme.textSecondary} /></TouchableOpacity>}
+    </View>}
 
-          {notifications.length > 0 && (
-            <TouchableOpacity
-              style={styles.headerActionIcon}
-              onPress={handleClearAll}
-              activeOpacity={0.7}
-            >
-              <Ionicons
-                name="trash-outline"
-                size={19}
-                color={theme.textSecondary}
-              />
-            </TouchableOpacity>
-          )}
-        </View>
-      </View>
+    <FlatList
+      horizontal
+      data={filters}
+      keyExtractor={item => item.key}
+      showsHorizontalScrollIndicator={false}
+      contentContainerStyle={s.filters}
+      renderItem={({ item }) => {
+        const selected = activeFilter === item.key;
+        return <TouchableOpacity accessibilityRole="tab" accessibilityState={{ selected }} accessibilityLabel={`${item.label}, ${item.count} notifications`} onPress={() => { setActiveFilter(item.key); void Haptics.selectionAsync().catch(() => {}); }} style={[s.filter, { backgroundColor: selected ? theme.accent : theme.surface, borderColor: selected ? theme.accent : theme.border }]}>
+          <Text style={{ color: selected ? theme.onAccent : theme.textPrimary, fontWeight: selected ? "700" : "500", fontSize: 11 }}>{item.label}</Text>
+          <Text style={{ color: selected ? theme.onAccent : theme.textSecondary, fontSize: 9, opacity: selected ? .82 : .9 }}>{item.count}</Text>
+        </TouchableOpacity>;
+      }}
+    />
 
-      {/* Test Notification Quick Trigger Bar */}
-      <View
-        style={[
-          styles.testPushBar,
-          {
-            backgroundColor: isDark ? theme.surfaceSoft : "#F5EEFA",
-            borderColor: theme.border,
-          },
-        ]}
-      >
-        <View style={{ flex: 1 }}>
-          <Text style={[styles.testPushTitle, { color: theme.textPrimary }]}>
-            🔔 Test Notifications
-          </Text>
-          <Text style={[styles.testPushSub, { color: theme.textSecondary }]}>
-            {expoPushToken
-              ? "Push Token Ready • Tap Test (2s)"
-              : "Instant test alert on device"}
-          </Text>
-        </View>
-
-        <TouchableOpacity
-          style={[styles.testPushBtn, { backgroundColor: theme.accent }]}
-          onPress={() => handleSendTestPush("transaction")}
-          activeOpacity={0.8}
-        >
-          <Ionicons name="paper-plane" size={14} color="#FFFFFF" />
-          <Text style={styles.testPushBtnText}>Test (2s)</Text>
-        </TouchableOpacity>
-
-        {expoPushToken && (
-          <TouchableOpacity
-            style={[styles.copyTokenBtn, { borderColor: theme.accent }]}
-            onPress={async () => {
-              await Clipboard.setStringAsync(expoPushToken);
-              Haptics.notificationAsync(
-                Haptics.NotificationFeedbackType.Success,
-              );
-              Alert.alert(
-                "Token Copied!",
-                "Your ExpoPushToken has been copied to your clipboard.",
-              );
-            }}
-            activeOpacity={0.8}
-          >
-            <Ionicons name="copy-outline" size={14} color={theme.accent} />
-          </TouchableOpacity>
-        )}
-      </View>
-
-      {/* Filter Tabs */}
-      <View style={[styles.filterBar, { borderBottomColor: theme.border }]}>
-        <FlatList
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          data={[
-            { key: "all", label: "All", count: notifications.length },
-            { key: "unread", label: "Unread", count: unreadNotificationCount },
-            {
-              key: "transaction",
-              label: "Transactions",
-              count: notifications.filter((n) => n.type === "transaction")
-                .length,
-            },
-            {
-              key: "alert",
-              label: "Alerts",
-              count: notifications.filter((n) => n.type === "alert").length,
-            },
-            {
-              key: "insight",
-              label: "Insights",
-              count: notifications.filter((n) => n.type === "insight").length,
-            },
-          ]}
-          keyExtractor={(item) => item.key}
-          contentContainerStyle={styles.filterListContent}
-          renderItem={({ item }) => {
-            const isSelected = activeFilter === item.key;
-            return (
-              <TouchableOpacity
-                style={[
-                  styles.filterChip,
-                  {
-                    backgroundColor: isSelected
-                      ? theme.accent
-                      : isDark
-                        ? theme.surfaceSoft
-                        : theme.surface,
-                    borderColor: isSelected ? theme.accent : theme.border,
-                  },
-                ]}
-                onPress={() => {
-                  Haptics.selectionAsync();
-                  setActiveFilter(item.key as FilterTab);
-                }}
-                activeOpacity={0.75}
-              >
-                <Text
-                  style={[
-                    styles.filterChipLabel,
-                    {
-                      color: isSelected ? "#FFFFFF" : theme.textPrimary,
-                      fontWeight: isSelected ? "700" : "500",
-                    },
-                  ]}
-                >
-                  {item.label}
-                </Text>
-                {item.count > 0 && (
-                  <View
-                    style={[
-                      styles.filterChipCount,
-                      {
-                        backgroundColor: isSelected
-                          ? "rgba(255,255,255,0.25)"
-                          : isDark
-                            ? theme.surface
-                            : theme.accentSoft,
-                      },
-                    ]}
-                  >
-                    <Text
-                      style={[
-                        styles.filterChipCountText,
-                        { color: isSelected ? "#FFFFFF" : theme.textSecondary },
-                      ]}
-                    >
-                      {item.count}
-                    </Text>
-                  </View>
-                )}
-              </TouchableOpacity>
-            );
-          }}
-        />
-      </View>
-
-      {/* Notifications List */}
-      <FlatList
-        data={filteredNotifications}
-        keyExtractor={(item) => item.id}
-        contentContainerStyle={styles.listContent}
-        showsVerticalScrollIndicator={false}
-        renderItem={({ item }) => {
-          const iconDetails = getNotificationIconDetails(item.type);
-          return (
-            <TouchableOpacity
-              style={[
-                styles.notificationCard,
-                {
-                  backgroundColor: item.isUnread
-                    ? isDark
-                      ? theme.surfaceSoft
-                      : "#FCFAFE"
-                    : theme.surface,
-                  borderColor: item.isUnread
-                    ? theme.accent + "50"
-                    : theme.border,
-                },
-              ]}
-              onPress={() => handleNotificationPress(item)}
-              activeOpacity={0.75}
-            >
-              {/* Left Icon Box */}
-              <View
-                style={[styles.iconBox, { backgroundColor: iconDetails.bg }]}
-              >
-                <Ionicons
-                  name={iconDetails.icon}
-                  size={20}
-                  color={iconDetails.color}
-                />
-              </View>
-
-              {/* Center Details Column */}
-              <View style={styles.cardInfoCol}>
-                <View style={styles.cardTitleRow}>
-                  <Text
-                    style={[
-                      styles.cardTitle,
-                      {
-                        color: theme.textPrimary,
-                        fontWeight: item.isUnread ? "800" : "700",
-                      },
-                    ]}
-                    numberOfLines={1}
-                  >
-                    {item.title}
-                  </Text>
-                  {item.isUnread && (
-                    <View
-                      style={[
-                        styles.unreadDot,
-                        { backgroundColor: theme.accent },
-                      ]}
-                    />
-                  )}
-                </View>
-
-                <Text
-                  style={[
-                    styles.cardDescription,
-                    { color: theme.textSecondary },
-                  ]}
-                  numberOfLines={3}
-                >
-                  {item.description}
-                </Text>
-
-                <View style={styles.cardBottomMetaRow}>
-                  <Text
-                    style={[styles.timeAgoText, { color: theme.textSecondary }]}
-                  >
-                    {formatTimeAgo(item.timestamp)}
-                  </Text>
-
-                  {item.route && (
-                    <View style={styles.tapToViewTag}>
-                      <Text
-                        style={[styles.tapToViewText, { color: theme.accent }]}
-                      >
-                        View Details →
-                      </Text>
-                    </View>
-                  )}
-                </View>
-              </View>
-
-              {/* Right Delete Button */}
-              <TouchableOpacity
-                style={styles.cardDeleteBtn}
-                onPress={() => handleDelete(item.id)}
-                hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-              >
-                <Ionicons name="close" size={16} color={theme.textSecondary} />
-              </TouchableOpacity>
-            </TouchableOpacity>
-          );
-        }}
-        ListEmptyComponent={() => (
-          <View style={styles.emptyStateContainer}>
-            <View
-              style={[
-                styles.emptyIconBox,
-                { backgroundColor: isDark ? theme.surfaceSoft : theme.accentSoft },
-              ]}
-            >
-              <Ionicons
-                name="notifications-off-outline"
-                size={40}
-                color={theme.accent}
-              />
-            </View>
-            <Text
-              style={[styles.emptyStateTitle, { color: theme.textPrimary }]}
-            >
-              {activeFilter === "unread"
-                ? "No unread notifications"
-                : "No notifications found"}
-            </Text>
-            <Text
-              style={[styles.emptyStateSub, { color: theme.textSecondary }]}
-            >
-              {activeFilter === "unread"
-                ? "You are completely caught up! We'll alert you when there are new updates."
-                : "Transactions, budget alerts, and smart insights will appear here in real-time."}
-            </Text>
+    <FlatList
+      data={feed}
+      keyExtractor={entry => entry.id}
+      contentContainerStyle={s.list}
+      showsVerticalScrollIndicator={false}
+      renderItem={({ item: entry }) => {
+        if (entry.kind === "heading") return <Text style={[s.groupHeading, { color: theme.textSecondary }]}>{entry.label}</Text>;
+        const item = entry.notification;
+        const icon = iconFor(item);
+        return <TouchableOpacity accessibilityRole="button" accessibilityLabel={`${displayTitle(item)}. ${item.description}. ${timestampLabel(item.timestamp)}${item.isUnread ? ". Unread" : ""}`} accessibilityHint="Double tap to open. Long press for notification actions." onPress={() => handleNotificationPress(item)} onLongPress={() => handleDelete(item)} delayLongPress={450} activeOpacity={.75} style={[s.card, { backgroundColor: item.isUnread ? (dark ? theme.surfaceSoft : "#FFFEFF") : theme.surface, borderColor: theme.border }]}>
+          <View style={[s.iconBox, { backgroundColor: icon.bg }]}><Ionicons name={icon.name} size={18} color={icon.color} style={{ transform: [{ rotate: icon.rotation }] }} /></View>
+          <View style={s.cardBody}>
+            <View style={s.titleLine}><Text numberOfLines={1} style={{ flex: 1, color: theme.textPrimary, fontSize: 12, fontWeight: item.isUnread ? "700" : "600" }}>{displayTitle(item)}</Text>{item.isUnread && <View style={[s.unreadDot, { backgroundColor: theme.accent }]} />}</View>
+            <Text numberOfLines={3} style={{ color: theme.textSecondary, fontSize: 10, lineHeight: 15, marginTop: 4 }}>{item.description}</Text>
+            <Text style={{ color: theme.textSecondary, fontSize: 9, marginTop: 7 }}>{timestampLabel(item.timestamp)}</Text>
           </View>
-        )}
-      />
+          <Ionicons name="chevron-forward" size={16} color={theme.textSecondary} style={{ marginLeft: 5, marginTop: 3 }} />
+        </TouchableOpacity>;
+      }}
+      ListEmptyComponent={store.notificationsLoading ? <View style={s.empty}><ActivityIndicator color={theme.accent} /><Text style={{ color: theme.textSecondary, fontSize: 11, marginTop: 10 }}>Loading notifications…</Text></View> : store.notificationsError ? <View style={s.empty}><View style={[s.emptyIcon, { backgroundColor: theme.accentSoft }]}><Ionicons name="cloud-offline-outline" size={24} color={theme.accent} /></View><Text style={{ color: theme.textPrimary, fontSize: 15, fontWeight: "700" }}>Couldn’t load notifications</Text><Text style={{ color: theme.textSecondary, fontSize: 11, textAlign: "center", lineHeight: 17, marginTop: 6 }}>{store.notificationsError}</Text><TouchableOpacity accessibilityRole="button" onPress={() => void store.retryNotifications()} style={{ padding: 12 }}><Text style={{ color: theme.accent, fontSize: 12, fontWeight: "700" }}>Try again</Text></TouchableOpacity></View> : <View style={s.empty}><View style={[s.emptyIcon, { backgroundColor: theme.accentSoft }]}><Ionicons name="notifications-off-outline" size={24} color={theme.accent} /></View><Text style={{ color: theme.textPrimary, fontSize: 15, fontWeight: "700" }}>{activeFilter === "all" ? "You’re all caught up" : `No ${activeFilter} notifications`}</Text><Text style={{ color: theme.textSecondary, fontSize: 11, textAlign: "center", lineHeight: 17, marginTop: 6 }}>New transactions, alerts, and app updates will appear here.</Text></View>}
+    />
 
-      {/* Test Push Simulator Modal */}
-      <Modal
-        visible={showSimulatorModal}
-        transparent
-        animationType="fade"
-        onRequestClose={() => setShowSimulatorModal(false)}
-      >
-        <TouchableOpacity
-          style={styles.modalBackdrop}
-          activeOpacity={1}
-          onPress={() => setShowSimulatorModal(false)}
-        >
-          <View
-            style={[
-              styles.simulatorCard,
-              { backgroundColor: theme.surface, borderColor: theme.border },
-            ]}
-          >
-            <View style={styles.simulatorHeader}>
-              <Text
-                style={[styles.simulatorTitle, { color: theme.textPrimary }]}
-              >
-                Simulate Push Notification
-              </Text>
-              <TouchableOpacity onPress={() => setShowSimulatorModal(false)}>
-                <Ionicons name="close" size={22} color={theme.textPrimary} />
-              </TouchableOpacity>
-            </View>
+    <Modal visible={showMenu} transparent animationType="fade" onRequestClose={() => setShowMenu(false)}>
+      <Pressable style={s.menuBackdrop} onPress={() => setShowMenu(false)}>
+        <View style={[s.menu, { backgroundColor: theme.surface, borderColor: theme.border }]}>
+          <Text style={[s.menuLabel, { color: theme.textSecondary }]}>NOTIFICATION ACTIONS</Text>
+          <MenuAction icon="checkmark-done-outline" label="Mark all as read" theme={theme} onPress={() => { setShowMenu(false); void markAllNotificationsAsRead(); }} />
+          <MenuAction icon="mail-open-outline" label="Clear read notifications" theme={theme} onPress={confirmClearRead} />
+          <MenuAction icon="trash-outline" label="Clear all notifications" destructive theme={theme} onPress={confirmClearAll} />
+          {__DEV__ && <MenuAction icon="flask-outline" label="Simulate a notification" theme={theme} onPress={() => { setShowMenu(false); setShowSimulatorModal(true); }} />}
+        </View>
+      </Pressable>
+    </Modal>
 
-            <Text style={[styles.simulatorSub, { color: theme.textSecondary }]}>
-              Trigger live real-time notifications to test updates, sounds, and
-              badges:
-            </Text>
-
-            <View style={{ gap: 10 }}>
-              <TouchableOpacity
-                style={[
-                  styles.simOptionBtn,
-                  {
-                    backgroundColor: isDark ? theme.surfaceSoft : "#F4EEF8",
-                    borderColor: theme.border,
-                  },
-                ]}
-                onPress={() => handleSendTestPush("transaction")}
-              >
-                <Ionicons
-                  name="wallet-outline"
-                  size={20}
-                  color={theme.accent}
-                />
-                <View style={{ flex: 1 }}>
-                  <Text
-                    style={[
-                      styles.simOptionTitle,
-                      { color: theme.textPrimary },
-                    ]}
-                  >
-                    Payment & Transfer Alert
-                  </Text>
-                  <Text
-                    style={[
-                      styles.simOptionDesc,
-                      { color: theme.textSecondary },
-                    ]}
-                  >
-                    Incoming ₦15,000 credit notification
-                  </Text>
-                </View>
-              </TouchableOpacity>
-
-              <TouchableOpacity
-                style={[
-                  styles.simOptionBtn,
-                  {
-                    backgroundColor: isDark ? theme.surfaceSoft : "#F4EEF8",
-                    borderColor: theme.border,
-                  },
-                ]}
-                onPress={() => handleSendTestPush("alert")}
-              >
-                <Ionicons name="warning-outline" size={20} color={theme.danger} />
-                <View style={{ flex: 1 }}>
-                  <Text
-                    style={[
-                      styles.simOptionTitle,
-                      { color: theme.textPrimary },
-                    ]}
-                  >
-                    Budget Warning
-                  </Text>
-                  <Text
-                    style={[
-                      styles.simOptionDesc,
-                      { color: theme.textSecondary },
-                    ]}
-                  >
-                    Over 90% budget spending limit
-                  </Text>
-                </View>
-              </TouchableOpacity>
-
-              <TouchableOpacity
-                style={[
-                  styles.simOptionBtn,
-                  {
-                    backgroundColor: isDark ? theme.surfaceSoft : "#F4EEF8",
-                    borderColor: theme.border,
-                  },
-                ]}
-                onPress={() => handleSendTestPush("insight")}
-              >
-                <Ionicons name="sparkles-outline" size={20} color={theme.accent} />
-                <View style={{ flex: 1 }}>
-                  <Text
-                    style={[
-                      styles.simOptionTitle,
-                      { color: theme.textPrimary },
-                    ]}
-                  >
-                    Weekly AI Smart Insight
-                  </Text>
-                  <Text
-                    style={[
-                      styles.simOptionDesc,
-                      { color: theme.textSecondary },
-                    ]}
-                  >
-                    Spending reduction analysis
-                  </Text>
-                </View>
-              </TouchableOpacity>
-
-              <TouchableOpacity
-                style={[
-                  styles.simOptionBtn,
-                  {
-                    backgroundColor: isDark ? theme.surfaceSoft : "#F4EEF8",
-                    borderColor: theme.border,
-                  },
-                ]}
-                onPress={() => handleSendTestPush("bill")}
-              >
-                <Ionicons name="calendar-outline" size={20} color="#2563EB" />
-                <View style={{ flex: 1 }}>
-                  <Text
-                    style={[
-                      styles.simOptionTitle,
-                      { color: theme.textPrimary },
-                    ]}
-                  >
-                    Subscription Due Reminder
-                  </Text>
-                  <Text
-                    style={[
-                      styles.simOptionDesc,
-                      { color: theme.textSecondary },
-                    ]}
-                  >
-                    Upcoming bill renewal
-                  </Text>
-                </View>
-              </TouchableOpacity>
-            </View>
-          </View>
-        </TouchableOpacity>
-      </Modal>
-    </SafeAreaView>
-  );
+    <Modal visible={showSimulatorModal} transparent animationType="fade" onRequestClose={() => setShowSimulatorModal(false)}>
+      <Pressable style={s.modalBackdrop} onPress={() => setShowSimulatorModal(false)}>
+        <View style={[s.simulator, { backgroundColor: theme.surface, borderColor: theme.border }]}>
+          <View style={s.simulatorHeading}><Text style={{ color: theme.textPrimary, fontSize: 16, fontWeight: "800" }}>Simulate notification</Text><TouchableOpacity accessibilityRole="button" accessibilityLabel="Close" onPress={() => setShowSimulatorModal(false)}><Ionicons name="close" size={22} color={theme.textPrimary} /></TouchableOpacity></View>
+          <Text style={{ color: theme.textSecondary, fontSize: 11, lineHeight: 17, marginBottom: 13 }}>Create a local sample and show a device notification.</Text>
+          {([
+            ["transaction", "Money received", "Incoming payment sample", "arrow-down-outline", "#16803D"],
+            ["alert", "Security alert", "Account safety sample", "notifications-outline", "#A67300"],
+            ["insight", "App update", "Feature announcement sample", "alert-circle-outline", "#777580"],
+            ["bill", "Reminder", "Upcoming subscription sample", "alert-circle-outline", "#777580"],
+          ] as const).map(([type, title, subtitle, icon, color]) => <TouchableOpacity key={type} accessibilityRole="button" onPress={() => void handleSendTestPush(type)} style={[s.simulatorOption, { borderColor: theme.border, backgroundColor: theme.background }]}><Ionicons name={icon} size={19} color={color} /><View style={{ flex: 1 }}><Text style={{ color: theme.textPrimary, fontSize: 12, fontWeight: "700" }}>{title}</Text><Text style={{ color: theme.textSecondary, fontSize: 10, marginTop: 3 }}>{subtitle}</Text></View><Ionicons name="chevron-forward" size={15} color={theme.textSecondary} /></TouchableOpacity>)}
+        </View>
+      </Pressable>
+    </Modal>
+  </SafeAreaView>;
 }
 
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-  },
-  headerBar: {
-    height: 56,
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    paddingHorizontal: 16,
-    borderBottomWidth: 1,
-  },
-  headerBtn: {
-    padding: 4,
-  },
-  headerTitleContainer: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 8,
-  },
-  headerTitle: {
-    fontSize: 18,
-    fontWeight: "700",
-  },
-  unreadBadgePill: {
-    paddingHorizontal: 7,
-    paddingVertical: 2,
-    borderRadius: 10,
-  },
-  unreadBadgePillText: {
-    color: "#FFFFFF",
-    fontSize: 11,
-    fontWeight: "800",
-  },
-  headerActionsRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 12,
-  },
-  headerActionIcon: {
-    padding: 4,
-  },
-  testPushBar: {
-    marginHorizontal: 16,
-    marginTop: 10,
-    marginBottom: 4,
-    paddingHorizontal: 14,
-    paddingVertical: 10,
-    borderRadius: 14,
-    borderWidth: 1,
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 10,
-  },
-  testPushTitle: {
-    fontSize: 13,
-    fontWeight: "700",
-  },
-  testPushSub: {
-    fontSize: 11,
-    marginTop: 2,
-  },
-  testPushBtn: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 5,
-    paddingHorizontal: 12,
-    paddingVertical: 7,
-    borderRadius: 10,
-  },
-  testPushBtnText: {
-    color: "#FFFFFF",
-    fontSize: 11.5,
-    fontWeight: "700",
-  },
-  copyTokenBtn: {
-    padding: 7,
-    borderRadius: 10,
-    borderWidth: 1,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  filterBar: {
-    paddingVertical: 10,
-    borderBottomWidth: 1,
-  },
-  filterListContent: {
-    paddingHorizontal: 16,
-    gap: 8,
-  },
-  filterChip: {
-    flexDirection: "row",
-    alignItems: "center",
-    paddingHorizontal: 12,
-    paddingVertical: 7,
-    borderRadius: 20,
-    borderWidth: 1,
-    gap: 6,
-  },
-  filterChipLabel: {
-    fontSize: 12.5,
-  },
-  filterChipCount: {
-    paddingHorizontal: 6,
-    paddingVertical: 1.5,
-    borderRadius: 10,
-  },
-  filterChipCountText: {
-    fontSize: 10.5,
-    fontWeight: "700",
-  },
-  listContent: {
-    padding: 16,
-    paddingBottom: 40,
-    gap: 12,
-  },
-  notificationCard: {
-    flexDirection: "row",
-    alignItems: "flex-start",
-    borderRadius: 18,
-    borderWidth: 1,
-    padding: 14,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.04,
-    shadowRadius: 6,
-    elevation: 2,
-  },
-  iconBox: {
-    width: 42,
-    height: 42,
-    borderRadius: 14,
-    justifyContent: "center",
-    alignItems: "center",
-    marginRight: 12,
-  },
-  cardInfoCol: {
-    flex: 1,
-    paddingRight: 6,
-  },
-  cardTitleRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    marginBottom: 4,
-  },
-  cardTitle: {
-    fontSize: 14.5,
-    flex: 1,
-    marginRight: 6,
-  },
-  unreadDot: {
-    width: 7,
-    height: 7,
-    borderRadius: 3.5,
-  },
-  cardDescription: {
-    fontSize: 12.5,
-    lineHeight: 17,
-    marginBottom: 8,
-  },
-  cardBottomMetaRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-  },
-  timeAgoText: {
-    fontSize: 11,
-    fontWeight: "500",
-  },
-  tapToViewTag: {
-    paddingVertical: 1,
-  },
-  tapToViewText: {
-    fontSize: 11.5,
-    fontWeight: "700",
-  },
-  cardDeleteBtn: {
-    padding: 2,
-  },
-  emptyStateContainer: {
-    alignItems: "center",
-    justifyContent: "center",
-    paddingVertical: 60,
-    paddingHorizontal: 24,
-  },
-  emptyIconBox: {
-    width: 72,
-    height: 72,
-    borderRadius: 24,
-    justifyContent: "center",
-    alignItems: "center",
-    marginBottom: 16,
-  },
-  emptyStateTitle: {
-    fontSize: 17,
-    fontWeight: "800",
-    marginBottom: 6,
-    textAlign: "center",
-  },
-  emptyStateSub: {
-    fontSize: 13,
-    lineHeight: 19,
-    textAlign: "center",
-  },
-  modalBackdrop: {
-    flex: 1,
-    backgroundColor: "rgba(0,0,0,0.55)",
-    justifyContent: "center",
-    alignItems: "center",
-    padding: 20,
-  },
-  simulatorCard: {
-    width: "100%",
-    maxWidth: 360,
-    borderRadius: 24,
-    borderWidth: 1,
-    padding: 20,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 10 },
-    shadowOpacity: 0.15,
-    shadowRadius: 20,
-    elevation: 8,
-  },
-  simulatorHeader: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    marginBottom: 6,
-  },
-  simulatorTitle: {
-    fontSize: 17,
-    fontWeight: "800",
-  },
-  simulatorSub: {
-    fontSize: 12.5,
-    lineHeight: 17,
-    marginBottom: 16,
-  },
-  simOptionBtn: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 12,
-    borderRadius: 14,
-    borderWidth: 1,
-    padding: 12,
-  },
-  simOptionTitle: {
-    fontSize: 13.5,
-    fontWeight: "700",
-    marginBottom: 2,
-  },
-  simOptionDesc: {
-    fontSize: 11.5,
-  },
-});
+function MenuAction({ icon, label, onPress, theme, destructive = false }: { icon: keyof typeof Ionicons.glyphMap; label: string; onPress: () => void; theme: ReturnType<typeof useThemeTokens>; destructive?: boolean }) {
+  return <TouchableOpacity accessibilityRole="button" onPress={onPress} style={s.menuAction}><Ionicons name={icon} size={18} color={destructive ? theme.danger : theme.accent} /><Text style={{ color: destructive ? theme.danger : theme.textPrimary, fontSize: 12, fontWeight: "600" }}>{label}</Text></TouchableOpacity>;
+}
 
+const s = StyleSheet.create({
+  safe: { flex: 1 },
+  header: { height: 52, flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: 14, borderBottomWidth: StyleSheet.hairlineWidth },
+  headerButton: { width: 34, height: 34, borderRadius: 12, alignItems: "center", justifyContent: "center" },
+  headerCenter: { flexDirection: "row", alignItems: "center", gap: 6 },
+  headerTitle: { fontSize: 16, fontWeight: "700", letterSpacing: -.2 },
+  unreadCount: { minWidth: 16, height: 16, borderRadius: 8, paddingHorizontal: 4, alignItems: "center", justifyContent: "center" },
+  unreadCountText: { color: "#fff", fontSize: 9, fontWeight: "800" },
+  testStrip: { marginHorizontal: 16, marginTop: 9, borderWidth: 1, borderRadius: 15, paddingHorizontal: 10, paddingVertical: 8, flexDirection: "row", alignItems: "center", gap: 9 },
+  testIcon: { width: 30, height: 30, borderRadius: 10, alignItems: "center", justifyContent: "center" },
+  testButton: { minHeight: 30, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 5, borderRadius: 11, paddingHorizontal: 10 },
+  copyButton: { padding: 7 },
+  filters: { paddingHorizontal: 16, paddingTop: 11, paddingBottom: 10, gap: 7 },
+  filter: { minHeight: 30, borderWidth: 1, borderRadius: 20, paddingHorizontal: 11, flexDirection: "row", alignItems: "center", gap: 6 },
+  list: { paddingHorizontal: 16, paddingTop: 2, paddingBottom: 28, gap: 8 },
+  groupHeading: { fontSize: 10, fontWeight: "700", marginTop: 8, marginBottom: 1 },
+  card: { borderRadius: 15, borderWidth: StyleSheet.hairlineWidth, padding: 11, minHeight: 76, flexDirection: "row", alignItems: "center" },
+  iconBox: { width: 34, height: 34, borderRadius: 11, alignItems: "center", justifyContent: "center", marginRight: 10 },
+  cardBody: { flex: 1, minWidth: 0 },
+  titleLine: { flexDirection: "row", alignItems: "center", gap: 7 },
+  unreadDot: { width: 6, height: 6, borderRadius: 3 },
+  empty: { alignItems: "center", padding: 32, marginTop: 30 },
+  emptyIcon: { width: 54, height: 54, borderRadius: 18, alignItems: "center", justifyContent: "center", marginBottom: 13 },
+  menuBackdrop: { flex: 1, backgroundColor: "rgba(12,10,18,0.18)", alignItems: "flex-end", paddingTop: 54, paddingRight: 14 },
+  menu: { width: 244, borderWidth: 1, borderRadius: 17, paddingHorizontal: 14, paddingVertical: 12, shadowColor: "#20142A", shadowOpacity: .12, shadowRadius: 18, shadowOffset: { width: 0, height: 8 }, elevation: 8 },
+  menuLabel: { fontSize: 8, fontWeight: "800", letterSpacing: 1, paddingHorizontal: 7, paddingBottom: 8 },
+  menuAction: { minHeight: 43, flexDirection: "row", alignItems: "center", gap: 10, paddingHorizontal: 7 },
+  modalBackdrop: { flex: 1, backgroundColor: "rgba(12,10,18,0.38)", justifyContent: "center", padding: 22 },
+  simulator: { width: "100%", maxWidth: 380, alignSelf: "center", borderWidth: 1, borderRadius: 22, padding: 17, gap: 9 },
+  simulatorHeading: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
+  simulatorOption: { minHeight: 55, borderWidth: 1, borderRadius: 14, paddingHorizontal: 12, flexDirection: "row", alignItems: "center", gap: 11 },
+});

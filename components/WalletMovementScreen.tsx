@@ -70,10 +70,14 @@ export function WalletMovementScreen({ kind }: { kind: "deposit" | "withdrawal" 
       <Pressable accessibilityRole="button" accessibilityLabel={`View ${kind} history`} onPress={openHistory} style={[s.headerButton, { backgroundColor: theme.surface }]}><Ionicons name="time-outline" size={20} color={theme.accent} /></Pressable>
     </View>
     <ScrollView keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false} contentContainerStyle={s.content}>
+      <View style={[s.intro, { backgroundColor: theme.surfaceSoft }]}>
+        <View style={[s.introIcon, { backgroundColor: theme.accentSoft }]}><Ionicons name={deposit ? "arrow-down-outline" : "arrow-up-outline"} size={19} color={theme.accent} /></View>
+        <View style={{ flex: 1, gap: 3 }}><Text style={{ color: theme.textPrimary, fontSize: 14, fontWeight: "800" }}>{deposit ? "Move money into your wallet" : "Move money out of your wallet"}</Text><Text style={{ color: theme.textSecondary, fontSize: 11 }}>Choose a method, enter an amount, then review.</Text></View>
+      </View>
       <TransferSteps theme={theme} />
-      <View style={[s.balance, { backgroundColor: theme.accentSoft }]}>
+      <View style={[s.balance, { backgroundColor: theme.accentSoft, borderColor: theme.border }]}>
         <View style={[s.smallIcon, { backgroundColor: theme.surface }]}><Ionicons name="wallet-outline" size={20} color={theme.accent} /></View>
-        <View style={{ flex: 1, gap: 4 }}><Text style={{ fontSize: 11, color: theme.textSecondary }}>Available balance</Text><Text style={{ color: theme.textPrimary, fontSize: 20, fontWeight: "800" }}>{balanceVisible ? money(Math.round(availableBalance * 100)) : "₦••••••"}</Text></View>
+        <View style={{ flex: 1, gap: 4 }}><Text style={{ fontSize: 10, color: theme.textSecondary, fontWeight: "700", letterSpacing: .7 }}>DEMO WALLET · AVAILABLE</Text><Text style={{ color: theme.textPrimary, fontSize: 22, fontWeight: "800", letterSpacing: -.4 }}>{balanceVisible ? money(Math.round(availableBalance * 100)) : "₦••••••"}</Text></View>
         <Pressable accessibilityRole="button" accessibilityLabel={balanceVisible ? "Hide balance" : "Show balance"} onPress={() => setBalanceVisible(!balanceVisible)} style={{ padding: 9 }}><Ionicons name={balanceVisible ? "eye-outline" : "eye-off-outline"} size={19} color={theme.accent} /></Pressable>
       </View>
       <Text style={[s.section, { color: theme.textPrimary }]}>{deposit ? "How would you like to add money?" : "Where should it go?"}</Text>
@@ -96,7 +100,7 @@ export function WalletMovementScreen({ kind }: { kind: "deposit" | "withdrawal" 
         </View>}
         {selectedId === "regular" && <Text style={{ color: theme.textSecondary, fontSize: 11, lineHeight: 17, marginTop: 14 }}>This records one deposit. Automatic recurring deposits are not connected yet.</Text>}
       </View>
-      <View style={s.after}><Text style={{ color: theme.textSecondary, fontSize: 12 }}>Available after {kind}</Text><Text style={{ color: over ? theme.danger : theme.textPrimary, fontSize: 14, fontWeight: "700" }}>{balanceVisible ? money(Math.round((availableBalance + (deposit ? value || 0 : -(value || 0))) * 100)) : "₦••••••"}</Text></View>
+      <View style={s.after}><Text style={{ color: theme.textSecondary, fontSize: 12 }}>Estimated demo balance after {deposit ? "deposit" : "withdrawal"}</Text><Text style={{ color: over ? theme.danger : theme.textPrimary, fontSize: 14, fontWeight: "700" }}>{balanceVisible ? money(Math.round((availableBalance + (deposit ? value || 0 : -(value || 0))) * 100)) : "₦••••••"}</Text></View>
       <View style={s.sectionRow}><Text style={[s.section, { color: theme.textPrimary, marginTop: 0 }]}>{deposit ? "Recent deposits" : "Recent withdrawals"}</Text><Pressable onPress={openHistory}><Text style={{ color: theme.accent, fontSize: 12, fontWeight: "600" }}>View all</Text></Pressable></View>
       <View style={[s.history, { backgroundColor: theme.surface, borderColor: theme.border }]}>
         {recent.length ? recent.map((tx, index) => <Pressable key={tx.id} accessibilityRole="button" onPress={() => router.push({ pathname: "/transaction-details", params: { id: tx.id } })} style={[s.historyRow, { borderTopWidth: index ? 1 : 0, borderColor: theme.border }]}>
@@ -116,11 +120,11 @@ export function WalletMovementScreen({ kind }: { kind: "deposit" | "withdrawal" 
 const s = StyleSheet.create({
   header: { flexDirection: "row", alignItems: "center", paddingHorizontal: 20, paddingVertical: 12, gap: 12 },
   headerButton: { width: 42, height: 42, borderRadius: 14, alignItems: "center", justifyContent: "center" }, title: { flex: 1, fontSize: 20, fontWeight: "800", letterSpacing: -.4 },
-  content: { padding: 20, paddingTop: 8, paddingBottom: 24 }, balance: { flexDirection: "row", gap: 12, alignItems: "center", padding: 16, borderRadius: 20 },
+  content: { padding: 20, paddingTop: 8, paddingBottom: 24, gap: 2 }, intro: { borderRadius: 18, padding: 14, flexDirection: "row", alignItems: "center", gap: 11, marginBottom: 14 }, introIcon: { width: 40, height: 40, borderRadius: 14, alignItems: "center", justifyContent: "center" }, balance: { flexDirection: "row", gap: 12, alignItems: "center", padding: 17, borderRadius: 21, borderWidth: 1 },
   smallIcon: { width: 40, height: 40, borderRadius: 13, alignItems: "center", justifyContent: "center" },
   section: { fontSize: 13, fontWeight: "700", marginTop: 24, marginBottom: 12 },
-  options: { flexDirection: "row", gap: 10, marginBottom: 18 }, option: { flex: 1, borderWidth: 1, borderRadius: 17, paddingVertical: 15, alignItems: "center", gap: 8 },
-  amountCard: { borderWidth: 1, borderRadius: 24, padding: 18 }, method: { flexDirection: "row", alignItems: "center", gap: 10 }, amountLabel: { fontSize: 11, textAlign: "center", marginTop: 24 },
+  options: { flexDirection: "row", gap: 10, marginBottom: 18 }, option: { flex: 1, borderWidth: 1, borderRadius: 18, paddingVertical: 16, alignItems: "center", gap: 8 },
+  amountCard: { borderWidth: 1, borderRadius: 22, padding: 18 }, method: { flexDirection: "row", alignItems: "center", gap: 10 }, amountLabel: { fontSize: 11, textAlign: "left", marginTop: 24, fontWeight: "700" },
   amountRow: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 7, borderBottomWidth: 1, marginBottom: 16, minHeight: 78 }, amountInput: { flex: 1, maxWidth: 230, minHeight: 74, fontSize: 36, fontWeight: "800", textAlign: "center", letterSpacing: -1 },
   quickAmounts: { flexDirection: "row", flexWrap: "wrap", gap: 7, justifyContent: "center" }, quick: { borderWidth: 1, borderRadius: 20, paddingHorizontal: 12, paddingVertical: 9 },
   savedCard: { borderWidth: 1, borderRadius: 13, padding: 12, flexDirection: "row", alignItems: "center", gap: 9 }, after: { flexDirection: "row", justifyContent: "space-between", gap: 10, paddingHorizontal: 4, paddingTop: 15 },

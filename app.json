@@ -64,7 +64,8 @@
       ],
       "expo-web-browser",
       "expo-sharing",
-      "./plugins/withTallySmsReader"
+      "./plugins/withTallySmsReader",
+      "expo-status-bar"
     ],
     "experiments": {
       "typedRoutes": true,

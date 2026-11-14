@@ -18,11 +18,13 @@ const haptic = () => {
 export function CoachActionMenu({
   theme,
   dark,
-  onAction
+  onAction,
+  onTutorialPosition,
 }: {
   theme: ThemePalette;
   dark: boolean;
   onAction: (action: CoachAction) => void;
+  onTutorialPosition?: (x: number, y: number) => void;
 }) {
   const {
     width,
@@ -59,6 +61,10 @@ export function CoachActionMenu({
     x.value = clamp(x.value, 20, width - COACH_BUTTON - 20);
     y.value = clamp(y.value, minY, maxY);
   }, [width, height, minY, maxY, x, y]);
+  useEffect(() => { if (positionReady) onTutorialPosition?.(x.value, y.value); }, [positionReady, onTutorialPosition, x, y]);
+  useEffect(() => {
+    if (positionReady) onTutorialPosition?.(x.value, y.value);
+  }, [positionReady, onTutorialPosition, x, y]);
   useEffect(() => {
     AccessibilityInfo.isScreenReaderEnabled().then(setScreenReader);
     const subscription = AccessibilityInfo.addEventListener("screenReaderChanged", setScreenReader);
@@ -73,6 +79,7 @@ export function CoachActionMenu({
     pressed.value = withSpring(1, spring);
     setOpen(false);
   }, [expanded, hovered, progress, pressed]);
+  const publishPosition = useCallback((left: number, top: number) => { onTutorialPosition?.(left, top); }, [onTutorialPosition]);
   const show = () => {
     "worklet";
 
@@ -118,7 +125,9 @@ export function CoachActionMenu({
       const index = hovered.value;
       if (index >= 0) runOnJS(choose)(COACH_ACTIONS[index].id);else runOnJS(close)();
     } else {
-      x.value = withSpring(x.value + COACH_BUTTON / 2 < width / 2 ? 20 : width - COACH_BUTTON - 20, spring);
+      const snappedX = x.value + COACH_BUTTON / 2 < width / 2 ? 20 : width - COACH_BUTTON - 20;
+      x.value = withSpring(snappedX, spring);
+      runOnJS(publishPosition)(snappedX, y.value);
       runOnJS(haptic)();
     }
   }).onFinalize((_event, success) => {
