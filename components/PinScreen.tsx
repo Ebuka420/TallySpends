@@ -1,15 +1,16 @@
 import { Ionicons } from "@expo/vector-icons";
 import { useEffect, useRef, useState } from "react";
-import { ActivityIndicator, Animated, AppState, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
+import { ActivityIndicator, Animated, AppState, Image, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useReducedMotion } from "./AuthBackdrop";
 import type { ThemePalette } from "../src/theme";
-import BrandMark from "./BrandMark";
 import { SetupBackground } from "./onboarding/SetupFrame";
 import { StatusBar } from "expo-status-bar";
+import PasswordRecoveryForm from "./PasswordRecoveryForm";
 
-export default function PinScreen({ theme, setup = false, transfer = false, biometric = false, onboarding = false, onBiometric, onSubmit, onRecover, onCancel, onSignOut }: {
+export default function PinScreen({ theme, setup = false, transfer = false, biometric = false, onboarding = false, accountEmail = "", onBiometric, onSubmit, onRecover, onCancel, onSignOut }: {
   theme: ThemePalette; setup?: boolean; transfer?: boolean; biometric?: boolean; onboarding?: boolean;
+  accountEmail?: string;
   onBiometric?: () => Promise<void>; onSubmit: (pin: string, reset: boolean) => Promise<void>;
   onRecover?: (password: string) => Promise<void>; onCancel?: () => void; onSignOut?: () => void;
 }) {
@@ -17,6 +18,7 @@ export default function PinScreen({ theme, setup = false, transfer = false, biom
   const [first, setFirst] = useState("");
   const [reset, setReset] = useState(false);
   const [recovery, setRecovery] = useState(false);
+  const [recoverAccountPassword, setRecoverAccountPassword] = useState(false);
   const [password, setPassword] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
@@ -26,7 +28,7 @@ export default function PinScreen({ theme, setup = false, transfer = false, biom
   const [shake] = useState(() => new Animated.Value(0));
   useEffect(() => {
     const listener = AppState.addEventListener("change", state => {
-      if (state === "background") { setPin(""); setFirst(""); setPassword(""); setReset(false); setRecovery(false); }
+      if (state === "background") { setPin(""); setFirst(""); setPassword(""); setReset(false); setRecovery(false); setRecoverAccountPassword(false); }
     });
     return () => listener.remove();
   }, []);
@@ -56,12 +58,19 @@ export default function PinScreen({ theme, setup = false, transfer = false, biom
     }
     void run(async () => { await onSubmit(value, reset); setPin(""); setFirst(""); });
   };
+  if (recoverAccountPassword) return <SafeAreaView style={{ flex: 1, backgroundColor: theme.background }}>
+    <ScrollView contentContainerStyle={s.page} keyboardShouldPersistTaps="handled">
+      <PasswordRecoveryForm theme={theme} initialEmail={accountEmail} onCancel={() => setRecoverAccountPassword(false)} onSuccess={() => {
+        setRecoverAccountPassword(false); setRecovery(true); setPassword(""); setError("");
+      }} successLabel="Continue to PIN recovery" />
+    </ScrollView>
+  </SafeAreaView>;
   return <SafeAreaView style={{ flex: 1, backgroundColor: theme.background }}>
     {onboarding && <><StatusBar style="dark" /><SetupBackground step={3} /></>}
     <ScrollView contentContainerStyle={s.page} keyboardShouldPersistTaps="handled">
       {onboarding && <Text style={[s.brand, { color: theme.textSecondary, textAlign: "center" }]}>SETUP 3 OF 4</Text>}
       <Animated.View style={{ alignItems: "center", gap: 18, opacity: entrance, transform: [{ translateY: entrance.interpolate({ inputRange: [0, 1], outputRange: [24, 0] }) }] }}>
-        <View style={[s.mark, { backgroundColor: theme.accentSoft }]}>{onboarding ? <BrandMark size={56} palette={theme} /> : <Ionicons name="shield-checkmark-outline" size={40} color={theme.accent} />}</View>
+        <View style={s.mark}><Image source={require("../assets/images/splash-mark-dark.png")} resizeMode="contain" accessibilityLabel="TallySpends logo" style={{ width: 56, height: 56, tintColor: theme.accent }} /></View>
         <Text style={[s.brand, { color: theme.accent }]}>TALLYSPENDS</Text>
         <Text style={[s.title, { color: theme.textPrimary }]}>{recovery ? "Forgot your PIN?" : setup || reset ? first ? "Confirm your PIN" : "Create your PIN" : transfer ? "Confirm it's you" : "Welcome back"}</Text>
         <Text style={[s.copy, { color: theme.textSecondary }]}>{recovery ? "Verify your account password to set a new six-digit app PIN." : setup || reset ? "Choose a six-digit PIN. You'll use it to unlock TallySpends on this device and confirm transfers." : transfer ? "Use your PIN or enabled biometrics to confirm this action." : "Enter your six-digit PIN to unlock your account."}</Text>
@@ -73,6 +82,7 @@ export default function PinScreen({ theme, setup = false, transfer = false, biom
           const value = password; setPassword(""); await onRecover?.(value); setRecovery(false); setReset(true); setFirst(""); setPin("");
         })}><Text style={{ color: theme.onAccent, fontWeight: "700" }}>Verify password</Text></Pressable>
         <Pressable disabled={busy} onPress={() => { setRecovery(false); setPassword(""); setError(""); }}><Text style={[s.copy, { color: theme.accent }]}>Back to PIN</Text></Pressable>
+        <Pressable accessibilityRole="button" disabled={busy} onPress={() => { setRecoverAccountPassword(true); setPassword(""); setError(""); }}><Text style={[s.copy, { color: theme.accent, fontWeight: "600" }]}>Forgot account password?</Text></Pressable>
       </View> : <>
         <Animated.View accessible accessibilityLabel={`${pin.length} of 6 PIN digits entered`} style={[s.dots, { transform: [{ translateX: shake }] }]}>
           {Array.from({ length: 6 }, (_, index) => <View key={index} style={[s.dot, { borderColor: theme.accent, backgroundColor: pin.length > index ? theme.accent : "transparent" }]} />)}

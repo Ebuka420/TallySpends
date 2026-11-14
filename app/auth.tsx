@@ -18,6 +18,7 @@ import {
 } from "react-native";
 import BrandMark from "../components/BrandMark";
 import AuthBackdrop, { AuthEntrance } from "../components/AuthBackdrop";
+import PasswordRecoveryForm from "../components/PasswordRecoveryForm";
 import { API_URL } from "../src/api";
 import { recoverLocalSession } from "../src/register";
 import { savePendingSignup } from "../src/security/signup";
@@ -71,6 +72,7 @@ export default function AuthScreen() {
   const [confirmPassword, setConfirmPassword] = useState("");
   const [isPasswordVisible, setIsPasswordVisible] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
+  const [passwordRecovery, setPasswordRecovery] = useState(false);
 
   const handleAuthAction = async () => {
     if (isLoading) return;
@@ -475,7 +477,7 @@ export default function AuthScreen() {
             </AuthEntrance>
           </View>
           {/* Auth Mode Switcher */}
-          <AuthEntrance delay={240}
+          {!passwordRecovery && <AuthEntrance delay={240}
             style={[
               styles.tabContainer,
               {
@@ -543,7 +545,7 @@ export default function AuthScreen() {
                 Sign Up
               </Text>
             </TouchableOpacity>
-          </AuthEntrance>
+          </AuthEntrance>}
 
           {/* The card and tabs stay anchored; only overflowing form fields scroll. */}
           <ScrollView
@@ -563,7 +565,9 @@ export default function AuthScreen() {
             onLayout={event => setViewportHeight(event.nativeEvent.layout.height)}
             onContentSizeChange={(_, height) => setContentHeight(height)}
           >
-            <AuthEntrance trigger={authMode} delay={320} fromY={8}>
+            {passwordRecovery ? <PasswordRecoveryForm theme={theme} initialEmail={email} onCancel={() => setPasswordRecovery(false)} onSuccess={() => {
+              setPasswordRecovery(false); setAuthMode("login"); setPassword("");
+            }} /> : <AuthEntrance trigger={authMode} delay={320} fromY={8}>
             {/* SIGNUP FIELDS */}
             {authMode === "signup" && (
               <>
@@ -843,6 +847,10 @@ export default function AuthScreen() {
               </TouchableOpacity>
             </View>
 
+            {authMode === "login" && <TouchableOpacity accessibilityRole="button" onPress={() => setPasswordRecovery(true)} style={{ alignSelf: "flex-end", paddingVertical: 8 }}>
+              <Text style={{ color: authColors.accent, fontSize: 12, fontWeight: "600" }}>Forgot password?</Text>
+            </TouchableOpacity>}
+
             {/* Confirm Password */}
             {authMode === "signup" && (
               <>
@@ -920,7 +928,7 @@ export default function AuthScreen() {
                 </Text>
               )}
             </TouchableOpacity>
-            </AuthEntrance>
+            </AuthEntrance>}
           </ScrollView>
         </View>
       </KeyboardAvoidingView>
