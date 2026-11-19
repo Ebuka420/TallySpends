@@ -1,4 +1,5 @@
 import { API_URL } from "../api";
+import { refreshSession, sessionHasExpired, SessionExpiredError } from "../session";
 import { parseList, parseReceipt, validateDraft, type PrivacyNotice, type YounginsDraft, type YounginsProfile } from "./model";
 import { requireYounginsReadiness } from "./readiness";
 
@@ -26,19 +27,13 @@ export function createYounginsRequest(session: YounginsSession, signal: AbortSig
   async function refresh() {
     if (refreshed || !session.refreshToken) return false;
     refreshed = true;
-    const response = await send(API_URL + "/api/auth/refresh", {
-      method: "POST", headers: { "Content-Type": "application/json" }, signal,
-      body: JSON.stringify({ refreshToken: session.refreshToken }),
-    });
-    if (!response.ok) return false;
-    const data = await response.json();
-    const accessToken = data?.accessToken || data?.token;
-    if (typeof accessToken !== "string" || !accessToken.trim()) return false;
-    token = accessToken;
-    await session.saveTokens(accessToken, typeof data.refreshToken === "string" ? data.refreshToken : session.refreshToken);
+    const next = await refreshSession(session.refreshToken, signal, send);
+    token = next.token;
+    await session.saveTokens(next.token, next.refreshToken);
     return true;
   }
   return async (path, init = {}) => {
+    if (sessionHasExpired()) throw new SessionExpiredError();
     const method = (init.method ?? "GET").toUpperCase();
     const allowed = path === "/api/children" && (method === "GET" || method === "POST");
     if (!API_URL.startsWith("https://") || !allowed || path.includes("\\") || path.includes("://") || path.includes("..")) {

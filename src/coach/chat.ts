@@ -1,4 +1,5 @@
 import { API_URL } from "../api";
+import { refreshSession, sessionHasExpired, SessionExpiredError } from "../session";
 
 export class CoachRequestError extends Error {
   requiresSignIn: boolean;
@@ -18,24 +19,15 @@ export async function requestCoachReply(
     saveTokens: (accessToken: string, refreshToken: string) => Promise<void>;
   },
 ): Promise<string> {
+  if (sessionHasExpired()) throw new SessionExpiredError();
   let refreshAttempted = false;
   const refresh = async () => {
     if (refreshAttempted) return null;
     refreshAttempted = true;
     if (!session?.refreshToken) return null;
-    const response = await send(`${API_URL}/api/auth/refresh`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ refreshToken: session.refreshToken }),
-      signal,
-    });
-    if (response.status === 400 || response.status === 401) return null;
-    if (!response.ok) throw new CoachRequestError("Your coach couldn't connect. Try sending your question again.");
-    const data = await response.json();
-    const accessToken = data?.accessToken || data?.token;
-    if (typeof accessToken !== "string" || !accessToken.trim()) return null;
-    await session.saveTokens(accessToken, data.refreshToken || session.refreshToken);
-    return accessToken;
+    const next = await refreshSession(session.refreshToken, signal, send);
+    await session.saveTokens(next.token, next.refreshToken);
+    return next.token;
   };
   if (!token) token = await refresh();
   if (!token)

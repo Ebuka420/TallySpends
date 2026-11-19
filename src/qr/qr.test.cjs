@@ -1,4 +1,5 @@
 const assert = require("node:assert/strict");
+require("../testStorage.cjs");
 const fs = require("node:fs");
 const ts = require("typescript");
 const decode = require("jsqr");
@@ -9,7 +10,9 @@ const { accountQrIdentity, buildQrLink, parseQrLink, parseIdentity, parseRecipie
 const { encodeQrMatrix } = require("./encoder.ts");
 const { createQrRequest, qrApi } = require("./api.ts");
 const { redirectQrIntent, getQrIntent, clearQrIntent, transferRoute } = require("./intent.ts");
-const identity = { publicPaymentId: "public-payment-id-fixture-A", fullName: "Example Person", tallyTag: "@example" };
+const identity = { publicPaymentId: "TSP-4K7Q-9XBM", fullName: "Example Person", tallyTag: "example" };
+const profileDto = { paymentId: identity.publicPaymentId, fullName: identity.fullName, tallyTag: identity.tallyTag };
+const recipientDto = { paymentId: identity.publicPaymentId, displayName: identity.fullName, tallyTag: identity.tallyTag, isSelf: false };
 const request = { paymentId: identity.publicPaymentId, amount: "1200.50", memo: "Lunch & tea ☕" };
 function decodeMatrix(matrix) {
   const quiet = 4, scale = 6, side = (matrix.length + quiet * 2) * scale;
@@ -28,10 +31,10 @@ const response = (value, status = 200) => new Response(JSON.stringify(value), { 
   const link = buildQrLink(request);
   assert.deepEqual(parseQrLink(link), request);
   assert.equal(decodeMatrix(encodeQrMatrix(link)), link, "Independent decoder must read the generated QR");
-  const second = buildQrLink({ paymentId: "public-payment-id-fixture-B" });
+  const second = buildQrLink({ paymentId: "TSP-ABCD-1234" });
   assert.notEqual(link, second);
   assert.equal(decodeMatrix(encodeQrMatrix(second)), second);
-  const max = buildQrLink({ paymentId: "A".repeat(128), amount: "9999999999.99", memo: "😀".repeat(20) });
+  const max = buildQrLink({ paymentId: identity.publicPaymentId, amount: "9999999999.99", memo: "😀".repeat(20) });
   assert.equal(decodeMatrix(encodeQrMatrix(max)), max, "Long IDs and Unicode notes must remain decodable");
   for (const amount of ["0", "-1", "1e3", "NaN", "Infinity", "1.234", " 1", "1 ", "10000000000"]) assert.equal(validAmount(amount), false);
   for (const value of [
@@ -48,17 +51,19 @@ const response = (value, status = 200) => new Response(JSON.stringify(value), { 
   assert.throws(() => buildQrLink({ ...request, memo: "x".repeat(41) }));
   assert.throws(() => buildQrLink({ ...request, memo: "line\nbreak" }));
   assert.throws(() => parseIdentity({ username: "ebuka" }), /identity is missing/);
-  const localIdentity = accountQrIdentity("id:123", "Example", "@example");
-  assert.equal(localIdentity.publicPaymentId, "user_123");
-  assert.equal(accountQrIdentity("id:123", "Changed name", "@newtag").publicPaymentId, localIdentity.publicPaymentId);
+  const localIdentity = accountQrIdentity(identity.publicPaymentId, "Example", "@example");
+  assert.equal(localIdentity.publicPaymentId, identity.publicPaymentId);
+  assert.equal(accountQrIdentity(identity.publicPaymentId, "Changed name", "@newtag").publicPaymentId, localIdentity.publicPaymentId);
   for (const scope of [null, "email:private@example.com", "id:", "id:0", "id:-1", "id:1.5"]) assert.equal(accountQrIdentity(scope, "Example", "example"), null);
   const localLink = buildQrLink({ paymentId: localIdentity.publicPaymentId, amount: "42.50", memo: "Food & tea" });
-  assert.deepEqual(parseQrLink(decodeMatrix(encodeQrMatrix(localLink))), { paymentId: "user_123", amount: "42.50", memo: "Food & tea" });
-  assert.equal(accountQrIdentity("id:public-payment-id-fixture-A", "Example", "example").publicPaymentId, identity.publicPaymentId);
-  assert.equal(parseIdentity({ publicPaymentId: identity.publicPaymentId }).publicPaymentId, identity.publicPaymentId);
+  assert.deepEqual(parseQrLink(decodeMatrix(encodeQrMatrix(localLink))), { paymentId: identity.publicPaymentId, amount: "42.50", memo: "Food & tea" });
+  assert.equal(accountQrIdentity("id:123", "Example", "example"), null);
+  assert.equal(parseIdentity({ paymentId: identity.publicPaymentId }).publicPaymentId, identity.publicPaymentId);
   assert.throws(() => parseRecipient({ publicPaymentId: identity.publicPaymentId }, identity.publicPaymentId), /verified recipient/);
-  assert.deepEqual(parseIdentity({ ...identity, accessToken: "DO-NOT-RETAIN", nin: "DO-NOT-RETAIN" }), { ...identity, tallyTag: "example" });
-  assert.throws(() => parseRecipient(identity, "another-public-fixture-id"), /verify/);
+  assert.deepEqual(parseIdentity({ ...profileDto, accessToken: "DO-NOT-RETAIN", nin: "DO-NOT-RETAIN" }), identity);
+  assert.throws(() => parseRecipient(recipientDto, "TSP-ABCD-1234"), /verify/);
+  assert.throws(() => parseRecipient({ ...recipientDto, isSelf: true }), /yourself/);
+  assert.throws(() => parseRecipient({ ...recipientDto, isSelf: undefined }), /verified/);
   assert.equal(redirectQrIntent(link), transferRoute(request));
   assert.deepEqual(getQrIntent().request, request);
   clearQrIntent(); assert.equal(getQrIntent(), null);
@@ -69,20 +74,23 @@ const response = (value, status = 200) => new Response(JSON.stringify(value), { 
   clearQrIntent();
   const calls = [];
   const session = { token: "test-token", refreshToken: null, saveTokens: async () => {} };
-  const client = createQrRequest(session, new AbortController().signal, async (url, options) => { calls.push({ url, options }); return response(identity); });
+  const client = createQrRequest(session, new AbortController().signal, async (url, options) => { calls.push({ url, options }); return response(url.endsWith('/users/me') ? profileDto : recipientDto); });
   assert.deepEqual(await qrApi.identity(client), { ...identity, tallyTag: "example" });
   assert.deepEqual(await qrApi.recipient(request.paymentId, client), { ...identity, tallyTag: "example" });
   assert.ok(calls[0].url.endsWith("/api/users/me"));
-  assert.ok(calls[1].url.endsWith("/api/payments/recipients/" + request.paymentId));
+  assert.ok(calls[1].url.endsWith("/api/payment-ids/" + request.paymentId));
   assert.equal(calls[1].options.headers.Authorization, "Bearer test-token");
   assert.equal(calls[1].options.method, undefined, "Lookup does not submit a payment");
-  const localClient = createQrRequest(session, new AbortController().signal, async () => response({ ...identity, publicPaymentId: "user_123" }));
-  assert.equal((await qrApi.recipient("user_123", localClient)).publicPaymentId, "user_123");
+  assert.equal((await qrApi.byTag('@example', client)).publicPaymentId, identity.publicPaymentId);
+  assert.ok(calls[2].url.endsWith('/api/payment-ids/by-tag/example'));
+  assert.equal((await qrApi.recipient('tsp4k7q9xbm', client)).publicPaymentId, identity.publicPaymentId);
+  await assert.rejects(qrApi.byTag('partial', async () => ({ ...recipientDto, tallyTag: 'different' })), /match/);
   await assert.rejects(client("https://external.example/collect"));
+  await assert.rejects(client("/api/payments/recipients/" + request.paymentId));
   let rotated;
   const refreshing = createQrRequest({ ...session, refreshToken: "refresh-fixture", saveTokens: async (...value) => { rotated = value; } }, new AbortController().signal, async (url, options) => {
     if (url.endsWith("/auth/refresh")) return response({ accessToken: "new-token", refreshToken: "new-refresh" });
-    return options.headers.Authorization === "Bearer test-token" ? response({}, 401) : response(identity);
+    return options.headers.Authorization === "Bearer test-token" ? response({}, 401) : response(recipientDto);
   });
   await qrApi.recipient(request.paymentId, refreshing);
   assert.deepEqual(rotated, ["new-token", "new-refresh"]);

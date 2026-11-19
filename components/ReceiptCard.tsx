@@ -28,7 +28,7 @@ export const ReceiptCard = forwardRef<ViewInstance, { transaction: Transaction; 
     </View>
     <View style={[s.divider, { borderColor: theme.border }]} />
     {rows.map(([label, value]) => <View key={label} style={s.row}><Text style={[s.label, { color: theme.textSecondary }]}>{label}</Text><Text selectable style={[s.value, { color: theme.textPrimary }]}>{value}</Text></View>)}
-    <View style={[s.footer, { borderColor: theme.border }]}><Ionicons name="receipt-outline" size={14} color={theme.textSecondary} /><Text style={{ flex: 1, color: theme.textSecondary, fontSize: 10.5, lineHeight: 16 }}>{transaction.demo ? "Demo wallet receipt · no bank transfer was made." : "Saved in your transaction history."}</Text></View>
+    <View style={[s.footer, { borderColor: theme.border }]}><Ionicons name="receipt-outline" size={14} color={theme.textSecondary} /><Text style={{ flex: 1, color: theme.textSecondary, fontSize: 10.5, lineHeight: 16 }}>Saved in your transaction history.</Text></View>
   </View>;
 });
 

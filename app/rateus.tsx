@@ -60,7 +60,7 @@ export default function RateUsScreen() {
       }, busy => { if (mounted.current) setIsSubmitting(busy); });
       if (!receipt || !mounted.current) return;
       setSubmitted(true);
-      Alert.alert("Thank you!", "Your feedback has been saved. We appreciate your suggestions.", [
+      Alert.alert("Thank you!", "Your feedback has been submitted. We appreciate your suggestions.", [
         { text: "OK", onPress: () => { if (mounted.current) router.back(); } },
       ]);
     } catch (error) {
@@ -101,7 +101,7 @@ export default function RateUsScreen() {
 
           {/* Interactive Star Row */}
           <View style={styles.ratingCard}>
-            <Text style={styles.cardLabel}>Tap to Rate</Text>
+            <Text style={styles.cardLabel}>Tap to Rate (required)</Text>
             <View style={styles.starsRow}>
               {[1, 2, 3, 4, 5].map((star) => (
                 <TouchableOpacity

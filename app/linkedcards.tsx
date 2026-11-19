@@ -8,13 +8,12 @@ import BankLogo from "../components/BankLogo";
 import BrandMark from "../components/BrandMark";
 import { useThemeTokens } from "../src/ThemeExperience";
 import { accountInsights, accountMoney, selectLinkedAccount, type AccountPeriod } from "../src/banking/insights";
-import { BANK_COLORS } from "../src/banking/carousel";
+import { bankCardPalette } from "../src/banking/branding";
 import type { BankSession, LinkedBankAccount } from "../src/banking/backend";
 import { useDashboardAccounts } from "../src/banking/useDashboardAccounts";
 import { getProfileSnapshot, subscribeProfile } from "../src/profile/repository";
 import { usePreferences } from "../src/settings";
 import { useAppStore } from "../src/store";
-import { NIGERIAN_BANKS } from "../src/data/banks";
 import type { ThemePalette } from "../src/theme";
 
 export default function LinkedCardsScreen() {
@@ -25,12 +24,6 @@ export default function LinkedCardsScreen() {
   return <LinkedAccounts key={`${profile.scope ?? "signed-out"}:${requested ?? "all"}`} owner={profile.scope ?? ""}
     requested={requested} session={{ token: store.token, refreshToken: store.refreshToken,
       saveTokens: async (token, refresh) => { await store.login(token, refresh); } }} />;
-}
-
-function bankColor(account: LinkedBankAccount, theme: ThemePalette) {
-  const bank = NIGERIAN_BANKS.find(item => item.slug === account.bankSlug || item.name.toLowerCase() === account.bankName.toLowerCase()
-    || (account.bankName.toLowerCase() === "gtbank" && item.slug === "guaranty-trust-bank"));
-  return BANK_COLORS[bank?.slug ?? ""] || theme.hero;
 }
 
 function LinkedAccounts({ owner, requested, session }: { owner: string; requested?: string; session: BankSession }) {
@@ -88,28 +81,29 @@ function LinkedAccounts({ owner, requested, session }: { owner: string; requeste
           contentContainerStyle={s.branches} snapToInterval={cardWidth + 14} decelerationRate="fast">
           {linked.accounts.map(account => {
             const active = selected?.id === account.id;
-            const color = bankColor(account, theme);
+            const brand = bankCardPalette(account, theme.hero);
+            const color = brand.background;
             return <View key={account.id} style={{ width: cardWidth + 14, alignItems: "center" }}>
               <View style={{ height: 1, width: "100%", backgroundColor: theme.border }} />
               <View style={[s.stem, { backgroundColor: active ? theme.accent : theme.border }]} />
               <Pressable accessibilityRole="button" accessibilityLabel={`View ${account.bankName} ${account.maskedAccountNumber ?? "account"}`}
                 accessibilityState={{ selected: active }} onPress={() => { setSelectedId(account.id); setVisibleTransactions(5); }}
-                style={[s.accountCard, { width: cardWidth, backgroundColor: color, borderColor: active ? theme.accentHighlight : color, borderWidth: active ? 2 : 1, opacity: active ? 1 : .76 }]}>
+                style={[s.accountCard, { width: cardWidth, backgroundColor: color, borderColor: color === "#FFFFFF" ? brand.border : active ? theme.accentHighlight : color, borderWidth: active ? 2 : 1, opacity: active ? 1 : .76 }]}>
                 <Svg pointerEvents="none" width={cardWidth} height={220} viewBox="0 0 320 220" style={StyleSheet.absoluteFill}>
-                  <Path d="M210 -30 C120 100 350 90 290 250 M280 -30 C175 70 365 140 310 250" fill="none" stroke="#FFFFFF" opacity={.13} strokeWidth={1} />
+                  <Path d="M210 -30 C120 100 350 90 290 250 M280 -30 C175 70 365 140 310 250" fill="none" stroke={brand.accent} opacity={.13} strokeWidth={1} />
                 </Svg>
                 <View style={s.row}>
-                  <View style={s.bankIcon}><BankLogo bank={account} size={25} color="#FFFFFF" /></View>
-                  <Text numberOfLines={2} style={s.bankName}>{account.bankName}</Text>
-                  <Ionicons name={active ? "checkmark-circle" : "ellipse-outline"} size={20} color="#FFFFFF" />
+                  <View style={[s.bankIcon, { backgroundColor: brand.badge }]}><BankLogo bank={account} size={25} color={brand.ink} /></View>
+                  <Text numberOfLines={2} style={[s.bankName, { color: brand.ink }]}>{account.bankName}</Text>
+                  <Ionicons name={active ? "checkmark-circle" : "ellipse-outline"} size={20} color={brand.ink} />
                 </View>
                 <View style={{ gap: 5, marginTop: 23 }}>
-                  <Text style={s.cardLabel}>AVAILABLE BALANCE</Text>
-                  <Text numberOfLines={1} adjustsFontSizeToFit style={s.cardAmount}>{hidden ? "••••" : accountMoney(account.availableBalance, account.currency)}</Text>
+                  <Text style={[s.cardLabel, { color: brand.muted }]}>AVAILABLE BALANCE</Text>
+                  <Text numberOfLines={1} adjustsFontSizeToFit style={[s.cardAmount, { color: brand.ink }]}>{hidden ? "••••" : accountMoney(account.availableBalance, account.currency)}</Text>
                 </View>
                 <View style={[s.row, { marginTop: 20 }]}>
-                  <Text numberOfLines={1} style={s.cardHolder}>{account.accountName}</Text>
-                  <Text style={s.cardNumber}>{account.maskedAccountNumber ?? account.currency ?? "Linked"}</Text>
+                  <Text numberOfLines={1} style={[s.cardHolder, { color: brand.muted }]}>{account.accountName}</Text>
+                  <Text style={[s.cardNumber, { color: brand.muted }]}>{account.maskedAccountNumber ?? account.currency ?? "Linked"}</Text>
                 </View>
               </Pressable>
             </View>;

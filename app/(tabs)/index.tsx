@@ -3,7 +3,9 @@ import { HomeCarousel } from "../../components/HomeCarousel";
 import { usePreferences } from "../../src/settings";
 import DashboardBankCarousel from "../../components/DashboardBankCarousel";
 import { useDashboardAccounts } from "../../src/banking/useDashboardAccounts";
+import { useWallet } from "../../src/wallet/hooks";
 import { OVERVIEW_ID, retainedSelection } from "../../src/banking/carousel";
+import { dashboardActivity, dashboardBankAccounts, dashboardInsightCards } from "../../src/banking/dashboard";
 import TransactionReceiptModal from "../../components/TransactionReceiptModal";
 import { getCompletedTransaction, subscribeCompletedTransaction, clearCompletedTransaction } from "../../src/transactionCompletion";
 import { Ionicons } from "@expo/vector-icons";
@@ -19,56 +21,11 @@ import {
   View,
 } from "react-native";
 
-import { MOCK_RECIPIENTS, useAppStore } from "../../src/store";
+import { useAppStore } from "../../src/store";
 import { getThemePalette } from "../../src/theme";
 import { usePlanningPeople } from "../../components/BudgetPeople";
 import { PlanningCarousels } from "../../components/PlanningCarousels";
 import { TutorialTarget } from "../../components/SmartCoachTutorialLayer";
-
-const normalizeTransferTitle = (title: string) => {
-  const transferRegex = /(Transfer to\s+)@([a-zA-Z0-9_]+)/i;
-
-  return title.replace(transferRegex, (_, prefix: string, username: string) => {
-    const recipient = MOCK_RECIPIENTS.find(
-      (r) => r.username.toLowerCase() === username.toLowerCase(),
-    );
-
-    return recipient
-      ? `${prefix}${recipient.name}`
-      : `Transfer to @${username}`;
-  });
-};
-
-const insights = [
-  {
-    icon: "restaurant-outline" as const,
-    title: "Food spending is up",
-    text: "You've spent more on food in the past week than you did last month.",
-    tint: "#F3EBF1",
-    color: "#4B2C40",
-  },
-  {
-    icon: "leaf-outline" as const,
-    title: "A calmer week",
-    text: "Your overall spending is 18% lower than your weekly average.",
-    tint: "#F8F2F7",
-    color: "#6C4C7A",
-  },
-  {
-    icon: "sparkles-outline" as const,
-    title: "A small win",
-    text: "You are just ₦96 away from this month's savings goal.",
-    tint: "#EEE4F0",
-    color: "#4B2C40",
-  },
-  {
-    icon: "card-outline" as const,
-    title: "Linked Cards",
-    text: "Explore each linked account, its cash flow and spending patterns.",
-    tint: "#EAF2FF",
-    color: "#315A92",
-  },
-];
 
 const categoryMeta: Record<
   string,
@@ -144,6 +101,7 @@ const getTimeLabel = (value?: string) => {
 };
 
 export default function App() {
+  const wallet = useWallet();
   const router = useRouter();
   const settings = usePreferences();
   const preferences = settings.values;
@@ -155,7 +113,6 @@ export default function App() {
     unreadNotificationCount,
     themePreference,
     themeMode,
-    username,
     profileFullName,
     profileImage,
     budgetWallet,
@@ -177,14 +134,18 @@ export default function App() {
   useFocusEffect(useCallback(() => { void refreshTransactions(false).catch(() => {}); }, [refreshTransactions]));
 
   const [balanceVisible, setBalanceVisible] = useState(true);
-  const linked = useDashboardAccounts(username || store.profileEmail || "", {
+  const linked = useDashboardAccounts(wallet.api.owner || "", {
     token: store.token, refreshToken: store.refreshToken,
     saveTokens: async (token, refresh) => { await store.login(token, refresh); },
   });
   const [selectedAccountId, setSelectedAccountId] = useState(OVERVIEW_ID);
-  const effectiveSelection = retainedSelection(selectedAccountId, linked.accounts);
+  const linkedAccounts = useMemo(() => dashboardBankAccounts(linked.accounts), [linked.accounts]);
+  const effectiveSelection = retainedSelection(selectedAccountId, linkedAccounts);
   useEffect(() => { if (effectiveSelection !== selectedAccountId) setSelectedAccountId(effectiveSelection); }, [effectiveSelection, selectedAccountId]);
-  const selectedAccount = linked.accounts.find(account => account.id === effectiveSelection);
+  const selectedAccount = linkedAccounts.find(account => account.id === effectiveSelection);
+  const activity = useMemo(() => dashboardActivity(selectedAccount, wallet.ledger, !!wallet.balance && !wallet.error), [selectedAccount, wallet.ledger, wallet.balance, wallet.error]);
+  const scopedInsights = useMemo(() => dashboardInsightCards(activity), [activity]);
+  const openSelectedInsights = () => router.push({ pathname: "/insights", params: { accountId: effectiveSelection } });
   const receiptId = useSyncExternalStore(subscribeCompletedTransaction, getCompletedTransaction, getCompletedTransaction);
   const receipt = transactions.find(tx => tx.id === receiptId) || null;
   const [receiptReady, setReceiptReady] = useState(false);
@@ -196,13 +157,8 @@ export default function App() {
     return () => { clearTimeout(timer); setReceiptReady(false); };
   }, [receiptId]));
 
-  const transactionsRaw = useMemo(
-    () => (transactions || []) as any[],
-    [transactions],
-  );
-
   const recentTransactions = useMemo(() => {
-    return [...transactionsRaw]
+    return [...transactions]
       .sort((a, b) => {
         const aTime = new Date(a.date || 0).getTime();
         const bTime = new Date(b.date || 0).getTime();
@@ -210,7 +166,7 @@ export default function App() {
         return bTime - aTime;
       })
       .slice(0, 3);
-  }, [transactionsRaw]);
+  }, [transactions]);
 
   return (
     <View
@@ -228,7 +184,7 @@ export default function App() {
         style={styles.container}
         contentContainerStyle={styles.contentContainer}
         showsVerticalScrollIndicator={false}
-        refreshControl={<RefreshControl refreshing={linked.loading || transactionFeedState === "loading"} onRefresh={() => { linked.retry(); void refreshTransactions(true).catch(() => {}); }} tintColor={theme.accent} />}
+        refreshControl={<RefreshControl refreshing={wallet.loading || linked.loading || transactionFeedState === "loading"} onRefresh={() => { linked.retry(); void wallet.reload().catch(() => {}); void refreshTransactions(true).catch(() => {}); void reloadBudgetWallet(true); }} tintColor={theme.accent} />}
       >
         {/* Header Container */}
         <View style={styles.headerContainer}>
@@ -378,11 +334,11 @@ export default function App() {
 
         {/* Balance Section */}
         <DashboardBankCarousel
-          accounts={linked.accounts} selectedId={effectiveSelection} onSelect={setSelectedAccountId}
-          balance={null} visible={settings.loaded && balanceVisible && !preferences.privateMode}
+          accounts={linkedAccounts} selectedId={effectiveSelection} onSelect={setSelectedAccountId}
+          balance={wallet.balance ? wallet.balance.balanceKobo / 100 : null} visible={settings.loaded && balanceVisible && !preferences.privateMode}
           onToggleBalance={() => setBalanceVisible(visible => !visible)}
           onLink={() => router.push("/linkbank")}
-          onOpenAccounts={accountId => router.push({ pathname: "/linkedcards", params: accountId ? { accountId } : {} })}
+          onOpenAccounts={accountId => accountId ? router.push({ pathname: "/linkedcards", params: { accountId } }) : router.push("/wallet")}
           theme={theme} dark={themeMode === "dark"}
           loading={linked.loading} error={linked.error} onRetry={linked.retry}
         />
@@ -480,9 +436,9 @@ export default function App() {
           </TouchableOpacity>
         </View>
 
-        {preferences.showInsights && <TutorialTarget id="home-insights" scrollRef={tutorialScrollRef} scrollOffsetRef={tutorialScrollOffset}><HomeCarousel title="Smart insights" link="See all" onViewAll={() => router.push("/insightssum")}
+        {preferences.showInsights && <TutorialTarget id="home-insights" scrollRef={tutorialScrollRef} scrollOffsetRef={tutorialScrollOffset}><HomeCarousel key={effectiveSelection} title="Smart insights" link="See all" onViewAll={openSelectedInsights}
           theme={theme} themeMode={themeMode} themePreference={themePreference}
-          cards={insights.map(insight => ({ ...insight, id: insight.title, onPress: () => router.push(insight.title === "Linked Cards" ? "/linkedcards" : "/insightssum") }))} /></TutorialTarget>}
+          cards={scopedInsights.map((insight, index) => ({ ...insight, tint: ["#F3EBF1", "#F8F2F7", "#EEE4F0"][index % 3], color: "#4B2C40", onPress: openSelectedInsights }))} /></TutorialTarget>}
 
         <PlanningCarousels
           wallet={budgetWallet}
@@ -537,8 +493,9 @@ export default function App() {
           </TouchableOpacity>
         </View>
 
-        {transactionFeedError ? <TouchableOpacity accessibilityRole="button" onPress={() => void refreshTransactions(true).catch(() => {})} style={{ paddingBottom: 8 }}><Text style={{ color: theme.accent, fontSize: 11 }}>Couldn’t refresh account transactions. Tap to retry.</Text></TouchableOpacity>
-          : transactionFeedState === "loading" ? <Text style={{ color: theme.textSecondary, fontSize: 11, paddingBottom: 8 }}>Refreshing account transactions…</Text> : null}
+        <Text style={{ color: theme.textSecondary, fontSize: 11, paddingBottom: 8 }}>Your account activity</Text>
+        {transactionFeedError ? <TouchableOpacity accessibilityRole="button" onPress={() => void refreshTransactions(true).catch(() => {})} style={{ paddingBottom: 8 }}><Text style={{ color: theme.accent, fontSize: 11 }}>Couldn’t refresh your transactions. Tap to retry.</Text></TouchableOpacity>
+          : transactionFeedState === "loading" ? <Text style={{ color: theme.textSecondary, fontSize: 11, paddingBottom: 8 }}>Refreshing your transactions…</Text> : null}
 
         <View
           style={[
@@ -562,11 +519,11 @@ export default function App() {
                     icon={isIncome ? "arrow-down-outline" : meta.icon}
                     tint={isIncome ? theme.accentSoft : meta.soft}
                     color={isIncome ? theme.success : theme.accent}
-                    name={normalizeTransferTitle(tx.title || "Transaction")}
-                    category={tx.category || "Others"}
+                    name={tx.title || "Transaction"}
+                    category={tx.status ? `${tx.category} · ${tx.status}` : tx.category || "Others"}
                     amount={`${isIncome ? "+" : "-"}${formatCurrency(
                       Number(tx.amount || 0),
-                      "NGN",
+                      typeof tx.currency === "string" ? tx.currency : "NGN",
                     )}`}
                     time={getTimeLabel(tx.date)}
                     positive={isIncome}
@@ -604,8 +561,7 @@ export default function App() {
                   },
                 ]}
               >
-                {selectedAccount && !selectedAccount.currency ? "Transactions unavailable for this currency."
-                  : selectedAccount && !selectedAccount.transactions ? "Transactions unavailable for this account." : "No transactions yet."}
+                {transactionFeedError ? "Your transactions couldn't be loaded." : transactionFeedState !== "ready" ? "Loading your transactions…" : "No transactions yet."}
               </Text>
             </View>
           )}

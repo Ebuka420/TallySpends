@@ -3,6 +3,9 @@ import Constants from "expo-constants";
 import * as Device from "expo-device";
 import * as Notifications from "expo-notifications";
 import { Platform } from "react-native";
+import { registerPushToken } from "../notifications/api";
+import { getProfileSnapshot, publishProfileTokens } from "../profile/repository";
+import { latestSessionTokens } from "../session";
 
 // ============================================================================
 // 1. GLOBAL FOREGROUND NOTIFICATION HANDLER
@@ -126,11 +129,7 @@ export async function registerForPushNotificationsAsync(): Promise<string | null
     }
 
     if (token) {
-      console.log("✅ Expo Push Token Generated:", token);
       await AsyncStorage.setItem(STORAGE_KEY_PUSH_TOKEN, token);
-      
-      // Sync with your Railway / Backend database
-      await syncPushTokenWithBackend(token);
     }
   } catch (error: any) {
     console.warn("⚠️ Push notification registration notice:", error?.message || error);
@@ -145,36 +144,24 @@ export async function registerForPushNotificationsAsync(): Promise<string | null
 /**
  * Persists the user's push token to your backend database (e.g. Railway / Supabase / PostgreSQL).
  */
-export async function syncPushTokenWithBackend(pushToken: string): Promise<boolean> {
+export async function syncPushTokenWithBackend(
+  pushToken: string, signal: AbortSignal, expectedScope: string,
+): Promise<boolean> {
   try {
-    const authToken = await AsyncStorage.getItem("ts_access_token");
-    if (!authToken) {
-      // User not logged in yet; token will be synced upon login
-      return false;
-    }
-
-    const response = await fetch("https://tallyspendapi-production.up.railway.app/api/users/push-token", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${authToken}`,
+    const session = getProfileSnapshot();
+    const current = () => !signal.aborted && getProfileSnapshot().scope === expectedScope;
+    if (!current() || !session.token) return false;
+    await registerPushToken(pushToken, {
+      token: session.token, refreshToken: session.refreshToken,
+      saveTokens: async (token, refreshToken) => {
+        if (!current()) throw new Error("Your account changed.");
+        const latest = latestSessionTokens({ token, refreshToken });
+        if (current()) publishProfileTokens(latest.token, latest.refreshToken);
       },
-      body: JSON.stringify({
-        pushToken,
-        platform: Platform.OS,
-        deviceName: Device.modelName ?? "Unknown Device",
-      }),
-    });
-
-    if (response.ok) {
-      console.log("✅ Push token registered with backend successfully.");
-      return true;
-    } else {
-      console.warn("⚠️ Backend responded with status:", response.status);
-      return false;
-    }
-  } catch (error) {
-    console.error("❌ Error syncing push token with backend:", error);
+    }, signal);
+    return current();
+  } catch {
+    // Retry on login/resume. Never log device tokens or raw server responses.
     return false;
   }
 }

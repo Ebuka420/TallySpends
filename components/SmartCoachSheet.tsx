@@ -6,6 +6,7 @@ import type { ScrollViewInstance, TextInputInstance } from "react-native";
 import { useEffect, useRef, useState, useSyncExternalStore } from "react";
 import {
   ActivityIndicator,
+  Keyboard,
   KeyboardAvoidingView,
   Modal,
   Platform,
@@ -21,8 +22,10 @@ import { CoachRequestError, requestCoachReply } from "../src/coach/chat";
 import type { ThemePalette } from "../src/theme";
 import { useAppStore } from "../src/store";
 import { getProfileSnapshot, subscribeProfile } from "../src/profile/repository";
-import { coachQuestionWithContext, loadCoachMemory, newConversation, saveCoachConversation, type CoachConversation, type MemoryFact } from "../src/coach/history";
+import { coachQuestionWithContext, newConversation, saveCoachConversation, type CoachConversation } from "../src/coach/history";
 import CoachLibraryPanel from "./CoachLibraryPanel";
+import CoachAttachmentTray from "./CoachAttachmentTray";
+import type { CoachAttachment } from "../src/coach/attachments";
 type Message = {
   id: string;
   sender: "user" | "coach";
@@ -73,20 +76,10 @@ function AccountCoachSheet({
   const [chat, setChat] = useState<CoachConversation>(newConversation);
   const messages = chat.messages;
   const setMessages = (change: (previous: Message[]) => Message[]) => setChat(previous => ({ ...previous, updatedAt: new Date().toISOString(), messages: change(previous.messages) }));
-  const [mode, setMode] = useState<"chat" | "history" | "memory">("chat");
+  const [mode, setMode] = useState<"chat" | "history">("chat");
   const [conversationStarted, setConversationStarted] = useState(false);
-  const [facts, setFacts] = useState<MemoryFact[]>([]);
-  const [memoryReady, setMemoryReady] = useState(false);
   const [storageError, setStorageError] = useState<string | null>(null);
-  const [memoryError, setMemoryError] = useState<string | null>(null);
   const [storageRevision, setStorageRevision] = useState(0);
-  useEffect(() => {
-    let active = true;
-    if (!owner) return;
-    void loadCoachMemory(owner).then(data => { if (active) { setFacts(data); setMemoryReady(true); setMemoryError(null); } })
-      .catch(() => { if (active) { setMemoryReady(false); setMemoryError("Couldn't load coach memory. Retry before sending a question."); } });
-    return () => { active = false; };
-  }, [owner, storageRevision]);
   useEffect(() => {
     let active = true;
     if (owner && chat.messages.length) void saveCoachConversation(owner, chat)
@@ -95,6 +88,9 @@ function AccountCoachSheet({
     return () => { active = false; };
   }, [owner, chat, storageRevision]);
   const [input, setInput] = useState("");
+  const [attachments, setAttachments] = useState<CoachAttachment[]>([]);
+  const [attachmentMenu, setAttachmentMenu] = useState(false);
+  useEffect(() => { if (!visible || mode !== "chat") setAttachmentMenu(false); }, [visible, mode]);
   const [busy, setBusy] = useState(false);
   const [failure, setFailure] = useState<{
     question: string;
@@ -110,6 +106,7 @@ function AccountCoachSheet({
   const startNewConversation = () => {
     if (busy) return;
     setChat(newConversation());
+    setAttachments([]); setAttachmentMenu(false);
     setConversationStarted(true);
     setInput("");
     setFailure(null);
@@ -118,6 +115,7 @@ function AccountCoachSheet({
   };
   const returnToCoachHome = () => {
     setChat(newConversation());
+    setAttachments([]); setAttachmentMenu(false);
     setConversationStarted(false);
     setInput("");
     setFailure(null);
@@ -125,7 +123,6 @@ function AccountCoachSheet({
   };
   const handleBack = () => {
     if (mode === "history") { returnToCoachHome(); return; }
-    if (mode === "memory") { setMode("chat"); return; }
     if (messages.length) { setMode("history"); return; }
     if (conversationStarted) { returnToCoachHome(); return; }
     onClose();
@@ -138,7 +135,7 @@ function AccountCoachSheet({
   );
   const send = async (retry?: string) => {
     const question = (retry ?? input).trim();
-    if (!question || locked.current || !owner || !memoryReady) return;
+    if (!question || locked.current || !owner || attachments.length || attachmentMenu) return;
     locked.current = true;
     setBusy(true);
     setFailure(null);
@@ -168,7 +165,7 @@ function AccountCoachSheet({
       const token = storedTokens[0]?.[1] || appStore.token || session.token;
       const refreshToken = storedTokens[1]?.[1] || appStore.refreshToken || session.refreshToken;
       const answer = await requestCoachReply(
-        coachQuestionWithContext(question, facts, retry ? messages.slice(0, -1) : messages),
+        coachQuestionWithContext(question, [], retry ? messages.slice(0, -1) : messages),
         token,
         controller.signal,
         fetch,
@@ -358,13 +355,12 @@ function AccountCoachSheet({
                   });
               }}
             >
-              {mode !== "chat" ? <CoachLibraryPanel key={`${owner}-${mode}`} owner={owner} mode={mode} theme={theme} busy={busy}
-                activeId={chat.id} backLabel={mode === "history" ? "Back to coach home" : "Back to conversation"}
-                onBack={mode === "history" ? returnToCoachHome : () => setMode("chat")}
-                onOpen={saved => { setChat(saved); setConversationStarted(true); setInput(""); setFailure(null); setMode("chat"); }}
-                onNew={startNewConversation}
-                onMemoryChange={saved => { if (getProfileSnapshot().scope === owner) { setFacts(saved); setMemoryReady(true); setMemoryError(null); } }} /> : <>
-              {(storageError || memoryError) && <View><Text accessibilityLiveRegion="polite" style={{ color: theme.textSecondary }}>{[storageError, memoryError].filter(Boolean).join("\n")}</Text>
+              {mode !== "chat" ? <CoachLibraryPanel key={`${owner}-${mode}`} owner={owner} theme={theme} busy={busy}
+                activeId={chat.id} backLabel="Back to coach home"
+                onBack={returnToCoachHome}
+                onOpen={saved => { setChat(saved); setAttachments([]); setAttachmentMenu(false); setConversationStarted(true); setInput(""); setFailure(null); setMode("chat"); }}
+                onNew={startNewConversation} /> : <>
+              {storageError && <View><Text accessibilityLiveRegion="polite" style={{ color: theme.textSecondary }}>{storageError}</Text>
                 <Pressable accessibilityRole="button" onPress={() => setStorageRevision(value => value + 1)}><Text style={{ color: theme.accent }}>Retry saving/loading</Text></Pressable></View>}
               {!owner && <Text style={{ color: theme.textSecondary }}>Sign in to use Smart Coach and your saved conversations.</Text>}
               {!messages.length && !conversationStarted ? (
@@ -555,11 +551,6 @@ function AccountCoachSheet({
                   )}
                 </>
               )}
-              <Text style={[s.promptLabel, { color: theme.textSecondary }]}>COACH MEMORY</Text>
-              <Pressable accessibilityRole="button" onPress={() => setMode("memory")} style={[s.prompt, { width: "100%", backgroundColor: theme.surface, borderColor: theme.border }]}>
-                <Ionicons name="bookmark-outline" size={22} color={theme.accent} />
-                <Text style={[s.promptTitle, { color: theme.textPrimary }]}>Manage saved goals and preferences</Text>
-              </Pressable>
               {busy && (
                 <View
                   accessibilityLiveRegion="polite"
@@ -683,6 +674,8 @@ function AccountCoachSheet({
                   ))}
                 </ScrollView>
               )}
+              <CoachAttachmentTray key={chat.id} files={attachments} onChange={setAttachments} open={attachmentMenu}
+                onClose={() => setAttachmentMenu(false)} active={visible && mode === "chat" && attachmentMenu} theme={theme} />
               <View
                 style={[
                   s.composer,
@@ -692,6 +685,12 @@ function AccountCoachSheet({
                   },
                 ]}
               >
+                <Pressable accessibilityRole="button" accessibilityLabel="Add attachments"
+                  accessibilityState={{ expanded: attachmentMenu, disabled: busy || !owner }} disabled={busy || !owner}
+                  onPress={() => { Keyboard.dismiss(); setAttachmentMenu(value => !value); }}
+                  style={{ width: 40, height: 40, alignItems: "center", justifyContent: "center", opacity: busy || !owner ? .4 : 1 }}>
+                  <Ionicons name={attachmentMenu ? "close" : "add"} size={26} color={theme.textPrimary} />
+                </Pressable>
                 <TextInput
                   ref={composer}
                   accessibilityLabel="Message Smart Coach"
@@ -712,15 +711,15 @@ function AccountCoachSheet({
                   accessibilityRole="button"
                   accessibilityLabel="Send message"
                   accessibilityState={{
-                    disabled: busy || !input.trim(),
+                    disabled: busy || !input.trim() || !owner || !!attachments.length || attachmentMenu,
                   }}
-                  disabled={busy || !input.trim() || !owner || !memoryReady}
+                  disabled={busy || !input.trim() || !owner || !!attachments.length || attachmentMenu}
                   onPress={() => send()}
                   style={[
                     s.send,
                     {
                       backgroundColor: theme.accent,
-                      opacity: busy || !input.trim() ? 0.4 : 1,
+                      opacity: busy || !input.trim() || !owner || attachments.length || attachmentMenu ? 0.4 : 1,
                     },
                   ]}
                 >
@@ -919,7 +918,7 @@ const s = StyleSheet.create({
     borderWidth: 1,
     borderRadius: 25,
     padding: 7,
-    paddingLeft: 16,
+    paddingLeft: 7,
   },
   input: {
     flex: 1,

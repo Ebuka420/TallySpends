@@ -1,6 +1,8 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { preparePhotoUpload } from "./upload";
 import { createProfileRequest } from "./api";
+import { latestSessionTokens } from "../session";
+import { addressMatches, addressRequest, formatAddress, type ProfileAddress } from "./address";
 import { cachedProfile, emptyProfile, parseProfile, profileScope, type Profile, type ProfileUser } from "./model";
 let snapshot = { profile: { ...emptyProfile }, scope: null as string | null, loading: false, error: null as string | null, saving: false, token: null as string | null, refreshToken: null as string | null };
 const listeners = new Set<() => void>();
@@ -23,35 +25,39 @@ async function withRequest<T>(operation: (request: ReturnType<typeof createProfi
   const controller = new AbortController(); controllers.add(controller);
   const timer = setTimeout(() => controller.abort(), 20000);
   try {
-    const token = await AsyncStorage.getItem("ts_access_token");
-    const refreshToken = await AsyncStorage.getItem("ts_refresh_token");
+    const stored = await AsyncStorage.multiGet(["ts_access_token", "ts_refresh_token"]);
+    const token = snapshot.token || stored[0][1];
+    const refreshToken = snapshot.refreshToken || stored[1][1];
     if (epoch !== expected) throw new Error("Your account changed. Please try again.");
     return await operation(createProfileRequest({ token, refreshToken, saveTokens: async (access, refresh) => {
       if (epoch !== expected) throw new Error("Your account changed. Please try again.");
-      await AsyncStorage.multiSet([["ts_access_token", access], ["ts_refresh_token", refresh]]);
-      if (epoch === expected) publishProfileTokens(access, refresh);
+      const latest = latestSessionTokens({ token: access, refreshToken: refresh });
+      if (epoch === expected) publishProfileTokens(latest.token, latest.refreshToken);
     } }, controller.signal));
   } finally { clearTimeout(timer); controllers.delete(controller); }
 }
 async function commit(profile: Profile, expected: number, scope: string) {
   if (epoch !== expected) throw new Error("Your account changed. Please try again.");
   // Keep residential address server-backed; don't persist it in the device cache.
-  await AsyncStorage.setItem(cacheKey(scope), JSON.stringify({ ...profile, address: "" }));
+  await AsyncStorage.setItem(cacheKey(scope), JSON.stringify({ ...profile, address: "", addressDetails: null }));
   if (epoch === expected) publish({ profile });
 }
 export async function loadAccountProfile(force = false) {
   if (signedOut) return;
+  if (hydration) return hydration;
   const started = epoch;
   const stored = await AsyncStorage.multiGet(["ts_user", "ts_access_token", "ts_refresh_token"]);
   if (epoch !== started || signedOut) return;
   const raw = stored[0][1];
-  const token = stored[1][1];
+  const storedToken = stored[1][1];
   let user: ProfileUser | null = null;
   try { user = raw ? JSON.parse(raw) : null; } catch { /* An unknown owner must never inherit a cache. */ }
-  const scope = token ? profileScope(user) : null;
+  const scope = storedToken || stored[2][1] ? profileScope(user) : null;
   if (!scope) { if (snapshot.scope) clearProfileSession(); return; }
   if (scope !== snapshot.scope) { clearProfileSession(); publish({ scope, loading: true }); }
-  if (token) publish({ token, refreshToken: stored[2][1] });
+  // Do not overwrite a newly rotated in-memory pair with a read started earlier.
+  const token = snapshot.token || storedToken;
+  publish({ token, refreshToken: snapshot.refreshToken || stored[2][1] });
   if (snapshot.saving) return;
   if (hydration) return hydration;
   if (!force && lastSync && Date.now() - lastSync < 30000) return;
@@ -78,7 +84,8 @@ export async function loadAccountProfile(force = false) {
   hydration = task;
   return task;
 }
-export async function updateAccountProfile(patch: Partial<Profile>, photo?: { uri: string; name: string; type: string }, expectedScope = snapshot.scope) {
+type ProfilePatch = Partial<Omit<Profile, "address" | "addressDetails">> & { address?: ProfileAddress };
+export async function updateAccountProfile(patch: ProfilePatch, photo?: { uri: string; name: string; type: string }, expectedScope = snapshot.scope) {
   const scope = snapshot.scope;
   if (!scope || scope !== expectedScope) throw new Error("Your account changed. Sign in again before updating your profile.");
   if (snapshot.loading) throw new Error("Your profile is still loading. Please try again in a moment.");
@@ -88,24 +95,29 @@ export async function updateAccountProfile(patch: Partial<Profile>, photo?: { ur
   try {
     if ("email" in patch || "tallyTag" in patch) throw new Error("Changing email or TallyTag isn't supported by the backend yet. Your account details have not changed.");
     if (Object.keys(patch).some(key => !["fullName", "phoneNumber", "avatarUrl", "address"].includes(key))) throw new Error("These profile fields are not supported. No device-only change has been saved.");
+    const address = "address" in patch ? addressRequest(patch.address!) : undefined;
     if (photo || "fullName" in patch || "phoneNumber" in patch || "avatarUrl" in patch || "address" in patch) {
       await withRequest(async request => {
         if (photo) {
           const body = await preparePhotoUpload(photo);
           await request("/api/users/me/avatar", { method: "POST", body });
         } else {
-          const body = { ...(patch.fullName !== undefined ? { fullName: patch.fullName } : {}), ...(patch.phoneNumber !== undefined ? { phoneNumber: patch.phoneNumber } : {}), ...(patch.avatarUrl !== undefined ? { avatarUrl: patch.avatarUrl } : {}), ...(patch.address !== undefined ? { address: patch.address } : {}) };
+          const body = { ...(patch.fullName !== undefined ? { fullName: patch.fullName } : {}), ...(patch.phoneNumber !== undefined ? { phoneNumber: patch.phoneNumber } : {}), ...(patch.avatarUrl !== undefined ? { avatarUrl: patch.avatarUrl } : {}), ...(address ? { address } : {}) };
           await request("/api/users/me", { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
         }
         let refreshed: unknown;
         try { refreshed = await request("/api/users/me"); }
         catch (error) {
           if (photo) throw new Error("The upload was accepted, but your updated profile couldn't be loaded. Refresh your profile before uploading again.");
+          if (address) throw new Error("The address update was accepted, but your profile couldn't be reloaded to confirm it. Refresh your profile before trying again.");
           throw error;
         }
         const fields = parseProfile(refreshed);
         if (photo && !fields.avatarUrl) throw new Error("The upload was accepted, but the backend hasn't returned your saved photo URL. Refresh your profile before uploading again.");
-        if (patch.fullName !== undefined && fields.fullName !== patch.fullName || patch.phoneNumber !== undefined && fields.phoneNumber !== patch.phoneNumber || patch.address !== undefined && fields.address !== patch.address) throw new Error("The server hasn't confirmed your profile change yet. Refresh your profile and try again.");
+        if (address && !(fields.addressDetails ? addressMatches(fields.addressDetails, address) : fields.address === formatAddress(address))) {
+          throw new Error("The server hasn't returned the saved address yet. Refresh your profile to confirm the update.");
+        }
+        if (patch.fullName !== undefined && fields.fullName !== patch.fullName || patch.phoneNumber !== undefined && fields.phoneNumber !== patch.phoneNumber) throw new Error("The server hasn't confirmed your profile change yet. Refresh your profile and try again.");
         await commit({ ...snapshot.profile, ...fields }, expected, scope);
       }, expected);
     } else throw new Error("These profile fields are not supported by the backend sync contract yet. No device-only change has been saved.");

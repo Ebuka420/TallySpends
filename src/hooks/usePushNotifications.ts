@@ -1,8 +1,9 @@
 import * as Notifications from "expo-notifications";
 import { useRouter } from "expo-router";
-import { useEffect, useRef, useState } from "react";
-import { Platform } from "react-native";
-import { registerForPushNotificationsAsync } from "../services/pushNotificationService";
+import { useEffect, useRef, useState, useSyncExternalStore } from "react";
+import { AppState, Platform } from "react-native";
+import { registerForPushNotificationsAsync, syncPushTokenWithBackend } from "../services/pushNotificationService";
+import { getProfileSnapshot, subscribeProfile } from "../profile/repository";
 
 export interface UsePushNotificationsResult {
   expoPushToken: string | null;
@@ -16,6 +17,7 @@ export interface UsePushNotificationsResult {
  */
 export function usePushNotifications(): UsePushNotificationsResult {
   const router = useRouter();
+  const account = useSyncExternalStore(subscribeProfile, getProfileSnapshot, getProfileSnapshot);
   const [expoPushToken, setExpoPushToken] = useState<string | null>(null);
   const [notification, setNotification] = useState<Notifications.Notification | null>(null);
   const [isRegistered, setIsRegistered] = useState(false);
@@ -24,19 +26,41 @@ export function usePushNotifications(): UsePushNotificationsResult {
   const responseListener = useRef<Notifications.EventSubscription | null>(null);
 
   useEffect(() => {
+    setIsRegistered(false);
+    setExpoPushToken(null);
+    const scope = account.scope;
+    if (Platform.OS === "web" || !scope || !account.token) return;
+    let active = true;
+    let busy = false;
+    let controller: AbortController | null = null;
+    const sync = async () => {
+      if (!active || busy || AppState.currentState !== "active") return;
+      busy = true;
+      controller = new AbortController();
+      const timeout = setTimeout(() => controller?.abort(), 20000);
+      try {
+        const token = await registerForPushNotificationsAsync();
+        if (!active || controller.signal.aborted || getProfileSnapshot().scope !== scope) return;
+        setExpoPushToken(token);
+        const registered = token ? await syncPushTokenWithBackend(token, controller.signal, scope) : false;
+        if (active) setIsRegistered(registered);
+      } catch { if (active) setIsRegistered(false); }
+      finally { clearTimeout(timeout); busy = false; }
+    };
+    void sync();
+    const resume = AppState.addEventListener("change", state => { if (state === "active") void sync(); });
+    // Native token rotation requires obtaining a fresh Expo token, not sending
+    // the APNs/FCM token to an endpoint that expects an Expo token.
+    const rotation = Notifications.addPushTokenListener(() => { void sync(); });
+    return () => { active = false; controller?.abort(); resume.remove(); rotation.remove(); };
+  }, [account.scope, account.token]);
+
+  useEffect(() => {
     if (Platform.OS === "web") {
       return;
     }
 
     try {
-      // 1. Register device & obtain token
-      registerForPushNotificationsAsync()
-        .then((token) => {
-          setExpoPushToken(token);
-          setIsRegistered(!!token);
-        })
-        .catch(() => {});
-
       // 2. Foreground notification received listener
       notificationListener.current = Notifications.addNotificationReceivedListener((incoming) => {
         setNotification(incoming);

@@ -10,7 +10,7 @@
     "ios": {
       "supportsTablet": true,
       "infoPlist": {
-        "NSCameraUsageDescription": "Allow TallySpends to use your camera for QR scanning and bank verification through Mono."
+        "NSCameraUsageDescription": "Allow TallySpends to take photos for Smart Coach attachments, scan QR codes, and verify your bank through Mono."
       }
     },
     "android": {
@@ -51,11 +51,12 @@
       [
         "expo-camera",
         {
-          "cameraPermission": "Allow TallySpends to use your camera for QR scanning and bank verification through Mono."
+          "cameraPermission": "Allow TallySpends to take photos for Smart Coach attachments, scan QR codes, and verify your bank through Mono."
         }
       ],
       "expo-font",
       "expo-secure-store",
+      "expo-notifications",
       [
         "expo-local-authentication",
         {

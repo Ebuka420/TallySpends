@@ -1,4 +1,5 @@
 const assert = require("node:assert/strict");
+require("../testStorage.cjs");
 const fs = require("node:fs");
 const ts = require("typescript");
 require.extensions[".ts"] = (module, filename) => module._compile(ts.transpileModule(fs.readFileSync(filename, "utf8"), {

@@ -1,8 +1,13 @@
 const { test } = require("node:test");
 const assert = require("node:assert/strict");
+require("../testStorage.cjs");
+const fs = require('node:fs');
+const ts = require('typescript');
+require.extensions['.ts'] = (module, filename) => module._compile(ts.transpileModule(fs.readFileSync(filename, 'utf8'), { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022, esModuleInterop: true } }).outputText, filename);
 const { actionOffset, hoveredAction, COACH_BUTTON } = require("./menu.ts");
 const { requestCoachReply } = require("./chat.ts");
 const { API_URL } = require("../api.ts");
+require('node:test').beforeEach(() => require('../session.ts').beginSession());
 
 test("fan selection follows the displayed buttons at all four screen edges", () => {
   for (const right of [true, false]) for (const down of [true, false]) {
@@ -61,11 +66,11 @@ test("an expired access token is refreshed, persisted and retried once", async (
   let saved;
   const reply = await requestCoachReply("Question", "expired", signal, async (url, options) => {
     calls.push(url);
-    assert.equal(options.signal, signal);
     if (url.endsWith("/auth/refresh")) {
       assert.deepEqual(JSON.parse(options.body), { refreshToken: "refresh" });
-      return { ok: true, json: async () => ({ accessToken: "renewed", refreshToken: "rotated" }) };
+      return { ok: true, status: 200, json: async () => ({ accessToken: "renewed", refreshToken: "rotated" }) };
     }
+    assert.equal(options.signal, signal);
     if (calls.length === 1) return { ok: false, status: 401 };
     assert.deepEqual(saved, ["renewed", "rotated"]);
     assert.equal(options.headers.Authorization, "Bearer renewed");
@@ -78,21 +83,22 @@ test("an expired access token is refreshed, persisted and retried once", async (
 test("a missing access token can recover using the saved refresh token", async () => {
   let saved;
   const reply = await requestCoachReply("Question", null, new AbortController().signal, async (url, options) => {
-    if (url.endsWith("/auth/refresh")) return { ok: true, json: async () => ({ token: "renewed" }) };
+    if (url.endsWith("/auth/refresh")) return { ok: true, status: 200, json: async () => ({ token: "renewed", refreshToken: "rotated" }) };
     assert.equal(options.headers.Authorization, "Bearer renewed");
     return { ok: true, json: async () => ({ assistantMessage: { content: "Reply" } }) };
   }, { refreshToken: "refresh", saveTokens: async (...tokens) => { saved = tokens; } });
   assert.equal(reply, "Reply");
-  assert.deepEqual(saved, ["renewed", "refresh"]);
+  assert.deepEqual(saved, ["renewed", "rotated"]);
 });
 
 test("rejected sessions stop after one refresh attempt", async () => {
   for (const token of [null, "expired"]) {
+    await require('../session.ts').beginSession();
     let refreshes = 0;
     await assert.rejects(requestCoachReply("Question", token, new AbortController().signal, async (url) => {
       if (url.endsWith("/auth/refresh")) {
         refreshes++;
-        return { ok: true, json: async () => ({ accessToken: "still-rejected" }) };
+        return { ok: true, status: 200, json: async () => ({ accessToken: "still-rejected", refreshToken: "rotated" }) };
       }
       return { ok: false, status: 401 };
     }, { refreshToken: "refresh", saveTokens: async () => {} }), /session has expired/);

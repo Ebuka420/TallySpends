@@ -1,4 +1,5 @@
 const assert = require("node:assert/strict");
+require("../testStorage.cjs");
 const fs = require("node:fs");
 const ts = require("typescript");
 require.extensions[".ts"] = (module, filename) => module._compile(ts.transpileModule(fs.readFileSync(filename, "utf8"), {
@@ -6,7 +7,7 @@ require.extensions[".ts"] = (module, filename) => module._compile(ts.transpileMo
 }).outputText, filename);
 const { API_URL } = require("../api.ts");
 const { canSubmitFeedback, toggleFeedbackTag, createFeedbackSubmission, submitFeedback } = require("./service.ts");
-const receipt = { id: "feedback-1", saved: true, emailStatus: "queued" };
+const receipt = { accepted: true };
 const session = { token: "access", refreshToken: null, saveTokens: async () => {} };
 const signal = new AbortController().signal;
 
@@ -15,13 +16,13 @@ const signal = new AbortController().signal;
   assert.equal(canSubmitFeedback(empty), false);
   assert.equal(canSubmitFeedback({ ...empty, tags: ["User Interface"] }), false);
   for (let rating = 1; rating <= 5; rating++) assert.equal(canSubmitFeedback({ ...empty, rating }), true);
-  assert.equal(canSubmitFeedback({ ...empty, suggestions: "A useful idea" }), true);
+  assert.equal(canSubmitFeedback({ ...empty, suggestions: "A useful idea" }), false);
   let tags = toggleFeedbackTag([], "Budgeting Tools");
   tags = toggleFeedbackTag(tags, "App Performance");
   assert.deepEqual(tags, ["Budgeting Tools", "App Performance"]);
   tags = toggleFeedbackTag(tags, "Budgeting Tools");
   assert.deepEqual(tags, ["App Performance"]);
-  const draft = { rating: 0, tags, suggestions: "  First line\nSecond line 📝  " };
+  const draft = { rating: 4, tags, suggestions: "  First line\nSecond line 📝  " };
   const busy = [];
   const runner = createFeedbackSubmission();
   let finish;
@@ -33,9 +34,9 @@ const signal = new AbortController().signal;
   assert.deepEqual(busy, [true]);
   assert.equal(await runner.run(draft, () => { throw new Error("Duplicate must not send"); }, () => {}), null);
   assert.equal(captured.payload.suggestions, draft.suggestions);
-  assert.equal(captured.payload.rating, null);
-  assert.deepEqual(captured.payload.tags, tags);
-  assert.ok(!Number.isNaN(Date.parse(captured.payload.submittedAt)));
+  assert.equal(captured.payload.rating, 4);
+  assert.deepEqual(captured.payload.categories, tags);
+  assert.deepEqual(Object.keys(captured.payload).sort(), ["categories", "rating", "suggestions"]);
   finish(receipt);
   assert.deepEqual(await pending, receipt);
   assert.deepEqual(busy, [true, false]);
@@ -70,7 +71,7 @@ const signal = new AbortController().signal;
   }, "request-1", signal, async (url, options) => {
     calls.push({ url, options });
     if (url.endsWith("/api/auth/refresh")) return new Response(JSON.stringify({ accessToken: "new-access", refreshToken: "new-refresh" }));
-    return calls.length === 1 ? new Response(null, { status: 401 }) : new Response(JSON.stringify(receipt), { status: 201 });
+    return calls.length === 1 ? new Response(null, { status: 401 }) : new Response(null, { status: 200 });
   }, true);
   assert.deepEqual(refreshed, receipt);
   assert.equal(calls[0].url, `${API_URL}/api/feedback`);
@@ -84,17 +85,24 @@ const signal = new AbortController().signal;
     await assert.rejects(submitFeedback(payload, session, "request-1", signal,
       async () => new Response(null, { status }), true));
   }
-  for (const body of [{}, { ...receipt, saved: false }, { ...receipt, emailStatus: "failed" }]) {
+  for (const body of [{ success: false }, { saved: false }, { status: "pending" }, { status: "failed" }]) {
     await assert.rejects(submitFeedback(payload, session, "request-1", signal,
-      async () => new Response(JSON.stringify(body)), true), /couldn't confirm/);
+      async () => new Response(JSON.stringify(body)), true), /hasn't confirmed/);
+  }
+  for (const status of [201, 202, 204]) await assert.rejects(submitFeedback(payload, session, "request-1", signal,
+    async () => new Response(null, { status }), true), /hasn't confirmed/);
+  // Swagger specifies no success body. Do not require invented saved/email fields.
+  for (const body of [null, "OK", "{}", JSON.stringify({ id: 17 })]) {
+    assert.deepEqual(await submitFeedback(payload, session, "request-1", signal,
+      async () => new Response(body)), receipt);
   }
   await assert.rejects(submitFeedback(payload, session, "request-1", signal,
-    async () => new Response("not-json"), true), /couldn't confirm/);
-  await assert.rejects(submitFeedback(payload, session, "request-1", signal,
     async () => { throw new TypeError("fetch failed"); }, true), /fetch failed/);
-  assert.deepEqual(await submitFeedback(payload, { ...session, token: null }, "anonymous", signal, async (_url, options) => {
-    assert.equal(options.headers.Authorization, undefined);
-    return new Response(JSON.stringify(receipt));
-  }, true), receipt);
+  await assert.rejects(submitFeedback(payload, { ...session, token: null }, "anonymous", signal,
+    async () => { throw new Error("Anonymous requests must not be sent"); }, true), /Sign in/);
+  await assert.rejects(submitFeedback({ ...payload, rating: 0 }, session, "request-1", signal,
+    async () => { throw new Error("Invalid rating must not be sent"); }), /review/);
+  assert.deepEqual(JSON.parse(calls[0].options.body), { rating: 4, categories: tags, suggestions: draft.suggestions });
+  assert.equal(calls[0].options.redirect, "error");
   console.log("Feedback checks passed: eligibility, multiple categories, exact text, loading, duplicate protection, retries, acceptance, errors and token refresh.");
 })().catch(error => { console.error(error); process.exitCode = 1; });

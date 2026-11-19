@@ -1,5 +1,6 @@
 import type { Transaction } from "../budget/ledger";
 import type { AuthenticatedBankRequest } from "../banking/backend";
+import { isSandboxBankTransaction } from "../banking/environment";
 
 export type BackendTransaction = {
   id: string;
@@ -97,7 +98,13 @@ export function decodeTransactionFeed(value: unknown): Transaction[] {
 }
 
 export async function getTransactions(request: AuthenticatedBankRequest): Promise<Transaction[]> {
-  return decodeTransactionFeed(await request("/api/transactions"));
+  return (await getPersonalTransactionFeed(request)).transactions;
+}
+
+export async function getPersonalTransactionFeed(request: AuthenticatedBankRequest) {
+  const records = decodeTransactionFeed(await request("/api/transactions"));
+  const transactions = records.filter(record => !isSandboxBankTransaction(record));
+  return { transactions, excludedSandboxCount: records.length - transactions.length };
 }
 
 function decodeParsed(value: unknown, index: number): SmsImportResult["parsed"] {
@@ -154,26 +161,4 @@ export function formatSmsImportResult(summary: SmsImportDisplaySummary): string 
     lines.push(...summary.results.map(result => `Batch ${result.batch}, backend result ${result.index}: ${result.status}`));
   }
   return lines.join("\n");
-}
-
-export function mergeTransactionFeed(remote: readonly Transaction[], local: readonly Transaction[], seed: readonly Transaction[]): Transaction[] {
-  const seedById = new Map(seed.map(tx => [tx.id, tx]));
-  const isUnmodifiedSeed = (tx: Transaction) => {
-    const original = seedById.get(tx.id);
-    if (!original) return false;
-    const keys = Object.keys(tx);
-    return keys.length === Object.keys(original).length && keys.every(key => tx[key] === original[key as keyof Transaction]);
-  };
-  const remoteById = new Map(remote.map(tx => [tx.id, tx]));
-  const localById = new Map(local.filter(tx => !isUnmodifiedSeed(tx)).map(tx => [tx.id, tx]));
-  const records = remote.map(tx => {
-    const old = localById.get(tx.id);
-    if (!old) return tx;
-    localById.delete(tx.id);
-    return { ...old, ...tx, ...(old.receiptImage ? { receiptImage: old.receiptImage } : {}) };
-  });
-  for (const tx of localById.values()) {
-    if (!remoteById.has(tx.id)) records.push({ ...tx, source: typeof tx.source === "string" ? tx.source : "LocalManual", isServerTransaction: false });
-  }
-  return records.sort((left, right) => Date.parse(right.date) - Date.parse(left.date));
 }

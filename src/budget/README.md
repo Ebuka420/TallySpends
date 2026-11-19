@@ -1,5 +1,19 @@
 # Budget, Savings and Ajo
 
+## Current implementation — 19 November 2026
+
+Active plans load from the authenticated backend through `backend.ts` and
+`repository.ts`. Budget limits and savings contributions are trackers; they do
+not reserve or debit wallet money locally. `ledger.ts` contains view models and
+formatting/amount helpers and rejects totals without backend metadata.
+`planning.ts` contains command types and tag validation, not a simulation engine.
+The old wallet/mutation engine is isolated under `test-fixtures` for historical
+tests. It is not imported by production code. Repository and backend tests cover
+the active server path, request failure, uncertain saves and account isolation.
+Joint savings remains unavailable without a backend contract.
+
+The local-wallet behavior described below is historical and no longer used.
+
 ## Scope
 
 The main Budget tab retains its themed card design and now includes a consistent

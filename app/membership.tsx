@@ -15,7 +15,7 @@ import {
 import { useAppStore } from "../src/store";
 import { getSubscriptionSnapshot, manageSubscription, purchaseSubscription, restoreSubscriptions, subscribeSubscription } from "../src/subscriptions/revenuecat";
 
-// Mock data representing the list of features for each plan
+// Features available for each subscription plan
 const FREEMIUM_FEATURES = [
   { id: "1", text: "Expense Tracking", available: true },
   { id: "2", text: "Budget Management", available: true },

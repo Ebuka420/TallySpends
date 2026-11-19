@@ -1,3 +1,2 @@
 import React from "react";
-import { WalletMovementScreen } from "../components/WalletMovementScreen";
-export default function WithdrawScreen() { return <WalletMovementScreen kind="withdrawal" />; }
+export { BankTransferScreen as default } from "../components/WalletScreens";

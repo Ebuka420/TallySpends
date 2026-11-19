@@ -131,7 +131,7 @@ export default function RequestScreen() {
       </View>
 
       <ScrollView contentContainerStyle={styles.scrollContainer} keyboardShouldPersistTaps="handled">
-        {/* Mockup Card */}
+        {/* Payment request card */}
         <View style={[styles.qrCardContainer, { backgroundColor: theme.surface, borderColor: theme.border }]}>
           <Text style={[styles.qrCardTitle, { color: theme.textSecondary }]}>Share this Tally Request QR</Text>
 
@@ -530,7 +530,7 @@ const getStyles = (theme: import("../src/theme").ThemePalette) => StyleSheet.cre
   },
   shareButton: {
     width: "100%",
-    backgroundColor: theme.accent, // matches mockup's primary blue color
+    backgroundColor: theme.accent,
     borderRadius: 20,
     height: 52,
     justifyContent: "center",

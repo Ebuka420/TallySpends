@@ -3,38 +3,30 @@ import { Ionicons } from "@expo/vector-icons";
 import DateTimePicker, {
     DateTimePickerEvent,
 } from "@react-native-community/datetimepicker";
-import { useRouter } from "expo-router";
-import React, { useMemo, useRef, useState } from "react";
+import { useFocusEffect, useRouter } from "expo-router";
+import React, { useCallback, useMemo, useRef, useState } from "react";
 import {
     Modal,
     PanResponder,
     Platform,
     Pressable,
+    RefreshControl,
     SafeAreaView,
     ScrollView,
     StyleSheet,
     Text,
     TouchableOpacity,
+    useWindowDimensions,
     View,
 } from "react-native";
 import Svg, { Path } from "react-native-svg";
-import { MOCK_RECIPIENTS, useAppStore } from "../../src/store";
+import ExpenseChartDetails from "../../components/ExpenseChartDetails";
+import { expenseChartData, expenseReportData, EXPENSE_CHART_STYLES, EXPENSE_CHART_LABELS, EXPENSE_CHART_HINTS, type ExpenseChartStyle } from "../../src/expenses/charts";
+import { useAppStore } from "../../src/store";
 import { getThemePalette } from "../../src/theme";
 import { TutorialTarget } from "../../components/SmartCoachTutorialLayer";
 
-const normalizeTransferTitle = (title: string) => {
-  const transferRegex = /(Transfer to\s+)@([a-zA-Z0-9_]+)/i;
-
-  return title.replace(transferRegex, (_, prefix, username) => {
-    const recipient = MOCK_RECIPIENTS.find(
-      (r) => r.username.toLowerCase() === username.toLowerCase(),
-    );
-
-    return recipient
-      ? `${prefix}${recipient.name}`
-      : `Transfer to @${username}`;
-  });
-};
+const normalizeTransferTitle = (title: string) => title;
 
 const categoryMeta: Record<
   string,
@@ -75,13 +67,17 @@ const money = (amount: number) =>
     maximumFractionDigits: 2,
   })}`;
 
-type ChartStyle = "line" | "area";
+type ChartStyle = ExpenseChartStyle;
 
 export default function ExpensesScreen() {
   const router = useRouter();
 
   const {
     transactions: rawTransactions = [],
+    transactionFeedState,
+    transactionFeedError,
+    excludedSandboxTransactionCount,
+    refreshTransactions,
     themePreference,
     themeMode,
   } = useAppStore();
@@ -89,6 +85,8 @@ export default function ExpensesScreen() {
   const theme = useThemeTokens();
   const tutorialScrollRef = useRef<any>(null);
   const tutorialScrollOffset = useRef(0);
+  const periodButtonRef = useRef<React.ElementRef<typeof View>>(null);
+  const chartButtonRef = useRef<React.ElementRef<typeof View>>(null);
 
   const [date, setDate] = useState(new Date());
   const [showCalendar, setShowCalendar] = useState(false);
@@ -96,42 +94,31 @@ export default function ExpensesScreen() {
   const [showChartStyleMenu, setShowChartStyleMenu] = useState(false);
   const [period, setPeriod] = useState<"month" | "year">("month");
   const [chartStyle, setChartStyle] = useState<ChartStyle>("line");
+  const [refreshError, setRefreshError] = useState<string | null>(null);
+  const refreshAttempt = useRef(0);
+
+  const refresh = useCallback(async () => {
+    const attempt = ++refreshAttempt.current;
+    setRefreshError(null);
+    try {
+      await refreshTransactions(true);
+    } catch (error) {
+      if (attempt === refreshAttempt.current) setRefreshError(error instanceof Error ? error.message : "Couldn't load expenses. Please try again.");
+    }
+  }, [refreshTransactions]);
+
+  useFocusEffect(useCallback(() => {
+    void refresh();
+    return () => { refreshAttempt.current++; };
+  }, [refresh]));
+  const expensesError = refreshError || transactionFeedError;
 
   const transactions = rawTransactions as any[];
 
-  const periodTransactions = useMemo(
-    () =>
-      transactions
-        .filter((tx) => {
-          if (tx.type !== "expense") return false;
-
-          const transactionDate = new Date(tx.date);
-
-          return period === "year"
-            ? transactionDate.getFullYear() === date.getFullYear()
-            : transactionDate.getMonth() === date.getMonth() &&
-                transactionDate.getFullYear() === date.getFullYear();
-        })
-        .sort(
-          (a, b) => new Date(b.date).getTime() - new Date(a.date).getTime(),
-        ),
-    [transactions, date, period],
-  );
-
-  const total = periodTransactions.reduce(
-    (sum, tx) => sum + Number(tx.amount || 0),
-    0,
-  );
-
-  const categoryTotals = useMemo(() => {
-    const totals: Record<string, number> = {};
-
-    periodTransactions.forEach((tx) => {
-      totals[tx.category] = (totals[tx.category] || 0) + Number(tx.amount || 0);
-    });
-
-    return Object.entries(totals).sort((a, b) => b[1] - a[1]);
-  }, [periodTransactions]);
+  const report = useMemo(() => expenseReportData(transactions, transactionFeedState, date, period), [transactions, transactionFeedState, date, period]);
+  const expensesReady = report !== null && !refreshError;
+  const chartData = report ?? expenseChartData([], date, period);
+  const { transactions: periodTransactions, total, categories: categoryTotals, points: chartPoints } = chartData;
 
   const grouped = useMemo(
     () =>
@@ -155,74 +142,6 @@ export default function ExpensesScreen() {
         }, {}),
     [periodTransactions],
   );
-
-  const chartPoints = useMemo(() => {
-    if (period === "year") {
-      return Array.from({ length: 12 }, (_, index) => {
-        const monthTotal = periodTransactions.reduce((sum, tx) => {
-          const txDate = new Date(tx.date);
-
-          return txDate.getMonth() === index
-            ? sum + Number(tx.amount || 0)
-            : sum;
-        }, 0);
-
-        return {
-          label: new Date(date.getFullYear(), index, 1).toLocaleDateString(
-            "en-US",
-            {
-              month: "short",
-            },
-          ),
-          value: monthTotal,
-        };
-      });
-    }
-
-    const weekBuckets = [
-      {
-        label: "W1",
-        start: 1,
-        end: 7,
-      },
-      {
-        label: "W2",
-        start: 8,
-        end: 14,
-      },
-      {
-        label: "W3",
-        start: 15,
-        end: 21,
-      },
-      {
-        label: "W4",
-        start: 22,
-        end: 28,
-      },
-      {
-        label: "W5",
-        start: 29,
-        end: 31,
-      },
-    ];
-
-    return weekBuckets.map((bucket) => {
-      const bucketTotal = periodTransactions.reduce((sum, tx) => {
-        const txDate = new Date(tx.date);
-        const day = txDate.getDate();
-
-        return day >= bucket.start && day <= bucket.end
-          ? sum + Number(tx.amount || 0)
-          : sum;
-      }, 0);
-
-      return {
-        label: bucket.label,
-        value: bucketTotal,
-      };
-    });
-  }, [periodTransactions, date, period]);
 
   const maxChartValue = Math.max(...chartPoints.map((item) => item.value), 1);
 
@@ -278,7 +197,7 @@ export default function ExpensesScreen() {
     setShowCalendar(false);
   };
 
-  const chartStyles: ChartStyle[] = ["line", "area"];
+  const chartStyles = EXPENSE_CHART_STYLES;
 
   const cycleChartStyle = (direction: 1 | -1) => {
     const currentIndex = chartStyles.indexOf(chartStyle);
@@ -290,10 +209,10 @@ export default function ExpensesScreen() {
   };
 
   const panResponder = PanResponder.create({
-    onStartShouldSetPanResponder: () => true,
+    onStartShouldSetPanResponder: () => false,
 
     onMoveShouldSetPanResponder: (_, gestureState) =>
-      Math.abs(gestureState.dx) > 12,
+      Math.abs(gestureState.dx) > 12 && Math.abs(gestureState.dx) > Math.abs(gestureState.dy) * 1.2,
 
     onPanResponderRelease: (_, gestureState) => {
       if (gestureState.dx > 40) {
@@ -304,7 +223,7 @@ export default function ExpensesScreen() {
     },
   });
 
-  const chartStyleLabel = chartStyle === "line" ? "Line" : "Area";
+  const chartStyleLabel = EXPENSE_CHART_LABELS[chartStyle];
 
   const pickerAccentColor = theme.accent;
   const pickerTextColor = theme.textPrimary;
@@ -326,6 +245,7 @@ export default function ExpensesScreen() {
         scrollEventThrottle={16}
         contentContainerStyle={styles.content}
         showsVerticalScrollIndicator={false}
+        refreshControl={<RefreshControl refreshing={transactionFeedState === "loading"} onRefresh={refresh} tintColor={theme.accent} />}
       >
         <View style={styles.topbar}>
           <Text
@@ -369,6 +289,10 @@ export default function ExpensesScreen() {
             </TouchableOpacity>
 
             <TouchableOpacity
+              ref={periodButtonRef}
+              accessibilityRole="button"
+              accessibilityLabel="Select expense period"
+              accessibilityState={{ expanded: showPeriodMenu }}
               onPress={() => setShowPeriodMenu(true)}
               style={[
                 styles.dropButton,
@@ -382,6 +306,21 @@ export default function ExpensesScreen() {
           </View></TutorialTarget>
         </View>
 
+        {expensesReady && excludedSandboxTransactionCount > 0 && <Text style={{ color: theme.textSecondary, marginBottom: 16 }}>
+          Sandbox bank activity is excluded from your personal expenses.
+        </Text>}
+
+        {!expensesReady ? <View style={[styles.chartCard, { backgroundColor: theme.surface, borderColor: theme.border }]}>
+          <Text accessibilityRole="header" style={[styles.chartTitle, { color: theme.textPrimary }]}>
+            {expensesError ? "Expenses unavailable" : "Loading expenses…"}
+          </Text>
+          <Text style={[styles.chartHint, { color: theme.textSecondary, marginTop: 12 }]}>
+            {expensesError || "Checking your recorded transactions."}
+          </Text>
+          {expensesError && <TouchableOpacity accessibilityRole="button" onPress={refresh} style={{ paddingVertical: 16 }}>
+            <Text style={{ color: theme.accent }}>Retry</Text>
+          </TouchableOpacity>}
+        </View> : <>
         <View style={styles.hero}>
           <Text
             style={[
@@ -392,8 +331,8 @@ export default function ExpensesScreen() {
             ]}
           >
             {period === "month"
-              ? "TOTAL SPENT THIS MONTH"
-              : "TOTAL SPENT THIS YEAR"}
+              ? "TOTAL SPENT IN SELECTED MONTH"
+              : "TOTAL SPENT IN SELECTED YEAR"}
           </Text>
 
           <Text
@@ -408,7 +347,7 @@ export default function ExpensesScreen() {
           </Text>
 
           <View style={styles.trend}>
-            <Ionicons name="arrow-down" size={13} color="#63806A" />
+            <Ionicons name="receipt-outline" size={13} color={theme.textSecondary} />
 
             <Text
               style={[
@@ -418,7 +357,9 @@ export default function ExpensesScreen() {
                 },
               ]}
             >
-              Your spending is calmly on track
+              {periodTransactions.length
+                ? `Based on ${periodTransactions.length} recorded expense${periodTransactions.length === 1 ? "" : "s"}`
+                : "You have no recorded expenses for this period"}
             </Text>
           </View>
         </View>
@@ -433,7 +374,7 @@ export default function ExpensesScreen() {
           ]}
         >
           <View style={styles.chartHeader}>
-            <View>
+            <View style={{ flex: 1, paddingRight: 12 }}>
               <Text
                 style={[
                   styles.chartTitle,
@@ -453,7 +394,7 @@ export default function ExpensesScreen() {
                   },
                 ]}
               >
-                Swipe or tap to switch views
+                {EXPENSE_CHART_HINTS[chartStyle]}
               </Text>
             </View>
 
@@ -470,6 +411,10 @@ export default function ExpensesScreen() {
               </Text>
 
               <TouchableOpacity
+                ref={chartButtonRef}
+                accessibilityRole="button"
+                accessibilityLabel="Select chart style"
+                accessibilityState={{ expanded: showChartStyleMenu }}
                 style={[
                   styles.chartPicker,
                   {
@@ -507,6 +452,8 @@ export default function ExpensesScreen() {
             </View>
           </View>
 
+          {!periodTransactions.length ? <Text style={{ color: theme.textSecondary, paddingVertical: 28, textAlign: "center" }}>No expenses recorded for this period.</Text>
+          : chartStyle === "line" || chartStyle === "area" ? <>
           <View {...panResponder.panHandlers} style={styles.chart}>
             <View
               style={[
@@ -573,6 +520,9 @@ export default function ExpensesScreen() {
               {chartPoints[chartPoints.length - 1]?.label ?? "End"}
             </Text>
           </View>
+          </> : <ExpenseChartDetails key={`${chartStyle}:${period}:${date.getFullYear()}:${date.getMonth()}`}
+            mode={chartStyle} points={chartPoints} categories={categoryTotals} total={total} theme={theme} />}
+
         </View>
 
         <View
@@ -804,7 +754,7 @@ export default function ExpensesScreen() {
                 return (
                   <Pressable
                     key={tx.id}
-                    onPress={() => router.push("/transaction-history" as any)}
+                    onPress={() => router.push({ pathname: "/transaction-details", params: { id: tx.id } })}
                     style={styles.row}
                   >
                     <View
@@ -871,6 +821,7 @@ export default function ExpensesScreen() {
             No expenses recorded for this period.
           </Text>
         )}
+        </>}
       </ScrollView>
 
       {showCalendar && (
@@ -906,25 +857,12 @@ export default function ExpensesScreen() {
         </View>
       )}
 
-      <Modal
-        transparent
+      <AnchoredExpensesMenu
         visible={showPeriodMenu}
-        animationType="fade"
-        onRequestClose={() => setShowPeriodMenu(false)}
+        anchorRef={periodButtonRef}
+        onClose={() => setShowPeriodMenu(false)}
+        theme={theme}
       >
-        <Pressable
-          style={styles.modal}
-          onPress={() => setShowPeriodMenu(false)}
-        >
-          <View
-            style={[
-              styles.menu,
-              {
-                backgroundColor: theme.surface,
-                borderColor: theme.border,
-              },
-            ]}
-          >
             {(["month", "year"] as const).map((item) => (
               <TouchableOpacity
                 key={item}
@@ -954,29 +892,14 @@ export default function ExpensesScreen() {
                 )}
               </TouchableOpacity>
             ))}
-          </View>
-        </Pressable>
-      </Modal>
+      </AnchoredExpensesMenu>
 
-      <Modal
-        transparent
+      <AnchoredExpensesMenu
         visible={showChartStyleMenu}
-        animationType="fade"
-        onRequestClose={() => setShowChartStyleMenu(false)}
+        anchorRef={chartButtonRef}
+        onClose={() => setShowChartStyleMenu(false)}
+        theme={theme}
       >
-        <Pressable
-          style={styles.modal}
-          onPress={() => setShowChartStyleMenu(false)}
-        >
-          <View
-            style={[
-              styles.menu,
-              {
-                backgroundColor: theme.surface,
-                borderColor: theme.border,
-              },
-            ]}
-          >
             <Text
               style={[
                 styles.menuTitle,
@@ -988,12 +911,14 @@ export default function ExpensesScreen() {
               Select chart style
             </Text>
 
-            {(["line", "area"] as ChartStyle[]).map((item) => {
-              const label = item === "line" ? "Line view" : "Area view";
+            {EXPENSE_CHART_STYLES.map((item) => {
+              const label = `${EXPENSE_CHART_LABELS[item]} view`;
 
               return (
                 <TouchableOpacity
                   key={item}
+                  accessibilityRole="radio"
+                  accessibilityState={{ checked: chartStyle === item }}
                   onPress={() => {
                     setChartStyle(item);
                     setShowChartStyleMenu(false);
@@ -1021,11 +946,63 @@ export default function ExpensesScreen() {
                 </TouchableOpacity>
               );
             })}
-          </View>
-        </Pressable>
-      </Modal>
+      </AnchoredExpensesMenu>
     </SafeAreaView>
   );
+}
+
+function AnchoredExpensesMenu({ visible, anchorRef, onClose, theme, children }: {
+  visible: boolean;
+  anchorRef: React.RefObject<React.ElementRef<typeof View> | null>;
+  onClose: () => void;
+  theme: ReturnType<typeof getThemePalette>;
+  children: React.ReactNode;
+}) {
+  const overlayRef = useRef<React.ElementRef<typeof View>>(null);
+  const menuRef = useRef<React.ElementRef<typeof View>>(null);
+  const { width, height } = useWindowDimensions();
+  const [position, setPosition] = useState<{ left: number; top: number } | null>(null);
+  const measurement = useRef(0);
+
+  const alignMenu = React.useCallback(() => {
+    const request = ++measurement.current;
+    anchorRef.current?.measureInWindow((x, y, buttonWidth, buttonHeight) => {
+      overlayRef.current?.measureInWindow((overlayX, overlayY, overlayWidth, overlayHeight) => {
+        menuRef.current?.measureInWindow((_x, _y, menuWidth, menuHeight) => {
+          if (request !== measurement.current || !buttonWidth || !overlayWidth || !menuHeight) return;
+          // Convert window coordinates into this modal's coordinates, including
+          // any status-bar offset. Align right edges with a small gap below.
+          const left = Math.max(8, Math.min(x - overlayX + buttonWidth - menuWidth, overlayWidth - menuWidth - 8));
+          const below = y - overlayY + buttonHeight + 6;
+          const top = Math.max(8, Math.min(
+            below + menuHeight <= overlayHeight - 8 ? below : y - overlayY - menuHeight - 6,
+            overlayHeight - menuHeight - 8,
+          ));
+          setPosition(previous => previous?.left === left && previous.top === top ? previous : { left, top });
+        });
+      });
+    });
+  }, [anchorRef]);
+
+  React.useLayoutEffect(() => {
+    setPosition(null);
+    if (visible) alignMenu();
+    return () => { measurement.current++; };
+  }, [visible, width, height, alignMenu]);
+
+  return <Modal transparent visible={visible} animationType="fade"
+    statusBarTranslucent navigationBarTranslucent onShow={alignMenu} onRequestClose={onClose}>
+    <View ref={overlayRef} collapsable={false} style={styles.modal} onLayout={alignMenu}>
+      <Pressable style={StyleSheet.absoluteFill} onPress={onClose} accessibilityRole="button" accessibilityLabel="Close dropdown" />
+      <View ref={menuRef} collapsable={false} onLayout={alignMenu}
+        pointerEvents={position ? "auto" : "none"}
+        style={[styles.menu, { backgroundColor: theme.surface, borderColor: theme.border,
+          maxWidth: width - 16, maxHeight: height - 16,
+          left: position?.left ?? 0, top: position?.top ?? 0, opacity: position ? 1 : 0 }]}>
+        {children}
+      </View>
+    </View>
+  </Modal>;
 }
 
 function Heading({
@@ -1372,9 +1349,6 @@ const styles = StyleSheet.create({
   modal: {
     backgroundColor: "rgba(25,20,18,0.18)",
     flex: 1,
-    justifyContent: "flex-start",
-    paddingRight: 20,
-    paddingTop: 74,
   },
 
   menuTitle: {
@@ -1386,7 +1360,7 @@ const styles = StyleSheet.create({
   },
 
   menu: {
-    alignSelf: "flex-end",
+    position: "absolute",
     borderRadius: 16,
     borderWidth: 1,
     elevation: 5,

@@ -5,14 +5,14 @@ const ts = require("typescript");
 require.extensions[".ts"] = (module, filename) => module._compile(ts.transpileModule(fs.readFileSync(filename, "utf8"), { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2020 } }).outputText, filename);
 
 const { checkTransactionFeed, eligibleBankAlerts, importEligibleBankAlerts } = require("./tracking.ts");
-const { decodeSmsImportResponse, decodeTransactionFeed, formatSmsImportResult, mergeTransactionFeed } = require("./api.ts");
+const { decodeSmsImportResponse, decodeTransactionFeed, formatSmsImportResult } = require("./api.ts");
 const { spendingByBudget, spendingInMonth } = require("./budgeting.ts");
 const { refreshTransactionFeed, clearTransactionFeed, getTransactionFeedSnapshot } = require("./feed.ts");
 
 const access = { platform: "android", nativeInboxAvailable: true, consentAccepted: true, allowedSenders: ["ExampleBank"] };
 const alert = { sender: "ExampleBank", body: "Debit alert NGN 100.00 Ref EXAMPLE-A", receivedAt: "2026-10-20T10:00:00Z" };
 const expense = { id: 91, amount: 1250.5, currency: "NGN", transactionType: "Expense", categoryName: "Food & Dining", vendorName: null, paymentMethodName: "Card", description: "Restaurant purchase", isRecurring: false, source: "Sms", transactionDate: "2026-10-20T10:00:00Z" };
-const income = { id: "income-2", amount: 5000, currency: "NGN", transactionType: "Income", categoryName: "Income", vendorName: "Employer", paymentMethodName: null, description: null, isRecurring: false, source: "BankSync", transactionDate: "2026-10-20T09:00:00Z" };
+const income = { id: "income-2", amount: 5000, currency: "NGN", transactionType: "Income", categoryName: "Income", vendorName: "Employer", paymentMethodName: null, description: null, isRecurring: false, source: "Manual", transactionDate: "2026-10-20T09:00:00Z" };
 const smsResponse = {
   imported: 1, duplicates: 1, ignored: 1, unparsed: 1,
   results: [
@@ -67,20 +67,6 @@ test("SMS eligibility and import send only approved bank alerts and decode the e
   await assert.rejects(importEligibleBankAlerts(async () => ({ ...smsResponse, results: [] }), [alert], access), /did not match/);
 });
 
-test("remote records replace matching IDs, local manual rows survive, and untouched demo seeds are hidden only from the synced feed", () => {
-  const seed = { id: "tx-1", title: "Seed", amount: 20, category: "Food", type: "expense", date: "2024-01-01" };
-  const editedSeed = { ...seed, memo: "User added a note" };
-  const localRemoteEcho = { id: "remote-1", title: "Local stale", amount: 10, category: "Other", type: "expense", date: "2026-01-01", receiptImage: "receipt://local" };
-  const localManual = { id: "manual-device-1", title: "Cash lunch", amount: 400, category: "Food & Dining", type: "expense", date: "2026-10-20" };
-  const remote = [{ id: "remote-1", title: "Canonical", amount: 12, category: "Other", type: "expense", date: "2026-01-02", isServerTransaction: true }];
-  const merged = mergeTransactionFeed(remote, [seed, editedSeed, localRemoteEcho, localManual], [seed]);
-  assert.equal(merged.length, 3);
-  assert.equal(merged.find(tx => tx.id === "remote-1").title, "Canonical");
-  assert.equal(merged.find(tx => tx.id === "remote-1").receiptImage, "receipt://local");
-  assert.equal(merged.find(tx => tx.id === "manual-device-1").source, "LocalManual");
-  assert.ok(merged.some(tx => tx.id === "tx-1" && tx.memo === "User added a note"));
-});
-
 test("budget spend is a read-only unique category/date attribution and amounts are naira converted once", () => {
   const budgets = [
     { id: "food", category: "Food & Dining", startDate: "2026-10-01", status: "active" },
@@ -109,6 +95,45 @@ test("the authenticated feed is owner-scoped and refreshes from the backend arra
   assert.equal(getTransactionFeedSnapshot().owner, "id:guardian-b");
   clearTransactionFeed();
   assert.equal(getTransactionFeedSnapshot().transactions.length, 0);
+});
+
+test("sandbox BankSync income and expenses never enter personal totals; SMS and manual records survive", async () => {
+  clearTransactionFeed();
+  const { expenseReportData } = require('../expenses/charts.ts');
+  const sandbox = Array.from({ length: 26 }, (_, index) => ({ ...expense, id: `sandbox-${index}`, source: 'BankSync', amount: index === 25 ? 46465.92 : 47200 }));
+  const sandboxIncome = { ...income, id: 'sandbox-income', source: 'BankSync' };
+  await refreshTransactionFeed('id:sandbox-user', async () => [...sandbox, sandboxIncome], true);
+  let feed = getTransactionFeedSnapshot();
+  assert.equal(feed.state, 'ready');
+  assert.equal(feed.excludedSandboxCount, 27);
+  assert.deepEqual(feed.transactions, []);
+  assert.equal(expenseReportData(feed.transactions, feed.state, new Date(2026, 9, 20), 'month').total, 0);
+  await refreshTransactionFeed('id:sandbox-user', async () => [...sandbox, sandboxIncome, expense, income], true);
+  feed = getTransactionFeedSnapshot();
+  assert.deepEqual(feed.transactions.map(tx => tx.id), ['91', 'income-2']);
+  assert.equal(expenseReportData(feed.transactions, feed.state, new Date(2026, 9, 20), 'month').total, 1250.5);
+  assert.equal(feed.excludedSandboxCount, 27);
+  await refreshTransactionFeed('id:another-user', async () => [], true);
+  assert.equal(getTransactionFeedSnapshot().excludedSandboxCount, 0);
+  clearTransactionFeed();
+});
+
+test("an empty backend response replaces an old large expense total without local fallback", async () => {
+  clearTransactionFeed();
+  const { expenseReportData } = require('../expenses/charts.ts');
+  const date = new Date(2026, 9, 20);
+  await refreshTransactionFeed('id:expenses-user', async () => [{ ...expense, amount: 1200000 }], true);
+  let feed = getTransactionFeedSnapshot();
+  assert.equal(expenseReportData(feed.transactions, feed.state, date, 'month').total, 1200000);
+  await assert.rejects(refreshTransactionFeed('id:expenses-user', async () => { throw new Error('Offline'); }, true), /Offline/);
+  feed = getTransactionFeedSnapshot();
+  assert.equal(expenseReportData(feed.transactions, feed.state, date, 'month'), null);
+  await refreshTransactionFeed('id:expenses-user', async () => [], true);
+  feed = getTransactionFeedSnapshot();
+  assert.equal(feed.state, 'ready');
+  assert.equal(expenseReportData(feed.transactions, feed.state, date, 'month').total, 0);
+  assert.deepEqual(feed.transactions, []);
+  clearTransactionFeed();
 });
 
 test("a forced post-import refresh waits for older feed requests and reads the backend again", async () => {

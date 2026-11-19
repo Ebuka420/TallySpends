@@ -1,14 +1,14 @@
 export type PaymentRequest = { paymentId: string; amount?: string; memo?: string };
 export type PaymentIdentity = { publicPaymentId: string; fullName: string; tallyTag: string };
-export const validPaymentId = (value: unknown): value is string => typeof value === "string" && (/^[A-Za-z0-9_-]{16,128}$/.test(value) || /^user_[1-9]\d{0,15}$/.test(value));
-// Only consume the existing authenticated profile owner scope. Never derive an
-// identity from email, a username, an account number, or decoded token claims.
-export function accountQrIdentity(scope: string | null, fullName: string, tallyTag: string): PaymentIdentity | null {
-  if (!scope?.startsWith("id:")) return null;
-  const id = scope.slice(3);
-  const publicPaymentId = /^[1-9]\d{0,15}$/.test(id) ? "user_" + id : id;
-  if (!validPaymentId(publicPaymentId)) return null;
-  return { publicPaymentId, fullName, tallyTag: tallyTag.replace(/^@+/, "") };
+export const validPaymentId = (value: unknown): value is string => typeof value === "string" && /^TSP-[A-Z0-9]{4}-[A-Z0-9]{4}$/.test(value);
+export function normalizePaymentId(value: string): string {
+  const clean = value.replace(/[\s-]/g, "").toUpperCase();
+  if (!/^TSP[A-Z0-9]{8}$/.test(clean)) throw new Error("Enter a payment ID in the form TSP-XXXX-XXXX.");
+  return `${clean.slice(0, 3)}-${clean.slice(3, 7)}-${clean.slice(7)}`;
+}
+// Use only the backend-issued paymentId; user IDs and TallyTags are not payment IDs.
+export function accountQrIdentity(paymentId: string | null | undefined, fullName: string, tallyTag: string): PaymentIdentity | null {
+  return validPaymentId(paymentId) ? { publicPaymentId: paymentId, fullName, tallyTag: tallyTag.replace(/^@+/, "") } : null;
 }
 export function validAmount(value: string) {
   return /^\d{1,10}(\.\d{1,2})?$/.test(value) && Number(value) > 0 && Number.isFinite(Number(value));
@@ -39,17 +39,20 @@ export function parseQrLink(data: string): PaymentRequest {
   return validateRequest({ paymentId: params.get("paymentId") || "", ...(params.has("amount") ? { amount: params.get("amount")! } : {}), ...(params.has("memo") ? { memo: params.get("memo")! } : {}) });
 }
 export function parseIdentity(data: unknown): PaymentIdentity {
-  const value = data as Partial<PaymentIdentity> | null;
-  if (!value || !validPaymentId(value.publicPaymentId)) {
-    throw new Error("Your account's QR identity is missing or invalid. Sign in again to reload your account ID. If it is still unavailable, the backend must provide a stable user ID or publicPaymentId and confirm its profile response.");
+  const value = data as { paymentId?: unknown; fullName?: unknown; tallyTag?: unknown } | null;
+  if (!value || !validPaymentId(value.paymentId)) {
+    throw new Error("Your account's QR identity is missing or invalid. Refresh your profile to check whether a payment ID is available.");
   }
-  return { publicPaymentId: value.publicPaymentId,
+  return { publicPaymentId: value.paymentId,
     fullName: typeof value.fullName === "string" ? value.fullName.trim() : "",
     tallyTag: typeof value.tallyTag === "string" && /^@?[A-Za-z0-9_.-]{1,64}$/.test(value.tallyTag) ? value.tallyTag.replace(/^@/, "") : "" };
 }
-export function parseRecipient(data: unknown, requestedId: string): PaymentIdentity {
-  const value = parseIdentity(data);
-  if (!value.fullName || !value.tallyTag) throw new Error("The backend did not return a verified recipient name and TallyTag. Recipient lookup must be configured before this request can be used.");
-  if (value.publicPaymentId !== requestedId) throw new Error("We couldn't verify this recipient. Please scan again.");
+export function parseRecipient(data: unknown, requestedId?: string): PaymentIdentity {
+  const input = data as { paymentId?: unknown; displayName?: unknown; tallyTag?: unknown; isSelf?: unknown } | null;
+  if (input?.isSelf === true) throw new Error("You cannot send money to yourself.");
+  if (input?.isSelf !== false) throw new Error("The backend did not return a verified recipient.");
+  const value = parseIdentity({ ...input, fullName: input.displayName });
+  if (!value.fullName) throw new Error("The backend did not return a verified recipient name.");
+  if (requestedId && value.publicPaymentId !== requestedId) throw new Error("We couldn't verify this recipient. Please scan again.");
   return value;
 }

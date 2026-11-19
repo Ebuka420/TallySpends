@@ -1,6 +1,9 @@
-import { completeTransaction } from "../src/transactionCompletion";
-import { TransferSteps, useTransferAction } from "../components/TransferUI";
-import { useSecurity } from "../components/SecurityGate";
+import { TransferSteps } from "../components/TransferUI";
+import { useWallet } from "../src/wallet/hooks";
+import { useWalletPayment } from "../src/wallet/usePayment";
+import { amountKobo } from "../src/wallet/api";
+import { paymentUnresolved } from "../src/wallet/payments";
+import { PaymentStatus } from "../components/WalletScreens";
 import { AmountInput } from "../components/BudgetUI";
 import { Ionicons } from "@expo/vector-icons";
 import { CameraView, useCameraPermissions } from "expo-camera";
@@ -31,8 +34,8 @@ import { useQrClient } from "../src/qr/hooks";
 import { parseQrLink, validateRequest, validAmount, type PaymentRequest } from "../src/qr/model";
 
 export default function TransferScreen() {
-  const action = useTransferAction();
-  const security = useSecurity();
+  const wallet = useWallet();
+  const action = useWalletPayment(wallet.reload);
   const router = useRouter();
   const qrClient = useQrClient();
   const params = useLocalSearchParams<{ paymentId?: string; amount?: string; memo?: string; v?: string; qrError?: string }>();
@@ -47,7 +50,7 @@ export default function TransferScreen() {
     setQrBusy(false);
     return () => { focused.current = false; qrGeneration.current++; qrClient.cancel(); qrLock.current = false; };
   }, [qrClient.cancel]));
-  const { addTransaction, availableBalance, theme, isAuthenticated, profileTallyTag } = useAppStore();
+  const { theme, isAuthenticated, profileTallyTag } = useAppStore();
   const styles = React.useMemo(() => getStyles(theme), [theme]);
   const [amount, setAmount] = useState("");
   const [memo, setMemo] = useState("");
@@ -116,11 +119,10 @@ export default function TransferScreen() {
     return () => listener.remove();
   }, [showScanner, getPermission]);
 
-  const currentBalance = availableBalance;
+  const currentBalance = wallet.balance ? wallet.balance.balanceKobo / 100 : null;
 
-  // No production username lookup or saved-recipient route is documented.
-  // Keep this list empty until it can be populated with verified backend records.
-  const verifiedRecipients: { id: string; name: string; username: string; bank: string; initial: string; color: string; textColor: string; isRecent: boolean }[] = [];
+  // Recipients are populated only by exact backend lookup.
+  const [verifiedRecipients, setVerifiedRecipients] = useState<{ id: string; publicPaymentId: string; name: string; username: string; bank: string; initial: string; color: string; textColor: string; isRecent: boolean }[]>([]);
   const recentRecipients = verifiedRecipients.filter((r) => r.isRecent);
 
   const filteredRecipients = verifiedRecipients.filter((r) => {
@@ -136,18 +138,25 @@ export default function TransferScreen() {
     return matchesSearch;
   });
 
-  const addRecipient = () => {
+  const addRecipient = async () => {
     const username = newRecipientUsername.trim().replace(/^@/, "");
     if (!isAuthenticated) { Alert.alert("Sign in required", "Sign in before adding a TallySpends recipient."); return; }
-    if (!/^[A-Za-z0-9_.-]{1,64}$/.test(username)) {
-      Alert.alert("Invalid username", "Enter a username using letters, numbers, dots, underscores or hyphens."); return;
-    }
     if (username.toLowerCase() === profileTallyTag.replace(/^@+/, "").trim().toLowerCase()) {
       Alert.alert("Cannot add yourself", "Choose another TallySpends user's username."); return;
     }
-    // Do not guess an endpoint, fabricate a match, or equate unavailable lookup
-    // with a nonexistent user. Keep the entered username for a later retry.
-    Alert.alert("Username lookup unavailable", "We can't verify registered usernames yet. No recipient has been added. Please try again when username lookup is available.");
+    if (qrLock.current) return;
+    qrLock.current = true; setQrBusy(true);
+    const generation = ++qrGeneration.current;
+    try {
+      const result = await qrClient.run(request => /^TSP[A-Z0-9]{8}$/i.test(username.replace(/[\s-]/g, "")) ? qrApi.recipient(username, request) : qrApi.byTag(username, request));
+      if (!focused.current || generation !== qrGeneration.current) return;
+      const recipient = { id: result.publicPaymentId, publicPaymentId: result.publicPaymentId, name: result.fullName, username: result.tallyTag, bank: "TallySpend", initial: result.fullName.slice(0, 2).toUpperCase(), color: "#F0EEFA", textColor: "#20142A", isRecent: false };
+      setVerifiedRecipients(previous => [...previous.filter(item => item.id !== recipient.id), recipient]);
+      setShowAddRecipientModal(false); setNewRecipientUsername("");
+      setSelectedRecipient(recipient); setAmount(""); setMemo(""); setTransferStep("amount");
+      setTimeout(() => { if (focused.current && generation === qrGeneration.current) setShowTransferModal(true); }, 350);
+    } catch (e) { if (focused.current && generation === qrGeneration.current) Alert.alert("Could not verify recipient", (e as Error).message); }
+    finally { if (generation === qrGeneration.current) { qrLock.current = false; setQrBusy(false); } }
   };
 
   const handleSelectRecipient = (recipient: any) => {
@@ -204,12 +213,7 @@ export default function TransferScreen() {
       Alert.alert("Invalid Amount", "Please enter a valid amount to transfer.");
       return;
     }
-    if (selectedRecipient.source === "qr") {
-      Alert.alert("Payments not connected yet", "The recipient is verified, but real payment processing is not available yet. No money has moved.");
-      return;
-    }
-
-    if (value > currentBalance) {
+    if (currentBalance === null || value > currentBalance) {
       Alert.alert(
         "Insufficient Funds",
         "You do not have enough funds to complete this transfer.",
@@ -217,35 +221,17 @@ export default function TransferScreen() {
       return;
     }
 
-    const finalCategory = "Transfer";
-    const newTx = {
-      id: `tx-${Date.now()}`,
-      title: `Transfer to @${selectedRecipient.username}`,
-      amount: value,
-      category: finalCategory,
-      type: "expense",
-      memo: memo || finalCategory,
-      recipientName: selectedRecipient.name,
-      method: "Tally transfer",
-      methodDetail: `@${selectedRecipient.username}`,
-      demo: true,
-      date: new Date().toISOString(),
-    };
-
-    await action.run(async () => {
-      // Dismiss the existing native review modal before presenting authentication.
+    try {
+      const draft = { kind: "user" as const, paymentId: selectedRecipient.publicPaymentId, amountKobo: amountKobo(amount), note: memo };
       setShowTransferModal(false);
       await new Promise(resolve => setTimeout(resolve, 350));
-      if (!await security.authorizeTransfer()) return false;
-      return addTransaction(newTx);
-    }, () => {
-      setShowTransferModal(false);
-      completeTransaction(router, newTx.id);
-    });
+      await action.send(draft);
+      setAmount("");
+    } catch (e) { Alert.alert("Could not send payment", (e as Error).message); }
   };
 
   const parsedAmount = parseFloat(amount);
-  const isOverBalance = selectedRecipient?.source !== "qr" && !isNaN(parsedAmount) && parsedAmount > currentBalance;
+  const isOverBalance = currentBalance !== null && !isNaN(parsedAmount) && parsedAmount > currentBalance;
 
   const addQuickAmount = (increment: number) => {
     const current = Number(amount.replace(/,/g, "")) || 0;
@@ -253,14 +239,14 @@ export default function TransferScreen() {
   };
 
   const continueToReview = () => {
-    if (isNaN(parsedAmount) || parsedAmount <= 0 || (selectedRecipient?.source === "qr" && !validAmount(amount))) {
+    if (isNaN(parsedAmount) || parsedAmount <= 0 || !validAmount(amount) || memo.length > 100) {
       Alert.alert(
         "Enter an amount",
         "Enter a valid transfer amount to continue.",
       );
       return;
     }
-    if (isOverBalance) {
+    if (isOverBalance || currentBalance === null) {
       Alert.alert(
         "Insufficient Funds",
         "You do not have enough funds to complete this transfer.",
@@ -325,11 +311,12 @@ export default function TransferScreen() {
         keyboardShouldPersistTaps="handled"
       >
         <View style={styles.transferHero}>
-          <View style={styles.transferHeroTop}><View style={styles.transferHeroIcon}><Ionicons name="paper-plane-outline" size={22} color={theme.accent} /></View><View style={styles.demoPill}><View style={styles.demoDot} /><Text style={styles.demoText}>DEMO</Text></View></View>
+          <View style={styles.transferHeroTop}><View style={styles.transferHeroIcon}><Ionicons name="paper-plane-outline" size={22} color={theme.accent} /></View><View style={styles.transferPill}><View style={styles.transferDot} /><Text style={styles.transferText}>TRANSFER</Text></View></View>
           <Text style={styles.transferHeroTitle}>Send money simply.</Text>
-          <Text style={styles.transferHeroCopy}>Choose a recipient, scan a TallySpends QR, or try the demo flow.</Text>
-          <View style={styles.transferHeroFooter}><Ionicons name="shield-checkmark-outline" size={15} color={theme.accent} /><Text style={styles.transferHeroFootnote}>No real payment will be made.</Text></View>
+          <Text style={styles.transferHeroCopy}>Look up a verified TallyTag or payment ID, or scan a TallySpends QR.</Text>
+          <View style={styles.transferHeroFooter}><Ionicons name="shield-checkmark-outline" size={15} color={theme.accent} /><Text style={styles.transferHeroFootnote}>TallySpends wallet · Instant transfer</Text></View>
         </View>
+        <PaymentStatus flow={action} theme={theme} />
         <Text style={styles.sectionTitle}>CHOOSE HOW TO START</Text>
         <View style={styles.actionRow}>
           <TouchableOpacity
@@ -365,7 +352,7 @@ export default function TransferScreen() {
 
           <TouchableOpacity
             style={styles.actionCard}
-            onPress={() => Alert.alert("Contacts unavailable", "Contact selection isn't connected in this demo. Use a verified TallySpends QR instead.")}
+            onPress={() => setShowAddRecipientModal(true)}
             activeOpacity={0.7}
           >
             <View style={styles.actionIconContainer}>
@@ -375,7 +362,7 @@ export default function TransferScreen() {
                 color={theme.accent}
               />
             </View>
-            <Text style={styles.actionText}>Contact</Text>
+            <Text style={styles.actionText}>Find user</Text>
           </TouchableOpacity>
         </View>
 
@@ -497,10 +484,12 @@ export default function TransferScreen() {
           ))}
           {filteredRecipients.length === 0 && (
             <Text style={styles.emptyText}>
-              Username lookup is unavailable. No verified recipients have been loaded.
+              Tap Add to look up a complete TallyTag or payment ID. Only verified matches appear here.
             </Text>
           )}
         </View>
+        {wallet.error && <Text style={{ color: theme.danger }}>{wallet.error}</Text>}
+        <TouchableOpacity accessibilityRole="button" onPress={() => router.push("/wallet-history")} style={{ paddingVertical: 20 }}><Text style={{ color: theme.accent }}>View wallet balance and history</Text></TouchableOpacity>
       </ScrollView>
 
       {/* --- SCANNER MODAL --- */}
@@ -592,9 +581,9 @@ export default function TransferScreen() {
                 </TouchableOpacity>
               </View>
               <View style={styles.modalBody}>
-                <Text style={styles.inputLabel}>Recipient username</Text>
+                <Text style={styles.inputLabel}>TallyTag or payment ID</Text>
                 <Text style={styles.modalHelperText}>
-                  Enter a TallySpends username. It must be verified before a recipient can be added. Username lookup is currently unavailable.
+                  Enter the complete TallyTag or TSP payment ID to confirm the recipient's name.
                 </Text>
                 <View style={styles.modalInputWrapper}>
                   <Ionicons
@@ -605,7 +594,7 @@ export default function TransferScreen() {
                   />
                   <TextInput
                     style={styles.modalInputField}
-                    placeholder="e.g. username_here"
+                    placeholder="@username or TSP-4K7Q-9XBM"
                     placeholderTextColor={theme.textSecondary}
                     autoCapitalize="none"
                     autoCorrect={false}
@@ -618,9 +607,10 @@ export default function TransferScreen() {
                 <TouchableOpacity
                   style={[styles.modalConfirmButton, { marginTop: 20 }]}
                   onPress={addRecipient}
+                  disabled={qrBusy}
                 >
                   <Text style={styles.modalConfirmButtonText}>
-                    Add Recipient
+                    {qrBusy ? "Verifying…" : "Verify recipient"}
                   </Text>
                 </TouchableOpacity>
               </View>
@@ -714,7 +704,7 @@ export default function TransferScreen() {
                               style={styles.transferAmountInput}
                               placeholder="0"
                               placeholderTextColor="#CBC6D1"
-                              theme={theme} available={selectedRecipient.source === "qr" ? undefined : Math.round(availableBalance * 100)}
+                              theme={theme} available={wallet.balance?.balanceKobo}
                               value={amount}
                               onChangeText={setAmount}
                             />
@@ -754,7 +744,7 @@ export default function TransferScreen() {
                             placeholderTextColor="#ABA5B4"
                             value={memo}
                             onChangeText={(text) => setMemo(text.slice(0, 40))}
-                            maxLength={40}
+                            maxLength={100}
                             multiline
                           />
                           <Text style={styles.transferCharacterCount}>
@@ -848,13 +838,9 @@ export default function TransferScreen() {
                               {memo || "No note"}
                             </Text>
                           </View>
-                          <View style={styles.transferReviewRow}>
-                            <Text style={styles.transferLabel}>Fee</Text>
-                            <Text style={styles.transferFree}>{selectedRecipient.source === "qr" ? "Not available yet" : "Free"}</Text>
-                          </View>
 
                           <View style={styles.transferTotalRow}>
-                            <Text style={styles.transferTotalLabel}>{selectedRecipient.source === "qr" ? "Requested amount" : "Total"}</Text>
+                            <Text style={styles.transferTotalLabel}>Payment amount</Text>
                             <Text style={styles.transferTotalAmount}>
                               ₦
                               {Number(amount || 0).toLocaleString(undefined, {
@@ -881,10 +867,10 @@ export default function TransferScreen() {
                             </View>
                             <View>
                               <Text style={styles.transferSecurityTitle}>
-                                {selectedRecipient.source === "qr" ? "Payment service pending" : "Demo transfer"}
+                                Sandbox wallet payment
                               </Text>
                               <Text style={styles.transferSecurityCopy}>
-                                {selectedRecipient.source === "qr" ? "No real payment will be made yet." : "This updates your demo wallet only."}
+                                This sends test money to the verified recipient.
                               </Text>
                             </View>
                           </View>
@@ -892,7 +878,7 @@ export default function TransferScreen() {
                           {!!action.error && <Text accessibilityLiveRegion="polite" style={{ color: theme.danger, marginBottom: 12 }}>{action.error}</Text>}
                           <TouchableOpacity
                             style={styles.transferPrimaryButton}
-                            disabled={action.busy}
+                            disabled={action.busy || !action.ready || !!action.payment && paymentUnresolved(action.payment)}
                             onPress={executeTransfer}
                           >
                             <Text style={styles.transferPrimaryText}>
@@ -951,9 +937,9 @@ const getStyles = (theme: any) =>
     transferHero: { backgroundColor: theme.surface, borderRadius: 23, borderWidth: 1, borderColor: theme.border, padding: 18, marginBottom: 4 },
     transferHeroTop: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
     transferHeroIcon: { width: 44, height: 44, borderRadius: 15, backgroundColor: theme.accentSoft, alignItems: "center", justifyContent: "center" },
-    demoPill: { flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: 10, paddingVertical: 6, borderRadius: 20, backgroundColor: theme.surfaceSoft },
-    demoDot: { width: 6, height: 6, borderRadius: 3, backgroundColor: theme.accent },
-    demoText: { fontSize: 9, fontWeight: "800", letterSpacing: .8, color: theme.accent },
+    transferPill: { flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: 10, paddingVertical: 6, borderRadius: 20, backgroundColor: theme.surfaceSoft },
+    transferDot: { width: 6, height: 6, borderRadius: 3, backgroundColor: theme.accent },
+    transferText: { fontSize: 9, fontWeight: "800", letterSpacing: .8, color: theme.accent },
     transferHeroTitle: { color: theme.textPrimary, fontSize: 22, fontWeight: "800", letterSpacing: -.4, marginTop: 16 },
     transferHeroCopy: { color: theme.textSecondary, fontSize: 12, lineHeight: 18, marginTop: 5 },
     transferHeroFooter: { flexDirection: "row", alignItems: "center", gap: 7, borderTopWidth: 1, borderColor: theme.border, marginTop: 15, paddingTop: 12 },

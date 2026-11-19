@@ -1,81 +1,86 @@
-import AsyncStorage from "@react-native-async-storage/async-storage";
-import {
-  applyBudgetCommand,
-  createWallet,
-  removeTransaction,
-  upsertTransaction,
-  validateWallet,
-} from "./ledger";
-import type { BudgetCommand, Transaction, Wallet } from "./ledger";
-import {
-  applyPlanCommand,
-  migrateAjoTracking,
-  type PlanCommand,
-} from "./planning";
+﻿import { authenticated } from '../authenticated';
+import { getProfileSnapshot } from '../profile/repository';
+import { fetchPlanning, saveBudget, savePlan, joinAjo } from './backend';
+import type { BudgetCommand, Transaction, Wallet } from './ledger';
+import type { PlanCommand } from './planning';
+import { createManualTransaction, manualCategories, manualMethods } from '../transactions/manual';
 
-// A single document commits feed + allocations together. Legacy ts_txs is retained as a migration backup.
-const KEY = "ts_demo_wallet_v1";
+// Old local/demo records are preserved on disk but never used as backend data.
+export const planningStorageKey = (owner: string) => 'ts_planning_wallet_v2_' + encodeURIComponent(owner);
+let owner: string | null = null;
+let generation = 0;
 let snapshot: Wallet | null = null;
 let queue: Promise<unknown> = Promise.resolve();
-const listeners = new Set<(wallet: Wallet) => void>();
+let loading: Promise<Wallet> | null = null;
+let loadedAt = 0;
+const completed = new Map<string, { wallet: Wallet; createdId: string | null }>();
+const uncertain = new Set<string>();
+const listeners = new Set<(wallet: Wallet | null) => void>();
 export const getWalletSnapshot = () => snapshot;
-export function subscribeWallet(listener: (wallet: Wallet) => void) {
-  listeners.add(listener);
-  return () => {
-    listeners.delete(listener);
-  };
+export function setWalletOwner(next: string | null) {
+  if (owner === next) return;
+  owner = next; generation++; snapshot = null; loadedAt = 0; loading = null; completed.clear(); uncertain.clear();
+  listeners.forEach(listener => listener(null));
 }
-function serial<T>(work: () => Promise<T>): Promise<T> {
-  const task = queue.then(work);
-  queue = task.catch(() => {});
-  return task;
+export function subscribeWallet(listener: (wallet: Wallet | null) => void) { listeners.add(listener); return () => { listeners.delete(listener); }; }
+function context() {
+  if (!owner) throw new Error('Sign in to load your plans.');
+  return { owner, generation };
 }
-async function commit(next: Wallet) {
-  await AsyncStorage.setItem(KEY, JSON.stringify(next));
-  snapshot = next;
-  listeners.forEach((listener) => listener(next));
-  return next;
+function check(started: ReturnType<typeof context>) { if (owner !== started.owner || generation !== started.generation) throw new Error('Your account changed. Please try again.'); }
+function serial<T>(work: () => Promise<T>): Promise<T> { const task = queue.then(work); queue = task.catch(() => {}); return task; }
+async function refresh(started: ReturnType<typeof context>) {
+  check(started);
+  const next = await authenticated(request => fetchPlanning(request, started.owner, getProfileSnapshot().profile.tallyTag || ''), started.owner);
+  check(started); snapshot = next; loadedAt = Date.now(); listeners.forEach(listener => listener(next)); return next;
 }
-export function loadWallet(defaultTransactions: Transaction[]) {
+export async function loadWallet(_unused: Transaction[] = [], force = false): Promise<Wallet> {
+  const started = context();
+  if (loading) return loading;
+  if (!force && snapshot && loadedAt > Date.now() - 15000) return snapshot;
+  const job = serial(() => refresh(started)); loading = job;
+  try { return await job; } finally { if (loading === job) loading = null; }
+}
+async function mutate(id: string, action: (wallet: Wallet) => Promise<string | null>) {
+  const started = context();
   return serial(async () => {
-    if (snapshot) return snapshot;
-    const saved = await AsyncStorage.getItem(KEY);
-    if (saved) {
-      const parsed = JSON.parse(saved);
-      validateWallet(parsed);
-      const migrated = migrateAjoTracking(parsed);
-      if (migrated !== parsed) {
-        const backupKey = "ts_demo_wallet_v1_before_ajo_tracking";
-        if (!(await AsyncStorage.getItem(backupKey)))
-          await AsyncStorage.setItem(backupKey, saved);
-        return commit(migrated);
-      }
-      snapshot = parsed as Wallet;
-      return snapshot;
-    }
-    const legacy = await AsyncStorage.getItem("ts_txs");
-    return commit(
-      createWallet(legacy ? JSON.parse(legacy) : defaultTransactions),
-    );
+    check(started);
+    if (completed.has(id)) return completed.get(id)!;
+    if (uncertain.has(id)) throw new Error('This save may already have reached the server. Refresh and check your records before creating another request.');
+    if (!snapshot) throw new Error('Your plans are still loading. Please refresh.');
+    // These tracker APIs have no idempotency key. Never replay an uncertain create/contribution.
+    uncertain.add(id);
+    let createdId: string | null;
+    try { createdId = await action(snapshot); check(started); }
+    catch (error) { loadedAt = 0; throw error; }
+    try {
+      const wallet = await refresh(started);
+      const result = { wallet, createdId }; completed.set(id, result); uncertain.delete(id); return result;
+    } catch { throw new Error('Saved on the server, but refresh failed. Refresh your plans to see the result; do not submit it again.'); }
   });
 }
-function mutate(change: (wallet: Wallet) => Wallet) {
-  return serial(async () => {
-    if (!snapshot)
-      throw new Error("Your balance is still loading. Please try again.");
-    const next = change(snapshot);
-    return next === snapshot ? snapshot : commit(next);
-  });
+export async function runBudgetCommand(command: BudgetCommand, id: string) {
+  return (await mutate(id, async wallet => { await authenticated(request => saveBudget(request, wallet, command), wallet.userId); return null; })).wallet;
 }
-export const runBudgetCommand = (command: BudgetCommand, id: string) =>
-  mutate((wallet) => applyBudgetCommand(wallet, command, id));
-export const runPlanCommand = (command: PlanCommand, id: string) =>
-  mutate((wallet) => applyPlanCommand(wallet, command, id));
-export const saveWalletTransaction = (tx: Transaction) =>
-  mutate((wallet) => upsertTransaction(wallet, tx));
-export const deleteWalletTransaction = (id: string) =>
-  mutate((wallet) => removeTransaction(wallet, id));
-export const resetWallet = (transactions: Transaction[]) =>
-  serial(() => commit(createWallet(transactions)));
-export const operationId = () =>
-  `budget-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
+export async function runPlanCommand(command: PlanCommand, id: string) {
+  return mutate(id, wallet => authenticated(request => savePlan(request, wallet, command), wallet.userId));
+}
+export async function joinAjoGroup(groupId: string, id: string) {
+  return mutate(id, async wallet => { await authenticated(request => joinAjo(request, groupId), wallet.userId); return groupId; });
+}
+export async function saveWalletTransaction(tx: Transaction) {
+  const started = context();
+  if (tx.demo || /^(wallet-|transfer-|deposit-|withdraw-)/.test(tx.id)) throw new Error('Use the wallet payment screen to move money. A manual record does not move funds.');
+  const record = await authenticated(request => createManualTransaction({
+    amount: Number(tx.amount), categoryId: manualCategories.findIndex(c => c === tx.category) + 1 || 6,
+    paymentMethodId: Math.max(1, manualMethods.findIndex(m => m.toLowerCase() === String(tx.method).toLowerCase()) + 1),
+    transactionType: tx.type === 'income' ? 'Income' : 'Expense', description: tx.title, date: tx.date, isRecurring: false
+  }, request), started.owner);
+  check(started); return record;
+}
+export async function deleteWalletTransaction(_id: string) {
+  // The deployed contract exposes GET and PATCH, but no DELETE for transactions.
+  throw new Error('Deleting transactions is not available from the service. No record was removed.');
+}
+export async function resetWallet(_unused: Transaction[] = []) { loadedAt = 0; return loadWallet([], true); }
+export const operationId = () => `plan-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;

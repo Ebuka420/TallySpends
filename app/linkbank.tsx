@@ -26,6 +26,7 @@ export default function LinkBankScreen() {
   const [attempt, setAttempt] = useState(0);
   const inFlight = useRef(false);
   const confirmed = useRef(false);
+  const confirmedAccountId = useRef<string | null>(null);
   const handledSuccess = useRef(false);
   const [uncertain, setUncertain] = useState(false);
   const controller = useRef<AbortController | null>(null);
@@ -38,7 +39,7 @@ export default function LinkBankScreen() {
   useEffect(() => {
     mounted.current = true;
     generation.current++;
-    confirmed.current = false; handledSuccess.current = false; inFlight.current = false;
+    confirmed.current = false; confirmedAccountId.current = null; handledSuccess.current = false; inFlight.current = false;
     setAccounts([]); setUncertain(false); setMessage(""); setStage("opening");
     setAttempt(value => value + 1); setWidgetOpen(!issue);
     return () => { mounted.current = false; generation.current++; controller.current?.abort(); };
@@ -47,6 +48,7 @@ export default function LinkBankScreen() {
   function retry() {
     if (issue || inFlight.current) return;
     confirmed.current = false;
+    confirmedAccountId.current = null;
     handledSuccess.current = false;
     setUncertain(false);
     setMessage("");
@@ -70,22 +72,23 @@ export default function LinkBankScreen() {
       if (!confirmed.current) {
         if (!code) throw new Error("Please complete Mono authorization again.");
         setStage("confirming");
-        await bankBackend.confirmConnection(code, request);
+        const linkedAccount = await bankBackend.confirmConnection(code, request);
         if (!mounted.current || started !== generation.current) return;
         confirmed.current = true;
+        confirmedAccountId.current = linkedAccount.id;
       }
       if (!mounted.current || started !== generation.current) return;
       setStage("refreshing");
       const nextAccounts = await bankBackend.listAccounts(request);
       if (!mounted.current || started !== generation.current) return;
       setAccounts(nextAccounts);
-      if (nextAccounts.length === 0) {
+      if (!nextAccounts.some(account => account.id === confirmedAccountId.current && account.status === "Linked")) {
         setStage("error");
-        setMessage("Mono authorization finished, but the backend returned no linked accounts. Refresh linked accounts before treating this bank as connected.");
+        setMessage("Mono authorization finished, but this account hasn't appeared as linked in the account list. Refresh accounts to check again.");
         return;
       }
       setStage("success");
-      setMessage("Your bank account is linked successfully.");
+      setMessage("Your sandbox bank account is linked. This connection uses test account data.");
     } catch (error) {
       if (!mounted.current || started !== generation.current) return;
       setStage("error");
@@ -136,7 +139,7 @@ export default function LinkBankScreen() {
   const status = issue || message || ({
     opening: "Opening Mono Connect…", connecting: "Complete authorization in Mono Connect.",
     confirming: "Confirming your connection…", refreshing: "Refreshing linked accounts…",
-    success: "Bank account linked.", cancelled: "Bank linking cancelled.", error: "Couldn't connect your bank.",
+    success: "Sandbox bank account linked.", cancelled: "Bank linking cancelled.", error: "Couldn't connect your bank.",
   })[stage];
 
   return (
@@ -158,20 +161,20 @@ export default function LinkBankScreen() {
               <Text style={styles.buttonText}>{stage === "success" ? "Done" : confirmed.current ? "Refresh accounts" : uncertain ? "Check linked accounts" : busy ? "Continue linking" : "Try again"}</Text>
             </Pressable>
           )}
-          <Text style={[styles.helper, { color: theme.textSecondary }]}>Sandbox connection. Use Mono's test bank details to try linking an account.</Text>
+          <Text style={[styles.helper, { color: theme.textSecondary }]}>Mono sandbox uses sample accounts and balances. This does not connect your real bank account. Use Mono's test bank details.</Text>
         </View>
         {savedAccounts.loading && <ActivityIndicator color={theme.accent} />}
         {savedAccounts.error && <Text accessibilityLiveRegion="polite" style={[styles.helper, { color: theme.textSecondary, marginBottom: 12 }]}>{savedAccounts.error}</Text>}
         {(accounts.length > 0 || savedAccounts.accounts.length > 0) && (
           <>
-            <Text style={[styles.title, { color: theme.textPrimary, marginBottom: 12 }]}>Linked bank accounts</Text>
+            <Text style={[styles.title, { color: theme.textPrimary, marginBottom: 12 }]}>Linked sandbox accounts</Text>
             {(accounts.length ? accounts : savedAccounts.accounts).map(account => (
               <View key={account.id} style={[styles.account, { backgroundColor: theme.surface, borderColor: theme.border }]}>
                 <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
                   <BankLogo bank={account} size={18} color={theme.accent} />
                   <Text style={[styles.accountTitle, { color: theme.textPrimary, flex: 1 }]}>{account.bankName}</Text>
                 </View>
-                <Text style={{ color: theme.textSecondary }}>{account.accountName}{account.maskedAccountNumber ? " · " + account.maskedAccountNumber : ""}</Text>
+                <Text style={{ color: theme.textSecondary }}>{account.status === "Disconnected" ? "Disconnected" : account.lastSyncedAt === null ? "Waiting for first sync" : "Linked"}{account.maskedAccountNumber ? " · " + account.maskedAccountNumber : ""}</Text>
                 {account.currency && <Text style={{ color: theme.textSecondary }}>{account.currency}{typeof account.availableBalance === "number" ? " " + account.availableBalance.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : " · Balance unavailable"}</Text>}
               </View>
             ))}

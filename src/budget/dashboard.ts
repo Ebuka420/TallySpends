@@ -8,6 +8,11 @@ export function planningCards(wallet: Wallet, day = today()) {
           circle.trackingMode === "external" && circle.status === "active",
       )
       .map((circle) => {
+        if (circle.serverStatus) {
+          const status = circle.serverStatus, paid = status.members.filter(m => m.contributionStatus === 'Paid').length;
+          const recipient = status.members.find(m => m.userId === status.currentPayoutRecipientUserId);
+          return { id: circle.id, title: circle.name, tag: recipient?.tallyTag || '', subtitle: status.isGroupFullyFormed ? recipient ? 'Next to receive' : 'Recipient pending' : 'Awaiting group to fill', amount: money(circle.contribution), detail: status.isGroupFullyFormed ? paid + '/' + status.memberCount + ' contributions recorded' : status.memberCount + '/' + status.maxMembers + ' members joined', date: status.currentPeriod, progress: status.memberCount ? Math.round(paid / status.memberCount * 100) : 0 };
+        }
         const paid = circle.contributions.filter(
           (record) => record.round === circle.round && !record.voidedAt,
         ).length;
@@ -17,7 +22,7 @@ export function planningCards(wallet: Wallet, day = today()) {
         return {
           id: circle.id,
           title: circle.name,
-          tag: circle.participants[circle.round].tag,
+          tag: circle.participants[circle.round]?.tag || "",
           subtitle: pending ? "Awaiting member agreement" : "Next to receive",
           amount: money(circle.contribution * circle.participants.length),
           detail: pending

@@ -1,7 +1,7 @@
 import { useThemeTokens } from "../src/ThemeExperience";
 import { Ionicons } from "@expo/vector-icons";
-import { useRouter } from "expo-router";
-import React, { useMemo, useState } from "react";
+import { useFocusEffect, useLocalSearchParams, useRouter } from "expo-router";
+import React, { useCallback, useMemo, useState } from "react";
 import {
   Dimensions,
   LayoutAnimation,
@@ -15,8 +15,14 @@ import {
   View
 } from "react-native";
 import Svg, { Circle, Path } from "react-native-svg";
+import { spendingSummary } from "../src/insights/summary";
+import { money } from "../src/budget/ledger";
 import { useAppStore } from "../src/store";
 import { getThemePalette } from "../src/theme";
+import { useWallet } from "../src/wallet/hooks";
+import { useDashboardAccounts } from "../src/banking/useDashboardAccounts";
+import { dashboardActivity } from "../src/banking/dashboard";
+import { OVERVIEW_ID } from "../src/banking/carousel";
 const { width: SCREEN_WIDTH } = Dimensions.get("window");
 
 // Match the smooth expand/collapse behaviour used in Customer Service.
@@ -30,7 +36,25 @@ if (
 
 export default function InsightsScreen() {
   const router = useRouter();
-  const { themePreference, themeMode } = useAppStore();
+  const { accountId: routeAccountId } = useLocalSearchParams<{ accountId?: string }>();
+  const accountId = typeof routeAccountId === 'string' ? routeAccountId : null;
+  const store = useAppStore();
+  const { transactions, transactionFeedState, transactionFeedError, refreshTransactions } = store;
+  const wallet = useWallet();
+  const isBank = !!accountId && accountId !== OVERVIEW_ID;
+  const linked = useDashboardAccounts(wallet.api.owner || '', {
+    token: isBank ? store.token : null, refreshToken: isBank ? store.refreshToken : null,
+    saveTokens: async (token, refresh) => { await store.login(token, refresh); },
+  });
+  const selectedBank = isBank ? linked.accounts.find(account => account.id === accountId && account.status === 'Linked') : undefined;
+  const activity = accountId && (!isBank || selectedBank)
+    ? dashboardActivity(selectedBank, wallet.ledger, !!wallet.balance && !wallet.error) : null;
+  const activityLoading = accountId ? isBank ? linked.loading : wallet.loading : transactionFeedState === 'idle' || transactionFeedState === 'loading';
+  const activityError = accountId ? isBank ? linked.error : wallet.error : transactionFeedError;
+  const activityName = accountId ? selectedBank?.bankName || (isBank ? 'Selected bank' : 'TallySpends wallet') : 'All recorded transactions';
+  const available = accountId ? !!activity?.available && (!isBank || activity.currency === 'NGN') : transactionFeedState === 'ready';
+  const retry = () => { if (isBank) linked.retry(); else if (accountId) void wallet.reload().catch(() => {}); else void refreshTransactions(true).catch(() => {}); };
+  useFocusEffect(useCallback(() => { if (!accountId) void refreshTransactions(false).catch(() => {}); }, [accountId, refreshTransactions]));
 
   const theme = useThemeTokens();
   const [activeTab, setActiveTab] = useState<"week" | "month" | "custom">(
@@ -39,10 +63,10 @@ export default function InsightsScreen() {
 
   // --- CALENDAR DATE PICKER STATES ---
   const [currentCalendarDate, setCurrentCalendarDate] = useState(
-    new Date(2026, 4, 1),
-  ); // Default focused month: May 2026
-  const [startDate, setStartDate] = useState<Date | null>(new Date(2026, 4, 1));
-  const [endDate, setEndDate] = useState<Date | null>(new Date(2026, 4, 15));
+    new Date(new Date().getFullYear(), new Date().getMonth(), 1),
+  );
+  const [startDate, setStartDate] = useState<Date | null>(new Date(new Date().getFullYear(), new Date().getMonth(), 1));
+  const [endDate, setEndDate] = useState<Date | null>(new Date());
 
   // Expanded tips state
   const [expandedTipId, setExpandedTipId] = useState<string | null>(null);
@@ -52,37 +76,14 @@ export default function InsightsScreen() {
     setExpandedTipId((currentId) => (currentId === id ? null : id));
   };
 
-  const tipsLibrary = [
-    {
-      id: "tip-1",
-      title: "Optimize Grocery Spending",
-      short: "Cut down on food delivery by meal prepping.",
-      full: "Food & Dining represents 26% of your budget (₦602.10). By meal prepping just 3 days a week, you can save an estimated ₦80-₦100 per month. Try to use grocery lists and avoid shopping while hungry!",
-      icon: "restaurant-outline",
-    },
-    {
-      id: "tip-2",
-      title: "Review Subscriptions",
-      short: "Audit monthly direct debits.",
-      full: "Bills & Utilities stand at ₦322.00. Check for forgotten streaming services, gym memberships, or software subscriptions. Canceling just one unused ₦15 subscription saves you ₦180 a year.",
-      icon: "card-outline",
-    },
-    {
-      id: "tip-3",
-      title: "Smart Savings Allocation",
-      short: "Set up auto-save rules.",
-      full: "You've saved ₦1,104.00 this month. Set up a recurring ₦50 transfer to your savings goals right after your salary drops to pay yourself first and secure your laptop savings goal faster.",
-      icon: "trending-up-outline",
-    },
-  ];
-
-  const heatMapBlocks = Array(21)
-    .fill(0)
-    .map((_, i) => {
-      if ([8, 9, 10, 15, 16].includes(i)) return theme.accent;
-      if ([4, 5, 11, 12, 17].includes(i)) return "#A6ACAF";
-      return "#F0F0F2";
-    });
+  const insightTransactions = activity ? activity.records.filter(record => !record.status || record.status === 'Posted') : accountId ? [] : transactions;
+  const data = useMemo(() => spendingSummary(insightTransactions, activeTab, new Date(), startDate, endDate), [insightTransactions, activeTab, startDate, endDate]);
+  const tipsLibrary = data.categories.map((category, index) => ({
+    id: category.name, title: category.name, short: money(category.amount) + ' recorded spending',
+    full: category.name + ' makes up ' + Math.round(category.amount / data.spent * 100) + '% of your spending in this period. Review these entries when setting your next category limit.', icon: 'pie-chart-outline'
+  }));
+  const heatMapBlocks = data.buckets.map(bucket => !bucket.amount ? theme.surfaceSoft : bucket.amount / data.max > .5 ? theme.accent : theme.accentSoft);
+  const largest = [...data.expenses].sort((a,b) => b.kobo - a.kobo)[0];
 
   // --- CALENDAR UTILITIES ---
   const handleDatePress = (date: Date) => {
@@ -158,6 +159,11 @@ export default function InsightsScreen() {
         contentContainerStyle={styles.scrollContainer}
         showsVerticalScrollIndicator={false}
       >
+        <Text style={{ color: theme.textSecondary, marginBottom: 12 }}>{activityName}{accountId === OVERVIEW_ID ? ' · Latest 50 wallet entries' : ''}</Text>
+        {activityLoading && <Text accessibilityLiveRegion="polite" style={{ color: theme.textSecondary }}>Refreshing insights…</Text>}
+        {activityError && <TouchableOpacity accessibilityRole="button" onPress={retry}><Text style={{ color: theme.danger }}>{activityError} Tap to retry.</Text></TouchableOpacity>}
+        {!available && !activityLoading && !activityError && <Text style={{ color: theme.textSecondary }}>Transaction details for {activityName} are unavailable for these insights.</Text>}
+        {available && !activityError && <>
         {/* --- TIMEFRAME TABS SEGMENTED CONTROL --- */}
         <View style={styles.segmentedControlFrame}>
           <TouchableOpacity
@@ -230,29 +236,28 @@ export default function InsightsScreen() {
               {activeTab === "week" ? "Weekly Summary" : "Monthly Summary"}
             </Text>
             <Text style={styles.heroSummaryDateLabel}>
-              {activeTab === "week" ? "Current Week" : "May 2026"}
+              {data.dateTitle}
             </Text>
 
             <View style={styles.heroContentMainRow}>
               <View style={styles.heroTextLeftLayout}>
                 <Text style={styles.heroMainTitleBlurb}>
-                  Your spending habits improved this month 🎉
+                  {data.headline}
                 </Text>
                 <Text style={styles.heroSubTextBody}>
-                  You spent 12% less on shopping and saved $140 more compared to
-                  last month.
+                  {data.description}
                 </Text>
               </View>
               <View style={styles.heroGraphRightLayout}>
                 <Svg width="120" height="70" viewBox="0 0 120 70">
                   <Path
-                    d="M 5,60 Q 30,55 45,35 T 90,25 T 112,12"
+                    d={data.path}
                     fill="none"
                     stroke={theme.accent}
                     strokeWidth={2.5}
                     strokeLinecap="round"
                   />
-                  <Circle cx="112" cy="12" r="4" fill={theme.accent} />
+                  <Circle cx={data.lastPoint.x} cy={data.lastPoint.y} r="4" fill={theme.accent} />
                 </Svg>
               </View>
             </View>
@@ -268,7 +273,7 @@ export default function InsightsScreen() {
                 >
                   <Ionicons name="trending-up" size={12} color={theme.success} />
                 </View>
-                <Text style={styles.heroInlineBadgeText}>+12% Improvement</Text>
+                <Text style={styles.heroInlineBadgeText}>{data.changeLabel}</Text>
               </View>
               <View style={styles.heroInlineBadge}>
                 <View
@@ -283,7 +288,7 @@ export default function InsightsScreen() {
                   ]}
                 />
                 <Text style={styles.heroInlineBadgeText}>
-                  Financial Health: Good
+                  {data.balanceLabel}
                 </Text>
               </View>
               <View style={styles.heroInlineBadge}>
@@ -300,7 +305,7 @@ export default function InsightsScreen() {
                   />
                 </View>
                 <Text style={styles.heroInlineBadgeText}>
-                  Based on 124 txns
+                  Based on {data.selected.length} transactions
                 </Text>
               </View>
             </View>
@@ -313,7 +318,7 @@ export default function InsightsScreen() {
                 style={{ marginRight: 6 }}
               />
               <Text style={styles.heroCardBottomBannerText} numberOfLines={1}>
-                Biggest improvement: Shopping expenses reduced
+                {data.highlight}
               </Text>
               <Ionicons
                 name="chevron-forward"
@@ -404,9 +409,9 @@ export default function InsightsScreen() {
         {/* --- EXPENSE CATEGORIES SUMMARY LINES --- */}
         <View style={styles.categoryRowItemLine}>
           <Text style={styles.patternCategoryLabelString}>
-            Shopping & Apparel
+            {data.top?.name || "No spending recorded"}
           </Text>
-          <Text style={styles.patternCategoryPercentValue}>28%</Text>
+          <Text style={styles.patternCategoryPercentValue}>{data.top ? Math.round(data.top.amount / data.spent * 100) + "%" : "?"}</Text>
         </View>
 
         {/* --- HEATMAP PATTERNS WIDGET --- */}
@@ -414,7 +419,7 @@ export default function InsightsScreen() {
           Spending Intensity Map
         </Text>
         <Text style={styles.patternsWidgetSubTextMeta}>
-          Visualizing high vs low transaction volume periods.
+          Recorded spending across the selected date range.
         </Text>
 
         <View style={styles.gridHeatMapMatrixWrapper}>
@@ -430,18 +435,18 @@ export default function InsightsScreen() {
         </View>
 
         <View style={styles.gridHeatMapTimelineLabelsRow}>
-          <Text style={styles.timelineLabelText}>Week 1</Text>
-          <Text style={styles.timelineLabelText}>Week 2</Text>
-          <Text style={styles.timelineLabelText}>Week 3</Text>
+          <Text style={styles.timelineLabelText}>{data.start.toLocaleDateString()}</Text>
+          <Text style={styles.timelineLabelText}>Selected period</Text>
+          <Text style={styles.timelineLabelText}>{data.end.toLocaleDateString()}</Text>
         </View>
 
         {/* --- TOP VENDORS TRACKING SECTION --- */}
         <View style={styles.vendorFlexContainerRow}>
           <View style={styles.vendorAvatarCirclePlaceholder}>
-            <Text style={styles.vendorAvatarInitials}>AMZ</Text>
+            <Text style={styles.vendorAvatarInitials}>{largest ? largest.title.slice(0, 2).toUpperCase() : "?"}</Text>
           </View>
-          <Text style={styles.vendorLabelStringName}>Amazon Marketplace</Text>
-          <Text style={styles.patternColorIndicatorDot}>$420.00</Text>
+          <Text style={styles.vendorLabelStringName}>{largest?.title || "No expenses yet"}</Text>
+          <Text style={styles.patternColorIndicatorDot}>{largest ? money(largest.kobo) : "?"}</Text>
         </View>
 
         {/* --- DYNAMIC TIPS & RECOMMENDATIONS --- */}
@@ -451,10 +456,10 @@ export default function InsightsScreen() {
             { marginTop: 24 },
           ]}
         >
-          Premium Financial Tips
+          Category insights
         </Text>
         <Text style={styles.patternsWidgetSubTextMeta}>
-          Tap any tip card to reveal actionable, step-by-step guidance.
+          {data.categories.length ? "Tap a category to review your recorded spending." : "Insights will appear when you have recorded expenses."}
         </Text>
 
         <View style={{ gap: 12, marginBottom: 24 }}>
@@ -519,6 +524,7 @@ export default function InsightsScreen() {
             );
           })}
         </View>
+        </>}
       </ScrollView>
     </SafeAreaView>
   );

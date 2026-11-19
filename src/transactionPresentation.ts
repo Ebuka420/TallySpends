@@ -32,11 +32,11 @@ export function transactionPresentation(transaction: Transaction | null, isDark:
     ...common,
     type: "income",
     title: text(transaction.method, title),
-    subtitle: text(transaction.methodDetail, "Wallet credit"),
+    subtitle: text(transaction.methodDetail, "Recorded income"),
     badge: "Money in",
     icon: "arrow-down-outline" as const,
     heading: lower.startsWith("deposit") ? "Deposit recorded" : "Income recorded",
-    description: "Your wallet balance has been updated."
+    description: "Your income is saved in your transaction history."
   };
   return {
     ...common,
@@ -46,6 +46,6 @@ export function transactionPresentation(transaction: Transaction | null, isDark:
     badge: "Expense",
     icon: "bag-handle-outline" as const,
     heading: "Expense recorded",
-    description: "Your spending and balance have been updated."
+    description: "Your expense is saved in your transaction history."
   };
 }

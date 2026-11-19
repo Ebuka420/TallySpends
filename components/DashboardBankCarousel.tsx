@@ -1,14 +1,14 @@
 import { Ionicons } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
-import { useCallback, useEffect, useMemo } from "react";
-import { ActivityIndicator, Pressable, StyleSheet, Text, View, useWindowDimensions } from "react-native";
-import { Gesture, GestureDetector } from "react-native-gesture-handler";
-import Animated, { cancelAnimation, runOnJS, useAnimatedStyle, useSharedValue, withSpring, withTiming, type SharedValue } from "react-native-reanimated";
+import { useCallback, useEffect, useMemo, useRef } from "react";
+import { ActivityIndicator, FlatList, Pressable, ScrollView, StyleSheet, Text, View, useWindowDimensions } from "react-native";
+import type { ScrollViewInstance } from "react-native";
 import Svg, { Defs, LinearGradient, Path, Rect, Stop } from "react-native-svg";
-import { NIGERIAN_BANKS } from "../src/data/banks";
+import { bankCardPalette } from "../src/banking/branding";
 import BankLogo from "./BankLogo";
-import { acceptsRightSwipe, BANK_COLORS, carouselSlotPosition, OVERVIEW_ID } from "../src/banking/carousel";
+import { cardIndexAtOffset, carouselMetrics, OVERVIEW_ID } from "../src/banking/carousel";
 import type { LinkedBankAccount } from "../src/banking/backend";
+import { dashboardBankAccounts } from "../src/banking/dashboard";
 import type { ThemePalette } from "../src/theme";
 import { getDashboardPalette } from "../src/theme";
 import BrandMark from "./BrandMark";
@@ -27,10 +27,9 @@ function CardFace({ card, width, height, ...props }: Props & { card: Card; width
   const appearance = getDashboardPalette(props.dark ? "dark" : "light");
   const account = card.account;
   // Logos come only from the existing local catalogue; never fetch a guessed URL.
-  const bank = account ? NIGERIAN_BANKS.find(item => item.slug === account.bankSlug || item.name.toLowerCase() === account.bankName.toLowerCase()
-    || (account.bankName.toLowerCase() === "gtbank" && item.slug === "guaranty-trust-bank")) : undefined;
-  const color = account ? BANK_COLORS[bank?.slug || ""] || "#20142A" : props.dark ? appearance.surface : "#FEFDFE";
-  const ink = account ? "#FFFFFF" : props.dark ? appearance.textPrimary : "#20142A";
+  const brand = account ? bankCardPalette(account, "#20142A") : undefined;
+  const color = brand ? brand.background : props.dark ? appearance.surface : "#FEFDFE";
+  const ink = brand ? brand.ink : props.dark ? appearance.textPrimary : "#20142A";
   const amount = account ? account.availableBalance : props.balance;
   let formatted = "Balance unavailable";
   if (typeof amount === "number" && Number.isFinite(amount)) {
@@ -41,9 +40,9 @@ function CardFace({ card, width, height, ...props }: Props & { card: Card; width
     }
   }
   return (
-    <Pressable accessibilityRole="button" accessibilityLabel={account ? `Open ${account.bankName} account insights` : "Open linked accounts"}
+    <Pressable accessibilityRole="button" accessibilityLabel={account ? `Open ${account.bankName} account insights` : "Open sandbox wallet"}
       onPress={() => props.onOpenAccounts(account?.id)}
-      style={[styles.card, { width, height, backgroundColor: color, borderColor: account ? "#FFFFFF25" : appearance.border }]}>
+      style={[styles.card, { width, height, backgroundColor: color, borderColor: brand?.border ?? appearance.border }]}>
       <Svg pointerEvents="none" width={width} height={height} style={styles.pattern} viewBox="0 0 360 220">
         <Path d="M286 -20 C140 22 176 133 350 166 M225 239 C82 21 342 57 390 149 M365 -20 C305 72 291 120 381 216" stroke={ink} opacity={account ? 0.18 : 0.11} strokeWidth="0.7" fill="none" />
         <Path d="M285 154 v-18 m7 18 v-27 m7 27 v-36" stroke={ink} opacity="0.08" strokeWidth="5" />
@@ -55,7 +54,7 @@ function CardFace({ card, width, height, ...props }: Props & { card: Card; width
           <Text numberOfLines={1} style={[styles.brandName, { color: ink }]}>{account?.bankName || "TallySpends"}</Text>
         </View>
         <Pressable accessibilityRole="button" accessibilityLabel="Link bank account" hitSlop={8} onPress={event => { event.stopPropagation(); props.onLink(); }} style={styles.link}>
-          <Text style={[styles.overview, { color: ink }]}>{account ? "Linked account" : "Local demo overview"}</Text>
+          <Text style={[styles.overview, { color: ink }]}>{account ? account.status === "Disconnected" ? "Disconnected" : "Sandbox account" : "Sandbox wallet"}</Text>
           <Ionicons name="add-circle-outline" size={16} color={ink} />
         </Pressable>
       </View>
@@ -74,9 +73,9 @@ function CardFace({ card, width, height, ...props }: Props & { card: Card; width
             {props.visible ? formatted : "********"}
           </Text>
         </Pressable>
-        <TutorialTarget id="home-wallet-arrow"><Pressable accessibilityRole="button" accessibilityLabel="View linked account insights"
+        <TutorialTarget id={account ? `home-account-arrow-${account.id}` : "home-wallet-arrow"}><Pressable accessibilityRole="button" accessibilityLabel={account ? "View linked account insights" : "Open sandbox wallet"}
           onPress={event => { event.stopPropagation(); props.onOpenAccounts(account?.id); }}
-          style={[styles.currencyBadge, { backgroundColor: account ? "#FFFFFF18" : appearance.accentSoft }]}>
+          style={[styles.currencyBadge, { backgroundColor: brand?.badge ?? appearance.accentSoft }]}>
           <Ionicons name="arrow-forward" size={20} color={ink} />
         </Pressable></TutorialTarget>
       </View>
@@ -84,107 +83,73 @@ function CardFace({ card, width, height, ...props }: Props & { card: Card; width
   );
 }
 
-function Slot({ index, count, mode, turn, stride, ...props }: Props & {
-  card: Card; width: number; height: number; index: number; count: number;
-  mode: "front" | "back" | "peek"; turn: SharedValue<number>; stride: number;
-}) {
-  const animated = useAnimatedStyle(() => {
-    const { x, visible } = carouselSlotPosition(turn.value, index, count, stride, mode);
-    return {
-      transform: [{ translateX: x }],
-      opacity: visible ? 1 : 0,
-    };
-  });
-  const selected = props.card.id === props.selectedId && mode === "front";
-  return (
-    <Animated.View style={[styles.slot, animated]} pointerEvents={selected ? "auto" : "none"}
-      accessibilityElementsHidden={!selected} importantForAccessibility={selected ? "auto" : "no-hide-descendants"}>
-      <CardFace {...props} />
-    </Animated.View>
-  );
-}
-
 export default function DashboardBankCarousel(props: Props) {
   const { width: screenWidth } = useWindowDimensions();
-  const width = screenWidth * 0.91;
-  const height = width / 1.8;
-  const stride = width + 10;
-  const cards = useMemo<Card[]>(() => [{ id: OVERVIEW_ID }, ...props.accounts.filter(account => account.id !== OVERVIEW_ID).map(account => ({ id: account.id, account }))], [props.accounts]);
+  const { width, height, stride, inset, trailingInset } = carouselMetrics(screenWidth);
+  const cards = useMemo<Card[]>(() => [{ id: OVERVIEW_ID }, ...dashboardBankAccounts(props.accounts).filter(account => account.id !== OVERVIEW_ID).map(account => ({ id: account.id, account }))], [props.accounts]);
   const count = cards.length;
   const signature = cards.map(card => card.id).join("|");
   const reduced = useReducedMotion();
-  const turn = useSharedValue(0);
-  const origin = useSharedValue(0);
-  const busy = useSharedValue(false);
-  const accepted = useSharedValue(false);
-  const generation = useSharedValue(0);
+  const list = useRef<FlatList<Card>>(null);
+  const indicators = useRef<ScrollViewInstance>(null);
+  const visibleIndex = useRef(0);
+  const layout = useRef("");
   const selectedIndex = Math.max(0, cards.findIndex(card => card.id === props.selectedId));
+  const indicatorWidth = Math.min(count * 36, screenWidth - 96);
+  const indicatorOffset = Math.max(0, Math.min(count * 36 - indicatorWidth, selectedIndex * 36 - (indicatorWidth - 36) / 2));
+  useEffect(() => { indicators.current?.scrollTo({ x: indicatorOffset, animated: reduced === false }); }, [indicatorOffset, reduced]);
   useEffect(() => {
-    generation.value += 1;
-    cancelAnimation(turn);
-    if (Math.round(turn.value) % count !== selectedIndex || turn.value !== Math.round(turn.value)) turn.value = selectedIndex;
-    busy.value = false;
-    accepted.value = false;
-    return () => { generation.value += 1; cancelAnimation(turn); busy.value = false; };
-  }, [signature, stride, props.selectedId]);
+    const nextLayout = `${signature}:${stride}`;
+    // Preserve the selected account when records arrive, are reordered/removed,
+    // or the screen changes size. Ordinary swipes must not trigger scroll resets.
+    if (layout.current !== nextLayout || visibleIndex.current !== selectedIndex) {
+      layout.current = nextLayout;
+      visibleIndex.current = selectedIndex;
+      list.current?.scrollToOffset({ offset: selectedIndex * stride, animated: false });
+    }
+  }, [signature, stride, selectedIndex]);
 
   const commit = useCallback((index: number) => {
+    if (visibleIndex.current === index) return;
+    visibleIndex.current = index;
     props.onSelect(cards[index]?.id || OVERVIEW_ID);
     if (reduced === false) void Haptics.selectionAsync().catch(() => {});
   }, [cards, props.onSelect, reduced]);
-  const settle = (target: number, advance: boolean) => {
-    "worklet";
-    const epoch = generation.value;
-    const done = (finished?: boolean) => {
-      "worklet";
-      if (!finished || epoch !== generation.value) return;
-      busy.value = false;
-      if (advance) runOnJS(commit)(Math.round(target) % count);
-    };
-    turn.value = reduced !== false ? withTiming(target, { duration: 0 }, done)
-      : withSpring(target, { damping: 25, stiffness: 220, mass: 0.85, overshootClamping: true }, done);
-  };
-  const pan = Gesture.Pan().enabled(count > 1).maxPointers(1)
-    .activeOffsetX(12).failOffsetX(-12).failOffsetY([-12, 12])
-    .onStart(() => {
-      accepted.value = !busy.value;
-      if (!accepted.value) return;
-      busy.value = true;
-      origin.value = Math.round(turn.value);
-    }).onUpdate(event => {
-      if (!accepted.value) return;
-      // Resistance caps movement to a single step, regardless of swipe speed.
-      if (reduced === false) turn.value = origin.value + Math.min(0.85, Math.max(0, event.translationX / stride) * 0.7);
-    }).onEnd(event => {
-      if (!accepted.value) return;
-      accepted.value = false;
-      const advance = acceptsRightSwipe(event.translationX, event.translationY, event.velocityX, width, count);
-      settle(origin.value + (advance ? 1 : 0), advance);
-    }).onFinalize(() => {
-      if (accepted.value) { accepted.value = false; settle(origin.value, false); }
-    });
-
-  const accessibleNext = () => {
-    if (count < 2 || busy.value) return;
-    busy.value = true;
-    settle(Math.round(turn.value) + 1, true);
+  const select = (index: number) => {
+    const next = Math.max(0, Math.min(count - 1, index));
+    list.current?.scrollToOffset({ offset: next * stride, animated: reduced === false });
   };
   return (
     <View style={[styles.container, { width: screenWidth, marginLeft: -20 }]}>
-      <GestureDetector gesture={pan}>
-        <Animated.View style={{ width: screenWidth, height: height + 18, overflow: "hidden" }}
-          accessibilityActions={count > 1 ? [{ name: "increment", label: "Next account" }] : []}
-          onAccessibilityAction={event => { if (event.nativeEvent.actionName === "increment") accessibleNext(); }}>
-          <View style={{ marginLeft: 12, marginTop: 6, width: screenWidth - 12, height: height + 12, overflow: "hidden" }}>
-            {count === 1 ? <CardFace {...props} card={cards[0]} width={width} height={height} /> : cards.flatMap((card, index) =>
-              (["front", "back", "peek"] as const).map(mode => <Slot {...props} key={`${card.id}:${mode}`} card={card} index={index}
-                count={count} mode={mode} turn={turn} stride={stride} width={width} height={height} />))}
-          </View>
-        </Animated.View>
-      </GestureDetector>
-      {count > 1 && <View style={styles.dots} accessibilityLabel={`Account ${selectedIndex + 1} of ${count}. Swipe right for the next account.`}>
-        {cards.map((card, index) => <View key={card.id} style={{ height: 4, width: index === selectedIndex ? 13 : 4, borderRadius: 2, backgroundColor: index === selectedIndex ? props.theme.accent : props.theme.border }} />)}
-      </View>}
+      <FlatList ref={list} data={cards} horizontal keyExtractor={card => card.id}
+        extraData={props} showsHorizontalScrollIndicator={false} scrollEnabled={count > 1}
+        snapToInterval={stride} snapToAlignment="start" decelerationRate="fast" disableIntervalMomentum
+        directionalLockEnabled bounces={false} nestedScrollEnabled removeClippedSubviews={false}
+        style={{ width: screenWidth, height: height + 18 }}
+        contentContainerStyle={{ paddingLeft: inset, paddingRight: trailingInset, paddingTop: 6, paddingBottom: 12 }}
+        ItemSeparatorComponent={() => <View style={{ width: 10 }} />}
+        getItemLayout={(_, index) => ({ length: stride, offset: stride * index, index })}
+        renderItem={({ item }) => <CardFace {...props} card={item} width={width} height={height} />}
+        scrollEventThrottle={16}
+        onScroll={event => commit(cardIndexAtOffset(event.nativeEvent.contentOffset.x, stride, count))}
+        onContentSizeChange={() => list.current?.scrollToOffset({ offset: selectedIndex * stride, animated: false })}
+      />
+      {count > 1 && <>
+        <View style={styles.dots}>
+          <Pressable accessibilityRole="button" accessibilityLabel="Previous account" disabled={selectedIndex === 0} onPress={() => select(selectedIndex - 1)} style={[styles.selector, { opacity: selectedIndex === 0 ? 0.3 : 1 }]}><Ionicons name="chevron-back" size={18} color={props.theme.accent} /></Pressable>
+          <ScrollView ref={indicators} horizontal showsHorizontalScrollIndicator={false}
+            style={{ width: indicatorWidth, flexGrow: 0, flexShrink: 0 }} contentContainerStyle={{ alignItems: "center" }}
+            onContentSizeChange={() => indicators.current?.scrollTo({ x: indicatorOffset, animated: false })}>
+          {cards.map((card, index) => <Pressable key={card.id} accessibilityRole="button"
+            accessibilityLabel={`Show ${card.account?.bankName || "TallySpends wallet"}, card ${index + 1} of ${count}`}
+            accessibilityState={{ selected: index === selectedIndex }} onPress={() => select(index)} style={styles.selector}>
+            <View style={{ height: 5, width: index === selectedIndex ? 15 : 5, borderRadius: 3, backgroundColor: index === selectedIndex ? props.theme.accent : props.theme.border }} />
+          </Pressable>)}
+          </ScrollView>
+          <Pressable accessibilityRole="button" accessibilityLabel="Next account" disabled={selectedIndex === count - 1} onPress={() => select(selectedIndex + 1)} style={[styles.selector, { opacity: selectedIndex === count - 1 ? 0.3 : 1 }]}><Ionicons name="chevron-forward" size={18} color={props.theme.accent} /></Pressable>
+        </View>
+        <Text style={{ color: props.theme.textSecondary, textAlign: "center", fontSize: 11, marginBottom: 8 }}>Swipe left or right · {selectedIndex + 1} of {count}</Text>
+      </>}
       {(props.loading || props.error) && <Pressable onPress={props.onRetry} disabled={props.loading} style={styles.status} accessibilityRole="button">
         {props.loading ? <ActivityIndicator size="small" color={props.theme.accent} /> : null}
         <Text style={{ color: props.theme.textSecondary, fontSize: 11 }}>{props.loading ? "Refreshing linked accounts…" : props.error}</Text>
@@ -195,7 +160,6 @@ export default function DashboardBankCarousel(props: Props) {
 
 const styles = StyleSheet.create({
   container: { marginTop: 20 },
-  slot: { position: "absolute", left: 0, top: 0 },
   card: { borderRadius: 19, borderWidth: 0.7, padding: 18, justifyContent: "space-between", shadowColor: "#20142A", shadowOffset: { width: 0, height: 5 }, shadowOpacity: 0.1, shadowRadius: 8, elevation: 4, overflow: "hidden" },
   pattern: { position: "absolute", top: 0, left: 0 },
   cardHeader: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 8 },
@@ -211,7 +175,8 @@ const styles = StyleSheet.create({
   balanceLabel: { fontSize: 8, letterSpacing: 1.8, opacity: 0.6, marginBottom: 5 },
   amount: { fontWeight: "700", letterSpacing: -1.3 },
   currencyBadge: { minWidth: 44, height: 44, paddingHorizontal: 6, borderRadius: 22, alignItems: "center", justifyContent: "center", marginBottom: 2 },
-  dots: { flexDirection: "row", justifyContent: "center", gap: 5, paddingTop: 1, paddingBottom: 8 },
+  dots: { flexDirection: "row", flexWrap: "nowrap", justifyContent: "center", alignItems: "center", height: 44 },
+  selector: { width: 36, height: 44, flexShrink: 0, alignItems: "center", justifyContent: "center" },
   status: { minHeight: 26, flexDirection: "row", gap: 7, alignItems: "center", justifyContent: "center", paddingHorizontal: 20 },
 });
 

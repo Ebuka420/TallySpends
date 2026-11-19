@@ -19,9 +19,9 @@ import {
   View,
 } from "react-native";
 import type { ScrollViewInstance } from "react-native";
-import { useAppStore } from "../src/store";
-import { getThemePalette } from "../src/theme";
-import { careGreeting, careReply, helpTopics, supportEmail, supportMailUrl } from "../src/support/care";
+import { careGreeting, helpTopics, supportEmail, supportMailUrl } from "../src/support/care";
+import { requestHelpReply } from "../src/support/api";
+import { useApi } from "../src/useApi";
 
 // Enable smooth layout animations for Android devices
 if (
@@ -47,7 +47,7 @@ interface ChatMessage {
 
 export default function CustomerServiceScreen() {
   const router = useRouter();
-  const { themePreference, themeMode, username } = useAppStore();
+  const api = useApi();
   const theme = useThemeTokens();
   const styles = useMemo(() => getStyles(theme), [theme]);
 
@@ -67,17 +67,17 @@ export default function CustomerServiceScreen() {
   ]);
 
   const faqs: FAQItem[] = helpTopics;
-  const replyTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const previousTopic = useRef<string | null>(null);
+  const epoch = useRef(0);
+  const [replyError, setReplyError] = useState<string | null>(null);
   const replyLock = useRef(false);
   const emailLock = useRef(false);
   useEffect(() => {
-    if (replyTimer.current) clearTimeout(replyTimer.current);
-    replyLock.current = false; previousTopic.current = null; setIsTyping(false);
+    epoch.current++;
+    replyLock.current = false; setIsTyping(false); setReplyError(null);
     setMessages([{ id: "care-greeting", sender: "support", text: careGreeting, time: "Just now" }]);
     setChatInput("");
-    return () => { if (replyTimer.current) clearTimeout(replyTimer.current); };
-  }, [username]);
+    return () => { epoch.current++; };
+  }, [api.owner]);
   const handleEmailSupport = async () => {
     if (emailLock.current) return;
     emailLock.current = true;
@@ -97,10 +97,12 @@ export default function CustomerServiceScreen() {
     }
   };
 
-  const handleSendMessage = (textToSend?: string) => {
+  const handleSendMessage = async (textToSend?: string) => {
     const text = (textToSend || chatInput).trim();
     if (!text || replyLock.current) return;
     replyLock.current = true;
+    const started = epoch.current;
+    setReplyError(null);
 
     const userMsg: ChatMessage = {
       id: `user-${Date.now()}`,
@@ -114,10 +116,9 @@ export default function CustomerServiceScreen() {
 
     setIsTyping(true);
 
-    replyTimer.current = setTimeout(() => {
-      const result = careReply(text, previousTopic.current);
-      previousTopic.current = result.topic;
-      const reply = result.text;
+    try {
+      const reply = await api.run(request => requestHelpReply(text, request));
+      if (started !== epoch.current) return;
       const supportMsg: ChatMessage = {
         id: `supp-${Date.now()}`,
         sender: "support",
@@ -126,9 +127,13 @@ export default function CustomerServiceScreen() {
       };
 
       setMessages((prev) => [...prev, supportMsg]);
-      setIsTyping(false);
-      replyLock.current = false; replyTimer.current = null;
-    }, 250);
+    } catch (error) {
+      if (started !== epoch.current) return;
+      setReplyError(error instanceof Error ? error.message : 'Could not get a reply. Please try again.');
+      setChatInput(text);
+    } finally {
+      if (started === epoch.current) { setIsTyping(false); replyLock.current = false; }
+    }
   };
 
   useEffect(() => {
@@ -260,7 +265,7 @@ export default function CustomerServiceScreen() {
                   >
                     <Ionicons name="chatbubbles-outline" size={14} color={theme.accent} />
                     <Text style={[styles.faqAskMoreText, { color: theme.accent }]}>
-                      Ask Care about this
+                      Ask Smart Coach about this
                     </Text>
                   </TouchableOpacity>
                 </View>
@@ -287,7 +292,7 @@ export default function CustomerServiceScreen() {
             onPress={() => handleOpenChatWithPrompt()}
             activeOpacity={0.8}
           >
-            <Text style={styles.chatButtonText}>Ask Care</Text>
+            <Text style={styles.chatButtonText}>Ask Coach</Text>
           </TouchableOpacity>
         </View>
       </ScrollView>
@@ -306,8 +311,8 @@ export default function CustomerServiceScreen() {
                   <Ionicons name="headset" size={18} color="#FFFFFF" />
                 </View>
                 <View>
-                  <Text style={[styles.agentName, { color: theme.textPrimary }]}>TallySpends Care</Text>
-                  <Text style={styles.agentOnlineStatus}>Automated help • No account access</Text>
+                  <Text style={[styles.agentName, { color: theme.textPrimary }]}>Smart Coach</Text>
+                  <Text style={styles.agentOnlineStatus}>AI assistant · Messages saved to coach history</Text>
                 </View>
               </View>
               <TouchableOpacity
@@ -372,12 +377,13 @@ export default function CustomerServiceScreen() {
 
               {isTyping && (
                 <View style={[styles.typingBubble, { backgroundColor: theme.surface, borderColor: theme.border }]}>
-                  <Text style={[styles.typingText, { color: theme.textSecondary }]}>Care is preparing a reply...</Text>
+                  <Text style={[styles.typingText, { color: theme.textSecondary }]}>Waiting for Smart Coach...</Text>
                 </View>
               )}
             </ScrollView>
 
             {/* Chat Input Bar */}
+            {!!replyError && <Text accessibilityLiveRegion="polite" style={{ color: theme.danger, padding: 16 }}>{replyError} Your question is ready to resend below.</Text>}
             <View style={[styles.chatInputBar, { backgroundColor: theme.surface, borderColor: theme.border }]}>
               <TextInput
                 style={[

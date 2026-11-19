@@ -8,7 +8,7 @@ const {
   upsertTransaction: tx,
   removeTransaction,
   budgetPayments,
-} = require("./ledger.ts");
+} = require("./test-fixtures/ledger.cjs");
 const now = "2026-09-19T12:00:00.000Z";
 const allocation = (name, amount, extra = {}) => ({
   name,

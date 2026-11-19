@@ -1,9 +1,12 @@
 import { API_URL } from "../api";
+import { refreshSession, sessionHasExpired, SessionExpiredError } from "../session";
 
 export type LinkedBankAccount = {
   id: string;
   bankName: string;
-  accountName: string;
+  accountName?: string;
+  status?: "Linked" | "Disconnected";
+  lastSyncedAt?: string | null;
   maskedAccountNumber?: string;
   availableBalance?: number;
   currency?: string;
@@ -23,12 +26,27 @@ export class BankRequestError extends Error {
 }
 
 export type BankBackend = {
-  confirmConnection: (code: string, request: AuthenticatedBankRequest) => Promise<void>;
+  confirmConnection: (code: string, request: AuthenticatedBankRequest) => Promise<LinkedBankAccount>;
   listAccounts: (request: AuthenticatedBankRequest) => Promise<LinkedBankAccount[]>;
 };
-// No successful BankAccounts DTO was provided or documented. This is deliberately
-// unset; install a decoder only after the backend owner confirms the real schema.
-const bankAccountContract: Readonly<{ decode: ((result: unknown) => LinkedBankAccount[]) | null }> = Object.freeze({ decode: null });
+export function decodeBankAccounts(result: unknown): LinkedBankAccount[] {
+  if (!Array.isArray(result)) throw new Error("Couldn't read linked bank accounts.");
+  const ids = new Set<string>();
+  return result.map(item => {
+    if (!item || !Number.isSafeInteger(item.id) || item.id <= 0 || typeof item.name !== "string" || !item.name.trim()
+      || item.type !== "Bank" || typeof item.currency !== "string" || !/^[A-Z]{3}$/.test(item.currency)
+      || !["Linked", "Disconnected"].includes(item.status)
+      || item.balance !== null && (typeof item.balance !== "number" || !Number.isFinite(item.balance))
+      || item.lastSyncedAt !== null && (typeof item.lastSyncedAt !== "string" || !Number.isFinite(Date.parse(item.lastSyncedAt)))) {
+      throw new Error("Couldn't read linked bank accounts.");
+    }
+    const id = String(item.id);
+    if (ids.has(id)) throw new Error("The bank service returned duplicate account IDs.");
+    ids.add(id);
+    return { id, bankName: item.name.trim(), currency: item.currency, status: item.status, lastSyncedAt: item.lastSyncedAt,
+      ...(item.balance !== null && item.status === "Linked" ? { availableBalance: item.balance } : {}) };
+  });
+}
 export const bankBackend: BankBackend = {
   async confirmConnection(code, request) {
     if (!code.trim()) throw new Error("Mono did not return an authorization code.");
@@ -41,19 +59,17 @@ export const bankBackend: BankBackend = {
       throw new BankRequestError("Your bank connection has not been confirmed. Check your accounts before trying again.",
         typeof data?.status === "string" && ["pending", "processing"].includes(data.status.toLowerCase()));
     }
+    return decodeBankAccounts([result])[0];
   },
   async listAccounts(request) {
     const result = await request("/api/bank-accounts");
-    // An empty collection is safe to represent without knowing the non-empty DTO.
-    if (Array.isArray(result) && result.length === 0) return [];
-    if (!bankAccountContract.decode) throw new Error("Linked-account display is pending the backend's confirmed GET /api/bank-accounts response schema. No account details or balances have been guessed.");
-    return bankAccountContract.decode(result);
+    return decodeBankAccounts(result);
   },
 };
 export const monoPublicKey = process.env.EXPO_PUBLIC_MONO_PUBLIC_KEY?.trim() || "";
 
 export function getBankSetupIssue() {
-  if (!monoPublicKey.startsWith("test_pk_")) return "Sandbox bank linking is temporarily unavailable. Please try again later.";
+  if (!monoPublicKey.startsWith("test_pk_")) return "Bank linking isn't configured for sandbox testing in this app yet.";
   return null;
 }
 
@@ -103,22 +119,13 @@ export function createBankRequest(session: BankSession, signal: AbortSignal, sen
   async function refresh() {
     if (refreshAttempted || !session.refreshToken) return false;
     refreshAttempted = true;
-    const response = await send(API_URL + "/api/auth/refresh", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ refreshToken: session.refreshToken }),
-      signal,
-      redirect: "error",
-    });
-    if (!response.ok) return false;
-    const data = await response.json();
-    const nextToken = data?.accessToken || data?.token;
-    if (typeof nextToken !== "string" || !nextToken.trim()) return false;
-    token = nextToken;
-    await session.saveTokens(nextToken, data.refreshToken || session.refreshToken);
+    const next = await refreshSession(session.refreshToken, signal, send);
+    token = next.token;
+    await session.saveTokens(next.token, next.refreshToken);
     return true;
   }
   return async (path, init = {}) => {
+    if (sessionHasExpired()) throw new SessionExpiredError();
     // Authorization codes and bearer tokens may only go to our own API.
     const method = (init.method || "GET").toUpperCase();
     const allowed = method === "GET" && ["/api/bank-accounts", "/api/accounts/me", "/api/transactions"].includes(path)

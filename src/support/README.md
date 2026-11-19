@@ -1,25 +1,19 @@
-# TallySpends Care
+﻿# Support and Smart Coach
 
-Care is an on-device guided help assistant, using curated guidance rather than a
-generative AI service or a live support queue. FAQ answers and chat guidance share
-the same source. It recognizes app topics, supports limited topic follow-ups,
-prioritizes unrecognized charges, and admits when it lacks a reliable answer.
+The help page retains static FAQs. Its chat uses authenticated POST /api/chat
+and displays only the returned assistantMessage.content. It is labeled Smart
+Coach, and users are told messages are saved in coach history. No canned reply,
+simulated typing delay, human-agent status or ticket confirmation is generated.
 
-It cannot view accounts, move money, freeze cards, open tickets or confirm dispute
-resolution. Copy reflects the current sandbox bank-linking flow and backend
-limitations for QR payments, Youngins and profile edits. Update this guidance as
-those backend capabilities become available.
+Requests use the shared authenticated client, with session refresh, timeout,
+unmount cancellation and account-change guards. Failures display an inline
+error and retain the question for an explicit retry.
 
-Email Support is available on the help page and inside Care. It opens a mailto
-draft addressed to tallyspends@gmail.com; the user sends it themselves. No chat
-transcript or account data is attached automatically. Missing email apps produce
-a fallback message containing the support address.
+Email Support opens a mailto draft addressed to tallyspends@gmail.com. The user
+sends it themselves. No chat transcript or account data is attached automatically.
+Missing email apps show the support address. The backend has no documented
+human-support or ticket endpoint.
 
-Chat stays in memory and is reset when the displayed account identity changes.
-Pending reply/scroll timers are cleaned up. Duplicate replies are guarded and
-sensitive-looking inputs receive a warning. This warning is not a comprehensive
-PII detector; messages are never sent to an AI provider or persisted by Care.
-
-Verification: `node src/support/care.test.cjs` covers supported topics, follow-ups,
-unknown questions, escalation, sensitive-input warnings and the email draft.
-Physical device testing of the email app launch remains necessary.
+Run node --test src/support/care.test.cjs for the chat contract, malformed/error
+responses and email-draft checks. Authenticated chat and native email launching
+still require device verification.

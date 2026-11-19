@@ -16,7 +16,7 @@ Module._load = function(name, ...args) {
     deleteItemAsync: async key => { vault.delete(key); },
   };
   if (name === 'expo-crypto') return { CryptoDigestAlgorithm: { SHA256: 'sha256' }, digestStringAsync: async (_, value) => crypto.createHash('sha256').update(value).digest('hex'), getRandomBytesAsync: async size => crypto.randomBytes(size) };
-  if (name === '@react-native-async-storage/async-storage') return { getItem: async key => ordinary.get(key) ?? null, removeItem: async key => ordinary.delete(key) };
+  if (name === '@react-native-async-storage/async-storage') return { getItem: async key => ordinary.get(key) ?? null, removeItem: async key => ordinary.delete(key), multiSet: async pairs => pairs.forEach(([key, value]) => ordinary.set(key, value)), multiRemove: async keys => keys.forEach(key => ordinary.delete(key)) };
   if (name === 'expo-constants') return { __esModule: true, default: { executionEnvironment: 'storeClient' }, ExecutionEnvironment: { StoreClient: 'storeClient' } };
   if (name === 'react-native') return { Platform: { OS: 'ios' } };
   return original.call(this, name, ...args);
@@ -129,10 +129,10 @@ test('password changes refresh an expired session once and never treat pending a
     if (url.endsWith('/api/auth/refresh')) { refreshed++; return response(200, { accessToken: 'fresh-token', refreshToken: 'fresh-refresh' }); }
     requests++;
     assert.equal(options.headers.Authorization, 'Bearer ' + (requests === 1 ? 'expired-token' : 'fresh-token'));
-    return response(requests === 1 ? 401 : 200, {});
+    return response(requests === 1 ? 401 : 200, { accessToken: 'password-token', refreshToken: 'password-refresh' });
   };
   await api.changePassword('expired-token', 'old', 'new', new AbortController().signal, send, { refreshToken: 'old-refresh', saveTokens: async (...tokens) => { saved = tokens; } });
-  assert.equal(requests, 2); assert.equal(refreshed, 1); assert.deepEqual(saved, ['fresh-token', 'fresh-refresh']);
+  assert.equal(requests, 2); assert.equal(refreshed, 1); assert.deepEqual(saved, ['password-token', 'password-refresh']);
   await assert.rejects(api.changePassword('token', 'old', 'new', new AbortController().signal, async () => response(202, {})), /hasn't confirmed/);
 });
 test('signup credentials migrate into secure storage and are cleared after onboarding', async () => {

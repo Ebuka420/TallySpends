@@ -9,7 +9,7 @@ const {
   upsertTransaction,
   removeTransaction,
   validateWallet,
-} = require("./ledger.ts");
+} = require("./test-fixtures/ledger.cjs");
 const {
   applyPlanCommand,
   tallyTag,

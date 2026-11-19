@@ -127,7 +127,7 @@ export default function InsightsSummaryScreen() {
         contentContainerStyle={styles.scrollContainer}
         showsVerticalScrollIndicator={false}
       >
-        {budgetError && <TouchableOpacity onPress={reloadBudgetWallet}><Text style={{ color: theme.accent, paddingBottom: 12 }}>Retry loading transactions</Text></TouchableOpacity>}
+        {budgetError && <TouchableOpacity onPress={() => void reloadBudgetWallet()}><Text style={{ color: theme.accent, paddingBottom: 12 }}>Retry loading transactions</Text></TouchableOpacity>}
         {/* --- TIMEFRAME TABS SEGMENTED CONTROL --- */}
         <View
           style={[

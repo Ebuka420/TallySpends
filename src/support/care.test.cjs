@@ -1,24 +1,26 @@
-const assert = require("node:assert/strict");
-const fs = require("node:fs");
-const ts = require("typescript");
-require.extensions[".ts"] = (module, file) => module._compile(ts.transpileModule(fs.readFileSync(file, "utf8"), { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 } }).outputText, file);
-const { careReply, helpTopics, supportMailUrl } = require("./care.ts");
-assert.match(careReply("link my bank").text, /sandbox/);
-assert.match(careReply("someone stole my card").text, /cannot freeze/);
-assert.match(careReply("unrecognized charge").text, /Contact your bank/);
-assert.match(careReply("a transaction is missing").text, /cannot guarantee/);
-assert.match(careReply("my QR transfer").text, /does not move money/);
-assert.match(careReply("Youngins registration").text, /remains unavailable/);
-assert.match(careReply("profile picture").text, /backend/);
-assert.match(careReply("how?", "Cards").text, /Mono/);
-assert.match(careReply("it didnt work").text, /Email Support/);
-assert.match(careReply("my OTP: 123456").text, /don't share/);
-assert.match(careReply("change the weather").text, /don't have a reliable answer/);
-assert.match(careReply("reset password").text, /cannot reset/);
-assert.equal(helpTopics.length, 5);
-const url = new URL(supportMailUrl());
-assert.equal(url.protocol, "mailto:");
-assert.equal(url.pathname, "tallyspends@gmail.com");
-assert.match(url.searchParams.get("body"), /Do not include passwords/);
-assert.ok(!url.searchParams.get("body").includes("123456"));
-console.log("Care tests passed: supported topics, follow-ups, truthful limitations, escalation, sensitive-input warning and email draft.");
+﻿const { test } = require('node:test');
+const assert = require('node:assert/strict');
+const { careGreeting, helpTopics, supportMailUrl } = require('./care.ts');
+const { requestHelpReply } = require('./api.ts');
+test('support distinguishes coach messages from contacting a human', () => {
+  assert.match(careGreeting, /saved in coach history/);
+  assert.match(careGreeting, /does not contact a human/);
+  assert.equal(helpTopics.length, 5);
+  const url = new URL(supportMailUrl());
+  assert.equal(url.protocol, 'mailto:');
+  assert.equal(url.pathname, 'tallyspends@gmail.com');
+  assert.match(url.searchParams.get('body'), /Do not include passwords/);
+});
+test('help sends the question to the authenticated chat service and displays its reply', async () => {
+  const result = await requestHelpReply(' How do budgets work? ', async (path, init) => {
+    assert.equal(path, '/api/chat'); assert.equal(init.method, 'POST');
+    assert.deepEqual(JSON.parse(init.body), { message: 'How do budgets work?' });
+    return { status: 200, data: { assistantMessage: { content: 'A reply from the service' } } };
+  });
+  assert.equal(result, 'A reply from the service');
+});
+test('help failures never fabricate replies or tickets', async () => {
+  for (const response of [{ status: 503, data: {} }, { status: 200, data: {} }, { status: 200, data: { assistantMessage: { content: '' } } }]) await assert.rejects(requestHelpReply('Help', async () => response));
+  await assert.rejects(requestHelpReply('Help', async () => { throw new Error('Offline'); }), /Offline/);
+  await assert.rejects(requestHelpReply('', async () => assert.fail('must not request')));
+});

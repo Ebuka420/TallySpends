@@ -1,4 +1,5 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import { beginSession, expireSession, saveSessionTokens, sessionHasExpired, subscribeSessionExpired } from "./session";
 import { clearPendingSms, configureSmsReader } from "../modules/tally-sms-reader";
 import { SMS_CONSENT_KEY, SMS_ENABLED_KEY, SMS_SENDERS_KEY } from "./transactions/smsSync";
 import { registerSession } from "./register";
@@ -10,13 +11,14 @@ import { useNavigation } from "expo-router";
 import { useCallback, useEffect, useMemo, useState, useSyncExternalStore } from "react";
 import { clearProfileSession, getProfileSnapshot, loadAccountProfile, publishProfileTokens, subscribeProfile, updateAccountProfile } from "./profile/repository";
 import type { ProfileUser } from "./profile/model";
+import type { ProfileAddress } from "./profile/address";
 import { Alert, AppState, useColorScheme } from "react-native";
-import { deleteWalletTransaction, getWalletSnapshot, loadWallet, resetWallet, saveWalletTransaction, subscribeWallet } from "./budget/repository";
+import { getNotifications, subscribeNotifications, setNotificationOwner, loadNotifications, changeNotifications } from "./notifications/repository";
+import { operationId, runBudgetCommand, runPlanCommand } from "./budget/repository";
+import { deleteWalletTransaction, getWalletSnapshot, loadWallet, resetWallet, saveWalletTransaction, subscribeWallet, setWalletOwner } from "./budget/repository";
 import { totals, type Wallet } from "./budget/ledger";
 import { createBankRequest } from "./banking/backend";
 import { clearTransactionFeed, getTransactionFeedSnapshot, refreshTransactionFeed, subscribeTransactionFeed } from "./transactions/feed";
-import { mergeTransactionFeed } from "./transactions/api";
-import { spendingByBudget } from "./transactions/budgeting";
 import type { ThemeMode } from "./theme";
 import { useAppearance, hydrateAppearance, setThemePreference, setDarkModePreference } from "./appearance";
 import { useVisualTheme } from "./ThemeExperience";
@@ -42,390 +44,6 @@ const getCustomCategoriesStorageKey = (
 ) =>
   `${DEFAULT_CUSTOM_CATEGORIES_STORAGE_KEY}_${encodeURIComponent(usernameValue || "default")}`;
 
-export const MOCK_RECIPIENTS = [
-  {
-    id: "rec-1",
-    name: "Alief Wahya",
-    username: "alief_w",
-    initial: "AW",
-    color: "#EEF2FF",
-    textColor: "#4F46E5",
-    bank: "Citibank - USD Account",
-    isRecent: true,
-  },
-  {
-    id: "rec-2",
-    name: "Bayside Budget",
-    username: "bayside_b",
-    initial: "BB",
-    color: "#FDF2F8",
-    textColor: "#DB2777",
-    bank: "Premium Ch - GBP Account",
-    isRecent: true,
-  },
-  {
-    id: "rec-3",
-    name: "Cypress Carter",
-    username: "cypress_c",
-    initial: "CC",
-    color: "#ECFDF5",
-    textColor: "#059669",
-    bank: "Basic Ch - EUR Account",
-    isRecent: true,
-  },
-  {
-    id: "rec-4",
-    name: "Dahlia Dawn",
-    username: "dahlia_d",
-    initial: "DD",
-    color: "#FFF9C4",
-    textColor: "#F57F17",
-    bank: "Deluxe Ch - AUD Account",
-    isRecent: true,
-  },
-  {
-    id: "rec-5",
-    name: "Maya Sari",
-    username: "maya_s",
-    initial: "MS",
-    color: "#F3E5F5",
-    textColor: "#7B1FA2",
-    bank: "Bank Mandiri - IDR Account",
-    isRecent: false,
-  },
-  {
-    id: "rec-6",
-    name: "Ravi Kumar",
-    username: "ravi_k",
-    initial: "RK",
-    color: "#E1F5FE",
-    textColor: "#0288D1",
-    bank: "HDFC Bank - INR Account",
-    isRecent: false,
-  },
-  {
-    id: "rec-7",
-    name: "Sarah Jenkins",
-    username: "sarah_j",
-    initial: "SJ",
-    color: "#E8F8F5",
-    textColor: "#2ECC71",
-    bank: "Citibank - USD Account",
-    isRecent: false,
-  },
-];
-
-export const DEFAULT_TRANSACTIONS = [
-  {
-    id: "tx-1",
-    title: "Salary (Tally Corp)",
-    amount: 3000.0,
-    category: "Income",
-    type: "income",
-    date: "2024-05-01",
-  },
-  {
-    id: "tx-2",
-    title: "Freelance Design",
-    amount: 450.0,
-    category: "Income",
-    type: "income",
-    date: "2024-05-15",
-  },
-  {
-    id: "tx-3",
-    title: "Rent & Electricity",
-    amount: 323.75,
-    category: "Bills & Utilities",
-    type: "expense",
-    date: "2024-05-02",
-  },
-  {
-    id: "tx-4",
-    title: "Organic Groceries",
-    amount: 404.32,
-    category: "Food & Dining",
-    type: "expense",
-    date: "2024-05-04",
-  },
-  {
-    id: "tx-5",
-    title: "Sake Bar Dinner",
-    amount: 200.0,
-    category: "Food & Dining",
-    type: "expense",
-    date: "2024-05-12",
-  },
-  {
-    id: "tx-6",
-    title: "Metro Transit Pass",
-    amount: 150.0,
-    category: "Transport",
-    type: "expense",
-    date: "2024-05-05",
-  },
-  {
-    id: "tx-7",
-    title: "Uber Trips Weekend",
-    amount: 281.66,
-    category: "Transport",
-    type: "expense",
-    date: "2024-05-18",
-  },
-  {
-    id: "tx-8",
-    title: "Virtual Reality Headset",
-    amount: 300.0,
-    category: "Shopping",
-    type: "expense",
-    date: "2024-05-09",
-  },
-  {
-    id: "tx-9",
-    title: "Target Clothing Store",
-    amount: 88.49,
-    category: "Shopping",
-    type: "expense",
-    date: "2024-05-24",
-  },
-  {
-    id: "tx-10",
-    title: "Cinema Tickets",
-    amount: 60.0,
-    category: "Entertainment",
-    type: "expense",
-    date: "2024-05-14",
-  },
-  {
-    id: "tx-11",
-    title: "Concert Live Show",
-    amount: 155.83,
-    category: "Entertainment",
-    type: "expense",
-    date: "2024-05-28",
-  },
-  {
-    id: "tx-12",
-    title: "Cloud Hosting Sub",
-    amount: 50.0,
-    category: "Others",
-    type: "expense",
-    date: "2024-05-10",
-  },
-  {
-    id: "tx-13",
-    title: "Pharmacy Checkup",
-    amount: 144.25,
-    category: "Others",
-    type: "expense",
-    date: "2024-05-20",
-  },
-  {
-    id: "tx-14",
-    title: "Whole Foods Market",
-    amount: 154.2,
-    category: "Food & Dining",
-    type: "expense",
-    date: "2024-05-06",
-  },
-  {
-    id: "tx-15",
-    title: "Gas Station Fuel",
-    amount: 45.0,
-    category: "Transport",
-    type: "expense",
-    date: "2024-05-08",
-  },
-  {
-    id: "tx-16",
-    title: "Amazon Gadgets",
-    amount: 120.5,
-    category: "Shopping",
-    type: "expense",
-    date: "2024-05-11",
-  },
-  {
-    id: "tx-17",
-    title: "Electricity & Gas Bill",
-    amount: 110.0,
-    category: "Bills & Utilities",
-    type: "expense",
-    date: "2024-05-13",
-  },
-  {
-    id: "tx-18",
-    title: "Netflix Subscription",
-    amount: 15.49,
-    category: "Bills & Utilities",
-    type: "expense",
-    date: "2024-05-15",
-  },
-  {
-    id: "tx-19",
-    title: "Spotify Premium",
-    amount: 10.99,
-    category: "Bills & Utilities",
-    type: "expense",
-    date: "2024-05-15",
-  },
-  {
-    id: "tx-20",
-    title: "Local Bakery Bread",
-    amount: 12.3,
-    category: "Food & Dining",
-    type: "expense",
-    date: "2024-05-17",
-  },
-  {
-    id: "tx-21",
-    title: "Dinner with Parents",
-    amount: 185.0,
-    category: "Food & Dining",
-    type: "expense",
-    date: "2024-05-19",
-  },
-  {
-    id: "tx-22",
-    title: "Zara Summer Collection",
-    amount: 210.0,
-    category: "Shopping",
-    type: "expense",
-    date: "2024-05-21",
-  },
-  {
-    id: "tx-23",
-    title: "Pharmacy Meds",
-    amount: 35.6,
-    category: "Others",
-    type: "expense",
-    date: "2024-05-22",
-  },
-  {
-    id: "tx-24",
-    title: "Gym Membership",
-    amount: 80.0,
-    category: "Others",
-    type: "expense",
-    date: "2024-05-01",
-  },
-  {
-    id: "tx-25",
-    title: "Uber Eats Friday",
-    amount: 48.9,
-    category: "Food & Dining",
-    type: "expense",
-    date: "2024-05-23",
-  },
-  {
-    id: "tx-26",
-    title: "Train Ticket Citytrip",
-    amount: 35.0,
-    category: "Transport",
-    type: "expense",
-    date: "2024-05-25",
-  },
-  {
-    id: "tx-27",
-    title: "Cinema Popcorn Combo",
-    amount: 22.0,
-    category: "Entertainment",
-    type: "expense",
-    date: "2024-05-27",
-  },
-  {
-    id: "tx-28",
-    title: "Bowling Night Friends",
-    amount: 85.0,
-    category: "Entertainment",
-    type: "expense",
-    date: "2024-05-29",
-  },
-  {
-    id: "tx-29",
-    title: "Birthday Present Dad",
-    amount: 100.0,
-    category: "Shopping",
-    type: "expense",
-    date: "2024-05-30",
-  },
-  {
-    id: "tx-30",
-    title: "Dentist Checkup",
-    amount: 120.0,
-    category: "Others",
-    type: "expense",
-    date: "2024-05-31",
-  },
-  {
-    id: "tx-31",
-    title: "Cash deposit ATM",
-    amount: 200.0,
-    category: "Income",
-    type: "income",
-    date: "2024-05-20",
-  },
-];
-
-export const DEFAULT_BUDGETS = {
-  "Food & Dining": 800,
-  Transport: 700,
-  Shopping: 300,
-  "Bills & Utilities": 500,
-  Entertainment: 300,
-  Others: 250,
-};
-
-export const DEFAULT_SAVINGS_GOALS = [
-  {
-    id: "goal-1",
-    title: "Tim's Birthday",
-    saved: 120,
-    target: 300,
-    percentage: 40,
-    category: "gift",
-  },
-  {
-    id: "goal-2",
-    title: "December Party",
-    saved: 450,
-    target: 800,
-    percentage: 56,
-    category: "party",
-  },
-  {
-    id: "goal-3",
-    title: "New Laptop",
-    saved: 1250,
-    target: 3000,
-    percentage: 42,
-    category: "health",
-  },
-  {
-    id: "goal-4",
-    title: "Vacation Escape",
-    saved: 620,
-    target: 1500,
-    percentage: 41,
-    category: "other",
-  },
-  {
-    id: "goal-5",
-    title: "Home Upgrade",
-    saved: 180,
-    target: 500,
-    percentage: 36,
-    category: "gift",
-  },
-  {
-    id: "goal-6",
-    title: "Emergency Fund",
-    saved: 950,
-    target: 2000,
-    percentage: 48,
-    category: "health",
-  },
-];
-
 export interface NotificationItem {
   id: string;
   type: "transaction" | "alert" | "insight" | "bill" | "system";
@@ -439,46 +57,7 @@ export interface NotificationItem {
   amount?: number;
 }
 
-export const DEFAULT_NOTIFICATIONS: NotificationItem[] = [
-  {
-    id: "notif-1",
-    type: "alert",
-    title: "Budget Warning!",
-    description:
-      "You have used 85% of your 'Food & Dining' budget for this month. Only ₦90.00 remaining.",
-    timestamp: new Date(Date.now() - 10 * 60 * 1000).toISOString(),
-    isUnread: true,
-    route: "/budgetspending",
-  },
-  {
-    id: "notif-2",
-    type: "insight",
-    title: "Weekly Smart Insight",
-    description:
-      "Nice job! You spent 12% less on shopping this week compared to your baseline.",
-    timestamp: new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString(),
-    isUnread: true,
-    route: "/insightssum",
-  },
-  {
-    id: "notif-3",
-    type: "bill",
-    title: "Upcoming Subscription",
-    description:
-      "Your Adobe Creative Cloud subscription (₦54.99) is scheduled for automatic renewal.",
-    timestamp: new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString(),
-    isUnread: false,
-  },
-  {
-    id: "notif-4",
-    type: "system",
-    title: "Security Update",
-    description:
-      "Your budgeting account credentials were confirmed and secured.",
-    timestamp: new Date(Date.now() - 4 * 24 * 60 * 60 * 1000).toISOString(),
-    isUnread: false,
-  },
-];
+
 
 let globalIsAuthenticated = false;
 
@@ -492,17 +71,26 @@ const setGlobalAuth = (status: boolean) => {
   authListeners.forEach((listener) => listener(status));
 };
 
+subscribeSessionExpired(() => {
+  clearProfileSession(true);
+  clearTransactionFeed();
+  setGlobalAuth(false);
+});
+
+setWalletOwner(getProfileSnapshot().scope);
+setNotificationOwner(getProfileSnapshot().scope);
+subscribeProfile(() => { setWalletOwner(getProfileSnapshot().scope); setNotificationOwner(getProfileSnapshot().scope); });
+
 export function useAppStore() {
-  const [budgetWallet, setBudgetWallet] = useState<Wallet | null>(getWalletSnapshot);
+  const [savedBudgetWallet, setBudgetWallet] = useState<Wallet | null>(getWalletSnapshot);
   const [budgetError, setBudgetError] = useState<string | null>(null);
-  const [localTransactions, setLocalTransactions] = useState<any[]>([]);
   const transactionFeed = useSyncExternalStore(subscribeTransactionFeed, getTransactionFeedSnapshot, getTransactionFeedSnapshot);
-  const [notifications, setNotifications] = useState<NotificationItem[]>([]);
-  const [notificationsLoading, setNotificationsLoading] = useState(true);
-  const [notificationsError, setNotificationsError] = useState<string | null>(null);
-  const [budgets, setBudgets] = useState<Record<string, number>>({});
-  const [savingsGoals, setSavingsGoals] = useState<any[]>([]);
+  const inbox = useSyncExternalStore(subscribeNotifications, getNotifications, getNotifications);
+  const notifications = inbox.items, notificationsLoading = inbox.loading, notificationsError = inbox.error;
   const accountProfile = useSyncExternalStore(subscribeProfile, getProfileSnapshot, getProfileSnapshot);
+  const budgetWallet = savedBudgetWallet?.userId === accountProfile.scope ? savedBudgetWallet : null;
+  const budgets = Object.fromEntries((budgetWallet?.budgets || []).map(b => [b.category, b.allocatedAmount / 100]));
+  const savingsGoals = budgetWallet?.savings || [];
   const { fullName: profileFullName, phoneNumber: profilePhoneNumber, email: profileEmail,
     gender: profileGender, dob: profileDob, address: profileAddress,
     avatarUrl: profileImage } = accountProfile.profile;
@@ -520,14 +108,8 @@ export function useAppStore() {
       : darkModePreference;
 
   const theme = useVisualTheme(getThemePalette(themePreference, themeMode));
-  const transactions = useMemo(() => transactionFeed.state === "ready"
-    ? mergeTransactionFeed(transactionFeed.transactions, localTransactions, DEFAULT_TRANSACTIONS)
-    : localTransactions, [transactionFeed, localTransactions]);
-  const trackedBudgetSpending = useMemo(() => {
-    if (!budgetWallet) return {};
-    const feedSpend = spendingByBudget(transactions, budgetWallet.budgets);
-    return Object.fromEntries(budgetWallet.budgets.map(budget => [budget.id, Math.max(feedSpend[budget.id] || 0, budget.spentAmount)]));
-  }, [transactions, budgetWallet]);
+  const transactions = transactionFeed.owner === accountProfile.scope ? transactionFeed.transactions : [];
+  const trackedBudgetSpending = Object.fromEntries((budgetWallet?.budgets || []).map(b => [b.id, b.spentAmount]));
 
   const [tabBarOpacity, setTabBarOpacityState] = useState(globalTabBarOpacity);
   useEffect(() => {
@@ -548,20 +130,7 @@ export function useAppStore() {
     return () => { active = false; };
   }, [accountProfile.scope]);
 
-  const [savedCards, setSavedCards] = useState<any[]>([
-    {
-      id: "card-1",
-      brand: "Visa",
-      last4: "5682",
-      holder: "EBUKA",
-    },
-    {
-      id: "card-2",
-      brand: "Mastercard",
-      last4: "1123",
-      holder: "EBUKA",
-    },
-  ]);
+  const [savedCards, setSavedCards] = useState<any[]>([]);
 
   const [onboardingGoals, setOnboardingGoalsState] = useState<string[]>([]);
   const [employmentStatus, setEmploymentStatusState] = useState<string | null>(
@@ -574,20 +143,24 @@ export function useAppStore() {
 
   useEffect(() => subscribeWallet((wallet) => {
     setBudgetWallet(wallet);
-    setLocalTransactions(wallet.transactions);
     setBudgetError(null);
   }), []);
 
-  const reloadBudgetWallet = useCallback(async () => {
+  const reloadBudgetWallet = useCallback(async (force = true) => {
+    const owner = getProfileSnapshot().scope;
+    if (!owner) { setBudgetWallet(null); return; }
     try {
-      const wallet = await loadWallet(DEFAULT_TRANSACTIONS);
+      const wallet = await loadWallet([], force);
+      if (owner !== getProfileSnapshot().scope) return;
       setBudgetWallet(wallet);
-      setLocalTransactions(wallet.transactions);
       setBudgetError(null);
     } catch (error) {
+      if (owner !== getProfileSnapshot().scope) return;
       setBudgetError(error instanceof Error ? error.message : 'Could not load your budgets.');
     }
   }, []);
+
+  useEffect(() => { void reloadBudgetWallet(false); }, [accountProfile.scope, reloadBudgetWallet]);
 
   useEffect(() => {
     authListeners.push(setIsAuthenticated);
@@ -599,39 +172,13 @@ export function useAppStore() {
     };
   }, []);
 
-const loadStoredNotifications = useCallback(async () => {
-    setNotificationsLoading(true);
-    setNotificationsError(null);
-    try {
-      const stored = await AsyncStorage.getItem("ts_notifications");
-      if (stored === null) {
-        await AsyncStorage.setItem("ts_notifications", JSON.stringify(DEFAULT_NOTIFICATIONS));
-        setNotifications(DEFAULT_NOTIFICATIONS);
-        return;
-      }
-      const parsed: unknown = JSON.parse(stored);
-      if (!Array.isArray(parsed) || parsed.some(item => !item || typeof item.id !== "string"
-        || !["transaction", "alert", "insight", "bill", "system"].includes(item.type)
-        || typeof item.title !== "string" || typeof item.description !== "string"
-        || typeof item.timestamp !== "string" || typeof item.isUnread !== "boolean")) {
-        throw new Error("Invalid saved notification data");
-      }
-      setNotifications(parsed as NotificationItem[]);
-    } catch {
-      setNotifications([]);
-      setNotificationsError("Could not load your saved notifications.");
-    } finally {
-      setNotificationsLoading(false);
-    }
-  }, []);
+const loadStoredNotifications = useCallback(loadNotifications, []);
 
 const loadData = useCallback(async () => {
     try {
-      await reloadBudgetWallet();
+      await reloadBudgetWallet(false);
 
-      const storedBudgets = await AsyncStorage.getItem("ts_bgts");
 
-      const storedGoals = await AsyncStorage.getItem("ts_goals");
 
       await hydrateAppearance();
 
@@ -661,7 +208,7 @@ const loadData = useCallback(async () => {
       const profile = getProfileSnapshot();
       const storedCustomCategories = profile.scope
         ? await AsyncStorage.getItem(getCustomCategoriesStorageKey(profile.scope)) : null;
-      const storedCards = await AsyncStorage.getItem("ts_cards");
+      const storedCards = profile.scope ? await AsyncStorage.getItem("ts_cards_v2_" + encodeURIComponent(profile.scope)) : null;
       if (storedTabBarOpacity !== null) {
         const parsedOpacity = Number(storedTabBarOpacity);
 
@@ -675,7 +222,7 @@ const loadData = useCallback(async () => {
       setAccessTokenState(profile.token ?? storedAccessToken ?? null);
       setRefreshTokenState(profile.refreshToken ?? storedRefreshToken ?? null);
       // A saved server session returns to the app lock, not the sign-up screen.
-      if (storedAccessToken && profile.scope && getProfileSnapshot().scope === profile.scope && getProfileSnapshot().token) setGlobalAuth(true);
+      if (!sessionHasExpired() && profile.scope && getProfileSnapshot().scope === profile.scope && (getProfileSnapshot().token || getProfileSnapshot().refreshToken)) setGlobalAuth(true);
 
       if (storedCustomCategories && profile.scope === getProfileSnapshot().scope) {
         try {
@@ -689,55 +236,7 @@ const loadData = useCallback(async () => {
         }
       }
 
-      if (storedCards !== null) {
-        try {
-          const parsedCards = JSON.parse(storedCards);
-
-          if (Array.isArray(parsedCards)) {
-            setSavedCards(parsedCards);
-          }
-        } catch (error) {
-          console.warn("Failed to parse stored cards", error);
-        }
-      } else {
-        const defaultCards = [
-          {
-            id: "card-1",
-            brand: "Visa",
-            last4: "5682",
-            holder: "EBUKA",
-          },
-          {
-            id: "card-2",
-            brand: "Mastercard",
-            last4: "1123",
-            holder: "EBUKA",
-          },
-        ];
-
-        await AsyncStorage.setItem("ts_cards", JSON.stringify(defaultCards));
-
-        setSavedCards(defaultCards);
-      }
-
-      if (storedBudgets !== null) {
-        setBudgets(JSON.parse(storedBudgets));
-      } else {
-        await AsyncStorage.setItem("ts_bgts", JSON.stringify(DEFAULT_BUDGETS));
-
-        setBudgets(DEFAULT_BUDGETS);
-      }
-
-      if (storedGoals !== null) {
-        setSavingsGoals(JSON.parse(storedGoals));
-      } else {
-        await AsyncStorage.setItem(
-          "ts_goals",
-          JSON.stringify(DEFAULT_SAVINGS_GOALS),
-        );
-
-        setSavingsGoals(DEFAULT_SAVINGS_GOALS);
-      }
+      setSavedCards(storedCards ? JSON.parse(storedCards) : []);
 
       await loadStoredNotifications();
     } catch (error) {
@@ -764,15 +263,19 @@ const loadData = useCallback(async () => {
       user?: ProfileUser,
       options: { activate?: boolean } = {},
     ) => {
-      if (user) clearProfileSession();
+      if (user) { await beginSession(); clearProfileSession(); }
+      else if (sessionHasExpired()) throw new Error("Your session has expired. Sign in again.");
+      if (accessToken && refreshToken) {
+        const current = await saveSessionTokens({ token: accessToken, refreshToken });
+        accessToken = current.token; refreshToken = current.refreshToken;
+      }
       if (accessToken) {
         setAccessTokenState(accessToken);
-        await AsyncStorage.setItem(ACCESS_TOKEN_STORAGE_KEY, accessToken);
+        if (!refreshToken) await AsyncStorage.setItem(ACCESS_TOKEN_STORAGE_KEY, accessToken);
       }
 
       if (refreshToken) {
         setRefreshTokenState(refreshToken);
-        await AsyncStorage.setItem(REFRESH_TOKEN_STORAGE_KEY, refreshToken);
       } else if (user) {
         setRefreshTokenState(null);
         await AsyncStorage.removeItem(REFRESH_TOKEN_STORAGE_KEY);
@@ -790,6 +293,7 @@ const loadData = useCallback(async () => {
   );
 
   const logout = useCallback(async () => {
+    await expireSession();
     try { await configureSmsReader(false, false, []); await clearPendingSms(); } catch { /* Native SMS reader is Android-only and may not exist in Expo Go. */ }
     await AsyncStorage.multiRemove([SMS_CONSENT_KEY, SMS_ENABLED_KEY, SMS_SENDERS_KEY]);
     clearProfileSession(true);
@@ -852,7 +356,7 @@ const loadData = useCallback(async () => {
   const setProfileEmail = useCallback(async (value: string) => { await updateAccountProfile({ email: value }, undefined, accountProfile.scope); }, [accountProfile.scope]);
   const setProfileGender = useCallback(async (value: string) => { await updateAccountProfile({ gender: value }, undefined, accountProfile.scope); }, [accountProfile.scope]);
   const setProfileDob = useCallback(async (value: string) => { await updateAccountProfile({ dob: value }, undefined, accountProfile.scope); }, [accountProfile.scope]);
-  const setProfileAddress = useCallback(async (value: string) => { await updateAccountProfile({ address: value }, undefined, accountProfile.scope); }, [accountProfile.scope]);
+  const setProfileAddress = useCallback(async (value: ProfileAddress) => { await updateAccountProfile({ address: value }, undefined, accountProfile.scope); }, [accountProfile.scope]);
   const setProfileTallyTag = useCallback(async (value: string) => { await updateAccountProfile({ tallyTag: value.replace(/^@+/, "").trim() }, undefined, accountProfile.scope); }, [accountProfile.scope]);
   const setProfileImage = useCallback(async (value: string | null, name = "profile.jpg", type = "image/jpeg") => {
     if (value) await updateAccountProfile({}, { uri: value, name, type }, accountProfile.scope);
@@ -900,283 +404,36 @@ const loadData = useCallback(async () => {
   // NOTIFICATIONS
   // ---------------------------------------------------------
 
-  const addNotification = useCallback(
-    async (
-      newNotif: Omit<NotificationItem, "id" | "timestamp" | "isUnread"> & {
-        id?: string;
-        timestamp?: string;
-        isUnread?: boolean;
-      },
-    ) => {
-      const notif: NotificationItem = {
-        id: newNotif.id ?? `notif-${Date.now()}`,
-        type: newNotif.type,
-        transactionDirection: newNotif.transactionDirection,
-        title: newNotif.title,
-        description: newNotif.description,
-        timestamp: newNotif.timestamp ?? new Date().toISOString(),
-        isUnread: newNotif.isUnread ?? true,
-        referenceId: newNotif.referenceId,
-        route: newNotif.route,
-        amount: newNotif.amount,
-      };
-
-      setNotifications((prev) => {
-        const next = [notif, ...prev];
-        AsyncStorage.setItem("ts_notifications", JSON.stringify(next));
-        return next;
-      });
-    },
-    [],
-  );
-
-  const markNotificationAsRead = useCallback(async (id: string) => {
-    setNotifications((prev) => {
-      const next = prev.map((n) =>
-        n.id === id ? { ...n, isUnread: false } : n,
-      );
-      AsyncStorage.setItem("ts_notifications", JSON.stringify(next));
-      return next;
-    });
+  const addNotification = useCallback((item: Omit<NotificationItem, "id" | "timestamp" | "isUnread"> & Partial<Pick<NotificationItem, "id" | "timestamp" | "isUnread">>) => {
+    const notification: NotificationItem = { ...item, id: item.id || 'event-' + Date.now(), timestamp: item.timestamp || new Date().toISOString(), isUnread: item.isUnread ?? true };
+    void changeNotifications(items => [notification, ...items.filter(n => n.id !== notification.id)]);
   }, []);
-
-  const markAllNotificationsAsRead = useCallback(async () => {
-    setNotifications((prev) => {
-      const next = prev.map((n) => ({ ...n, isUnread: false }));
-      AsyncStorage.setItem("ts_notifications", JSON.stringify(next));
-      return next;
-    });
-  }, []);
-
-  const deleteNotification = useCallback(async (id: string) => {
-    setNotifications((prev) => {
-      const next = prev.filter((n) => n.id !== id);
-      AsyncStorage.setItem("ts_notifications", JSON.stringify(next));
-      return next;
-    });
-  }, []);
-
-  const clearAllNotifications = useCallback(async () => {
-    setNotifications([]);
-    AsyncStorage.setItem("ts_notifications", JSON.stringify([]));
-  }, []);
-
-  const clearReadNotifications = useCallback(async () => {
-    setNotifications((prev) => {
-      const next = prev.filter((notification) => notification.isUnread);
-      AsyncStorage.setItem("ts_notifications", JSON.stringify(next));
-      return next;
-    });
-  }, []);
+  const markNotificationAsRead = useCallback((id: string) => changeNotifications(items => items.map(n => n.id === id ? { ...n, isUnread: false } : n)), []);
+  const markAllNotificationsAsRead = useCallback(() => changeNotifications(items => items.map(n => ({ ...n, isUnread: false }))), []);
+  const deleteNotification = useCallback((id: string) => changeNotifications(items => items.filter(n => n.id !== id)), []);
+  const clearAllNotifications = useCallback(() => changeNotifications(() => []), []);
+  const clearReadNotifications = useCallback(() => changeNotifications(items => items.filter(n => n.isUnread)), []);
 
   // ---------------------------------------------------------
   // TRANSACTIONS
   // ---------------------------------------------------------
 
-  const addTransaction = useCallback(
-    async (newTx: any) => {
-      const tx = {
-        ...newTx,
-        id: newTx.id ?? `tx-${Date.now()}`,
-      };
-
-      try {
-        await loadWallet(DEFAULT_TRANSACTIONS);
-        const before = getWalletSnapshot();
-        const after = await saveWalletTransaction(tx);
-        if (before === after) return true;
-      } catch (error) {
-        Alert.alert('Transaction not saved', error instanceof Error ? error.message : 'Please try again.');
-        return false;
-      }
-
-      // Dispatch contextual notification automatically
-      const titleLower = (tx.title || "").toLowerCase();
-      const formattedAmount = `₦${Number(tx.amount || 0).toLocaleString(
-        undefined,
-        {
-          minimumFractionDigits: 2,
-          maximumFractionDigits: 2,
-        },
-      )}`;
-
-      let notifTitle = "Transaction Recorded";
-      let notifDesc = `${formattedAmount} was recorded under ${tx.category || "Expenses"}.`;
-      let notifType: NotificationItem["type"] = "transaction";
-      let notifRoute = `/transaction-details?id=${tx.id}`;
-
-      if (tx.type === "income") {
-        notifTitle = "Wallet Deposit Received";
-        notifDesc = `${formattedAmount} was credited to your Tally wallet successfully.`;
-      } else if (titleLower.includes("transfer to")) {
-        notifTitle = "Transfer Successful";
-        notifDesc = `Your transfer of ${formattedAmount} was processed and sent.`;
-      } else if (titleLower.includes("withdraw")) {
-        notifTitle = "Withdrawal Initiated";
-        notifDesc = `Your withdrawal of ${formattedAmount} to your bank account is underway.`;
-      }
-
-      if (tx.demo) {
-        notifTitle = "Demo transaction recorded";
-        notifDesc = `${formattedAmount} was saved to your demo wallet. No bank transfer was made.`;
-      }
-
-      addNotification({
-        type: notifType,
-        transactionDirection: tx.type === "income" ? "incoming" : "outgoing",
-        title: notifTitle,
-        description: notifDesc,
-        referenceId: tx.id,
-        route: notifRoute,
-        amount: Number(tx.amount || 0),
-      });
+  const addTransaction = useCallback(async (tx: any) => {
+    try {
+      const record = await saveWalletTransaction(tx);
+      await reloadTransactions(true);
+      addNotification({ type: 'transaction', title: 'Transaction recorded', description: 'Your manual entry was saved. No wallet money was moved.', referenceId: record.id, route: '/transaction-details?id=' + record.id });
       return true;
-    },
-    [addNotification],
-  );
-
-  const deleteTransaction = useCallback(async (id: string) => {
-    await deleteWalletTransaction(id);
-  }, []);
-
-  const updateTransaction = useCallback(async (updatedTx: any) => {
-    await saveWalletTransaction(updatedTx);
-  }, []);
-
-  const updateBudget = useCallback(async (category: string, limit: number) => {
-    setBudgets((prev) => {
-      const next = {
-        ...prev,
-        [category]: limit,
-      };
-
-      AsyncStorage.setItem("ts_bgts", JSON.stringify(next));
-
-      return next;
-    });
-  }, []);
-
-  const deleteBudget = useCallback(async (category: string) => {
-    setBudgets((prev) => {
-      const next = { ...prev };
-
-      delete next[category];
-
-      AsyncStorage.setItem("ts_bgts", JSON.stringify(next));
-
-      return next;
-    });
-  }, []);
-
-  const addSavingsGoal = useCallback(async (newGoal: any) => {
-    const goal = {
-      ...newGoal,
-      id: `goal-${Date.now()}`,
-      percentage:
-        newGoal.target > 0
-          ? Math.min(100, Math.round((newGoal.saved / newGoal.target) * 100))
-          : 0,
-    };
-
-    setSavingsGoals((prev) => {
-      const next = [...prev, goal];
-
-      AsyncStorage.setItem("ts_goals", JSON.stringify(next));
-
-      return next;
-    });
-  }, []);
-
-  const deleteSavingsGoal = useCallback(async (id: string) => {
-    setSavingsGoals((prev) => {
-      const next = prev.filter((goal) => goal.id !== id);
-
-      AsyncStorage.setItem("ts_goals", JSON.stringify(next));
-
-      return next;
-    });
-  }, []);
-
-  const updateSavingsGoal = useCallback(
-    async (id: string, saved: number, target: number) => {
-      setSavingsGoals((prev) => {
-        const next = prev.map((goal) => {
-          if (goal.id === id) {
-            return {
-              ...goal,
-              saved,
-              target,
-              percentage:
-                target > 0
-                  ? Math.min(100, Math.round((saved / target) * 100))
-                  : 0,
-            };
-          }
-
-          return goal;
-        });
-
-        AsyncStorage.setItem("ts_goals", JSON.stringify(next));
-
-        return next;
-      });
-    },
-    [],
-  );
-
-  const resetData = useCallback(async () => {
-    const defaultCards = [
-      {
-        id: "card-1",
-        brand: "Visa",
-        last4: "5682",
-        holder: "EBUKA",
-      },
-      {
-        id: "card-2",
-        brand: "Mastercard",
-        last4: "1123",
-        holder: "EBUKA",
-      },
-    ];
-
-    await resetWallet(DEFAULT_TRANSACTIONS);
-
-    await AsyncStorage.setItem("ts_bgts", JSON.stringify(DEFAULT_BUDGETS));
-
-    await AsyncStorage.setItem(
-      "ts_goals",
-      JSON.stringify(DEFAULT_SAVINGS_GOALS),
-    );
-
-    await AsyncStorage.setItem("ts_username", "ebuka");
-
-    await setDarkModePreference("system");
-    await setThemePreference("aurora");
-
-    await AsyncStorage.removeItem("ts_theme_is_customized");
-
-    await AsyncStorage.setItem("ts_cards", JSON.stringify(defaultCards));
-
-    await AsyncStorage.setItem(
-      getCustomCategoriesStorageKey("ebuka"),
-      JSON.stringify([]),
-    );
-
-    setLocalTransactions(DEFAULT_TRANSACTIONS);
-
-    setBudgets(DEFAULT_BUDGETS);
-
-    setSavingsGoals(DEFAULT_SAVINGS_GOALS);
-
-
-
-
-
-    setSavedCards(defaultCards);
-
-    setCustomCategoriesState([]);
-  }, []);
+    } catch (error) { Alert.alert('Transaction not confirmed', error instanceof Error ? error.message : 'Refresh history before trying again.'); return false; }
+  }, [reloadTransactions, addNotification]);
+  const deleteTransaction = useCallback(async (id: string) => { await deleteWalletTransaction(id); await reloadTransactions(true); }, [reloadTransactions]);
+  const updateTransaction = useCallback(async (_tx: any) => { throw new Error('Editing transactions is not supported yet.'); }, []);
+  const updateBudget = useCallback(async (category: string, limit: number) => runBudgetCommand({ type: 'allocate', allocations: [{ name: category, category, amount: Math.round(limit * 100), startDate: new Date().toISOString().slice(0, 10) }] }, operationId()), []);
+  const deleteBudget = useCallback(async (_category: string) => { throw new Error('Deleting budgets is not supported yet.'); }, []);
+  const addSavingsGoal = useCallback(async (goal: any) => runPlanCommand({ type: 'create-savings', name: goal.title, kind: 'personal', target: Math.round(goal.target * 100), initial: 0, unlockDate: '', owner: '', tags: [] }, operationId()), []);
+  const deleteSavingsGoal = useCallback(async (id: string) => runPlanCommand({ type: 'archive-savings', id }, operationId()), []);
+  const updateSavingsGoal = useCallback(async (_id: string, _saved: number, _target: number) => { throw new Error('Use Record contribution on the savings goal.'); }, []);
+  const resetData = useCallback(async () => { await resetWallet([]); await reloadTransactions(true); }, [reloadTransactions]);
 
   return {
     availableBalance: budgetWallet ? totals(budgetWallet).available / 100 : 0,
@@ -1184,8 +441,9 @@ const loadData = useCallback(async () => {
     budgetError,
     reloadBudgetWallet,
     transactions,
-    transactionFeedState: transactionFeed.state,
-    transactionFeedError: transactionFeed.error,
+    transactionFeedState: transactionFeed.owner === accountProfile.scope ? transactionFeed.state : "idle" as const,
+    transactionFeedError: transactionFeed.owner === accountProfile.scope ? transactionFeed.error : null,
+    excludedSandboxTransactionCount: transactionFeed.owner === accountProfile.scope ? transactionFeed.excludedSandboxCount : 0,
     refreshTransactions: reloadTransactions,
     trackedBudgetSpending,
     budgets,
@@ -1247,6 +505,7 @@ const loadData = useCallback(async () => {
     profileDob,
     setProfileDob,
     profileAddress,
+    profileAddressDetails: accountProfile.profile.addressDetails,
     setProfileAddress,
     profileTallyTag,
     setProfileTallyTag,

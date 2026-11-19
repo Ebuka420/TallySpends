@@ -1,6 +1,6 @@
 import type { Transaction } from "../budget/ledger";
 import type { AuthenticatedBankRequest } from "../banking/backend";
-import { getTransactions } from "./api";
+import { getPersonalTransactionFeed } from "./api";
 
 export type TransactionFeedState = "idle" | "loading" | "ready" | "error";
 export type TransactionFeedSnapshot = {
@@ -9,9 +9,10 @@ export type TransactionFeedSnapshot = {
   transactions: Transaction[];
   error: string | null;
   refreshedAt: number | null;
+  excludedSandboxCount: number;
 };
 
-const empty: TransactionFeedSnapshot = { owner: null, state: "idle", transactions: [], error: null, refreshedAt: null };
+const empty: TransactionFeedSnapshot = { owner: null, state: "idle", transactions: [], error: null, refreshedAt: null, excludedSandboxCount: 0 };
 let snapshot = empty;
 let generation = 0;
 let inFlight: { owner: string; generation: number; promise: Promise<Transaction[]> } | null = null;
@@ -38,7 +39,7 @@ export async function refreshTransactionFeed(owner: string, request: Authenticat
   if (snapshot.owner !== owner) {
     generation++;
     inFlight = null;
-    publish({ owner, state: "loading", transactions: [], error: null, refreshedAt: null });
+    publish({ ...empty, owner, state: "loading" });
   }
   while (inFlight?.owner === owner) {
     if (!force) return inFlight.promise;
@@ -50,9 +51,9 @@ export async function refreshTransactionFeed(owner: string, request: Authenticat
 
   const currentGeneration = generation;
   publish({ ...snapshot, owner, state: "loading", error: null });
-  const promise = getTransactions(request).then(transactions => {
+  const promise = getPersonalTransactionFeed(request).then(({ transactions, excludedSandboxCount }) => {
     if (generation !== currentGeneration || snapshot.owner !== owner) throw new Error("Your account changed while transactions were loading. Please refresh again.");
-    publish({ owner, state: "ready", transactions, error: null, refreshedAt: Date.now() });
+    publish({ owner, state: "ready", transactions, excludedSandboxCount, error: null, refreshedAt: Date.now() });
     return transactions;
   }).catch(error => {
     if (generation === currentGeneration && snapshot.owner === owner) {

@@ -59,6 +59,9 @@ const BANK_ALIASES: Record<string, string> = {
   fcmb: "first-city-monument-bank", stanbicibtc: "stanbic-ibtc-bank", zenith: "zenith-bank",
   zenithbankplc: "zenith-bank", fidelity: "fidelity-bank", wema: "wema-bank", unionbank: "union-bank-of-nigeria",
   ecobank: "ecobank-nigeria", kuda: "kuda-bank", moniepoint: "moniepoint-mfb-ng", opay: "paycom",
+  opaypaycom: "paycom", opaydigitalserviceslimited: "paycom", opaymicrofinancebank: "paycom",
+  opaymicrofinancebanklimited: "paycom",
+  palmpaylimited: "palmpay", palmpayltd: "palmpay",
 };
 export function resolveBank(identity: BankIdentity): NigerianBank | undefined {
   // Preserve leading zeros in Nigerian bank codes. Provider IDs are matched

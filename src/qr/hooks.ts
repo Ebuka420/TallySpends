@@ -33,14 +33,14 @@ export function usePaymentIdentity() {
   useFocusEffect(useCallback(() => {
     let active = true;
     setIdentity(null); setError(null); setLoading(true);
-    const local = client.ready ? accountQrIdentity(profile.scope, store.profileFullName, store.profileTallyTag) : null;
+    const local = client.ready ? accountQrIdentity(profile.profile.paymentId, store.profileFullName, store.profileTallyTag) : null;
     if (local) { setIdentity(local); setIdentityScope(profile.scope); setLoading(false); }
     else if (client.ready) void client.run(qrApi.identity).then(result => { if (active) { setIdentity(result); setIdentityScope(profile.scope); } })
       .catch(error => { if (active) setError(error instanceof Error ? error.message : "Your personal QR is not available yet. Please try again later."); })
       .finally(() => { if (active) setLoading(false); });
     else if (!store.loading) { setError("Sign in to generate your personal QR."); setLoading(false); }
     return () => { active = false; client.cancel(); };
-  }, [client.run, client.cancel, client.ready, profile.scope, store.profileFullName, store.profileTallyTag, store.loading, revision]));
+  }, [client.run, client.cancel, client.ready, profile.scope, profile.profile.paymentId, store.profileFullName, store.profileTallyTag, store.loading, revision]));
   const retry = useCallback(() => {
     // Refresh the real profile/session state as well as retrying the QR adapter.
     // Repository refresh retains the authenticated owner and handles token expiry.

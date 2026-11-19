@@ -29,7 +29,7 @@ const actions = [
   },
   {
     title: "My savings",
-    subtitle: "Track goals and lock money aside.",
+    subtitle: "Record progress towards your goals.",
     icon: "wallet-outline" as const,
     route: "/savingsprogress",
   },
@@ -100,14 +100,14 @@ export default function BudgetScreen() {
               ]}
             >
               <Text style={[s.overviewCopy, { color: theme.textSecondary }]}>
-                AVAILABLE TO PLAN
+                WALLET BALANCE
               </Text>
               <Text style={[s.title, { color: theme.textPrimary }]}>
                 {money(summary.available)}
               </Text>
               <BudgetCopy theme={theme}>
                 {money(summary.remaining)} in budgets ·{" "}
-                {money(reservedSavings(wallet))} in savings
+                {money(reservedSavings(wallet))} recorded in savings trackers
               </BudgetCopy>
             </View></TutorialTarget>
           )
@@ -152,8 +152,8 @@ export default function BudgetScreen() {
         onClose={() => setCreate(false)}
       >
         {[
-          { title: "My budget", icon: "pie-chart-outline" as const, text: "1. Open My budget and tap Add.\n2. Name a category and set aside an amount.\n3. Record spending and keep an eye on what is left." },
-          { title: "My savings", icon: "wallet-outline" as const, text: "1. Choose a personal or joint goal.\n2. Set your target and unlock date.\n3. Add money as you go and withdraw once it unlocks." },
+          { title: "My budget", icon: "pie-chart-outline" as const, text: "1. Set your monthly budget.\n2. Choose category limits.\n3. Track expenses against those limits." },
+          { title: "My savings", icon: "wallet-outline" as const, text: "1. Create a personal goal.\n2. Set a target.\n3. Record contributions made outside the app. No money is locked." },
           { title: "Ajo Circles", icon: "people-outline" as const, text: "1. Create a circle and add your people.\n2. Agree on contributions, dates and payout order.\n3. Record payments made outside Tally and follow each turn." },
         ].map(item => <View key={item.title} style={{ gap: 8, paddingVertical: 10 }}>
           <View style={{ flexDirection: "row", alignItems: "center", gap: 9 }}><Ionicons name={item.icon} size={21} color={theme.accent} /><Text style={[s.cardTitle, { color: theme.textPrimary }]}>{item.title}</Text></View>

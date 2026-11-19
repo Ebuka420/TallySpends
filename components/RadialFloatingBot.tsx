@@ -6,8 +6,6 @@ import { setCoachTutorialAnchor } from "./SmartCoachTutorialLayer";
 import { SmartCoachSheet } from "./SmartCoachSheet";
 import type { CoachAction } from "../src/coach/menu";
 import { useRouter } from "expo-router";
-import { completeTransaction } from "../src/transactionCompletion";
-import { useTransferAction } from "./TransferUI";
 import { AmountInput, BudgetButton } from "./BudgetUI";
 import { Ionicons } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
@@ -20,10 +18,8 @@ type ActionMode = CoachAction;
 const CATEGORY_OPTIONS = ["Food & Dining", "Groceries", "Shopping", "Transport", "Bills & Utilities", "Entertainment", "Others"];
 export default function RadialFloatingBot() {
   const router = useRouter();
-  const transactionAction = useTransferAction();
   const {
-    themeMode,
-    addTransaction
+    themeMode
   } = useAppStore();
   const theme = useThemeTokens();
   const isDark = themeMode === "dark";
@@ -50,6 +46,7 @@ export default function RadialFloatingBot() {
   const [ocrConfidence, setOcrConfidence] = useState<number | null>(null);
   const handleTriggerAction = useCallback((mode: ActionMode) => {
     Keyboard.dismiss();
+    if (mode === "add") { router.push("/manual-transaction"); return; }
     setActiveModal(mode);
     if (mode === "scan") {
       setScannedImageUri(null);
@@ -58,31 +55,13 @@ export default function RadialFloatingBot() {
       setScannedItems([]);
       setOcrConfidence(null);
     }
-  }, []);
+  }, [router]);
   /* ================================================================
       MODAL SUBMISSIONS
   ================================================================= */
-  const handleAddExpenseSubmit = async () => {
-    const parsed = parseFloat(expenseAmount);
-    if (!expenseName.trim() || isNaN(parsed) || parsed <= 0) {
-      Alert.alert("Invalid Input", "Please enter a valid expense name and amount.");
-      return;
-    }
-    const transaction = {
-      id: `tx-${Date.now()}`,
-      title: expenseName.trim(),
-      amount: parsed,
-      category: expenseCategory || "Others",
-      type: "expense",
-      date: new Date().toISOString().slice(0, 10)
-    };
-    await transactionAction.run(() => addTransaction(transaction), () => {
-      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-      setExpenseName("");
-      setExpenseAmount("");
-      setActiveModal(null);
-      completeTransaction(router, transaction.id);
-    });
+  const handleAddExpenseSubmit = () => {
+    setActiveModal(null);
+    router.push({ pathname: '/manual-transaction', params: { amount: expenseAmount, description: expenseName, category: expenseCategory } });
   };
   const handleCalculatorInput = (val: string) => {
     if (calculatorHasResult) {
@@ -228,40 +207,21 @@ export default function RadialFloatingBot() {
       Alert.alert("Gallery Error", e.message || "Could not select image.");
     }
   };
-  const handleSaveScannedReceipt = async () => {
-    const parsed = parseFloat(scannedAmount);
-    const merchantName = scannedMerchant.trim() || "Receipt Expense";
-    if (isNaN(parsed) || parsed <= 0) {
-      Alert.alert("Enter Amount", "Please enter the total receipt amount.");
+  const handleSaveScannedReceipt = () => {
+    if (!Number.isFinite(Number(scannedAmount)) || Number(scannedAmount) <= 0) {
+      Alert.alert('Enter Amount', 'Please enter the total receipt amount.');
       return;
     }
-    const transaction = {
-      id: `tx-${Date.now()}`,
-      title: merchantName,
-      amount: parsed,
-      category: scannedCategory || "Food & Dining",
-      type: "expense",
-      date: scannedDate || new Date().toISOString().slice(0, 10),
-      receiptImage: scannedImageUri || undefined
-    };
-    await transactionAction.run(() => addTransaction(transaction), () => {
-      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-      setActiveModal(null);
-      setScannedImageUri(null);
-      setScannedMerchant("");
-      setScannedAmount("");
-      setScannedItems([]);
-      setOcrConfidence(null);
-      completeTransaction(router, transaction.id);
-    });
+    setActiveModal(null);
+    router.push({ pathname: '/manual-transaction', params: { amount: scannedAmount, description: scannedMerchant, category: scannedCategory, date: scannedDate, fromReceipt: 'true' } });
   };
   const CALCULATOR_BUTTONS = [["C", "÷", "×", "⌫"], ["7", "8", "9", "−"], ["4", "5", "6", "+"], ["1", "2", "3", "="], ["0", ".", "", ""]];
   return <>
       <CoachActionMenu theme={theme} dark={isDark} onAction={handleTriggerAction} onTutorialPosition={(x, y) => setCoachTutorialAnchor(x, y)} />
       <SmartCoachSheet visible={activeModal === "coach"} theme={theme} dark={isDark} onClose={() => setActiveModal(null)} />
       <CoachToolSheet visible={activeModal === "add" || activeModal === "calc" || activeModal === "scan"} theme={theme} icon={activeModal === "add" ? "add-outline" : activeModal === "calc" ? "calculator-outline" : "scan-outline"} title={activeModal === "add" ? "Add an expense" : activeModal === "calc" ? "Calculator" : scannedImageUri ? "Review your receipt" : "Scan a receipt"} subtitle={activeModal === "add" ? "Keep the little things accounted for." : activeModal === "calc" ? "Work it out, then add it to your spending." : scannedImageUri ? "A quick check before you save." : "Turn a paper receipt into a spending record."} onClose={() => {
-      if (!transactionAction.busy) setActiveModal(null);
-    }} footer={activeModal === "add" ? <><BudgetButton theme={theme} title={transactionAction.busy ? "Saving…" : "Save expense"} disabled={transactionAction.busy || !expenseName.trim() || !(Number(expenseAmount) > 0)} onPress={handleAddExpenseSubmit} /><Text style={[styles.footnote, {
+      setActiveModal(null);
+    }} footer={activeModal === "add" ? <><BudgetButton theme={theme} title="Review transaction" disabled={!expenseName.trim() || !(Number(expenseAmount) > 0)} onPress={handleAddExpenseSubmit} /><Text style={[styles.footnote, {
         color: theme.textSecondary
       }]}>Only record expenses that aren't already in your history.</Text></> : activeModal === "calc" ? <BudgetButton theme={theme} title="Use as expense amount" disabled={!calculatorHasResult || !(Number(calculatorResult) > 0)} onPress={() => {
       setExpenseAmount(calculatorResult);
@@ -310,11 +270,6 @@ export default function RadialFloatingBot() {
               fontSize: 12,
               fontWeight: "600"
             }}>{category}</Text>{expenseCategory === category && <Ionicons name="checkmark" color={theme.accent} size={14} />}</Pressable>)}</View>
-        {!!transactionAction.error && <Text accessibilityLiveRegion="polite" style={{
-          color: theme.danger,
-          fontSize: 12,
-          lineHeight: 18
-        }}>{transactionAction.error}</Text>}
       </>}
         {activeModal === "calc" && <>
                     <View style={[styles.calculatorDisplay, {
@@ -611,10 +566,10 @@ export default function RadialFloatingBot() {
 
                   <TouchableOpacity style={[styles.submitBtn, {
             backgroundColor: theme.accent
-          }]} disabled={transactionAction.busy} onPress={handleSaveScannedReceipt} activeOpacity={0.85}>
+          }]} onPress={handleSaveScannedReceipt} activeOpacity={0.85}>
                     <Ionicons name="checkmark-circle-outline" size={20} color="#FFFFFF" />
                     <Text style={styles.submitBtnText}>
-                      {transactionAction.busy ? "Saving…" : "Save Receipt to Expenses"}
+                      Review transaction details
                     </Text>
                   </TouchableOpacity>
                 </View>}

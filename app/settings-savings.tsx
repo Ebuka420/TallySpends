@@ -1,11 +1,9 @@
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
-import React, { useState } from "react";
+import React from "react";
 import {
-  Alert,
   SafeAreaView,
   StyleSheet,
-  Switch,
   Text,
   TouchableOpacity,
   View,
@@ -17,9 +15,6 @@ export default function SettingsSavingsScreen() {
   const router = useRouter();
   const { theme } = useAppStore();
   const styles = React.useMemo(() => getStyles(theme), [theme]);
-  const [autoSave, setAutoSave] = useState(true);
-  const [roundUps, setRoundUps] = useState(false);
-  const [goalAlerts, setGoalAlerts] = useState(true);
 
   return (
     <SafeAreaView style={styles.container}>
@@ -41,7 +36,7 @@ export default function SettingsSavingsScreen() {
         <View style={styles.heroTextWrap}>
           <Text style={styles.heroTitle}>Savings habits</Text>
           <Text style={styles.heroSubtitle}>
-            Build better savings rhythms with optional automation.
+            Track your savings goals and record contributions to your account.
           </Text>
         </View>
       </View>
@@ -50,23 +45,17 @@ export default function SettingsSavingsScreen() {
         {
           id: "auto",
           title: "Auto-save from income",
-          subtitle: "Automatically move a portion to savings",
-          value: autoSave,
-          onChange: setAutoSave,
+          subtitle: "Automatic transfers are not available yet.",
         },
         {
           id: "round",
           title: "Round-up savings",
-          subtitle: "Save spare change from purchases",
-          value: roundUps,
-          onChange: setRoundUps,
+          subtitle: "Purchase round-ups are not available yet.",
         },
         {
           id: "alerts",
           title: "Goal reminders",
-          subtitle: "Receive nudges when savings goals are near target",
-          value: goalAlerts,
-          onChange: setGoalAlerts,
+          subtitle: "Scheduled goal reminders are not available yet.",
         },
       ].map((item) => (
         <View key={item.id} style={styles.card}>
@@ -74,20 +63,15 @@ export default function SettingsSavingsScreen() {
             <Text style={styles.cardTitle}>{item.title}</Text>
             <Text style={styles.cardSubtitle}>{item.subtitle}</Text>
           </View>
-          <Switch
-            value={item.value}
-            onValueChange={item.onChange}
-            thumbColor={theme.surface}
-            trackColor={{ false: theme.border, true: theme.accent }}
-          />
+          <Text style={{ color: theme.textSecondary, fontSize: 11 }}>Unavailable</Text>
         </View>
       ))}
 
       <TouchableOpacity
         style={styles.primaryAction}
-        onPress={() => Alert.alert("Saved", "Savings settings updated.")}
+        onPress={() => router.push("/savings-lock")}
       >
-        <Text style={styles.primaryActionText}>Save Changes</Text>
+        <Text style={styles.primaryActionText}>View savings goals</Text>
       </TouchableOpacity>
     </SafeAreaView>
   );

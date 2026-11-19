@@ -3,10 +3,10 @@ import { Ionicons } from "@expo/vector-icons";
 import * as Clipboard from "expo-clipboard";
 import * as Haptics from "expo-haptics";
 import { useRouter } from "expo-router";
-import React, { useMemo, useState } from "react";
-import { ActivityIndicator, Alert, FlatList, Modal, Pressable, SafeAreaView, StyleSheet, Text, TouchableOpacity, View } from "react-native";
-import { usePushNotifications } from "../src/hooks/usePushNotifications";
-import { scheduleInstantLocalNotification } from "../src/services/pushNotificationService";
+import React, { useEffect, useMemo, useState } from "react";
+import AsyncStorage from "@react-native-async-storage/async-storage";
+import { ActivityIndicator, Alert, FlatList, Modal, Pressable, SafeAreaView, ScrollView, StyleSheet, Text, TouchableOpacity, View } from "react-native";
+import { scheduleInstantLocalNotification, STORAGE_KEY_PUSH_TOKEN } from "../src/services/pushNotificationService";
 import { type NotificationItem, useAppStore } from "../src/store";
 
 type FilterTab = "all" | "transactions" | "alerts" | "updates";
@@ -36,14 +36,21 @@ export default function NotificationsScreen() {
     markAllNotificationsAsRead, deleteNotification, clearAllNotifications, clearReadNotifications } = store;
   const theme = useThemeTokens();
   const dark = store.themeMode === "dark";
-  const { expoPushToken } = usePushNotifications();
+
+  // Registration and tap routing have one owner in the root layout.
+  const [expoPushToken, setExpoPushToken] = useState<string | null>(null);
+  useEffect(() => {
+    let active = true;
+    void AsyncStorage.getItem(STORAGE_KEY_PUSH_TOKEN).then(token => { if (active) setExpoPushToken(token); }).catch(() => {});
+    return () => { active = false; };
+  }, []);
+
   const [activeFilter, setActiveFilter] = useState<FilterTab>("all");
   const [showMenu, setShowMenu] = useState(false);
-  const [showSimulatorModal, setShowSimulatorModal] = useState(false);
 
   const directionOf = (item: NotificationItem): Direction => {
     if (item.transactionDirection) return item.transactionDirection;
-    const linked = item.referenceId && store.transactions.find((tx: any) => String(tx.id) === item.referenceId);
+    const linked = item.referenceId ? store.transactions.find(tx => tx.id === item.referenceId) : undefined;
     if (linked?.type === "income") return "incoming";
     if (linked?.type === "expense") return "outgoing";
     const copy = `${item.title} ${item.description}`.toLowerCase();
@@ -108,37 +115,6 @@ export default function NotificationsScreen() {
     ]);
   };
 
-  const handleSendTestPush = async (type: NotificationItem["type"]) => {
-    void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
-    setShowSimulatorModal(false);
-    let title: string;
-    let description: string;
-    let route: string | undefined;
-    let direction: Direction;
-    if (type === "transaction") {
-      title = "Money Received";
-      description = "₦15,000.00 was credited to your TallySpends account from @chioma_k.";
-      route = "/(tabs)/expenses";
-      direction = "incoming";
-    } else if (type === "alert") {
-      title = "Security Alert";
-      description = "A new device signed into your TallySpends account.";
-      route = "/settings-security";
-      direction = null;
-    } else if (type === "insight") {
-      title = "App Update";
-      description = "A new TallySpends feature is now available.";
-      route = "/insightssum";
-      direction = null;
-    } else {
-      title = "Upcoming Subscription";
-      description = "Your monthly internet subscription is due in 2 days.";
-      route = undefined;
-      direction = null;
-    }
-    await addNotification({ type, title, description, ...(route ? { route } : {}), ...(direction ? { transactionDirection: direction } : {}), ...(type === "transaction" ? { amount: 15000 } : {}) });
-    await scheduleInstantLocalNotification({ title: `🔔 ${title}`, body: description, data: { route }, delaySeconds: 2 });
-  };
 
   const iconFor = (item: NotificationItem) => {
     if (item.type === "transaction") {
@@ -174,27 +150,27 @@ export default function NotificationsScreen() {
     {__DEV__ && <View style={[s.testStrip, { backgroundColor: theme.surface, borderColor: theme.border }]}>
       <View style={[s.testIcon, { backgroundColor: theme.accentSoft }]}><Ionicons name="notifications-outline" size={15} color={theme.accent} /></View>
       <View style={{ flex: 1 }}><Text style={{ color: theme.textPrimary, fontSize: 11, fontWeight: "700" }}>Test notifications</Text><Text style={{ color: theme.textSecondary, fontSize: 9, marginTop: 2 }}>{expoPushToken ? "Push token ready" : "Local test alert"}</Text></View>
-      <TouchableOpacity accessibilityRole="button" onPress={() => void handleSendTestPush("transaction")} style={[s.testButton, { backgroundColor: theme.accent }]}><Ionicons name="paper-plane-outline" size={12} color={theme.onAccent} /><Text style={{ color: theme.onAccent, fontSize: 10, fontWeight: "700" }}>Test (2s)</Text></TouchableOpacity>
       {expoPushToken && <TouchableOpacity accessibilityRole="button" accessibilityLabel="Copy push token" onPress={async () => { await Clipboard.setStringAsync(expoPushToken); Alert.alert("Copied", "Expo push token copied."); }} style={s.copyButton}><Ionicons name="copy-outline" size={15} color={theme.textSecondary} /></TouchableOpacity>}
     </View>}
 
-    <FlatList
+    <ScrollView
       horizontal
-      data={filters}
-      keyExtractor={item => item.key}
+      style={s.filterStrip}
       showsHorizontalScrollIndicator={false}
       contentContainerStyle={s.filters}
-      renderItem={({ item }) => {
+    >
+      {filters.map(item => {
         const selected = activeFilter === item.key;
-        return <TouchableOpacity accessibilityRole="tab" accessibilityState={{ selected }} accessibilityLabel={`${item.label}, ${item.count} notifications`} onPress={() => { setActiveFilter(item.key); void Haptics.selectionAsync().catch(() => {}); }} style={[s.filter, { backgroundColor: selected ? theme.accent : theme.surface, borderColor: selected ? theme.accent : theme.border }]}>
+        return <TouchableOpacity key={item.key} accessibilityRole="tab" accessibilityState={{ selected }} accessibilityLabel={`${item.label}, ${item.count} notifications`} onPress={() => { setActiveFilter(item.key); void Haptics.selectionAsync().catch(() => {}); }} style={[s.filter, { backgroundColor: selected ? theme.accent : theme.surface, borderColor: selected ? theme.accent : theme.border }]}>
           <Text style={{ color: selected ? theme.onAccent : theme.textPrimary, fontWeight: selected ? "700" : "500", fontSize: 11 }}>{item.label}</Text>
           <Text style={{ color: selected ? theme.onAccent : theme.textSecondary, fontSize: 9, opacity: selected ? .82 : .9 }}>{item.count}</Text>
         </TouchableOpacity>;
-      }}
-    />
+      })}
+    </ScrollView>
 
     <FlatList
       data={feed}
+      style={s.feed}
       keyExtractor={entry => entry.id}
       contentContainerStyle={s.list}
       showsVerticalScrollIndicator={false}
@@ -222,25 +198,10 @@ export default function NotificationsScreen() {
           <MenuAction icon="checkmark-done-outline" label="Mark all as read" theme={theme} onPress={() => { setShowMenu(false); void markAllNotificationsAsRead(); }} />
           <MenuAction icon="mail-open-outline" label="Clear read notifications" theme={theme} onPress={confirmClearRead} />
           <MenuAction icon="trash-outline" label="Clear all notifications" destructive theme={theme} onPress={confirmClearAll} />
-          {__DEV__ && <MenuAction icon="flask-outline" label="Simulate a notification" theme={theme} onPress={() => { setShowMenu(false); setShowSimulatorModal(true); }} />}
-        </View>
+                  </View>
       </Pressable>
     </Modal>
 
-    <Modal visible={showSimulatorModal} transparent animationType="fade" onRequestClose={() => setShowSimulatorModal(false)}>
-      <Pressable style={s.modalBackdrop} onPress={() => setShowSimulatorModal(false)}>
-        <View style={[s.simulator, { backgroundColor: theme.surface, borderColor: theme.border }]}>
-          <View style={s.simulatorHeading}><Text style={{ color: theme.textPrimary, fontSize: 16, fontWeight: "800" }}>Simulate notification</Text><TouchableOpacity accessibilityRole="button" accessibilityLabel="Close" onPress={() => setShowSimulatorModal(false)}><Ionicons name="close" size={22} color={theme.textPrimary} /></TouchableOpacity></View>
-          <Text style={{ color: theme.textSecondary, fontSize: 11, lineHeight: 17, marginBottom: 13 }}>Create a local sample and show a device notification.</Text>
-          {([
-            ["transaction", "Money received", "Incoming payment sample", "arrow-down-outline", "#16803D"],
-            ["alert", "Security alert", "Account safety sample", "notifications-outline", "#A67300"],
-            ["insight", "App update", "Feature announcement sample", "alert-circle-outline", "#777580"],
-            ["bill", "Reminder", "Upcoming subscription sample", "alert-circle-outline", "#777580"],
-          ] as const).map(([type, title, subtitle, icon, color]) => <TouchableOpacity key={type} accessibilityRole="button" onPress={() => void handleSendTestPush(type)} style={[s.simulatorOption, { borderColor: theme.border, backgroundColor: theme.background }]}><Ionicons name={icon} size={19} color={color} /><View style={{ flex: 1 }}><Text style={{ color: theme.textPrimary, fontSize: 12, fontWeight: "700" }}>{title}</Text><Text style={{ color: theme.textSecondary, fontSize: 10, marginTop: 3 }}>{subtitle}</Text></View><Ionicons name="chevron-forward" size={15} color={theme.textSecondary} /></TouchableOpacity>)}
-        </View>
-      </Pressable>
-    </Modal>
   </SafeAreaView>;
 }
 
@@ -260,8 +221,12 @@ const s = StyleSheet.create({
   testIcon: { width: 30, height: 30, borderRadius: 10, alignItems: "center", justifyContent: "center" },
   testButton: { minHeight: 30, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 5, borderRadius: 11, paddingHorizontal: 10 },
   copyButton: { padding: 7 },
-  filters: { paddingHorizontal: 16, paddingTop: 11, paddingBottom: 10, gap: 7 },
-  filter: { minHeight: 30, borderWidth: 1, borderRadius: 20, paddingHorizontal: 11, flexDirection: "row", alignItems: "center", gap: 6 },
+  // Only the feed should flex into remaining space. These four controls have
+  // intrinsic height, including when the feed is empty or being refreshed.
+  filterStrip: { flexGrow: 0, flexShrink: 0 },
+  filters: { paddingHorizontal: 16, paddingTop: 11, paddingBottom: 10, gap: 7, alignItems: "center" },
+  filter: { minHeight: 30, flexShrink: 0, alignSelf: "center", borderWidth: 1, borderRadius: 20, paddingHorizontal: 11, flexDirection: "row", alignItems: "center", gap: 6 },
+  feed: { flex: 1 },
   list: { paddingHorizontal: 16, paddingTop: 2, paddingBottom: 28, gap: 8 },
   groupHeading: { fontSize: 10, fontWeight: "700", marginTop: 8, marginBottom: 1 },
   card: { borderRadius: 15, borderWidth: StyleSheet.hairlineWidth, padding: 11, minHeight: 76, flexDirection: "row", alignItems: "center" },

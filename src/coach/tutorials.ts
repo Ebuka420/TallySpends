@@ -37,7 +37,7 @@ export const TUTORIALS: Record<TutorialPage, TourStep[]> = {
     { target: "analytics-spending", message: "Explore your spending patterns using the data recorded in your account." },
   ],
   profile: [
-    { target: "profile-completion", message: "This section shows what is still needed to complete your profile. Secure NIN verification and address updates will become available here when the app can submit and sync them safely." },
+    { target: "profile-completion", message: "Open Complete your profile to save your residential address. NIN and BVN verification are coming soon." },
   ],
 };
 

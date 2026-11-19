@@ -1,4 +1,5 @@
 const assert = require("node:assert/strict");
+require("../testStorage.cjs");
 const fs = require("node:fs");
 const ts = require("typescript");
 const Module = require("node:module");
@@ -9,6 +10,7 @@ require.extensions[".ts"] = (module, filename) => {
 };
 const { BankRequestError, bankBackend, createBankRequest, getMonoAuthCode, parseLinkedAccounts } = require("./backend.ts");
 (async () => {
+  const account = { id: 12, name: "Test Bank", type: "Bank", currency: "NGN", isDefault: false, status: "Linked", balance: 125, lastSyncedAt: "2026-11-15T00:00:00Z" };
   assert.equal(getMonoAuthCode({ getAuthCode: () => "temporary-code" }), "temporary-code");
   assert.equal(getMonoAuthCode({ code: "fallback-code" }), "fallback-code");
   assert.throws(() => getMonoAuthCode({ id: "account-id" }), /authorization code/);
@@ -16,7 +18,7 @@ const { BankRequestError, bankBackend, createBankRequest, getMonoAuthCode, parse
   const exchangeCalls = [];
   await bankBackend.confirmConnection("temporary-code", async (path, options) => {
     exchangeCalls.push({ path, options });
-    return { success: true };
+    return account;
   });
   assert.equal(exchangeCalls[0].path, "/api/bank-accounts/link");
   assert.equal(exchangeCalls[0].options.method, "POST");
@@ -26,7 +28,7 @@ const { BankRequestError, bankBackend, createBankRequest, getMonoAuthCode, parse
   await assert.rejects(bankBackend.listAccounts(async path => {
     assert.equal(path, "/api/bank-accounts");
     return [{ id: "bank-1", bankName: "Test Bank", accountName: "Test User", accountNumber: "1234567890" }];
-  }), /confirmed GET \/api\/bank-accounts response schema/);
+  }), /Couldn't read linked bank accounts/);
   assert.deepEqual(await bankBackend.listAccounts(async path => {
     assert.equal(path, "/api/bank-accounts");
     return [];
@@ -50,13 +52,17 @@ const { BankRequestError, bankBackend, createBankRequest, getMonoAuthCode, parse
       if (url.endsWith("/api/bank-accounts/link")) {
         assert.equal(options.method, "POST");
         assert.deepEqual(JSON.parse(options.body), { monoCode: "mono-temporary-code" });
-        return new Response(JSON.stringify({ success: true }), { status: 200 });
+        return new Response(JSON.stringify(account), { status: 200 });
       }
       assert.ok(url.endsWith("/api/bank-accounts"));
-      return new Response(JSON.stringify([{ id: "linked-1", bankName: "Test Bank", accountName: "Test User", accountNumber: "1234567890", availableBalance: 125, currency: "NGN" }]));
+      return new Response(JSON.stringify([account]));
     });
   await bankBackend.confirmConnection(getMonoAuthCode({ getAuthCode: () => "mono-temporary-code" }), roundTrip);
-  await assert.rejects(bankBackend.listAccounts(roundTrip), /response schema/);
+  const linked = await bankBackend.listAccounts(roundTrip);
+  assert.equal(linked[0].id, "12"); assert.equal(linked[0].availableBalance, 125);
+  assert.equal(linked[0].accountName, undefined);
+  assert.equal((await bankBackend.listAccounts(async () => [{ ...account, balance: null, lastSyncedAt: null }]))[0].availableBalance, undefined);
+  assert.equal((await bankBackend.listAccounts(async () => [{ ...account, status: "Disconnected" }]))[0].availableBalance, undefined);
   assert.equal(roundTripCalls.length, 2);
   assert.equal(roundTripCalls[1].options.cache, "no-store");
   assert.equal(roundTripCalls[0].options.redirect, "error");

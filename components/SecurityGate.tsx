@@ -3,6 +3,7 @@ import { createContext, useContext, useEffect, useEffectEvent, useLayoutEffect, 
 import { ActivityIndicator, Alert, AppState, Modal, Pressable, Text, View } from "react-native";
 import { getProfileSnapshot, loadAccountProfile, subscribeProfile } from "../src/profile/repository";
 import { verifyAccountPassword } from "../src/security/api";
+import { replaceSessionTokens } from "../src/session";
 import { createPin, readPin, verifyPin, writePin } from "../src/security/pin";
 import { createConfirmation } from "../src/security/confirmation";
 import { createAwayPolicy } from "../src/security/away";
@@ -125,7 +126,9 @@ function SecuritySession({ children, authenticated }: { children: ReactNode; aut
     try {
       const session = await verifyAccountPassword(owner, profile.profile.email || profile.profile.tallyTag, password, controller.signal);
       assertCurrent(owner, generation);
-      await login(session.token, session.refreshToken || profile.refreshToken || undefined);
+      if (!session.refreshToken) throw new Error("The server didn't return a renewed session. Sign in again.");
+      await replaceSessionTokens({ token: session.token, refreshToken: session.refreshToken });
+      await login(session.token, session.refreshToken);
       assertCurrent(owner, generation); recovering.current = owner;
     } finally { clearTimeout(timeout); }
   };

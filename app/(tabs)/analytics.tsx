@@ -1,11 +1,15 @@
 import { useThemeTokens } from "../../src/ThemeExperience";
 import { AnalyticsReportSheet } from "../../components/AnalyticsReportSheet";
-import { analyticsRange, analyticsReport } from "../../src/analytics/report";
-import { spendingRhythm } from "../../src/analytics/rhythm";
+import { analyticsRange } from "../../src/analytics/report";
+import { dashboardReport, dashboardRhythm } from "../../src/analytics/dashboard";
+import { useApi } from "../../src/useApi";
+import { fetchAnalytics, refreshBackendAnalytics, PERIOD_TYPE_MAP, type AnalyticsDashboard } from "../../src/analytics/api";
 import { Ionicons } from "@expo/vector-icons";
-import React, { useMemo, useRef, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import {
   Modal,
+  ActivityIndicator,
+  RefreshControl,
   SafeAreaView,
   ScrollView,
   StyleSheet,
@@ -37,7 +41,7 @@ const options: Record<Timeframe, string[]> = {
     "Nov",
     "Dec",
   ],
-  yearly: ["2024", "2025", "2026"],
+  yearly: Array.from({ length: 5 }, (_, index) => String(new Date().getFullYear() - index)),
 };
 
 const categoryMeta: Record<
@@ -78,9 +82,14 @@ const categoryMeta: Record<
 };
 
 export default function AnalyticsScreen() {
-  const { transactions: rawTransactions = [], themeMode, budgetWallet, budgetError, transactionFeedError, refreshTransactions } = useAppStore();
-
-  const transactions = rawTransactions as any[];
+  const { themeMode } = useAppStore();
+  const api = useApi();
+  const [loaded, setLoaded] = useState<{ key: string; data: AnalyticsDashboard } | null>(null);
+  const [analyticsError, setAnalyticsError] = useState<string | null>(null);
+  const [analyticsLoading, setAnalyticsLoading] = useState(true);
+  const [reload, setReload] = useState(0);
+  const refreshRequested = useRef(false);
+  const reloadAnalytics = () => { refreshRequested.current = true; setReload(value => value + 1); };
 
   const theme = useThemeTokens();
   const tutorialScrollRef = useRef<any>(null);
@@ -178,15 +187,35 @@ export default function AnalyticsScreen() {
     return period;
   }, [period, timeframe]);
 
-  const report = useMemo(() => analyticsReport(transactions, analyticsRange(timeframe, period)), [transactions, timeframe, period]);
-  const filteredTransactions = report.selected;
-  const rhythm = useMemo(() => spendingRhythm(report.selected), [report]);
+  const anchorDate = useMemo(() => {
+    const start = analyticsRange(timeframe, period).start;
+    return `${start.getFullYear()}-${String(start.getMonth() + 1).padStart(2, '0')}-${String(start.getDate()).padStart(2, '0')}T12:00:00Z`;
+  }, [timeframe, period]);
+  const selectionKey = JSON.stringify([api.owner, timeframe, anchorDate, reload]);
+  const backendAnalytics = loaded?.key === selectionKey ? loaded.data : null;
+  useEffect(() => {
+    let active = true;
+    const refresh = refreshRequested.current;
+    refreshRequested.current = false;
+    setAnalyticsLoading(true);
+    setAnalyticsError(null);
+    setShowSharePreview(false);
+    api.run((request) => (refresh ? refreshBackendAnalytics : fetchAnalytics)(request, PERIOD_TYPE_MAP[timeframe], anchorDate))
+      .then((data) => {
+        dashboardReport(data, timeframe);
+        if (active) setLoaded({ key: selectionKey, data });
+      })
+      .catch((error) => {
+        if (active) { setLoaded(null); setAnalyticsError(error instanceof Error ? error.message : 'Could not load analytics.'); }
+      }).finally(() => { if (active) setAnalyticsLoading(false); });
+    return () => {
+      active = false;
+    };
+  }, [selectionKey, timeframe, anchorDate, reload, api.run]);
 
-  const totals = useMemo(() => ({
-    income: report.income / 100,
-    spent: report.spent / 100,
-    net: report.net / 100,
-  }), [report]);
+  const report = useMemo(() => backendAnalytics ? dashboardReport(backendAnalytics, timeframe) : null, [backendAnalytics, timeframe]);
+  const rhythm = useMemo(() => backendAnalytics ? dashboardRhythm(backendAnalytics) : null, [backendAnalytics]);
+  const totals = { income: backendAnalytics?.totals.totalIncome ?? 0, spent: backendAnalytics?.totals.totalExpenses ?? 0, net: (report?.net ?? 0) / 100 };
 
   const formatCurrency = (value: number) => {
     const isClean = value % 1 === 0 || Math.abs(value) >= 1000;
@@ -197,37 +226,20 @@ export default function AnalyticsScreen() {
   };
 
   const categoryTotals = useMemo(() => {
-    const categoryMap: Record<string, number> = {};
-    let expenseTotal = 0;
-
-    filteredTransactions.forEach((tx) => {
-      if (tx.type !== "expense") {
-        return;
-      }
-
-      const amount = Number(tx.amount || 0);
-
-      categoryMap[tx.category] = (categoryMap[tx.category] || 0) + amount;
-
-      expenseTotal += amount;
-    });
-
-    return Object.entries(categoryMap)
-      .sort((a, b) => b[1] - a[1])
+    return [...(backendAnalytics?.categorySummaries ?? [])]
+      .sort((a, b) => b.totalSpent - a.totalSpent)
       .slice(0, 4)
-      .map(([name, amount], index) => ({
-        name,
-        amount,
-        share: expenseTotal
-          ? `${Math.round((amount / expenseTotal) * 100)}%`
-          : "0%",
-        icon: categoryMeta[name]?.icon ?? "ellipsis-horizontal",
+      .map((category, index) => ({
+        name: category.categoryName,
+        amount: category.totalSpent,
+        share: `${Math.round(category.percentageOfExpenses)}%`,
+        icon: categoryMeta[category.categoryName]?.icon ?? "ellipsis-horizontal",
         tint: theme.accentSoft,
         chartColor: theme.chart[index % theme.chart.length],
       }));
-  }, [filteredTransactions, theme]);
+  }, [backendAnalytics, theme]);
 
-  const chartPoints = useMemo(() => report.chart.map(point => ({ label: point.label, value: point.amount / 100 })), [report]);
+  const chartPoints = useMemo(() => report?.chart.map(point => ({ label: point.label, value: point.amount / 100 })) ?? [], [report]);
 
   const maxPoint = Math.max(...chartPoints.map((point) => point.value), 1);
 
@@ -273,6 +285,7 @@ export default function AnalyticsScreen() {
       ]}
     >
       <ScrollView
+        refreshControl={<RefreshControl refreshing={analyticsLoading} onRefresh={reloadAnalytics} tintColor={colors.primary} />}
         ref={tutorialScrollRef}
         onScroll={event => { tutorialScrollOffset.current = event.nativeEvent.contentOffset.y; }}
         scrollEventThrottle={16}
@@ -293,6 +306,7 @@ export default function AnalyticsScreen() {
               },
             ]}
             onPress={() => setShowSharePreview(true)}
+            disabled={!report || analyticsLoading}
             accessibilityRole="button"
             accessibilityLabel="Share analytics report"
           >
@@ -304,9 +318,10 @@ export default function AnalyticsScreen() {
           </TouchableOpacity>
         </View>
 
-        {transactionFeedError && <TouchableOpacity accessibilityRole="button" onPress={() => void refreshTransactions(true).catch(() => {})} style={{ marginBottom: 14, borderRadius: 12, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.surface, padding: 12 }}>
-          <Text style={{ color: colors.textMuted, fontSize: 11 }}>Couldn’t refresh backend transactions. Tap to retry; saved manual entries remain available.</Text>
+        {analyticsError && <TouchableOpacity accessibilityRole="button" onPress={reloadAnalytics} style={{ marginBottom: 14, borderRadius: 12, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.surface, padding: 12 }}>
+          <Text accessibilityLiveRegion="polite" style={{ color: colors.textMuted, fontSize: 12 }}>{analyticsError} Tap to retry.</Text>
         </TouchableOpacity>}
+        {analyticsLoading && <View style={{ padding: 16 }}><ActivityIndicator color={colors.primary} /><Text style={{ textAlign: 'center', color: colors.textMuted }}>Loading your analytics…</Text></View>}
 
         <TutorialTarget id="analytics-period" scrollRef={tutorialScrollRef} scrollOffsetRef={tutorialScrollOffset}><View style={styles.controls}>
           <View
@@ -375,7 +390,7 @@ export default function AnalyticsScreen() {
           </TouchableOpacity>
         </View></TutorialTarget>
 
-        <TutorialTarget id="analytics-cashflow" scrollRef={tutorialScrollRef} scrollOffsetRef={tutorialScrollOffset}><View
+        {report && rhythm && <><TutorialTarget id="analytics-cashflow" scrollRef={tutorialScrollRef} scrollOffsetRef={tutorialScrollOffset}><View
           style={[
             styles.hero,
             {
@@ -428,7 +443,7 @@ export default function AnalyticsScreen() {
               },
             ]}
           >
-            {report.range.label} · {report.count} recorded {report.count === 1 ? "transaction" : "transactions"}
+            {report.range.label} · {report.expenseCount} recorded {report.expenseCount === 1 ? "expense" : "expenses"}
           </Text>
         </View></TutorialTarget>
 
@@ -746,7 +761,7 @@ export default function AnalyticsScreen() {
                 },
               ]}
             >
-              A pattern in your spending
+              {backendAnalytics?.insights?.[0]?.title || "A pattern in your spending"}
             </Text>
 
             <Text
@@ -757,7 +772,7 @@ export default function AnalyticsScreen() {
                 },
               ]}
             >
-              {report.takeaway}
+              {backendAnalytics?.insights?.[0]?.message || backendAnalytics?.financialHealth?.recommendation || report.takeaway}
             </Text>
           </View>
 
@@ -811,6 +826,7 @@ export default function AnalyticsScreen() {
           </View>
           {rhythm.note && <Text style={[styles.heatLabelsText, { color: colors.textMuted, paddingHorizontal: 15, paddingBottom: 15 }]}>{rhythm.note}</Text>}
         </View>
+        </>}
       </ScrollView>
 
       <Modal
@@ -887,7 +903,7 @@ export default function AnalyticsScreen() {
         </TouchableWithoutFeedback>
       </Modal>
 
-      <AnalyticsReportSheet visible={showSharePreview} onClose={() => setShowSharePreview(false)} report={report} theme={theme} dark={isDark} ready={!!budgetWallet && !budgetError} />
+      {report && <AnalyticsReportSheet visible={showSharePreview} onClose={() => setShowSharePreview(false)} report={report} theme={theme} dark={isDark} ready={!analyticsLoading && !analyticsError} />}
     </SafeAreaView>
   );
 }

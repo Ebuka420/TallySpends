@@ -235,7 +235,7 @@ const ReportCard = forwardRef<ViewInstance, {
     </View>
     <View style={s.reportBody}>
       <View style={[s.metrics, custom && { backgroundColor: theme.accentSoft, borderRadius: look === "ocean" ? 8 : 16, padding: 13, borderBottomWidth: 0 }]}><View style={s.metric}><Text style={s.metricLabel}>MONEY IN</Text><Text numberOfLines={1} adjustsFontSizeToFit style={s.metricValue}>{reportMoney(report.income)}</Text><Text style={s.metricNote}>Recorded income</Text></View><View style={s.metricDivider} /><View style={s.metric}><Text style={s.metricLabel}>NET FLOW</Text><Text numberOfLines={1} adjustsFontSizeToFit style={s.metricValue}>{reportMoney(report.net)}</Text><Text style={s.metricNote}>Income minus spending</Text></View></View>
-      <View style={s.sectionHeading}><Text style={s.sectionTitle}>The spending rhythm</Text><Text style={s.sectionMeta}>{report.range.timeframe === "weekly" ? "BY DAY" : report.range.timeframe === "yearly" ? "BY MONTH" : "BY WEEK"}</Text></View>
+      <View style={s.sectionHeading}><Text style={s.sectionTitle}>The spending rhythm</Text><Text style={s.sectionMeta}>{report.countKind === "expense" ? "REPORTED TREND" : report.range.timeframe === "weekly" ? "BY DAY" : report.range.timeframe === "yearly" ? "BY MONTH" : "BY WEEK"}</Text></View>
       <View style={s.chart}>{report.chart.map((point, index) => <View key={index} style={s.chartColumn}><View style={s.barTrack}><View style={{
               height: point.amount ? `${Math.max(3, point.amount / max * 100)}%` : 2,
               width: "100%",
@@ -254,7 +254,7 @@ const ReportCard = forwardRef<ViewInstance, {
       <View style={[s.takeaway, custom && { backgroundColor: theme.accentSoft, borderLeftWidth: 3, borderLeftColor: theme.accent }]}><Ionicons name="sparkles-outline" size={18} color={theme.accent} /><View style={{
           flex: 1
         }}><Text style={s.takeawayLabel}>THE TAKEAWAY</Text><Text style={s.takeawayText}>{report.takeaway}</Text></View></View>
-      <View style={s.reportFooter}><Text style={s.footerTag}>Your money. Your story.</Text><Text style={s.footerCount}>{report.count} {report.count === 1 ? "transaction" : "transactions"}</Text></View>
+      <View style={s.reportFooter}><Text style={s.footerTag}>Your money. Your story.</Text><Text style={s.footerCount}>{report.count} {report.countKind === "expense" ? (report.count === 1 ? "expense" : "expenses") : (report.count === 1 ? "transaction" : "transactions")}</Text></View>
     </View>
   </View>;
 });

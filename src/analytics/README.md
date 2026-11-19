@@ -1,5 +1,25 @@
 # Shareable analytics report
 
+## Backend integration — 19 November 2026
+
+Before loading or refreshing a summary, the adapter checks transaction sources.
+The current Mono integration is sandbox-only; accounts containing `BankSync`
+records get an explicit unavailable state instead of a contaminated personal
+summary or export. This restriction can be lifted once the backend separates
+sandbox and real activity. The Expenses feed already excludes sandbox records.
+
+The active Analytics screen and export now use one validated `/api/analytics`
+response. Period changes send `periodType` and `anchorDate`; explicit refresh
+uses `/api/analytics/refresh` with the same selection. Displayed date boundaries
+come from the server. Errors show retry UI instead of silently displaying
+transaction-derived totals. Zero totals remain zero. Stale account/period
+snapshots are hidden immediately. The shared report labels the category-derived
+count as **expenses**, not all transactions. Hourly rhythm aggregates the server's
+heatmap counts and uses the server reporting timezone. No missing time is invented.
+
+The transaction-based pure report/rhythm helpers described below remain useful
+for their isolated tests; they are no longer the active dashboard data source.
+
 `AnalyticsReportSheet` previews and captures the same report card at 1200 pixels
 wide. The style gallery offers the original Signature and Paper looks, plus
 Prism (violet/confetti), Ocean (blue/grid), Sage (green/leaves) and Sunset

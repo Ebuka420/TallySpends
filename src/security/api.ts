@@ -1,4 +1,5 @@
 import { API_URL } from "../api";
+import { refreshSession, replaceSessionTokens } from "../session";
 import { profileScope } from "../profile/model";
 export async function verifyAccountPassword(owner: string, identifier: string, password: string, signal: AbortSignal, send: typeof fetch = fetch) {
   if (!API_URL.startsWith("https://")) throw new Error("Secure account verification is unavailable.");
@@ -19,16 +20,18 @@ export async function changePassword(token: string, currentPassword: string, new
     headers: { "Content-Type": "application/json", Authorization: "Bearer " + token }, body: JSON.stringify({ currentPassword, newPassword }) });
   let response = await request();
   if (response.status === 401 && session?.refreshToken) {
-    const refreshed = await send(API_URL + "/api/auth/refresh", { method: "POST", signal, redirect: "error", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ refreshToken: session.refreshToken }) });
-    const data = refreshed.ok ? await refreshed.json().catch(() => null) : null;
-    const next = data?.accessToken || data?.token;
-    if (typeof next === "string" && next.trim()) {
-      token = next; await session.saveTokens(token, typeof data.refreshToken === "string" ? data.refreshToken : session.refreshToken);
-      response = await request();
-    }
+    const next = await refreshSession(session.refreshToken, signal, send);
+    token = next.token; await session.saveTokens(next.token, next.refreshToken);
+    response = await request();
   }
   if (!response.ok) throw new Error(response.status === 401 ? "Your session expired or your current password is incorrect. Sign in and try again."
     : response.status === 400 ? "The server rejected the password change. Check your current password and use a stronger new password."
     : response.status === 429 ? "Too many requests. Please wait and try again." : "Couldn't change your password. Please try again.");
   if (![200, 204].includes(response.status)) throw new Error("The server hasn't confirmed the password change. Please check before retrying.");
+  if (response.status === 200 && session) {
+    const data = await response.json().catch(() => null);
+    if (typeof data?.accessToken !== "string" || typeof data?.refreshToken !== "string") throw new Error("Password changed, but the renewed session could not be read. Sign in with your new password.");
+    await replaceSessionTokens({ token: data.accessToken, refreshToken: data.refreshToken });
+    await session.saveTokens(data.accessToken, data.refreshToken);
+  }
 }

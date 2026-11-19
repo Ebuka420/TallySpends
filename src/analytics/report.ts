@@ -89,7 +89,7 @@ export function analyticsReport(transactions: Transaction[], range: ReturnType<t
     takeaway: top ? `${top.name} made up ${Math.round(top.share * 100)}% of your spending this period.` : records.length ? "Money came in, with no spending recorded in this period." : "A quiet page. No transactions recorded in this period yet."
   };
 }
-export type AnalyticsReport = ReturnType<typeof analyticsReport>;
+export type AnalyticsReport = ReturnType<typeof analyticsReport> & { countKind?: "expense" };
 export function reportText(report: AnalyticsReport) {
-  return [`TallySpends · ${report.range.label}`, "Your money, in focus.", "", `Money out: ${reportMoney(report.spent)}`, `Money in: ${reportMoney(report.income)}`, `Net flow: ${reportMoney(report.net)} (income minus spending)`, `${report.count} recorded transactions`, "", "Where it went", ...report.breakdown.map(row => `${row.name}: ${reportMoney(row.amount)} · ${Math.round(row.share * 100)}%`), "", report.takeaway].join("\n");
+  return [`TallySpends · ${report.range.label}`, "Your money, in focus.", "", `Money out: ${reportMoney(report.spent)}`, `Money in: ${reportMoney(report.income)}`, `Net flow: ${reportMoney(report.net)} (income minus spending)`, `${report.count} recorded ${report.countKind === "expense" ? "expenses" : "transactions"}`, "", "Where it went", ...report.breakdown.map(row => `${row.name}: ${reportMoney(row.amount)} · ${Math.round(row.share * 100)}%`), "", report.takeaway].join("\n");
 }

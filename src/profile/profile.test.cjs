@@ -11,6 +11,7 @@ const storage = {
   setItem: async (key, value) => { values.set(key, value); },
   multiGet: async keys => keys.map(key => [key, values.get(key) ?? null]),
   multiSet: async pairs => pairs.forEach(([key, value]) => values.set(key, value)),
+  multiRemove: async keys => keys.forEach(key => values.delete(key)),
 };
 const originalLoad = Module._load;
 let failPhotoRead = false;
@@ -30,6 +31,7 @@ const { installFormDataPatch } = require("../../node_modules/expo/src/winter/For
 const { convertFormDataAsync } = require("../../node_modules/expo/src/winter/fetch/convertFormData.ts");
 global.FormData = installFormDataPatch(NativeFormData);
 const { profileScope, parseProfile, cachedProfile } = require("./model.ts");
+const { addressRequest, emptyAddress, formatAddress } = require("./address.ts");
 const { createProfileRequest } = require("./api.ts");
 const repo = require("./repository.ts");
 const response = (data, status = 200) => ({ status, ok: status >= 200 && status < 300, json: async () => data });
@@ -47,6 +49,17 @@ async function main() {
   assert.equal("nickname" in oldCache, false);
   assert.equal(oldCache.gender, ""); assert.equal(oldCache.dob, ""); assert.equal(oldCache.address, "");
   assert.equal(oldCache.fullName, "Server name");
+  const address = { line1: "12 Palm Street, Block A", line2: "Flat 2", city: "Lagos", state: "Lagos", postalCode: "100001", country: "Nigeria" };
+  const displayAddress = formatAddress(address);
+  assert.deepEqual(parseProfile({ address }), { address: displayAddress, addressDetails: address });
+  assert.deepEqual(parseProfile({ address: null }), { address: "", addressDetails: null });
+  assert.deepEqual(parseProfile({ address: displayAddress }), { address: displayAddress, addressDetails: null });
+  assert.deepEqual(parseProfile({ address: { ...address, line2: null, postalCode: null } }).addressDetails, { ...address, line2: "", postalCode: "" });
+  assert.throws(() => parseProfile({ address: { ...address, city: 123 } }), /Couldn't read the address/);
+  assert.throws(() => addressRequest(emptyAddress), /street address/);
+  assert.throws(() => addressRequest(displayAddress), /Couldn't read the address/);
+  assert.deepEqual(addressRequest({ ...address, line1: "  " + address.line1 + "  ", nin: "must-not-send" }), address);
+  assert.equal(cachedProfile({ address: displayAddress, addressDetails: address }).addressDetails, null);
   values.set("ts_profile_image", "file:///legacy-other-person.jpg");
   values.set("ts_profile_fullname", "Legacy other person");
   let account = { fullName: "Account A", email: "1@example.com", tallyTag: "accountA", avatarUrl: "https://example.com/a.jpg", phoneNumber: "111" };
@@ -72,10 +85,34 @@ async function main() {
   await repo.updateAccountProfile({ fullName: "Renamed A" });
   assert.equal(repo.getProfileSnapshot().profile.fullName, "Renamed A");
   assert.equal(JSON.parse(calls.find(call => call.init.method === "PATCH").init.body).fullName, "Renamed A");
-  await repo.updateAccountProfile({ address: "12 Palm Street, Lagos, Lagos, Nigeria" });
-  assert.equal(repo.getProfileSnapshot().profile.address, "12 Palm Street, Lagos, Lagos, Nigeria");
-  assert.equal(JSON.parse(calls.filter(call => call.init.method === "PATCH").at(-1).init.body).address, "12 Palm Street, Lagos, Lagos, Nigeria");
+  await repo.updateAccountProfile({ address });
+  assert.equal(repo.getProfileSnapshot().profile.address, displayAddress);
+  assert.deepEqual(repo.getProfileSnapshot().profile.addressDetails, address);
+  assert.deepEqual(JSON.parse(calls.filter(call => call.init.method === "PATCH").at(-1).init.body), { address });
   assert.equal(JSON.parse(values.get("ts_account_profile_v1_id%3A1")).address, "", "Residential address is fetched from the backend instead of persisted in the profile cache");
+  assert.equal(JSON.parse(values.get("ts_account_profile_v1_id%3A1")).addressDetails, null);
+  const addressCalls = calls.length;
+  await assert.rejects(repo.updateAccountProfile({ address: displayAddress }), /Couldn't read the address/);
+  await assert.rejects(repo.updateAccountProfile({ address: { ...address, city: " " } }), /street address/);
+  assert.equal(calls.length, addressCalls, "Invalid addresses must not issue a PATCH");
+  const addressFetch = global.fetch;
+  for (const returnedAddress of [undefined, null, { ...address, city: "Different city" }]) {
+    global.fetch = async (_url, init) => response(init.method === "PATCH" ? {} : { fullName: "Renamed A", ...(returnedAddress !== undefined ? { address: returnedAddress } : {}) });
+    await assert.rejects(repo.updateAccountProfile({ address }), /hasn't returned the saved address/);
+    assert.deepEqual(repo.getProfileSnapshot().profile.addressDetails, address, "Unconfirmed saves must not replace the previous address");
+  }
+  global.fetch = async (_url, init) => {
+    if (init.method === "PATCH") return response({});
+    throw new Error("Read-back offline");
+  };
+  await assert.rejects(repo.updateAccountProfile({ address }), /address update was accepted.*couldn't be reloaded/);
+  global.fetch = addressFetch;
+  // Clearing an address on the server must not leave the old address visible.
+  account.address = null;
+  await repo.loadAccountProfile(true);
+  assert.equal(repo.getProfileSnapshot().profile.address, "");
+  assert.equal(repo.getProfileSnapshot().profile.addressDetails, null);
+  await repo.updateAccountProfile({ address });
   await repo.updateAccountProfile({}, { uri: "file:///picked.jpg", name: "picked.jpg", type: "image/jpeg" });
   assert.equal(repo.getProfileSnapshot().profile.avatarUrl, "https://example.com/uploaded.jpg");
   const uploadCalls = calls.length;

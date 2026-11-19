@@ -24,17 +24,22 @@
 - The authenticated GET feed is held in memory by signed-in account scope and
   refreshes on sign-in, app resume, dashboard/history focus, explicit refresh,
   and after successful SMS imports.
-- The same merged transaction feed powers transaction history, dashboard recent
-  activity, analytics, spending rhythm, and read-only budget spending summaries.
-- The existing local wallet, manual rows, budgets, receipts, savings, and
-  balances are not reset or migrated. Synced rows replace local rows with the
-  same stable ID; local rows with different IDs remain visible as `LocalManual`.
-  Untouched built-in sample transactions are hidden only after a successful
-  backend feed loads. Edited sample records are preserved. No fuzzy matching by
-  amount, date, or description is used.
+- The shared personal transaction feed powers Expenses, history, dashboard recent
+  activity and transaction-based insights. It contains validated server records
+  only; it never merges local demo records or seeds.
+- Bank linking currently supports Mono sandbox only. `BankSync` records are
+  excluded from personal income/expense totals at the shared API boundary, with
+  an excluded-record count scoped to the signed-in account. Manual and SMS
+  records retain their original amounts. Expenses explains the exclusion.
+  `src/banking/environment.ts` records this integration policy. Changing a Mono
+  key must not reclassify historical sandbox rows as real transactions.
+- Analytics uses a separate backend summary. Until that endpoint supports
+  excluding sandbox activity, it is unavailable for accounts with sandbox
+  `BankSync` rows, including report exports. No replacement health score,
+  trend or total is invented.
 - Budget spending is attributed only when category and date select exactly one
   budget (or an existing local transaction explicitly carries that budget ID).
-  This attribution is display-only and does not debit the demo wallet or alter
+  This attribution is display-only and does not debit a wallet or alter
   account balances. Null/ambiguous categories remain unattributed.
 - SMS results display backend status and counts only; full SMS text and parsed
   personal content are not put in the result text or AsyncStorage. A batch
@@ -46,12 +51,13 @@
 
 ## Remaining contract and release limits
 
-- The app's existing manual transaction entry writes only to its local wallet.
-  No successful POST `/api/transactions` create/update response contract was
-  supplied, so existing and new device-only manual rows are preserved locally
-  and are not uploaded. To make manual entry server-authoritative across
-  devices, the backend must document its authenticated create route, exact
-  request/response DTO, stable ID behavior, and idempotency key semantics.
+- Manual entry uses authenticated `POST /api/transactions`, validates the returned
+  ID, and confirms the new record via GET. Unknown POST results are not replayed.
+- Live banking needs backend account/transaction provenance identifying sandbox
+  versus live records, plus source-filtered analytics. Existing sandbox rows must
+  be identified and cleaned up server-side within the correct user's scope.
+  There is no documented transaction DELETE endpoint; the frontend has not
+  deleted backend records or attempted to infer real bank activity by amount.
 - The transaction DTO has `categoryName` but no category ID or budget ID. Exact
   category/date matching updates only unambiguous budget summaries; reliable
   budget assignment needs a stable category/budget reference from the backend.
@@ -67,7 +73,7 @@
 
 `node --test src/transactions/tracking.test.cjs` covers direct-array decoding,
 Income/Expense mapping, null values, malformed and non-NGN data, SMS response
-statuses/counters, message filtering, account-scoped feed refresh, local manual
-preservation, safe budget attribution, and no fuzzy duplicate matching. TypeScript
+statuses/counters, message filtering, account-scoped feed refresh, sandbox exclusion,
+preservation of manual/SMS records, and safe budget attribution. TypeScript
 `--noEmit` is also required. No authenticated production response or real SMS
 device test is performed by the unit suite.

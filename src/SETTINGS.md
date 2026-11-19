@@ -1,5 +1,10 @@
 # Settings implementation status
 
+Update, 19 November 2026: savings automation switches and the false Saved alert
+have been removed. The screen explains which automation is unavailable and opens
+server-backed savings goals. Native PIN/biometric security and password recovery
+are already implemented; statements below about their absence are historical.
+
 The separate Settings feedback route has been removed. Rate Us is retained.
 
 Dashboard section visibility, automatic ordering by active plan count, and private balance previews use `settings.ts`. Settings are persisted on this device only. Writes are serialized; failed writes do not publish a successful update. Dashboard settings and Private mode apply after Save Changes. Private mode hides the dashboard account balances, including during settings hydration.
